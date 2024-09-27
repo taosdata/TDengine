@@ -36,12 +36,31 @@ namespace TDPIConnector.Core
             elementModeTask.Start();
         }
 
-        public void InitTaskForElements(ref AFElementTemplateWrapper elementTemplate, ref TDSTable superTable, ref List<AFElementWrapper> elements, ref IEnumerable<TDColumn> templateAttributeColumns) {
+        /// <summary>
+        /// 初始化 Elemnt 任务
+        /// </summary>
+        /// <param name="elementTemplate"></param>
+        /// <param name="superTable"></param>
+        /// <param name="elements"></param>
+        /// <param name="templateAttributeColumns"></param>
+        /// <param name="liveBackfill">是否需要启动实时任务中的 backfill 任务。对于任务执行过程中新增的元素不需要</param>
+        public void InitTaskForElements(ref AFElementTemplateWrapper elementTemplate, 
+            ref TDSTable superTable, 
+            ref List<AFElementWrapper> elements, 
+            ref IEnumerable<TDColumn> templateAttributeColumns,
+            bool liveBackfill) {
             List<TDTable> tables = new List<TDTable>();
             List<AFAttribute> attries = new List<AFAttribute>();
             foreach (var element in elements) {
-                TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
-                tables.Add(table);
+                try
+                {
+                    TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
+                    tables.Add(table);
+                }
+                catch (Exception e)
+                {
+                    log.Error($"Convert element {element.Name} to TDTable failed.", e);
+                }
             }
             // 建子表
             tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
@@ -60,7 +79,7 @@ namespace TDPIConnector.Core
                 // 注册事件
                 elementModeTask.SignUpBatchAttributes(elementTemplate.Name, ref attries);
                 attries.Clear();
-                if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
+                if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0 && liveBackfill)
                 {
                     if (superTable.HasValidColumn())
                     {
@@ -73,7 +92,12 @@ namespace TDPIConnector.Core
             }
         }
 
-        public async Task AddNewElementToTaskAsync(AFElementWrapper element) {
+        /// <summary>
+        /// 实时任务中，添加新元素或者重新初始化元素
+        /// </summary>
+        /// <param name="element"></param>
+        /// <returns></returns>
+        public async Task AddOrRefreshElementToTaskAsync(AFElementWrapper element) {
             if (element.Template != null)
             {
                 AFElementTemplateWrapper elementTemplate = element.Template;
@@ -84,12 +108,12 @@ namespace TDPIConnector.Core
                 if (taosxClient == null)
                 {
                     await tdEngineProxy.CreateSuperTableForAFElement(AppSettings.tomlConfig.TDDataBase, superTable);
-                    log.Info($"New Element add event， create super table finished.");
+                    log.Info($"New Element add event. Create super table finished.");
                 }
 
                 var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
                 var elements = new List<AFElementWrapper>() { element };
-                InitTaskForElements(ref elementTemplate, ref superTable, ref elements, ref templateAttributeColumns);
+                InitTaskForElements(ref elementTemplate, ref superTable, ref elements, ref templateAttributeColumns, false);
             }
             else {
                 log.Info($"New Element is not in any template, skip.");
@@ -104,7 +128,7 @@ namespace TDPIConnector.Core
             // 创建超级表和 Client
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
-            //get all elements based on template
+            // 获取模板下的所有元素
             List<AFElementWrapper> elements = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, elementTemplate.Name).ToList();
             log.Info($"Found {elements.Count()} elements of template:{elementTemplate.Name}.");
 
@@ -116,7 +140,7 @@ namespace TDPIConnector.Core
                 chunks.Add(elements.GetRange(i, Math.Min(chunkSize, elements.Count - i)));
             }
 
-            var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
+            IEnumerable<TDColumn> templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
 
             List<Task> tasks = new List<Task>();
             int groups = 5;
@@ -124,7 +148,7 @@ namespace TDPIConnector.Core
             for (int i = 0; i < groups; ++i)
             {
                 int groupIndex = i;
-                tasks.Add(Task.Run(async () =>
+                tasks.Add(Task.Run(() =>
                 {
                     try {
                         Stopwatch stopwatch = new Stopwatch();
@@ -132,8 +156,8 @@ namespace TDPIConnector.Core
                         {
                             stopwatch.Reset();
                             stopwatch.Start();
-                            var elementChunk = chunks[j];
-                            InitTaskForElements(ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
+                            List<AFElementWrapper> elementChunk = chunks[j];
+                            InitTaskForElements(ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns, true);
                             Interlocked.Add(ref finishedCount, elementChunk.Count);
                             stopwatch.Stop();
                             TimeSpan elapsed = stopwatch.Elapsed;

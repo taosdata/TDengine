@@ -79,6 +79,7 @@ impl RestBuilder {
     }
 }
 
+#[allow(dead_code)]
 pub fn spawn_rest_service(
     pool: TaosPool,
     port: u16,

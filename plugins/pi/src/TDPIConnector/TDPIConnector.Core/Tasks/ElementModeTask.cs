@@ -89,9 +89,9 @@ namespace TDPIConnector.Core.Tasks
             this.piSystemManager = piSystemManager;
 
             log.Info("Process datapipe, AF Element Mode observer startting...");
-            this.task = new Task(async () =>
+            task = new Task(() =>
             {
-                this.afDataPipeWrapper = this.piSystemManager.InitSignuper(elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
+                afDataPipeWrapper = piSystemManager.InitSignuper(elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
 
                 StartEventsObserver();
             });
@@ -103,7 +103,7 @@ namespace TDPIConnector.Core.Tasks
         {
             log.Debug("Starting ElementModeTask...");
             stopTaskRequested = false;
-            this.task.Start();
+            task.Start();
             semSignup.WaitOne();
             log.Debug("ElementModeTask started successfully");
         }
@@ -112,7 +112,7 @@ namespace TDPIConnector.Core.Tasks
         {
             log.Debug("Stopping ElementModeTask...");
             stopTaskRequested = true;
-            this.task.Wait();
+            task.Wait();
             if (afDataPipeWrapper != null)
             {
                 afDataPipeWrapper.Dispose();

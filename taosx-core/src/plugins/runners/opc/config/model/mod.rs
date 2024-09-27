@@ -5,57 +5,105 @@ use anyhow::bail;
 use csv_async::StringRecord;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::Ty;
+use taos::{Dsn, Ty};
 
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::OpcPointModelConfig;
+use crate::runners::opc::config::csv::CsvParser;
+use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::validate_table_column_name;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OpcModelConfig {
-    point_model_config: Option<OpcPointModelConfig>,
-    pub point_config_map: LinkedHashMap<String, PointConfig>,
-    pub table_config_map: LinkedHashMap<String, TableConfig>,
+/// 点位映射规则的生成方式
+/// Rule: 通过自定义的规则生成点位映射规则
+/// Csv: 通过csv文件中的配置生成点位映射规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum GeneratePointMappingBy {
+    Rule(OpcPointMappingRule),
+    Csv((Vec<String>, Option<String>)),
 }
 
-impl OpcModelConfig {
-    pub fn new() -> Self {
-        OpcModelConfig {
-            point_model_config: None,
-            point_config_map: LinkedHashMap::new(),
-            table_config_map: LinkedHashMap::new(),
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpcPointMappingRule {
+    pub opc_type: OpcType,
+    pub stable_expression: String,
+    pub tbname_expression: String,
+    pub primary_key: String,
+    pub primary_key_alias: String,
+}
+
+impl OpcPointMappingRule {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        Ok(Self {
+            opc_type,
+            stable_expression,
+            tbname_expression,
+            primary_key,
+            primary_key_alias,
+        })
+    }
+
+    pub fn generate(
+        &self,
+        data: Vec<DataSet>,
+    ) -> anyhow::Result<(
+        LinkedHashMap<String, PointConfig>,
+        LinkedHashMap<String, TableConfig>,
+    )> {
+        let mut point_map = LinkedHashMap::new();
+        let mut table_map = LinkedHashMap::new();
+
+        for (index, p) in data.into_iter().enumerate() {
+            let point_id = p.id;
+            let point_type = p.r#type;
+
+            let value_type = point_type
+                .map(|t| {
+                    IpcDataType::from_str(t.as_str()).map_err(|_err| {
+                        anyhow::anyhow!("failed to convert point type: {} to IpcDataType", t)
+                    })
+                })
+                .transpose()?;
+
+            // point_config
+            let point_config =
+                self.gen_point_config(index, point_id.clone(), value_type.clone())?;
+            point_map.insert(point_id.clone(), point_config);
+
+            // table_config
+            let table_config = self.gen_table_config(value_type.clone())?;
+            table_map.insert(point_id.clone(), table_config);
         }
+
+        Ok((point_map, table_map))
     }
 
-    pub fn set_point_model_config(&mut self, point_model_config: OpcPointModelConfig) {
-        self.point_model_config = Some(point_model_config);
-    }
-
-    pub fn get_point_model_config(&self) -> Option<OpcPointModelConfig> {
-        self.point_model_config.clone()
-    }
-
-    pub fn build_point_config(
+    pub fn gen_point_config(
         &self,
         index: usize,
         point_id: String,
         point_type: Option<IpcDataType>,
     ) -> anyhow::Result<PointConfig> {
-        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
-            "super_table_expression and child_table_expression should be set before add points"
-        ))?;
+        let driver = self.opc_type.to_string();
 
-        let driver = point_model_config.opc_type.to_string();
-        let stable_expr = point_model_config.stable_expression.clone();
-        let tbname_expr = point_model_config.tbname_expression.clone();
+        let tbname = generate_tbname_from_pattern(
+            driver.as_str(),
+            self.tbname_expression.as_str(),
+            point_id.as_str(),
+        );
+        let stable = generate_stable_from_pattern(&self.stable_expression, &point_type);
 
-        let tbname = generate_tbname_from_pattern(&driver, &tbname_expr, point_id.as_str());
-        let stable = generate_stable_from_pattern(&stable_expr, &point_type);
         let point_config = PointConfig {
             row_index: index,
             code: tbname,
@@ -67,16 +115,7 @@ impl OpcModelConfig {
         Ok(point_config)
     }
 
-    pub fn build_table_config(
-        &self,
-        point_type: Option<IpcDataType>,
-    ) -> anyhow::Result<TableConfig> {
-        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
-            "super_table_expression and child_table_expression should be set before add points"
-        ))?;
-
-        let primary_key = point_model_config.primary_key.clone();
-        let primary_key_alias = point_model_config.primary_key_alias.clone();
+    pub fn gen_table_config(&self, point_type: Option<IpcDataType>) -> anyhow::Result<TableConfig> {
         let value_type = point_type.map(|t| t.ty());
 
         let mut column_configs = vec![];
@@ -94,12 +133,12 @@ impl OpcModelConfig {
             transform: None,
             is_primary_key: false,
         });
-        match primary_key.as_str() {
+        match self.primary_key.as_str() {
             ColumnConfig::ORIGINAL_TS => {
                 column_configs.push(ColumnConfig {
                     name: ColumnConfig::ORIGINAL_TS.to_string(),
                     r#type: Some(Ty::Timestamp),
-                    alias: Some(primary_key_alias.clone()),
+                    alias: Some(self.primary_key_alias.clone()),
                     transform: None,
                     is_primary_key: true,
                 });
@@ -108,13 +147,13 @@ impl OpcModelConfig {
                 column_configs.push(ColumnConfig {
                     name: ColumnConfig::RECEIVED_TS.to_string(),
                     r#type: Some(Ty::Timestamp),
-                    alias: Some(primary_key_alias.clone()),
+                    alias: Some(self.primary_key_alias.clone()),
                     transform: None,
                     is_primary_key: true,
                 });
             }
             _ => {
-                bail!("invalid primary key: {}", primary_key);
+                bail!("invalid primary key: {}", self.primary_key);
             }
         }
 
@@ -127,80 +166,137 @@ impl OpcModelConfig {
 
         Ok(table_config)
     }
+}
 
-    pub fn add_points(&mut self, points: Vec<DataSet>) -> anyhow::Result<()> {
-        let mut index: usize = 0;
-        for p in points {
-            let point_id = p.id;
-            let point_type = p.r#type;
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpcModelConfig {
+    pub opc_type: OpcType,
+    pub generate_rule: Option<GeneratePointMappingBy>,
+    pub point_config_map: LinkedHashMap<String, PointConfig>,
+    pub table_config_map: LinkedHashMap<String, TableConfig>,
+}
 
-            let value_type = point_type
-                .map(|t| {
-                    IpcDataType::from_str(t.as_str()).map_err(|_err| {
-                        anyhow::anyhow!("failed to convert point type: {} to IpcDataType", t)
-                    })
-                })
-                .transpose()?;
-
-            // point_config
-            let point_config =
-                self.build_point_config(index, point_id.clone(), value_type.clone())?;
-            self.point_config_map.insert(point_id.clone(), point_config);
-
-            // table_config
-            let table_config = self.build_table_config(value_type.clone())?;
-            self.table_config_map.insert(point_id.clone(), table_config);
-
-            index += 1;
-        }
-
-        Ok(())
-    }
-
-    /// parse one row in csv file to a point config
-    pub async fn add_csv_row(
-        &mut self,
-        header: &CsvHeader,
-        row: StringRecord,
-        row_index: usize,
-    ) -> anyhow::Result<()> {
-        let point_id = parse_point_id(header, &row)?;
-        // check point_id duplicated
-        match self.get_row_index(&point_id) {
-            None => {}
-            Some(index) => match header.get_opc_type() {
-                OpcType::OPCUA => {
-                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index,row_index);
-                }
-                OpcType::OPCDA => {
-                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index, row_index);
-                }
-                OpcType::FAKE => {
-                    unimplemented!()
-                }
-            },
-        }
-
-        // parse point config and table config
-        let point_config = PointConfig::from_csv(&header, &row, row_index)?;
-        let table_config = TableConfig::from_csv(&header, &row)?;
-
-        // check conflict
-        match self.is_conflict(&point_id, &point_config, &table_config) {
-            Ok(_) => {
-                self.point_config_map.insert(point_id.clone(), point_config);
-                self.table_config_map.insert(point_id.clone(), table_config);
+impl OpcModelConfig {
+    pub fn validate(&self) -> anyhow::Result<()> {
+        // check stable, stable is required
+        for (point_id, point_config) in self.point_config_map.iter() {
+            if point_config.stable.is_none() {
+                bail!("stable is required for point_id: {}", point_id);
             }
-            Err(err) => {
+        }
+
+        // check ts_col/ received_ts_col
+        for (point_id, table_config) in self.table_config_map.iter() {
+            let mut has_primary_key = false;
+            for col_config in table_config.column_configs.iter() {
+                if col_config.is_primary_key == true {
+                    has_primary_key = true;
+                    break;
+                }
+            }
+            if has_primary_key == false {
                 bail!(
-                    "csv config conflict at row: {}, cause: {}",
-                    row_index,
-                    err.to_string()
+                    "ts_col or received_ts_col is required for point_id: {}",
+                    point_id
                 );
             }
         }
 
         Ok(())
+    }
+    pub fn get_point_mapping(
+        &self,
+        point_id: &str,
+    ) -> anyhow::Result<Option<(&PointConfig, &TableConfig)>> {
+        let point_config = self.point_config_map.get(point_id);
+        let table_config = self.table_config_map.get(point_id);
+
+        match (point_config, table_config) {
+            (Some(point_config), Some(table_config)) => Ok(Some((point_config, table_config))),
+            (None, None) => Ok(None),
+            _ => bail!(
+                "point_id: {} not found in point_config_map or table_config_map",
+                point_id
+            ),
+        }
+    }
+
+    pub async fn generate_point_mapping(
+        &self,
+        point_id: &str,
+        value_type: &IpcDataType,
+    ) -> anyhow::Result<(PointConfig, TableConfig)> {
+        if self.point_config_map.len() != self.table_config_map.len() {
+            bail!(
+                "point_config_map length: {} not equal to table_config_map length: {}",
+                self.point_config_map.len(),
+                self.table_config_map.len()
+            );
+        }
+
+        let generate_rule = self
+            .generate_rule
+            .clone()
+            .ok_or(anyhow::anyhow!("generate_rule is required"))?;
+
+        match &generate_rule {
+            GeneratePointMappingBy::Rule(rule) => {
+                let index = self.point_config_map.len();
+                let p =
+                    rule.gen_point_config(index, point_id.to_string(), Some(value_type.clone()))?;
+                let t = rule.gen_table_config(Some(value_type.clone()))?;
+                Ok((p, t))
+            }
+            GeneratePointMappingBy::Csv((csv_files, csv_origin)) => {
+                let parser = match csv_origin {
+                    None => CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?,
+                    Some(csv_origin) => {
+                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                    }
+                };
+
+                let (p, t) = parser.parse_one(point_id).await?.ok_or(anyhow::anyhow!(
+                    "point_id: {} not found in csv files: {:?}",
+                    point_id,
+                    csv_files
+                ))?;
+                Ok((p, t))
+            }
+        }
+    }
+
+    pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
+        let result = self.generate_transform_map_impl(column_name).await;
+        match result {
+            Ok(map) => map,
+            Err(err) => {
+                tracing::warn!("failed to generate transform map, use an empty HashMap instead, column: {}, err: {}",column_name,err.to_string());
+                HashMap::new()
+            }
+        }
+    }
+
+    async fn generate_transform_map_impl(
+        &self,
+        column_name: &str,
+    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        match &self.generate_rule {
+            None => {
+                bail!("generate rule is required")
+            }
+            Some(GeneratePointMappingBy::Rule(_rule)) => {
+                bail!("generate transform map by GeneratePointMappingBy::Rule is not supported")
+            }
+            Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => {
+                let parser = match csv_origin {
+                    None => CsvParser::try_new(self.opc_type.clone(), csv.clone())?,
+                    Some(csv_origin) => {
+                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                    }
+                };
+                parser.parse_transform(column_name).await
+            }
+        }
     }
 
     pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
@@ -216,15 +312,12 @@ impl OpcModelConfig {
         column_config_map
     }
 
-    pub fn get_row_index(&self, point_id: &str) -> Option<usize> {
-        self.point_config_map.get(point_id).map(|v| v.row_index)
-    }
-
-    fn is_conflict(
-        &self,
-        point_id: &String,
+    pub fn is_conflict(
+        point_id: &str,
         point_config: &PointConfig,
         table_config: &TableConfig,
+        point_config_map: &LinkedHashMap<String, PointConfig>,
+        table_config_map: &LinkedHashMap<String, TableConfig>,
     ) -> anyhow::Result<()> {
         if table_config.enabled.is_some_and(|v| v == 0) {
             return Ok(());
@@ -248,8 +341,8 @@ impl OpcModelConfig {
             .flatten();
 
         // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
-        for (id, p_config) in &self.point_config_map {
-            if let Some(t_config) = self.table_config_map.get(id) {
+        for (id, p_config) in point_config_map {
+            if let Some(t_config) = table_config_map.get(id) {
                 if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
                     if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
                         if v_col.alias.as_ref() == value_col {
@@ -270,132 +363,6 @@ impl OpcModelConfig {
     }
 }
 
-fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
-    let opc_type = header.get_opc_type();
-
-    let point_id_col = match opc_type {
-        OpcType::OPCUA => header
-            .get_column("point_id")
-            .ok_or(anyhow::anyhow!("point_id not exist in csv header"))?,
-        OpcType::OPCDA => header
-            .get_column("tag_name")
-            .or(header.get_column("TagName"))
-            .ok_or(anyhow::anyhow!(
-                "tag_name or TagName not exist in csv header"
-            ))?,
-        OpcType::FAKE => {
-            bail!("fake opc type not supported");
-        }
-    };
-
-    row.get(point_id_col.index)
-        .map(|v| {
-            if v.is_empty() {
-                None
-            } else {
-                Some(v.to_string())
-            }
-        })
-        .flatten()
-        .ok_or(anyhow::anyhow!("point_id cannot be None in csv row"))
-}
-
-#[cfg(test)]
-mod model_config_tests {
-    use taos::IntoDsn;
-
-    use super::*;
-
-    #[test]
-    fn test_add_points() {
-        // given
-        let dsn = format!(
-            "opcua://?super_table_expression={}&child_table_expression={}",
-            "opc_{type}", "t_{ns}_{id}"
-        )
-        .into_dsn()
-        .unwrap();
-        let points = vec![
-            DataSet {
-                id: "ns=3;i=1001".to_string(),
-                name: Some("Constant".to_string()),
-                category: None,
-                r#type: Some("double".to_string()),
-                options: None,
-                format: None,
-            },
-            DataSet {
-                id: "ns=3;i=1002".to_string(),
-                name: Some("Counter".to_string()),
-                category: None,
-                r#type: Some("int".to_string()),
-                options: None,
-                format: None,
-            },
-        ];
-
-        // when
-        let mut config = OpcModelConfig::new();
-        config.set_point_model_config(OpcPointModelConfig::from_dsn(&dsn).unwrap());
-        config.add_points(points).unwrap();
-
-        // then
-        assert_eq!(config.point_config_map.len(), 2);
-        config.point_config_map.get("ns=3;i=1001").map(|v| {
-            assert_eq!(v.code, "t_3_1001");
-            assert_eq!(v.stable, Some("opc_double".to_string()));
-            assert_eq!(v.value_type, Some(IpcDataType::Float64));
-        });
-        config.point_config_map.get("ns=3;i=1002").map(|v| {
-            assert_eq!(v.code, "t_3_1002");
-            assert_eq!(v.stable, Some("opc_int".to_string()));
-            assert_eq!(v.value_type, Some(IpcDataType::Int32));
-        });
-
-        assert_eq!(config.table_config_map.len(), 2);
-        config.table_config_map.get("ns=3;i-1001").map(|v| {
-            assert_eq!(v.enabled, Some(1));
-            assert_eq!(v.stable_prefix, None);
-            assert_eq!(v.column_configs.len(), 3);
-
-            assert_eq!(v.column_configs[0].name, ColumnConfig::VALUE);
-            assert_eq!(v.column_configs[0].r#type, None);
-            assert_eq!(v.column_configs[0].alias, Some("val".to_string()));
-
-            assert_eq!(v.column_configs[1].name, ColumnConfig::QUALITY);
-            assert_eq!(v.column_configs[1].r#type, Some(Ty::Int));
-            assert_eq!(v.column_configs[1].alias, None);
-
-            assert_eq!(v.column_configs[2].name, ColumnConfig::ORIGINAL_TS);
-            assert_eq!(v.column_configs[2].r#type, Some(Ty::Timestamp));
-            assert_eq!(v.column_configs[2].alias, Some("ts".to_string()));
-        });
-    }
-
-    #[tokio::test]
-    async fn test_add_csv_row() {
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable", "tbname", "value_col", "type"]),
-        )
-        .await
-        .unwrap();
-        let mut model_config = OpcModelConfig::new();
-        let first_line = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
-        let second_line = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
-
-        let result = model_config.add_csv_row(&header, first_line, 1).await;
-        assert!(result.is_ok());
-
-        let result = model_config.add_csv_row(&header, second_line, 2).await;
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "csv config conflict at row: 2, cause: point_id: ns=3;i=1001 and point_id: ns=3;i=1002 have same stable: stb1 and tbname: tb1, value_col should be different"
-        );
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PointConfig {
     pub row_index: usize,
@@ -411,7 +378,7 @@ impl PointConfig {
         row: &StringRecord,
         row_index: usize,
     ) -> anyhow::Result<Self> {
-        let code = parse_tbname(header, row)?;
+        let code = CsvParser::parse_tbname(header, row)?;
         let value_type = parse_type(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
@@ -433,36 +400,6 @@ impl PointConfig {
             tag_values,
             value_type,
         })
-    }
-}
-
-fn parse_tbname(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
-    let point_id = parse_point_id(header, &row)?;
-
-    let column = header
-        .get_column("tbname")
-        .ok_or(anyhow::anyhow!("tbname not exist in csv header"))?;
-
-    let value = row
-        .get(column.index)
-        .ok_or(anyhow::anyhow!("tbname not exist in csv row"))?;
-
-    if value.is_empty() {
-        bail!("tbname cannot be empty");
-    }
-
-    let tbname = if value.contains("{") {
-        // replace {tag_name} or {TagName} in tbname
-        let opc_type = header.get_opc_type();
-        generate_tbname_from_pattern(opc_type.to_string().as_str(), value, &point_id)
-    } else {
-        value.to_string()
-    };
-    validate_table_column_name("table name", &tbname)?;
-
-    match tbname.is_empty() {
-        true => bail!("tbname cannot be empty"),
-        false => Ok(tbname),
     }
 }
 
@@ -527,10 +464,7 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
 ///      入库温度
 /// tag_value map:
 ///      name => 入库温度
-fn parse_tag_values(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<HashMap<String, String>> {
+fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<String, String>> {
     let mut map = HashMap::new();
 
     for col in header.get_columns() {
@@ -560,7 +494,6 @@ mod point_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable"]),
         )
-        .await
         .unwrap();
         let row = StringRecord::from(vec!["point1", "stable1"]);
         let stable = parse_stable(&header, &row);
@@ -570,7 +503,6 @@ mod point_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable"]),
         )
-        .await
         .unwrap();
         let row = StringRecord::from(vec!["point1", ""]);
         let stable = parse_stable(&header, &row);
@@ -580,7 +512,6 @@ mod point_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable"]),
         )
-        .await
         .unwrap();
         let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}"]);
         let stable = parse_stable(&header, &row);
@@ -590,7 +521,6 @@ mod point_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable", "type"]),
         )
-        .await
         .unwrap();
         let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}", ""]);
         let stable = parse_stable(&header, &row);
@@ -600,7 +530,6 @@ mod point_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable", "type"]),
         )
-        .await
         .unwrap();
         let row = StringRecord::from(vec!["ns=3;i=1001", "stable1_{type}", "varchar(200)"]);
         let stable = parse_stable(&header, &row);
@@ -634,7 +563,8 @@ impl TableConfig {
             None => Some(String::from(DEFAULT_STABLE_PREFIX)),
             Some(_stable) => None,
         };
-        let enabled = parse_enabled(header, row)?;
+
+        let enabled = CsvParser::parse_enabled(header, row)?;
         let column_configs = parse_columns(header, row)?;
         let tag_configs = parse_tags(header);
         let tag_configs = if tag_configs.is_empty() {
@@ -654,27 +584,6 @@ impl TableConfig {
     pub fn column_config(&self, name: &str) -> Option<&ColumnConfig> {
         self.column_configs.iter().find(|c| c.name == name)
     }
-}
-
-fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<Option<i8>> {
-    let enabled = header
-        .get_column("enabled")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| if val.is_empty() { None } else { Some(val) })
-        .flatten()
-        .map(|v| {
-            if v != "0" && v != "1" {
-                return Err(anyhow::anyhow!(
-                    "invalid enabled: {} in csv row, must be 0 or 1",
-                    v
-                ));
-            }
-            v.parse::<i8>()
-                .map_err(|_| anyhow::anyhow!("invalid enabled: {} in csv row, must be 0 or 1", v))
-        })
-        .transpose()?;
-    Ok(enabled)
 }
 
 fn parse_columns(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Vec<ColumnConfig>> {
@@ -968,7 +877,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &StringRecord::from(vec!["value_col", "value_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["value", "value + 1"]);
         let value_col = parse_value_col(&header, &row).unwrap();
@@ -979,7 +887,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["", "value + 1"]);
         let value_col = parse_value_col(&header, &row);
@@ -993,7 +900,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["", "val + 1"]);
         let value_col = parse_value_col(&header, &row).unwrap();
@@ -1007,7 +913,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["ts", "ts + 1"]);
         let ts_col = parse_original_ts_col(&header, &row).unwrap().unwrap();
@@ -1018,7 +923,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["", "ts + 1"]);
         let ts_col = parse_original_ts_col(&header, &row).unwrap();
@@ -1028,7 +932,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["ts", "origin_ts + 1"]);
         let ts_col = parse_original_ts_col(&header, &row);
@@ -1045,7 +948,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["rts", "rts + 1"]);
         let received_ts_col = parse_received_ts_col(&header, &row).unwrap().unwrap();
@@ -1056,7 +958,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["", "rts + 1"]);
         let received_ts_col = parse_received_ts_col(&header, &row).unwrap();
@@ -1066,7 +967,6 @@ mod table_config_tests {
             OpcType::OPCUA,
             &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
         )
-        .await
         .unwrap();
         let row = csv_async::StringRecord::from(vec!["rts", "received_ts + 1"]);
         let received_ts_col = parse_received_ts_col(&header, &row);

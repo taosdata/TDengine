@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use arrow::ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 use chrono::Utc;
@@ -15,21 +17,19 @@ use crate::runners::set_tcp_keepalive;
 pub struct Consumer {
     config: PostgresConfig,
     schema: Schema,
+    query: PostgresQuery,
 }
 
 impl Consumer {
-    pub fn new(config: PostgresConfig, schema: Schema) -> Self {
-        Self { config, schema }
+    pub fn new(config: PostgresConfig, schema: Schema, query: PostgresQuery) -> Self {
+        Self {
+            config,
+            schema,
+            query,
+        }
     }
 
     pub async fn consume(&mut self, receiver: Receiver<PostgresConfig>) -> anyhow::Result<()> {
-        // connect to database
-        let mut query = PostgresQuery::try_new(
-            self.config.connect.clone(),
-            self.config.task.time_zone.clone(),
-        )
-        .await?;
-
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
         let stream = std::net::TcpStream::connect(socket)?;
@@ -44,7 +44,8 @@ impl Consumer {
         let schema = self.schema.clone();
 
         // write batch to IPC
-        let (tx, rx) = flume::bounded(100);
+        let (tx, rx) = flume::bounded(0);
+        let (ack_tx, ack_rx) = flume::bounded(100);
         let writer_handler = tokio::task::spawn_blocking(move || {
             // IPC writer
             let mut writer = StreamWriter::try_new(stream, &schema)?;
@@ -53,41 +54,63 @@ impl Consumer {
             let mut batch_count = 0;
 
             while let Ok(batch) = rx.recv() {
-                writer.write(&batch)?;
-                tracing::debug!("migrate postgres write {} rows to ipc", batch.num_rows());
-                row_count += batch.num_rows();
-                batch_count += 1;
+                // if the sending fails, retry 3 times by sleeping 1 second each time
+                for i in 1..4 {
+                    let write_result = writer.write(&batch);
+                    match write_result {
+                        Ok(_) => {
+                            tracing::debug!(
+                                "migrate postgres, write {} rows to ipc",
+                                batch.num_rows()
+                            );
+                            row_count += batch.num_rows();
+                            batch_count += 1;
+                            ack_tx.send(batch.num_rows())?;
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, failed to write to ipc, cause: {}, retrying {i} times...",
+                                e
+                            );
+                            std::thread::sleep(Duration::from_secs(1));
+                        }
+                    }
+                }
             }
-
-            tracing::debug!(
-                send.batches = batch_count,
-                send.records = row_count,
-                "sending finished, waiting for persisting"
-            );
-            let _ = writer.finish()?;
+            let finish_result = writer.finish();
+            match finish_result {
+                Ok(_) => {
+                    tracing::debug!(
+                        send.batches = batch_count,
+                        send.records = row_count,
+                        "migrate postgres, sending finished, waiting for persisting"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("migrate postgres, sending finished error, cause: {e:?}",);
+                }
+            }
             anyhow::Ok(())
         });
 
         // receive ACK from IPC
-        let ack = tokio::task::spawn_blocking(move || {
+        let ack_handler = tokio::task::spawn_blocking(move || {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
+                let _ = ack_rx.recv();
                 if !ack.success() {
-                    tracing::error!("migrate postgres write records error: {ack:?}",);
-                    if let Some(message) = ack.message() {
-                        anyhow::bail!("IPC writer error: {message}")
-                    }
+                    tracing::error!("migrate postgres, ipc ack, write records error: {ack:?}");
                 }
             }
             tracing::info!("migrate postgres ACK reader finished");
-            Ok(())
+            anyhow::Ok(())
         });
 
         // query database and send to writer
         let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
-            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
@@ -97,7 +120,7 @@ impl Consumer {
 
             tracing::debug!("consume task, config:{:?}, sql:{:?}", &config, &sql);
 
-            let mut stream = query.select_by_stream(&sql);
+            let mut stream = self.query.select_by_stream(&sql);
             let mut rows = Vec::new();
             while let Some(result) = stream.next().await {
                 match result {
@@ -105,7 +128,7 @@ impl Consumer {
                         rows.push(row);
                     }
                     Err(e) => {
-                        tracing::warn!("migrate postgres query error: {e:?}",);
+                        tracing::error!("migrate postgres query error: {e:?}",);
                         // anyhow::bail!("migrate postgres query error: {e}")
                     }
                 }
@@ -114,8 +137,20 @@ impl Consumer {
                     let rows_cloned = rows.splice(.., Vec::new()).collect::<Vec<_>>();
                     // transform to record batch
                     let batch = appender::to_record_batch(rows_cloned).await?;
-                    // send to IPC
-                    tx.send_async(batch.clone()).await?;
+                    // send to IPC, if the sending fails, retry 3 times by sleeping 1 second each time
+                    for i in 1..4 {
+                        let send_result = tx.send_async(batch.clone()).await;
+                        match send_result {
+                            Ok(_) => break,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "migrate postgres, failed to send record batch to taosx, cause: {}, retrying {i} times...",
+                                    e
+                                );
+                                std::thread::sleep(Duration::from_secs(1));
+                            }
+                        }
+                    }
                     // clear rows
                     rows.clear();
                     // stastics
@@ -134,17 +169,18 @@ impl Consumer {
             set_breakpoint(&config, &end).await?;
         }
         drop(tx);
-
         tracing::debug!(
             "migrate postgres query finished, total batch: {}",
             batch_count
         );
+
         writer_handler.await??;
         tracing::debug!(
             "migrate postgres writer finished, total batch: {}",
             batch_count
         );
-        ack.await??;
+
+        ack_handler.await??;
         tracing::debug!(
             "migrate postgres consumer finished, total batch: {}",
             batch_count
@@ -192,8 +228,11 @@ mod tests {
 
         // consumer
         let config_clone = config.clone();
-        let consumer =
-            tokio::spawn(async move { Consumer::new(config_clone, schema).consume(rx).await });
+        let consumer = tokio::spawn(async move {
+            Consumer::new(config_clone, schema, query.clone())
+                .consume(rx)
+                .await
+        });
 
         // produce task
         let producer = Producer::new(&config);

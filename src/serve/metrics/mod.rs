@@ -14,7 +14,6 @@ use taosx_core::{
     tmq::tmq_metric::TmqMetrics,
 };
 use taosx_metrics::TaosXRecorderHandle;
-use tracing::instrument;
 
 use super::TaskDetail;
 pub(crate) mod ws;
@@ -37,7 +36,6 @@ async fn metrics_exporter(handle: actix_web::web::Data<TaosXRecorderHandle>) -> 
     )
 )]
 #[get("/metrics/description")]
-#[instrument(skip_all)]
 async fn metrics_desc(lang: Query<LangQuery>) -> impl Responder {
     if lang.is_cn() {
         HttpResponse::Ok().json(&(*METRICS_DESC_ZH))
@@ -77,7 +75,7 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
     let task_id = task.task.id;
     match dsn.driver.as_str() {
         "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id).await,
-        "tmq" => try_get_metrics::<TmqMetrics>(task_id).await,
+        "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id).await,
         "opc"
         | "opcua"
         | "opcda"
@@ -141,7 +139,6 @@ pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> St
     )
 )]
 #[get("/profile")]
-#[instrument(skip_all)]
 async fn profile() -> HttpResponse {
     HttpResponse::Ok().json(get_profile())
 }

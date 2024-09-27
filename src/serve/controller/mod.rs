@@ -29,18 +29,18 @@ use tracing::{instrument, Instrument};
 use utoipa::*;
 use uuid::Uuid;
 
+use crate::build;
+use crate::serve::controller::agent::Activity;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
 };
-
-use crate::build;
-use crate::serve::controller::agent::Activity;
 
 use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::{AgentId, TaskId};
@@ -307,6 +307,7 @@ impl TaskControllerRef {
             .bind(Status::Created)
             .bind(Status::Stopping)
             .fetch_all(&self.pool)
+            .in_current_span()
             .await?;
         for mut task in tasks {
             tracing::info!(
@@ -370,6 +371,7 @@ pub(super) enum Schedule {
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
     let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
+        .in_current_span()
         .await?;
     if exists.is_none() {
         tracing::warn!("task {id} not found", id = activity.id);
@@ -389,6 +391,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             activity.status,
         )
         .execute(txn.as_mut())
+        .in_current_span()
         .await?;
     }
     match activity.status.as_str() {
@@ -400,6 +403,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(&activity.at)
                 .bind(activity.id)
                 .execute(txn.as_mut())
+                .in_current_span()
                 .await
                 .context("Update task properties error")?;
         }
@@ -410,6 +414,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.activity.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
+                .in_current_span()
                 .await
                 .context("Update task properties error")?;
         }
@@ -427,6 +432,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.activity.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
+                .in_current_span()
                 .await
                 .context("Update task properties error")?;
         }
@@ -435,6 +441,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.status.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
+                .in_current_span()
                 .await
                 .context("Update task properties error")?;
         }
@@ -446,6 +453,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.status.as_str())
                 .bind(activity.id)
                 .execute(txn.as_mut())
+                .in_current_span()
                 .await
                 .context("Update task properties error")?;
         }
@@ -459,6 +467,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             .bind(&activity.status)
             .bind(&activity.context)
         .execute(txn.as_mut())
+        .in_current_span()
         .await
         .context("Update task activities error")?;
     txn.commit()
@@ -497,6 +506,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
         .bind(&status)
         .bind(&activity.context)
         .execute(pool)
+        .in_current_span()
         .await?;
     Ok(())
 }
@@ -507,6 +517,7 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
     // tasks
     let tasks = sqlx::query_scalar::<_, i64>("select id from tasks")
         .fetch_all(pool)
+        .in_current_span()
         .await?;
     for id in tasks {
         if let Some(at) = sqlx::query_scalar::<_, DateTime<Utc>>(
@@ -521,6 +532,7 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
                 .bind(id)
                 .bind(&at)
                 .execute(pool)
+                .in_current_span()
                 .await?;
         }
     }
@@ -536,6 +548,7 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
         .bind(id)
         .bind(max)
         .fetch_optional(pool)
+        .in_current_span()
         .await?
         {
             sqlx::query("delete from agent_activities where id = ? and `at` < ?")
@@ -560,6 +573,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     .bind(Status::Ticked)
     .bind(Status::Waken)
     .fetch_all(pool)
+    .in_current_span()
     .await?;
     if tasks.len() > 0 {
         tracing::info!(
@@ -576,6 +590,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
             .bind(Status::Interrupted)
             .bind(Status::Ticked)
             .execute(pool)
+            .in_current_span()
             .await?;
         for id in tasks {
             sqlx::query("insert into task_activities (`id`,`at`, `level`, `activity`, `status`) values(?, ?, ?, ?, ?)")
@@ -585,6 +600,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
             .bind("Database initiated")
             .bind("suspended")
             .execute(pool)
+            .in_current_span()
             .await?;
         }
     }
@@ -593,6 +609,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
         .bind(Status::Stopped)
         .bind(Status::Stopping)
         .execute(pool)
+        .in_current_span()
         .await?;
     Ok(())
 }
@@ -672,6 +689,7 @@ impl TaskController {
         let shutdown_notify_cloned = shutdown_notify.clone();
         tokio::spawn(
             async move {
+                tracing::info!("scheduler notify listener in controller start");
                 let mut rx = notify_channel;
                 let pool = pool_cloned;
                 loop {
@@ -711,6 +729,7 @@ impl TaskController {
                 }
                 shutdown_notify_cloned.notify_waiters();
                 ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
+                tracing::info!("scheduler notify listener in controller stop");
             }
             .instrument(tracing::info_span!(
                 "scheduler_notify_listener_in_controller"
@@ -759,6 +778,12 @@ impl TaskController {
 
         if let Some(via) = task.via {
             if !self.agent_alive(via).await {
+                self.scheduler
+                    .global_state
+                    .send_task_activity(TaskActivity::error(
+                        task.id,
+                        format!("Agent {} is not alive", via),
+                    ));
                 bail!("Agent {} is not alive", via);
             }
             if from.driver == "pibackfill" || from.driver == "pi" {
@@ -809,6 +834,7 @@ impl TaskController {
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
         .fetch_all(&self.pool)
+        .in_current_span()
         .await
         .context("Database error")?;
 
@@ -875,9 +901,7 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        license::validate_task(&from, &to, Some(&self.pool))
-            .await
-            .context("License error")?;
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
@@ -931,6 +955,7 @@ impl TaskController {
         .bind(&task.via)
         .bind(&task.parser)
         .execute(txn.as_mut())
+        .in_current_span()
         .await?;
         let id: i64 = res.last_insert_rowid();
 
@@ -981,6 +1006,7 @@ impl TaskController {
             .bind(from.to_string())
             .bind(id)
             .execute(txn.as_mut())
+            .in_current_span()
             .await
             .context("update task error")?;
 
@@ -1006,6 +1032,7 @@ impl TaskController {
                 .join(",");
             sqlx::query(&format!("INSERT INTO labels VALUES {values}"))
                 .execute(&self.pool)
+                .in_current_span()
                 .await?;
         }
 
@@ -1021,6 +1048,7 @@ impl TaskController {
             context
         )
         .execute(&self.pool)
+        .in_current_span()
         .await?;
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
@@ -1045,6 +1073,7 @@ impl TaskController {
                 id
             )
             .execute(&self.pool)
+            .in_current_span()
             .await?;
             let context =
                 json!({ "code": 0xFFFFi32, "error": err.to_string(), "task": id }).to_string();
@@ -1059,6 +1088,7 @@ impl TaskController {
                 context
             )
             .execute(&self.pool)
+            .in_current_span()
             .await?;
             task.reason.replace(err.to_string());
             task.status = status;
@@ -1137,6 +1167,7 @@ impl TaskController {
             Option::<String>::None
         )
         .execute(&self.pool)
+        .in_current_span()
         .await?;
 
         if res.rows_affected() == 1 {
@@ -1198,6 +1229,7 @@ impl TaskController {
         let task = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
+            .in_current_span()
             .await?
             .map(|mut t: Task| {
                 t.backport_labels();
@@ -1222,6 +1254,7 @@ impl TaskController {
             id
         )
         .execute(&self.pool)
+        .in_current_span()
         .await?;
         if res.rows_affected() == 1 {
             tracing::info!("successfully deleted task by id {id}");
@@ -1230,6 +1263,7 @@ impl TaskController {
         let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
+            .in_current_span()
             .await?;
         if task.is_none() {
             return Ok(None);
@@ -1256,7 +1290,10 @@ impl TaskController {
                             tracing::error!("can not drop topic {topic}");
                             break;
                         }
-                        if let Err(_err) = taos.exec(format!("drop topic if exists {topic}")).await
+                        if let Err(_err) = taos
+                            .exec(format!("drop topic if exists {topic}"))
+                            .in_current_span()
+                            .await
                         {
                             retries += 1;
                             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1275,6 +1312,7 @@ impl TaskController {
                 }
                 sqlx::query!("DELETE FROM tasks where id = ?", id)
                     .execute(&pool)
+                    .in_current_span()
                     .await?;
 
                 let from: Dsn = task.from.parse()?;
@@ -1292,11 +1330,6 @@ impl TaskController {
                     with_agent: None,
                     breakpoints: None,
                     transferred: None,
-                    span: tracing::info_span!(
-                        "task::delete",
-                        task.id = id,
-                        trace_id = tracing::field::Empty
-                    ),
                     task_id: Some(task.id.to_string()),
                     notify: tx,
                 };
@@ -1331,6 +1364,7 @@ impl TaskController {
                         .bind(Status::Stopped)
                         .bind(id)
                         .execute(&self.pool)
+                        .in_current_span()
                         .await?;
                     return Ok(Some(()));
                 }
@@ -1362,7 +1396,10 @@ impl TaskController {
     ) -> anyhow::Result<Vec<Activity>> {
         let cond = filter.condition();
         let sql = format!("select * from task_activities where `id` = {id} {cond}");
-        let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        let items = sqlx::query_as(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
         Ok(items)
     }
 
@@ -1393,7 +1430,7 @@ impl TaskController {
                 let from = task.from.parse::<Dsn>()?;
                 let to = task.to.parse::<Dsn>()?;
                 match (from.driver.as_str(), to.driver.as_str()) {
-                    ("tmq", _) => {
+                    ("tmq" | "sync", _) => {
                         let offsets = self.tmq_offsets(id).await?;
                         Ok(offsets)
                     }
@@ -1440,7 +1477,10 @@ impl TaskController {
     pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let from = self.get(id).await?;
         if let Some(task) = from {
-            let from = task.from.parse::<Dsn>()?;
+            let mut from = task.from.parse::<Dsn>()?;
+            if from.driver == "sync".to_string() {
+                from.driver = "tmq".to_string();
+            }
             let offsets = taosx_core::tmq_offsets(from).await?;
             let res = serde_json::to_value(&offsets)?;
             Ok(Some(res))
@@ -1467,7 +1507,10 @@ impl TaskController {
         if cluster_id.is_some() {
             sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
         }
-        let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
+        let result: Vec<Agent> = sqlx::query_as(sql.as_str())
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
         Ok(result)
     }
 
@@ -1489,6 +1532,7 @@ impl TaskController {
         .bind(&agent.user_id)
         .bind(Utc::now())
         .execute(&self.pool)
+        .in_current_span()
         .await?;
         let id = res.last_insert_rowid();
         let activity = Activity::new::<String>(
@@ -1511,7 +1555,10 @@ impl TaskController {
             Some(cond) => format!("select * from agents where {cond}"),
             None => format!("select * from agents"),
         };
-        let mut agents: Vec<Agent> = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        let mut agents: Vec<Agent> = sqlx::query_as(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
         for agent in &mut agents {
             agent.status.replace(self.agent_status(agent.id).await);
         }
@@ -1607,10 +1654,12 @@ impl TaskController {
             .bind(name)
             .bind(agent_id)
             .execute(&self.pool)
+            .in_current_span()
             .await?;
         let secret = self.jwt_secret().await?;
         Ok(self
             .get_agent_by_id(agent_id)
+            .in_current_span()
             .await?
             .map(|a| a.with_token(&secret)))
     }
@@ -1619,6 +1668,7 @@ impl TaskController {
         let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
             .bind(agent_id)
             .fetch_all(&self.pool)
+            .in_current_span()
             .await?;
         if !ids.is_empty() {
             anyhow::bail!("should delete associated tasks before delete agent");
@@ -1627,12 +1677,14 @@ impl TaskController {
         sqlx::query("delete from agent_activities where id = ?")
             .bind(agent_id)
             .execute(&self.pool)
+            .in_current_span()
             .await?;
         tracing::info!("Deleted agent with id {agent_id}");
 
         sqlx::query("delete from agents where id = ?")
             .bind(agent_id)
             .execute(&self.pool)
+            .in_current_span()
             .await?;
 
         Ok(())
@@ -1650,6 +1702,7 @@ impl TaskController {
             if guard.is_none() {
                 let secret: Option<String> = sqlx::query_scalar("select `secret` from `secret`")
                     .fetch_optional(&self.pool)
+                    .in_current_span()
                     .await?;
                 let secret = if let Some(value) = secret {
                     value
@@ -1659,6 +1712,7 @@ impl TaskController {
 
                     sqlx::query(&format!("insert into `secret` values('{random}')"))
                         .execute(&self.pool)
+                        .in_current_span()
                         .await?;
                     random
                 };
@@ -1766,7 +1820,7 @@ impl TaskController {
         handle.await?
     }
 
-    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: &Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             return DataSourceValidation::invalid(
@@ -1848,6 +1902,7 @@ impl TaskController {
             sqlx::query_as("select * from connector_transferred where cluster_id = ?")
                 .bind(cluster_id)
                 .fetch_all(&self.pool)
+                .in_current_span()
                 .await?;
         Ok(vec)
     }
@@ -1861,6 +1916,7 @@ impl TaskController {
             Status::Running
         )
         .fetch_one(&self.pool)
+        .in_current_span()
         .await
         .unwrap_or_default();
         // count tasks completed in last 10 seconds
@@ -1879,6 +1935,7 @@ impl TaskController {
             finished_at,
         )
         .fetch_one(&self.pool)
+        .in_current_span()
         .await
         .unwrap_or_default();
         (
@@ -1886,6 +1943,28 @@ impl TaskController {
             completed_tasks_count,
             failed_tasks_count,
         )
+    }
+
+    pub async fn send_opc_csv_to_agnet(&self, agent_id: i64, dsn: &Dsn) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let parser = CsvParser::from_dsn(dsn)?;
+        let (path, csv) = parser.read_to_string().await?;
+
+        tracing::debug!(
+            "send opc csv file to agent: {}, path: {:?}, csv: {}",
+            agent_id,
+            path,
+            csv
+        );
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .put_file_to_agent(agent_id, path.unwrap().as_str(), csv.into_bytes())
+            .await?;
+
+        Ok(())
     }
 }
 

@@ -112,7 +112,6 @@ pub async fn build_ipc(
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
@@ -133,7 +132,6 @@ pub async fn build_ipc(
             parser,
             connector,
             transferred,
-            span,
             task_id,
             notify,
         )
@@ -155,7 +153,9 @@ pub async fn build_ipc(
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
-        "tmq" => {
+        "tmq" | "sync" => {
+            let mut from = from.clone();
+            from.driver = "tmq".to_string();
             // get tmq list
             let builder = TaosBuilder::from_dsn(&from)?.build().await?;
             let mut topics: Vec<_> = builder
@@ -221,7 +221,11 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
             "pi" | "pibackfill" => runners::pi::is_pi_valid(&dsn).await,
             "taos" => crate::taoz::is_taos_valid(&dsn).await,
-            "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
+            "tmq" | "sync" => {
+                let mut dsn = dsn.clone();
+                dsn.driver = "tmq".to_string();
+                crate::tmq::is_tmq_valid(&dsn).await
+            }
             "csv" => crate::csv::is_csv_valid(&dsn).await,
             "local" => crate::local_to_taos::is_local_valid(&dsn).await,
             runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,
@@ -270,7 +274,7 @@ fn parse_sample_limit(dsn: &Dsn) -> usize {
         .unwrap_or(5)
 }
 
-pub fn parse_sample_timeout(dsn: &Dsn) -> Duration {
+fn parse_sample_timeout(dsn: &Dsn) -> Duration {
     dsn.params
         .get("get_sample_timeout")
         .and_then(|v| v.parse::<u64>().ok())

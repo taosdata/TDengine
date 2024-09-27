@@ -177,6 +177,9 @@ fn handle_lush_message<R: Read, W: Write>(
             let record = record.as_any().downcast_ref::<LushMessage>().unwrap();
             // dbg!(&record);
             match record {
+                LushMessage::Control(_) => {
+                    todo!();
+                }
                 LushMessage::Tables(tables, _) => {
                     for table in tables {
                         let sql = table.to_sql(None).unwrap();

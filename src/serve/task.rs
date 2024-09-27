@@ -2,60 +2,80 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
-use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
-use crate::serve::{
-    controller::{Status, TaskControllerRef},
-    NewTask, TaskDecorator, TaskFilter, UpdateTask,
-};
 use actix_files::NamedFile;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
+use actix_web::web::Json;
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
     HttpRequest, HttpResponse, Responder, ResponseError,
 };
+use anyhow::anyhow;
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
-use taosx_core::core_metrics::CoreMetrics;
-use taosx_core::{get_data_dir, get_file_upload_home_dir};
-use tracing::instrument;
 use utoipa::*;
 
+use taosx_core::core_metrics::CoreMetrics;
+use taosx_core::{get_data_dir, get_file_upload_home_dir};
+
 use super::controller::agent::AgentActivityFilter;
-use anyhow::anyhow;
+use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
+use crate::serve::{
+    controller::{Status, TaskControllerRef},
+    NewTask, TaskDecorator, TaskFilter, UpdateTask,
+};
 
 /// Task endpoint error responses
-#[derive(Serialize, Deserialize, Clone, ToSchema)]
-pub(super) struct Failed {
+#[derive(Debug, Default, Serialize, Deserialize, Clone, ToSchema)]
+pub struct Failed<T = ()>
+where
+    T: Debug + serde::Serialize,
+{
     /// Error code
     #[schema(example = 0, value_type = i32)]
     pub code: Code,
     /// Error reason
     pub message: String,
+
+    pub data: T,
 }
 
-impl Debug for Failed {
+impl Failed<()> {
+    pub fn from_error(err: impl Display) -> Self {
+        Self {
+            code: Code::FAILED,
+            message: format!("{}", err.to_string()),
+            data: (),
+        }
+    }
+}
+
+impl<T: Debug + Serialize> Failed<T> {
+    pub fn new(code: Code, message: String, data: T) -> Self {
+        Self {
+            code,
+            message,
+            data,
+        }
+    }
+}
+
+impl<T: Debug + Serialize> Display for Failed<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "code={:?} message={:?}",
-            self.code, self.message
+            "code={:?} message={:?} data={:?}",
+            self.code, self.message, self.data
         ))
     }
 }
 
-impl Display for Failed {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "code={:?} message={:?}",
-            self.code, self.message
-        ))
-    }
-}
-
-impl ResponseError for Failed {
+impl<T> ResponseError for Failed<T>
+where
+    T: Debug + serde::Serialize,
+{
     fn error_response(&self) -> HttpResponse<BoxBody> {
         HttpResponse::InternalServerError().json(self)
     }
@@ -79,7 +99,6 @@ impl ResponseError for Failed {
     )
 )]
 #[get("/tasks")]
-#[instrument(skip_all)]
 pub(super) async fn get_tasks(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
@@ -94,10 +113,7 @@ pub(super) async fn get_tasks(
                     .map(|t| t.decorate(&decorator))
                     .collect_vec(),
             )),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -118,17 +134,13 @@ pub(super) async fn get_tasks(
     )
 )]
 #[get("/tasks/count")]
-#[instrument(skip_all)]
 pub(super) async fn get_tasks_count(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
 ) -> impl Responder {
     match task_store.tasks_count(filter.into_inner()).await {
         Ok(tasks) => Ok(HttpResponse::Ok().body(format!("{tasks}"))),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -154,7 +166,6 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
-#[instrument(skip_all)]
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskControllerRef>,
@@ -174,19 +185,15 @@ pub(super) async fn create_task(
         // check TIMESTAMP Precision: all columns should have same precision
         let parser_string = parser.to_string();
         if !check_parser_timestamp_precision(&parser_string) {
-            return Err(Failed {
-                code: Code::FAILED,
-                message: format!("parser shouldn't contains different timestamp precision"),
-            });
+            return Err(Failed::from_error(
+                "parser shouldn't contains different timestamp precision",
+            ));
         }
     }
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -234,6 +241,18 @@ pub(super) struct NewReplicate {
     force: bool,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum TaskBatchOperation {
+    Start,
+    Stop,
+    Delete,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TaskBatchReq {
+    ids: Vec<i64>,
+}
+
 /// Update Task by given path variable id.
 ///
 /// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
@@ -256,7 +275,6 @@ pub(super) struct NewReplicate {
     ),
 )]
 #[patch("/tasks/{id}")]
-#[instrument(skip_all)]
 pub(super) async fn update_task(
     id: Path<i64>,
     task: actix_web::web::Json<UpdateTask>,
@@ -271,19 +289,15 @@ pub(super) async fn update_task(
         // check TIMESTAMP Precision: all columns should have same precision
         let parser_string = parser.to_string();
         if !check_parser_timestamp_precision(&parser_string) {
-            return Err(Failed {
-                code: Code::FAILED,
-                message: format!("parser shouldn't contains different timestamp precision"),
-            });
+            return Err(Failed::from_error(
+                "parser shouldn't contains different timestamp precision",
+            ));
         }
     }
     match task_store.update(id.into_inner(), task.into_inner()).await {
         Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
         Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -308,20 +322,50 @@ pub(super) async fn update_task(
     ),
 )]
 #[delete("/tasks/{id}")]
-#[instrument(skip_all)]
 pub(super) async fn delete_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
-    match task_store.delete(id.into_inner()).await {
+    let id = id.into_inner();
+    match task_store.delete(id).await {
         Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
-        Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
+            Code::FAILED,
+            format!("Task {id} not found"),
+            (),
+        ))),
+        Err(err) => Err(Failed::from_error(err)),
     }
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "delete batch tasks"),
+        (status = 500, description = "failed to delete tasks", body = Failed),
+    )
+)]
+#[post("/tasks/delete")]
+pub async fn delete_tasks(
+    ids: Json<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    let result = batch_operation(
+        TaskBatchOperation::Delete,
+        ids.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return Ok(HttpResponse::Ok().finish());
+    }
+    Err(Failed::new(
+        Code::FAILED,
+        "failed to delete tasks".to_string(),
+        result,
+    ))
 }
 
 /// Get Task by given task id.
@@ -341,7 +385,6 @@ pub(super) async fn delete_task(
     ),
 )]
 #[get("/tasks/{id}")]
-#[instrument(skip_all)]
 pub(super) async fn get_task_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -351,10 +394,7 @@ pub(super) async fn get_task_by_id(
     match task_store.get(id).await {
         Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
         Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -373,7 +413,6 @@ pub(super) async fn get_task_by_id(
     ),
 )]
 #[post("/tasks/{id}/start")]
-#[instrument(skip_all)]
 pub(super) async fn start_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -381,15 +420,48 @@ pub(super) async fn start_task(
     let id = id.into_inner();
     match task_store.start(id).await {
         Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed {
-            code: Code::FAILED,
-            message: format!("Task {id} not found"),
-        })),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
+            Code::FAILED,
+            format!("Task {id} not found"),
+            (),
+        ))),
+        Err(err) => Err(Failed::from_error(err)),
     }
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+struct TaskBatchResponse {
+    id: Option<i64>,
+    error: Option<String>,
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "start batch tasks"),
+        (status = 500, description = "failed to start tasks", body = Failed),
+    )
+)]
+#[post("/tasks/start")]
+pub async fn start_tasks(
+    req: Json<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    let result = batch_operation(
+        TaskBatchOperation::Start,
+        req.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return Ok(HttpResponse::Ok().body("{}"));
+    }
+    Err(Failed::new(
+        Code::FAILED,
+        "failed to start tasks".to_string(),
+        result,
+    ))
 }
 
 /// Stop [Task] by given path variable id.
@@ -408,7 +480,6 @@ pub(super) async fn start_task(
     ),
 )]
 #[post("/tasks/{id}/stop")]
-#[instrument(skip_all)]
 pub(super) async fn stop_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -416,15 +487,121 @@ pub(super) async fn stop_task(
     let id = id.into_inner();
     match task_store.stop(id).await {
         Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed {
-            code: Code::FAILED,
-            message: format!("Task {id} not found"),
-        })),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
+            Code::FAILED,
+            format!("Task {id} not found"),
+            (),
+        ))),
+        Err(err) => Err(Failed::from_error(err)),
     }
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "stop batch tasks"),
+        (status = 500, description = "failed to stop tasks", body = Failed),
+    )
+)]
+#[post("/tasks/stop")]
+pub async fn stop_tasks(
+    ids: Json<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    let result = batch_operation(
+        TaskBatchOperation::Stop,
+        ids.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return Ok(HttpResponse::Ok().body("{}"));
+    }
+    Err(Failed::new(
+        Code::FAILED,
+        "failed to stop tasks".to_string(),
+        result,
+    ))
+}
+
+async fn batch_operation(
+    operation: TaskBatchOperation,
+    ids: Vec<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> Vec<TaskBatchResponse> {
+    let mut set = tokio::task::JoinSet::new();
+    for id in ids.iter() {
+        let id_clone = id.clone();
+        let task_store_clone = task_store.clone();
+        set.spawn(async move {
+            match operation {
+                TaskBatchOperation::Start => match task_store_clone.start(id_clone.clone()).await {
+                    Ok(Some(_)) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: None,
+                    },
+                    Ok(None) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("Task {id_clone} not found")),
+                    },
+                    Err(err) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("{:?}", err)),
+                    },
+                },
+                TaskBatchOperation::Stop => match task_store_clone.stop(id_clone.clone()).await {
+                    Ok(Some(_)) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: None,
+                    },
+                    Ok(None) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("Task {id_clone} not found")),
+                    },
+                    Err(err) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("{:?}", err)),
+                    },
+                },
+                TaskBatchOperation::Delete => {
+                    match task_store_clone.delete(id_clone.clone()).await {
+                        Ok(Some(_)) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            error: None,
+                        },
+                        Ok(None) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            error: Some(format!("Task {id_clone} not found")),
+                        },
+                        Err(err) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            error: Some(format!("{:?}", err)),
+                        },
+                    }
+                }
+            }
+        });
+    }
+
+    let mut result = Vec::new();
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(response) => {
+                if response.error.is_some() {
+                    result.push(response);
+                }
+            }
+            Err(err) => {
+                result.push(TaskBatchResponse {
+                    id: None,
+                    error: Some(format!("{:?}", err)),
+                });
+            }
+        }
+    }
+
+    result
 }
 
 /// Get Task Offsets by given task id.
@@ -441,7 +618,6 @@ pub(super) async fn stop_task(
     ),
 )]
 #[get("/tasks/{id}/offsets")]
-#[instrument(skip_all)]
 pub(super) async fn get_task_offsets_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -449,11 +625,12 @@ pub(super) async fn get_task_offsets_by_id(
     let id = id.into_inner();
     match task_store.offsets(id).await {
         Ok(Some(offsets)) => Ok(HttpResponse::Ok().json(offsets)),
-        Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
+            Code::FAILED,
+            format!("Task {id} not found"),
+            (),
+        ))),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -478,16 +655,12 @@ pub(super) async fn get_task_activities_by_id(
     let id = id.into_inner();
     match task_store.task_activities(id, &filter.into_inner()).await {
         Ok(acts) => Ok(HttpResponse::Ok().json(acts)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
 /// Get metrics json string of a task for displaying on the web UI
 #[get("/tasks/{id}/metrics")]
-#[instrument(skip_all)]
 pub(super) async fn get_task_metrics(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
@@ -515,7 +688,6 @@ pub(super) async fn get_task_metrics(
 
 /// Get tmq task progress by given task ID in respect of the vgroup consume progress.
 #[get("/tasks/{id}/vgroup_progress")]
-#[instrument(skip_all)]
 pub(super) async fn get_tmq_task_vgroup_progress(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
@@ -552,7 +724,6 @@ pub(super) async fn get_tmq_task_vgroup_progress(
 
 /// Get tmq task progress by given task ID in respect of latest data in specific table.
 #[get("/tasks/{id}/table_progress")]
-#[instrument(skip_all)]
 pub(super) async fn get_tmq_task_table_progress(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
@@ -561,10 +732,7 @@ pub(super) async fn get_tmq_task_table_progress(
     let task_id = id.into_inner();
     let table = query.get("table");
     if table.is_none() {
-        return Err(Failed {
-            code: Code::FAILED,
-            message: "table name is required".to_string(),
-        });
+        return Err(Failed::from_error("table name is required"));
     }
     let table = table.unwrap().as_str();
     let start = query.get("start");
@@ -579,10 +747,7 @@ pub(super) async fn get_tmq_task_table_progress(
                 Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
                 Err(err) => {
                     tracing::error!("Get table progress error: {}", err);
-                    Err(Failed {
-                        code: Code::FAILED,
-                        message: format!("{:#}", err),
-                    })
+                    Err(Failed::from_error(err))
                 }
             }
         }
@@ -613,14 +778,10 @@ pub struct UploadForm {
     ),
 )]
 #[post("/upload")]
-#[instrument(skip_all)]
 pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
     match save_files(MultipartForm(form)).await {
         Ok(file_saved) => Ok(HttpResponse::Created().json(file_saved)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -694,14 +855,10 @@ pub struct FileMetaHeader {
     )
 )]
 #[get("/filemeta")]
-#[instrument(skip_all)]
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
     match get_filemeta(filemeta_request.into_inner()).await {
         Ok(filemeta) => Ok(HttpResponse::Ok().json(filemeta)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -816,14 +973,10 @@ pub struct DownloadParams {
     )
 )]
 #[get("/download")]
-#[instrument(skip_all)]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
     match download(params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 

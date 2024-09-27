@@ -134,7 +134,6 @@ async fn test_precision() {
 pub async fn get_minimum_timestamp(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    _req_id: u64,
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> Result<DateTime<Utc>, TaosError> {
@@ -228,7 +227,7 @@ async fn test_min_timestamp() {
     let mut taos = Some(taos);
 
     let min = chrono::Utc::now();
-    let t = get_minimum_timestamp(&pool, &mut taos, 0, 0, &CancellationToken::new())
+    let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
     assert!(t >= min);
@@ -294,7 +293,10 @@ pub async fn exec_sql_with_connection_retries(
         .in_current_span()
         .await
     {
-        Ok(n) => Ok(n),
+        Ok(n) => {
+            tracing::trace!("exec sql successfully");
+            Ok(n)
+        }
         Err(err) => {
             if max_retries == 0 {
                 return Err(err.context(format!("exec sql `{}`", sql)));

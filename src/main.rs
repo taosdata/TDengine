@@ -1,44 +1,52 @@
 use std::backtrace::Backtrace;
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::fs;
+use std::io::Read;
+use std::path::PathBuf;
 
-use serve::monitor::MonitorCfg;
-use taosx_core::runners::{
-    ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
-    ENV_TAOSX_PLUGINS_HOME,
-};
-use tracing::debug;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-
-use anyhow::Result;
-use chrono::Local;
+use anyhow::{Context, Result};
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
+use notify::EventKind;
+use notify::{
+    event::{DataChange, ModifyKind},
+    Watcher,
+};
 use opentelemetry::trace::Tracer;
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, FromInto};
+use serve::monitor::MonitorCfg;
 use shadow_rs::shadow;
+use taoslog::layer::TaosLayer;
+use taoslog::writer::RollingFileAppender;
+use taosx_core::{
+    runners::{
+        ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
+        ENV_TAOSX_PLUGINS_HOME,
+    },
+    utils::trace::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID},
+};
 use thiserror::Error;
-use time::{macros::format_description, UtcOffset};
+use tracing::{debug, instrument};
 use tracing::{log::LevelFilter, Instrument};
-use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::layer::Layered;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::OffsetTime},
-    prelude::*,
-    EnvFilter,
+    filter::LevelFilter as TracingLevelFilter, fmt::format::FmtSpan, prelude::*, reload, EnvFilter,
+    Registry,
 };
 use twelf::{config, Layer};
 
+use crate::serve::monitor;
+use taosx_core::utils::timeout::Timeout;
 use taosx_core::{
     get_data_dir,
     runners::{get_logs_home_dir, get_plugins_home_dir},
-    utils::trace::TaosXLayer,
 };
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
 };
-
-use crate::serve::monitor;
 
 #[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
 compile_error!("Only one allocator can be specified");
@@ -146,12 +154,19 @@ struct Global {
     #[clap(long, env = "TAOSX_DATA_DIR", global = true)]
     data_dir: Option<String>,
 
+    #[clap(long, global = true, env = "INSTANCE_ID")]
+    #[serde(rename = "instanceId")]
+    instance_id: Option<u8>,
+
     #[clap(long, env = "LOGS_HOME", global = true)]
     logs_home: Option<String>,
 
     /// For environment variable wised log level.
     #[clap(long, hide = true, env = "LOG_LEVEL", global = true)]
     log_level: Option<LevelFilter>,
+
+    #[clap(flatten)]
+    log: Option<LogOpts>,
 
     /// Enable debug will set the mod path as `file:line`.
     #[clap(short, long, global = true)]
@@ -182,6 +197,117 @@ struct Global {
 
     #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
     dry_run: Option<bool>,
+}
+
+#[serde_as]
+#[derive(Parser, Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct LogOpts {
+    #[clap(id = "log.path", long = "log.path", env = "LOG_PATH")]
+    path: Option<PathBuf>,
+    #[clap(id = "log.level", long = "log.level", env = "LOG_LEVEL")]
+    level: Option<LevelFilter>,
+    #[clap(
+        id = "log.compress",
+        long = "log.compress",
+        env = "LOG_COMPRESS",
+        num_args = 0..=1,
+        default_missing_value = "true",
+        value_parser = compress_arg_parser,
+    )]
+    #[serde_as(as = "Option<FromInto<CompressType>>")]
+    compress: Option<bool>,
+    #[clap(
+        id = "log.rotationCount",
+        long = "log.rotationCount",
+        env = "LOG_ROTATION_COUNT"
+    )]
+    rotation_count: Option<u16>,
+    #[clap(id = "log.keepDays", long = "log.keepDays", env = "LOG_KEEP_DAYS")]
+    keep_days: Option<u16>,
+    #[clap(
+        id = "log.rotationSize",
+        long = "log.rotationSize",
+        env = "LOG_ROTATION_SIZE"
+    )]
+    rotation_size: Option<String>,
+    #[clap(
+        id = "log.reservedDiskSize",
+        long = "log.reservedDiskSize",
+        env = "LOG_RESERVED_DISK_SIZE"
+    )]
+    reserved_disk_size: Option<String>,
+    #[clap(id = "log.watching", long = "log.watching", env = "LOG_WATCHING", action = clap::ArgAction::SetTrue, default_value = "true")]
+    watching: Option<bool>,
+    #[clap(skip)]
+    loggers: Option<HashMap<String, String>>,
+}
+
+fn compress_arg_parser(value: &str) -> Result<bool, clap::Error> {
+    match value.to_lowercase().as_str() {
+        "0" | "false" => Ok(false),
+        _ => Ok(true),
+    }
+}
+
+impl Default for LogOpts {
+    fn default() -> Self {
+        Self {
+            path: Some(PathBuf::from(get_env_log_dir())),
+            level: Some(LevelFilter::Info),
+            compress: Some(false),
+            rotation_count: Some(30),
+            keep_days: Some(30),
+            rotation_size: Some("1GB".to_string()),
+            reserved_disk_size: Some("1GB".to_string()),
+            watching: Some(true),
+            loggers: None,
+        }
+    }
+}
+
+impl LogOpts {
+    fn merge_from(&mut self, rhs: Self) {
+        macro_rules! update_if_none {
+            ($field: ident) => {
+                if self.$field.is_none() {
+                    self.$field = rhs.$field
+                }
+            };
+        }
+        update_if_none!(path);
+        update_if_none!(level);
+        update_if_none!(compress);
+        update_if_none!(rotation_count);
+        update_if_none!(keep_days);
+        update_if_none!(rotation_size);
+        update_if_none!(reserved_disk_size);
+        update_if_none!(watching);
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+enum CompressType {
+    B(bool),
+    N(u8),
+}
+
+impl From<CompressType> for bool {
+    fn from(value: CompressType) -> Self {
+        match value {
+            CompressType::B(v) => v,
+            CompressType::N(1) => true,
+            CompressType::N(0) => false,
+            _ => panic!("invalid compress value"),
+        }
+    }
+}
+
+impl From<bool> for CompressType {
+    fn from(value: bool) -> Self {
+        Self::B(value)
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -285,7 +411,21 @@ impl Args {
         layers.push(Layer::Clap(Args::command().get_matches()));
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
+        match (
+            args.global.log.as_mut(),
+            configurable_opts.global.log.clone(),
+        ) {
+            (None, None) => args.global.log = Some(LogOpts::default()),
+            (None, Some(opts)) => args.global.log = Some(opts),
+            (Some(args), Some(configs)) => {
+                args.merge_from(configs);
+            }
+            _ => {}
+        }
         args.global.merge_from(configurable_opts.global);
+        args.global.instance_id = Some(
+            *INSTANCE_ID.get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)),
+        );
         if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
             args.monitor.merge_from(monitor_cfg);
         }
@@ -311,6 +451,7 @@ impl Args {
                     take_or_not!(grpc);
                     take_or_not!(database_url);
                     take_or_not!(secret_prefix);
+                    take_or_not!(request_timeout);
                     take_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
@@ -343,6 +484,7 @@ impl Global {
         update_if_none!(jobs);
         update_if_none!(otel);
         update_if_none!(dry_run);
+        update_if_none!(instance_id);
         self
     }
 }
@@ -376,99 +518,90 @@ fn build_runtime(
         .build()
 }
 
-fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
-    let max_files = get_log_keep_days() + 1;
-    RollingFileAppender::builder()
-        .max_log_files(max_files as usize)
-        .filename_prefix(format!("{}x.log", build::CUS_PROMPT))
-        .rotation(Rotation::DAILY)
-        .build(log_dir)
-        .expect("failed to initialize rolling file appender")
-}
+fn init_tracing_layers(
+    args: &mut Args,
+    tracing_level_filter: TracingLevelFilter,
+) -> Result<
+    Option<
+        reload::Handle<
+            EnvFilter,
+            Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+        >,
+    >,
+    anyhow::Error,
+> {
+    let mut env_filter = default_env_filter(tracing_level_filter)?;
+    if let Some(loggers) = args
+        .global
+        .log
+        .as_ref()
+        .and_then(|opts| opts.loggers.as_ref())
+    {
+        for (k, v) in loggers {
+            let directive = format!("{k}={v}")
+                .parse()
+                .context("parse loggers directive error")?;
+            env_filter = env_filter.add_directive(directive);
+        }
+    }
 
-fn init_tracing_layers<W>(
-    args: &Args,
-    span_events: FmtSpan,
-    level_filter: LevelFilter,
-    make_writer: W,
-) -> Result<(), anyhow::Error>
-where
-    W: for<'writer> MakeWriter<'writer> + 'static + Send + Sync,
-{
     let mut layers = Vec::new();
-    use tracing_subscriber::filter::LevelFilter as TracingLevelFilter;
-    let tracing_level_filter = match level_filter {
-        log::LevelFilter::Off => TracingLevelFilter::OFF,
-        log::LevelFilter::Error => TracingLevelFilter::ERROR,
-        log::LevelFilter::Warn => TracingLevelFilter::WARN,
-        log::LevelFilter::Info => TracingLevelFilter::INFO,
-        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
-        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
-    };
-    fn env_filter_from(tracing_level_filter: &TracingLevelFilter) -> anyhow::Result<EnvFilter> {
-        let event_filter = EnvFilter::builder()
-            .with_default_directive(tracing_level_filter.clone().into())
-            .with_regex(true)
-            .from_env_lossy();
-        let event_filter = if *tracing_level_filter > TracingLevelFilter::INFO {
-            event_filter
-                .add_directive("tungstenite=warn".parse()?)
-                .add_directive("tokio=warn".parse()?)
-                .add_directive("runtime=warn".parse()?)
-                .add_directive("actix_server=info".parse()?)
-                .add_directive("actix_http=info".parse()?)
-                .add_directive("tokio_tungstenite=warn".parse()?)
-                .add_directive("mio=warn".parse()?)
-                .add_directive("h2=warn".parse()?)
-                .add_directive("sqlx=warn".parse()?)
-                .add_directive("hyper=warn".parse()?)
-                .add_directive("reqwest=warn".parse()?)
-                .add_directive("sled=warn".parse()?)
-        } else {
-            event_filter.add_directive("sqlx::query=warn".parse()?)
-        };
-        Ok(event_filter)
-    }
-    if !args.global.no_log_to_files {
-        // Add layer for rotating logs
-        layers.push(
-            TaosXLayer::new()
-                .with_writer(make_writer)
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
-    }
 
-    let chrono_local = Local::now();
-    let timezone_offset = (chrono_local.offset().local_minus_utc()
-        / chrono::Duration::hours(1).num_seconds() as i32) as i8;
-    let timer = OffsetTime::new(
-        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
-        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+    let LogOpts {
+        compress,
+        rotation_count,
+        keep_days,
+        rotation_size,
+        reserved_disk_size,
+        watching,
+        ..
+    } = args.global.log.clone().context("log opts not found")?;
+
+    let appender = RollingFileAppender::builder(
+        get_env_log_dir(),
+        format!("{}x", build::CUS_PROMPT),
+        args.global.instance_id.unwrap_or(16),
+    )
+    .compress(compress.unwrap())
+    .reserved_disk_size(&reserved_disk_size.unwrap())
+    .rotation_count(rotation_count.unwrap())
+    .keep_days(keep_days.unwrap())
+    .rotation_size(&rotation_size.unwrap())
+    .build()
+    .unwrap();
+
+    layers.push(TaosLayer::<Qid>::new(appender).boxed());
+
+    #[cfg(debug_assertions)]
+    layers.push(
+        TaosLayer::<Qid, _, _>::new(std::io::stdout)
+            .with_ansi()
+            .with_location()
+            .boxed(),
     );
 
-    // Add layer for printing log to terminal.
-    if atty::is(atty::Stream::Stderr) {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_thread_names(true)
-                .with_writer(std::io::stderr)
-                .with_span_events(span_events)
-                .with_ansi(true)
-                .pretty()
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
-    }
+    // layers.push(filter_layer.boxed());
 
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
     {
         layers.push(console_subscriber::spawn().boxed());
     }
-    // Create event subscriber
-    let layered = tracing_subscriber::registry().with(layers);
+
+    let layered;
+    let mut handle = None;
+    if watching.is_some_and(|x| x) {
+        let (filter_layer, reload_handle) = reload::Layer::new(env_filter);
+        // Create event subscriber
+        layered = tracing_subscriber::registry()
+            .with(layers)
+            .with(filter_layer.boxed());
+        handle = Some(reload_handle);
+    } else {
+        layered = tracing_subscriber::registry()
+            .with(layers)
+            .with(env_filter.boxed());
+    }
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
@@ -509,7 +642,7 @@ where
     } else {
         layered.try_init()?;
     }
-    Ok(())
+    Ok(handle)
 }
 
 fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
@@ -598,15 +731,21 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     let w = 18;
     let w2 = 22;
     let mut s = String::new();
-    s += "       global config\n";
+    let log_opts = args.global.log.as_ref()
+        .and_then(|l| serde_json::to_string(l).ok());
+    s += "global config\n";
     s += "===================================================================================\n";
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "config file", get_effective_config_path(args).display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "instanceId", INSTANCE_ID.get().unwrap()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_path", get_log_path().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_level", level_filter).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days", get_log_keep_days()).as_str();
+    if let Some(opts) = log_opts {
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "log", opts).as_str();
+    }
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
@@ -625,7 +764,7 @@ fn main() -> Result<()> {
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    let args = Args::init()?;
+    let mut args = Args::init()?;
     set_env_data_dir(
         args.global
             .data_dir
@@ -638,13 +777,27 @@ fn main() -> Result<()> {
             .clone()
             .unwrap_or_else(|| get_env_log_dir()),
     );
+    let args_log_path = args
+        .global
+        .log
+        .as_ref()
+        .and_then(|opts| opts.path.clone())
+        .and_then(|p| p.canonicalize().ok())
+        .and_then(|p| p.to_str().map(ToString::to_string));
+    set_env_log_home_dir(args_log_path.unwrap_or_else(get_env_log_dir));
     set_env_plugins_home_dir(
         args.global
             .plugins_home
             .clone()
             .unwrap_or_else(|| get_env_plugin_dir()),
     );
-    set_env_log_keep_days(args.global.log_keep_days.clone());
+    set_env_log_keep_days(
+        args.global
+            .log
+            .as_ref()
+            .and_then(|opts| opts.keep_days.map(|days| days as i64))
+            .or(args.global.log_keep_days.clone()),
+    );
 
     // Set a panic hook
     std::panic::set_hook(Box::new(|info| {
@@ -656,33 +809,82 @@ fn main() -> Result<()> {
     let mut level_filter = if matches!(args.commands, Some(Commands::Replica(_))) {
         LevelFilter::Warn
     } else {
-        args.global.log_level.clone().unwrap_or(LevelFilter::Info)
+        args.global
+            .log
+            .as_ref()
+            .and_then(|l| l.level)
+            .or(args.global.log_level)
+            .unwrap_or(LevelFilter::Info)
     };
     let matches = Args::command().get_matches();
     let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
     level_filter = level_upgrade(level_filter, level_num);
 
-    let span_events = args.opt_args.tracing_events.clone();
+    let tracing_level_filter = match level_filter {
+        log::LevelFilter::Off => TracingLevelFilter::OFF,
+        log::LevelFilter::Error => TracingLevelFilter::ERROR,
+        log::LevelFilter::Warn => TracingLevelFilter::WARN,
+        log::LevelFilter::Info => TracingLevelFilter::INFO,
+        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
+        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
+    };
+
+    match args.global.log.as_mut() {
+        Some(opts) => {
+            opts.level = Some(level_filter);
+            opts.keep_days = Some(get_log_keep_days() as u16);
+            opts.merge_from(LogOpts::default())
+        }
+        None => {
+            let mut opts = LogOpts::default();
+            opts.level = Some(level_filter);
+            opts.keep_days = Some(get_log_keep_days() as u16);
+            args.global.log = Some(opts)
+        }
+    };
+
+    let handle = init_tracing_layers(&mut args, tracing_level_filter)?;
+
+    let _span = tracing::info_span!("main").entered();
+
+    let config_file = get_effective_config_path(&args);
+    let mut _notify_watcher = None;
+    if let Some(handle) = handle {
+        let mut watcher = notify::recommended_watcher({
+            let config_file = config_file.clone();
+            move |event: notify::Result<notify::Event>| {
+                let event = match event {
+                    Ok(event) => event,
+                    Err(e) => {
+                        tracing::error!("notify event error: {e}");
+                        return;
+                    }
+                };
+                log_level_reload(event, &config_file, &handle, tracing_level_filter);
+            }
+        })?;
+        watcher
+            .watch(
+                &config_file.parent().context("get config dir error")?,
+                notify::RecursiveMode::NonRecursive,
+            )
+            .context("start watch config file error")?;
+        _notify_watcher = Some(watcher);
+    }
+    tracing::info!(
+        "listen on config file {} data change",
+        config_file.display()
+    );
+
     let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
-    let log_dir = get_log_dir("");
-    let rolling_file_appender = create_rolling_file_appender(&log_dir);
-
-    let _guard = if !args.global.no_async_log {
-        let (non_blocking, guard) = tracing_appender::non_blocking(rolling_file_appender);
-        init_tracing_layers(&args, span_events, level_filter, non_blocking)?;
-        Some(guard)
-    } else {
-        init_tracing_layers(&args, span_events, level_filter, rolling_file_appender)?;
-        None
-    };
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
     tracing::info!(
         "connector version: {}-{}",
-        taos::build::PKG_VERSION,
-        taos::build::SHORT_COMMIT
+        build::PKG_VERSION,
+        build::SHORT_COMMIT
     );
 
     if args.global.dry_run.unwrap_or(false) {
@@ -700,8 +902,10 @@ fn main() -> Result<()> {
         Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
         Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
+            Timeout::set_default_timeout(serve.request_timeout);
+
             let serve = || {
-                let _ = tracing::info_span!("serve").entered();
+                let _span = tracing::info_span!("serve").entered();
                 let addr = serve.get_listen_address();
                 let port = addr.split(':').last().unwrap();
                 let scheduler_rt = build_runtime(
@@ -713,7 +917,7 @@ fn main() -> Result<()> {
                     agent_rpc_channel,
                     agent_spawn_sender,
                     scheduler_notifier,
-                ) = scheduler_rt.block_on(serve.channels());
+                ) = scheduler_rt.block_on(serve.channels().in_current_span());
 
                 debug!("Starting scheduler");
                 let scheduler = scheduler_rt
@@ -758,6 +962,86 @@ fn main() -> Result<()> {
     res
 }
 
+fn default_env_filter(
+    tracing_level_filter: tracing::level_filters::LevelFilter,
+) -> anyhow::Result<EnvFilter> {
+    let mut env_filter = EnvFilter::builder()
+        .with_default_directive(tracing_level_filter.clone().into())
+        .with_regex(true)
+        .from_env_lossy();
+    if tracing_level_filter > tracing::level_filters::LevelFilter::INFO {
+        env_filter = env_filter
+            .add_directive("tungstenite=warn".parse()?)
+            .add_directive("tokio=warn".parse()?)
+            .add_directive("runtime=warn".parse()?)
+            .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio_tungstenite=warn".parse()?)
+            .add_directive("mio=warn".parse()?)
+            .add_directive("h2=warn".parse()?)
+            .add_directive("hyper=warn".parse()?)
+            .add_directive("reqwest=warn".parse()?)
+            .add_directive("sled=warn".parse()?)
+    }
+    Ok(env_filter)
+}
+
+#[instrument(skip_all)]
+fn log_level_reload(
+    event: notify::Event,
+    config_file: &PathBuf,
+    handle: &reload::Handle<
+        EnvFilter,
+        Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+    >,
+    tracing_level_filter: tracing::level_filters::LevelFilter,
+) {
+    if !matches!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Data(DataChange::Any))
+    ) {
+        return;
+    }
+    if !event.paths.contains(config_file) {
+        return;
+    }
+    // dbg!("=================", &event);
+    tracing::info!("received config file change event, start to reload tracing filter");
+    match fs::File::open(config_file) {
+        Ok(mut file) => {
+            let mut s = String::new();
+            if let Err(e) = file.read_to_string(&mut s) {
+                tracing::error!("read config file error: {e}");
+                return;
+            }
+            match toml::from_str::<Global>(&s) {
+                Ok(args) => {
+                    let Some(loggers) = args.log.and_then(|opts| opts.loggers) else {
+                        tracing::info!("log.loggers config not found, tracing filter won't reload");
+                        return;
+                    };
+                    let mut filter = default_env_filter(tracing_level_filter)
+                        .expect("create default env filter error");
+                    for (k, v) in loggers {
+                        match format!("{k}={v}").parse() {
+                            Ok(directive) => {
+                                filter = filter.add_directive(directive);
+                            }
+                            Err(e) => tracing::error!("parse logger level {k}={v} error: {e}"),
+                        }
+                    }
+                    if let Err(e) = handle.reload(filter) {
+                        tracing::error!("reload tracing filter level error: {e}")
+                    }
+                    tracing::info!("reload tracing filter successfully")
+                }
+                Err(e) => tracing::error!("read config file error: {e}"),
+            }
+        }
+        Err(e) => tracing::error!("open config file error: {e}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -785,5 +1069,82 @@ mod tests {
         );
         // assert_eq!(args.config_args.logs_home.unwrap_or("".to_string()), "from-cli".to_string());
         Ok(())
+    }
+
+    #[test]
+    fn parse_log_opts() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = true
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Global = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_compress_number() {
+        let s = r#"
+            [log]
+            path = "aaa"
+            level = "warn"
+            compress = 1
+            rotationCount = 33
+            rotationSize = "3GB"
+            reservedDiskSize = "30GB"
+        "#;
+        let args: Global = toml::from_str(s).unwrap();
+        let log = args.log.unwrap();
+        assert_eq!(log.path.unwrap(), PathBuf::from("aaa"));
+        assert_eq!(log.level.unwrap(), LevelFilter::Warn);
+        assert!(log.compress.unwrap());
+        assert_eq!(log.rotation_count.unwrap(), 33);
+        assert_eq!(log.rotation_size.unwrap(), "3GB");
+        assert_eq!(log.reserved_disk_size.unwrap(), "30GB");
+    }
+
+    #[test]
+    fn parse_log_opts_clap() {
+        let matches = Args::command()
+            .try_get_matches_from([
+                build::CUS_CLI_NAME,
+                "--log.path",
+                "/var/log/taos",
+                "--log.level",
+                "info",
+                "--log.compress",
+                "--log.rotationCount",
+                "3",
+                "--log.rotationSize",
+                "3GB",
+                "--log.reservedDiskSize",
+                "3GB",
+            ])
+            .unwrap();
+        assert_eq!(
+            matches.get_one("log.path"),
+            Some(&PathBuf::from("/var/log/taos"))
+        );
+        assert_eq!(matches.get_one("log.level"), Some(&log::LevelFilter::Info));
+        assert_eq!(matches.get_one("log.compress"), Some(&true));
+        assert_eq!(matches.get_one("log.rotationCount"), Some(&3u16));
+        assert_eq!(
+            matches.get_one("log.rotationSize"),
+            Some(&"3GB".to_string())
+        );
+        assert_eq!(
+            matches.get_one("log.reservedDiskSize"),
+            Some(&"3GB".to_string())
+        )
     }
 }

@@ -122,7 +122,6 @@ impl Cli {
         }
         // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();
-        let span = tracing::Span::current();
 
         let (notify, receiver) = flume::unbounded();
 
@@ -160,7 +159,6 @@ impl Cli {
             with_agent: None,
             breakpoints: None,
             transferred: Default::default(),
-            span: span.clone(),
             task_id: args.task_id.clone().map(|v| v.to_string()),
             notify,
         };

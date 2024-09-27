@@ -1,9 +1,11 @@
+use std::net::SocketAddr;
+use std::{sync::Arc, time::Duration};
+
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
     get,
-    middleware::Compat,
     web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpResponse, HttpServer, Responder,
 };
@@ -12,8 +14,8 @@ use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use std::net::SocketAddr;
-use std::{sync::Arc, time::Duration};
+use taoslog::middleware::TaosRootSpanBuilder;
+use taosx_core::utils::trace::Qid;
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -30,7 +32,9 @@ use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
 };
-use crate::serve::middleware::TaosXRootSpanBuilder;
+use crate::serve::opc::AddPointReq;
+use crate::serve::opc::GetPointsHeaderReq;
+use crate::serve::opc::PointDetail;
 
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
@@ -47,7 +51,6 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
-mod middleware;
 pub mod monitor;
 mod privileges;
 mod routes;
@@ -106,6 +109,9 @@ pub(super) struct Cli {
 
     #[clap(long, env = "REPEAT_INTERVAL")]
     pub repeat_interval: Option<u64>,
+
+    #[clap(long, env = "TAOSX_REQUEST_TIMEOUT")]
+    pub request_timeout: Option<u64>,
 }
 
 impl Cli {
@@ -121,6 +127,7 @@ impl Cli {
         update_if_none!(database_url);
         update_if_none!(secret_prefix);
         update_if_none!(do_not_resume);
+        update_if_none!(request_timeout);
         update_if_none!(grpc);
         self
     }
@@ -134,19 +141,24 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_tasks_count)
             .service(create_task)
             .service(update_task)
+            .service(delete_tasks)
             .service(delete_task)
             .service(get_task_by_id)
             .service(get_task_offsets_by_id)
+            .service(start_tasks)
             .service(start_task)
+            .service(stop_tasks)
             .service(stop_task)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
             .service(get_sample)
             .service(data_source_is_valid)
+            .service(data_source_sink_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
             .service(data_source_sample)
+            .service(list_all_parser_plugins)
             .service(download_all_data_set_file)
             .service(download_pi_default_config)
             .service(download_point_template_file)
@@ -155,6 +167,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(check_point_file_ready)
             .service(download_point_file)
             .service(page_point_data)
+            .service(opc::get_point_header)
+            .service(opc::append_point)
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
@@ -315,6 +329,8 @@ impl Cli {
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
+        let store = Data::new(controller);
+
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -364,6 +380,13 @@ impl Cli {
                     ActivityOrder,
                     DsSampleIn,
                     DsSampleOut,
+
+                    TaskBatchReq,
+
+                    PointDetail,
+                    GetPointsHeaderReq,
+                    AddPointReq,
+
                 ),
                 responses(
                 )
@@ -373,8 +396,11 @@ impl Cli {
                 task::get_tasks_count,
                 task::create_task,
                 task::update_task,
+                task::delete_tasks,
                 task::delete_task,
+                task::start_tasks,
                 task::start_task,
+                task::stop_tasks,
                 task::stop_task,
                 task::get_task_by_id,
                 task::get_task_offsets_by_id,
@@ -385,16 +411,20 @@ impl Cli {
                 metrics::profile,
                 metrics::metrics_desc,
                 data_source_is_valid,
+                data_source_sink_is_valid,
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
                 data_source_sample,
+                list_all_parser_plugins,
                 download_all_data_set_file,
                 init_download_file_task,
                 check_point_file_ready,
                 download_point_file,
                 download_point_template_file,
                 page_point_data,
+                opc::get_point_header,
+                opc::append_point,
 
                 agent::create_agent,
                 agent::update_agent,
@@ -418,8 +448,6 @@ impl Cli {
             ),
         )]
         struct ApiDoc;
-
-        let store = Data::new(controller);
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
 
         let openapi = ApiDoc::openapi();
@@ -435,7 +463,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
+                .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
                 .app_data(recorder.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(

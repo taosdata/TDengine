@@ -22,11 +22,11 @@ use arrow::{
 use faststr::FastStr;
 use futures::Stream;
 use taos::{ColumnView, Itertools, Precision, Ty, Value};
-use tracing::error;
+use tracing::{error, instrument, Span};
 
 use crate::{
     ack::{AckType, AckWriter},
-    constants::{__ATTRS__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __CONTROL__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
         flat::FlatMessage,
@@ -35,6 +35,8 @@ use crate::{
 };
 
 use arrow_compute_ext::RecordBatchExt;
+
+use super::lush::LushMessageControl;
 
 #[derive(Debug, Clone)]
 pub struct IpcParser {
@@ -63,6 +65,31 @@ impl IpcParser {
                     LushMessageType::Children => {
                         let (tables, full_records) = self.parse_children(record);
                         return Ok(Box::new(LushMessage::Tables(tables, full_records)));
+                    }
+                    LushMessageType::Control => {
+                        let values = record.column_by_name(__CONTROL__).ok_or_else(|| {
+                            ArrowError::InvalidArgumentError(
+                                "Control message should contains __control__ field".to_string(),
+                            )
+                        })?;
+                        let values = values
+                            .as_any()
+                            .downcast_ref::<ListArray>()
+                            .unwrap()
+                            .value(0);
+                        let s = values
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .ok_or_else(|| {
+                                ArrowError::InvalidArgumentError(format!(
+                                    "__control__ should be StringArray"
+                                ))
+                            })?;
+                        let control = s.value(0);
+                        tracing::info!("Receive control message: {}", control);
+                        let control: LushMessageControl =
+                            serde_json::from_str(control).expect("Parse LushMessageControl error");
+                        return Ok(Box::new(LushMessage::Control(control)));
                     }
                     LushMessageType::Insert => {
                         if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -538,6 +565,7 @@ impl<R: Read> IpcReader<R> {
         rx.into_stream()
     }
 
+    #[instrument(skip_all)]
     pub fn into_raw_stream_qos_0(
         self,
         mut ipc_ack_writer: AckWriter<impl std::io::Write + Send + 'static>,
@@ -546,10 +574,21 @@ impl<R: Read> IpcReader<R> {
         R: Send + 'static,
     {
         let (tx, rx) = flume::bounded(64);
+        let mut batch_number = 0u64;
+        let span = Span::current();
         std::thread::spawn(move || {
+            let _entered = span.entered();
             for item in self.reader {
+                batch_number += 1;
+                if let Err(err) = &item {
+                    error!("Read batch {} error: {:?}", batch_number, err);
+                } else {
+                    tracing::trace!("Read batch {}", batch_number);
+                }
                 tx.send(item)?; // send under blocking thread
+                tracing::trace!("Send batch {}", batch_number);
                 ipc_ack_writer.write_ok()?;
+                tracing::trace!("Ack batch {}", batch_number);
             }
             tracing::info!("Raw ipc reader stream closed");
             anyhow::Ok(())
@@ -884,6 +923,31 @@ mod arrow_to_taos {
             }
             crate::prelude::IpcDataType::NChar(_) => ColumnView::from_nchar::<&str, _, _, _>(data),
             crate::prelude::IpcDataType::Json => ColumnView::from_json::<&str, _, _, _>(data),
+            crate::prelude::IpcDataType::VarBinary(_) => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.and_then(|v| {
+                            let v = if v.starts_with("\\x") {
+                                v.get(2..).unwrap()
+                            } else {
+                                v
+                            };
+                            let mut bytes = Vec::new();
+                            let chars: Vec<char> = v.chars().collect();
+                            chars.chunks(2).for_each(|chars| {
+                                let byte_str: String = chars.iter().collect();
+                                match u8::from_str_radix(&byte_str, 16) {
+                                    Ok(byte) => bytes.push(byte),
+                                    Err(_) => tracing::warn!("Invalid byte string: {}", byte_str),
+                                }
+                            });
+                            Some(bytes)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                ColumnView::from_bytes::<Vec<u8>, _, _, _>(v)
+            }
         };
         view
     }
@@ -1654,6 +1718,7 @@ pub struct LushMessageTable {}
 pub enum LushMessage {
     Tables(Vec<LushInsertAttrs>, Option<RecordBatch>),
     Insert(Vec<LushMessageInsert>),
+    Control(LushMessageControl),
 }
 
 impl LushMessage {
@@ -1739,6 +1804,7 @@ fn file_reader() -> anyhow::Result<()> {
                     dbg!(&map_data);
                 }
             }
+            _ => (),
         }
     }
 

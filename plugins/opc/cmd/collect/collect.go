@@ -45,7 +45,7 @@ func collect() {
 		logger.Panicf("read config file error. file:%s, err: %v", configPath, err)
 		return
 	}
-	logger.Infof("config file content: %s", bs)
+	logger.Infof("read config file finish, file:%s, content: %s", configPath, bs)
 	conf, err := config.ParseConfigBs(bs)
 	if err != nil {
 		logger.Panic("parse config file error.", "error", err)

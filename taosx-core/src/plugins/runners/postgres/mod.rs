@@ -8,7 +8,6 @@ use sqlx_postgres::types::PgTimeTz;
 use sqlx_postgres::PgRow;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
@@ -83,12 +82,29 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create postgres query
-    let config = PostgresConfig::from_dsn(dsn)?;
+    let mut config = PostgresConfig::from_dsn(dsn)?;
     let mut query = PostgresQuery::try_new(config.connect, config.task.time_zone.clone()).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
+
+    // replace subtable fields
+    let distinct_sql = config.task.generate_distinct_sql()?;
+    let values = if !distinct_sql.is_empty() {
+        query.select_one_for_schema(&distinct_sql).await?
+    } else {
+        None
+    };
+    if let Some(row) = values {
+        for idx in 0..row.len() {
+            let col_name = row.column(idx).name();
+            config.task.sql = config.task.sql.replace(
+                &format!("${{{}}}", col_name),
+                &format!("{} is not null", col_name),
+            );
+        }
+    }
 
     // generate sql
     let sql = config.task.generate_sql()?;
@@ -157,7 +173,6 @@ pub async fn postgres_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -190,7 +205,6 @@ pub async fn postgres_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )
@@ -636,7 +650,6 @@ mod tests {
             cancel,
             with_agent,
             transferred,
-            span,
             task_id,
             notify,
         );

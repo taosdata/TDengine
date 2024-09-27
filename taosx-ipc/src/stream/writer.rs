@@ -41,6 +41,7 @@ pub enum IpcDataType {
     VarChar(u32),
     NChar(u32),
     Json,
+    VarBinary(u32),
 }
 
 impl IpcDataType {
@@ -62,6 +63,7 @@ impl IpcDataType {
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
+            IpcDataType::VarBinary(len) => format!("varbinary({len})"),
         }
     }
     pub fn sql_repr(&self) -> String {
@@ -82,6 +84,7 @@ impl IpcDataType {
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
+            IpcDataType::VarBinary(len) => format!("varbinary({len})"),
         }
     }
 
@@ -106,6 +109,7 @@ impl IpcDataType {
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
+            IpcDataType::VarBinary(len) => format!("varbinary({len})"),
         }
     }
 
@@ -127,6 +131,7 @@ impl IpcDataType {
             IpcDataType::VarChar(_len) => Ty::VarChar,
             IpcDataType::NChar(_len) => Ty::NChar,
             IpcDataType::Json => Ty::Json,
+            IpcDataType::VarBinary(_len) => Ty::VarBinary,
         }
     }
 
@@ -148,6 +153,7 @@ impl IpcDataType {
             IpcDataType::VarChar(_) => DataType::Utf8,
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
+            IpcDataType::VarBinary(_) => DataType::Utf8,
         }
     }
 
@@ -155,6 +161,7 @@ impl IpcDataType {
         match self {
             IpcDataType::VarChar(len) => Some(*len as _),
             IpcDataType::NChar(len) => Some(*len as _),
+            IpcDataType::VarBinary(len) => Some(*len as _),
             _ => None,
         }
     }
@@ -188,11 +195,13 @@ impl FromStr for IpcDataType {
                     (Some(t), Some(l)) => match *t {
                         "binary" | "varchar" => Ok(Self::VarChar(l.parse().unwrap())),
                         "nchar" => Ok(Self::NChar(l.parse().unwrap())),
+                        "varbinary" => Ok(Self::VarBinary(l.parse().unwrap())),
                         _ => Err(s.to_string()),
                     },
                     (Some(t), None) => match *t {
                         "binary" | "varchar" => Ok(Self::VarChar(128)),
                         "nchar" => Ok(Self::NChar(128)),
+                        "varbinary" => Ok(Self::VarBinary(128)),
                         _ => Err(s.to_string()),
                     },
                     _ => Err(s.to_string()),
@@ -294,6 +303,7 @@ pub enum LushMessageType {
     Table = 1,
     Children,
     Insert,
+    Control,
 }
 
 #[derive(Debug, Clone, Copy)]

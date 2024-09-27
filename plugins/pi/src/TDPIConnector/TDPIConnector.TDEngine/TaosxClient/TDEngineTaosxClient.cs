@@ -43,6 +43,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         List<KeyValuePair<string, string>> tags;
         public string tdColomnType;
         public int localPort = 0;
+        /// <summary>
+        /// 下一批数据的批次号,用于追踪数据的处理进度,遗憾的是这个批号不能随着 RecordBatch 一起发送到 agent.
+        /// </summary>
+        private long _batchNumber = 0;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -53,6 +57,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             this.useAFDatabase = useAFDatabase;
             this.tdColomnType = tdColomnType;
             this.tags = tags;
+           
 
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
@@ -80,6 +85,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.POINTNAME, TDValueType.String));
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointValColomn(), tdType));
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointStatusColomn(), TDValueType.Int));
+        }
+
+        public long NextBatchNumber()
+        {
+            return Interlocked.Increment(ref _batchNumber);
         }
 
         // For AFElement
@@ -172,7 +182,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 return;
             }
             reader = new ArrowStreamReader(stream);
-            while (!stopTaosxSend && stream.CanRead)
+            while (stream.CanRead)
             {
                 try
                 {
@@ -198,11 +208,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                         }
                                         log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Arrow response code {nullableValue}, QueueSize {actualQueueBufferSize}");
                                     }
+                                    else { 
+                                        log.Warn($"Stable:{builder.stableName},localPort:{localPort}.Arrow response array length is 0");
+                                    }
                                     break;
                                 default:
                                     log.Info($"Stable:{builder.stableName},localPort:{localPort}.Unsupported arrow response array type.{array.GetType()}");
                                     break;
                             }
+                        }
+                        else
+                        {
+                            log.Warn($"Stable:{builder.stableName},localPort:{localPort}.Arrow response column count is 0");
                         }
 
                         msg.Dispose();
@@ -218,6 +235,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     Thread.Sleep(500);
                 }
             }
+            log.Debug($"Stable:{builder.stableName},localPort:{localPort}.stopTaosxSend:{stopTaosxSend},streamCanRead:{stream.CanRead},Arrow response handler exit!");
         }
 
         private void work() {
@@ -273,6 +291,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             addTablesValue(tablesValue);
         }
+
+        // element id -> timestamp -> values
         public void addTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
             foreach (var table in tables)
@@ -372,7 +392,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     long cost = stopwatch.ElapsedMilliseconds;
                     if (cost > 20000)
                     {
-                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
+                        log.Warn($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms, more than 20s");
                         Interlocked.Exchange(ref actualQueueBufferSize, 1);
                     }
                     else if (cost > 500)
@@ -424,9 +444,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             lock (stLock)
             {
                 if (builder.tagVals.Count == 0) return;
+                var batchNumber = NextBatchNumber();
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {builder.tagVals.Count}");
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Write batch:{batchNumber},Create tables {builder.tagVals.Count}");
                 builder.tagVals.Clear();
             }
         }
@@ -434,11 +455,22 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void send() {
             lock (stLock) {
                 if (builder.tableUniqKeyArrowArray.Length == 0) return;
+                var batchNumber = NextBatchNumber();
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Wrote records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Write batch:{batchNumber},records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
                 lastSend = DateTime.UtcNow;
+            }
+        }
+
+        public void SendControlMessage(string[] values) {
+            lock (stLock)
+            {
+                var batchNumber = NextBatchNumber();
+                var recordBatch = builder.BuildControlMessage(values);
+                writeRecordBatch(recordBatch);
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Write batch:{batchNumber},Message:{values[0]}");
             }
         }
 
@@ -518,16 +550,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void Stop()
         { 
-            log.Info($"Stable:{builder.stableName}, localPort:{localPort},Stop client");
+            log.Info($"Stable:{builder.stableName},localPort:{localPort},Stop client");
             if (!stopTaosxSend) { 
                 stopTaosxSend = true;
                 send();
             }
-
-            // If this empty message is not sent, the read function of the agent will fail
-            // and consider the task abnormal.
-            // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
-            writeRecordBatch(builder.BuildInsertMessage());
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();

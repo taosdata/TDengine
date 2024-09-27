@@ -33,6 +33,12 @@ namespace TDPIConnector.PI
         {
 
         }
+
+        public bool isNull()
+        {
+            return AFSDKObject == null;
+        }
+
         public AFElementTemplateWrapper Template
         {
             get

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
+use crate::runners::opc::config::PointsMode;
+use crate::runners::opc::OpcType;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
-
-use crate::runners::opc::OpcType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsConfig {
@@ -32,11 +32,24 @@ impl PointsConfig {
             OpcType::FAKE => (None, None),
         };
 
+        let points_mode = PointsMode::from_dsn(dsn)?;
+        let (update_mode, update_interval) = match points_mode {
+            PointsMode::ByCsv => {
+                // default update_mode is Append, default update_interval is 60 seconds
+                (Some(UpdateMode::Append), Some(60usize))
+            }
+            PointsMode::ByCommand => {
+                let update_mode = Self::parse_update_mode(dsn)?;
+                let update_interval = Self::parse_update_interval(dsn)?;
+                (update_mode, update_interval)
+            }
+        };
+
         Ok(Self {
             regex: Self::parse_regex(dsn),
             limit: 0,
-            update_mode: Self::parse_update_mode(dsn)?,
-            update_interval: Self::parse_update_interval(dsn)?,
+            update_mode,
+            update_interval,
             ua,
             da,
         })
@@ -67,7 +80,6 @@ impl PointsConfig {
 
 #[cfg(test)]
 mod points_config_tests {
-
     use super::*;
 
     #[test]
@@ -176,7 +188,6 @@ impl PointsUaConfig {
 
 #[cfg(test)]
 mod points_ua_config_tests {
-
     use super::*;
 
     #[test]
@@ -241,7 +252,6 @@ impl PointsDaConfig {
 
 #[cfg(test)]
 mod points_da_config_tests {
-
     use super::*;
 
     #[test]

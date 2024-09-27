@@ -15,7 +15,7 @@ use serde_json::json;
 use taosx_core::{Activity, LevelFilter, RespAction, TaskNotify, TaskOpts};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::Instrument;
 
 use crate::agent::Task;
 
@@ -35,28 +35,11 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-// impl TaskStatus {
-//     pub fn new(
-//         id: i64,
-//         at: DateTime<Utc>,
-//         action: String,
-//         message: Option<String>,
-//         context: Option<String>,
-//     ) -> Self {
-//         Self {
-//             id,
-//             at,
-//             action,
-//             message,
-//             context,
-//         }
-//     }
-// }
-
 pub struct Worker {
     handle: JoinHandle<Result<()>>,
     cancellation: CancellationToken,
 }
+
 impl Worker {
     pub fn is_finished(&self) -> bool {
         self.handle.is_finished() || self.cancelled()
@@ -69,6 +52,7 @@ impl Worker {
         self.cancellation.is_cancelled()
     }
 }
+
 pub fn spawn_runner(
     agent_id: i64,
     endpoint: impl Display,
@@ -105,7 +89,9 @@ pub fn spawn_runner(
                                     running.cancelled();
                                     tasks.remove(&task.id);
                                 } else {
-                                    info!("[{}] Runner has been started", running.key());
+                                    // TODO: 通知runner
+
+                                    tracing::info!("[{}] Runner has been started", running.key());
                                     continue;
                                 }
                             }
@@ -144,7 +130,6 @@ pub fn spawn_runner(
                                 )),
                                 breakpoints: task.breakpoints,
                                 transferred: None,
-                                span: tracing::info_span!("agent::tasks::run"),
                                 task_id: Some(task.id.to_string()),
                                 notify: task_tx,
                             };
@@ -294,7 +279,10 @@ pub fn spawn_runner(
                                             .send_async(RespAction::TaskActivity(activity))
                                             .await;
                                     } else {
-                                        info!("Worker {} has been already removed", task.id)
+                                        tracing::info!(
+                                            "Worker {} has been already removed",
+                                            task.id
+                                        )
                                     }
                                     Ok(())
                                 }
@@ -311,7 +299,7 @@ pub fn spawn_runner(
                             let order = Ordering::Relaxed;
 
                             if let Some((id, worker)) = tasks.remove(&id) {
-                                info!(
+                                tracing::info!(
                                     id = id,
                                     "[{id}] Remove runner for task {id}, wait for finished"
                                 );
@@ -356,7 +344,11 @@ pub fn spawn_runner(
                                 );
                                 let _ = sender.send_async(RespAction::TaskActivity(activity)).await;
                             } else {
-                                warn!(task = id, action = "stop", "Task runner {id} not found");
+                                tracing::warn!(
+                                    task = id,
+                                    action = "stop",
+                                    "Task runner {id} not found"
+                                );
 
                                 // rebuild status.
                                 let status = if working_tasks.load(order) > 0 {
@@ -381,12 +373,11 @@ pub fn spawn_runner(
                                     sender.send_async(RespAction::AgentActivity(activity)).await;
                             }
                         }
-
                         Action::Cancel(id) => {
                             let order = Ordering::SeqCst;
 
                             if let Some((id, worker)) = tasks.remove(&id) {
-                                info!(
+                                tracing::info!(
                                     task = id,
                                     action = "cancel",
                                     "[{id}] Remove runner for task {id}, wait for task to be finished"
@@ -405,7 +396,7 @@ pub fn spawn_runner(
                                 } else {
                                     "idle"
                                 };
-                                info!(
+                                tracing::info!(
                                     task = id,
                                     action = "cancel",
                                     "Task {id} finished, agent now is in {status}(runners: {working_tasks_count})",
@@ -440,7 +431,11 @@ pub fn spawn_runner(
                                 );
                                 let _ = sender.send_async(RespAction::TaskActivity(activity)).await;
                             } else {
-                                warn!(task = id, action = "cancel", "Task runner {id} not found");
+                                tracing::warn!(
+                                    task = id,
+                                    action = "cancel",
+                                    "Task runner {id} not found"
+                                );
 
                                 // rebuild status.
                                 let status = if working_tasks.load(order) > 0 {
@@ -470,7 +465,7 @@ pub fn spawn_runner(
                             let order = Ordering::SeqCst;
 
                             if let Some((id, worker)) = tasks.remove(&id) {
-                                info!(
+                                tracing::info!(
                                     task = id,
                                     action = "interrupt",
                                     "[{id}] Remove runner for task {id}, wait for task to be finished"
@@ -492,7 +487,7 @@ pub fn spawn_runner(
                     break Ok(());
                 }
             }
-        }),
+        }.in_current_span()),
         tasks_origin,
         tx,
         status_rx,

@@ -940,6 +940,28 @@ pub async fn sync_super_table_schema(
     let target_desc = to.describe(&target_name).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
+    let desc_first = desc.get(0).context("Error data: empty fields")?;
+    let target_desc_first = target_desc.get(0);
+    // check if the first field is timestamp
+    if desc_first.ty() == Ty::Timestamp {
+        if let Some(target_desc_first) = target_desc_first {
+            if !(target_desc_first.ty() == Ty::Timestamp
+                && desc_first.field() == target_desc_first.field())
+            {
+                bail!(
+                    "Mismatch the first field: expect `{:?}`, but got `{:?}`",
+                    target_desc_first,
+                    desc_first
+                );
+            }
+        }
+    } else {
+        bail!(
+            "Error data: expect timestamp as first field, but got `{}`",
+            desc_first.ty()
+        );
+    }
+
     for l in desc.iter() {
         let r_name = remap.and_then(|m| m.get(l.field())).unwrap_or(&l.field);
         if let Some(r) = fields.get(&r_name.as_str()) {
@@ -978,7 +1000,6 @@ pub async fn sync_super_table_schema(
             }
         } else {
             // field does not exist in right side.
-
             let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
             if let Err(err) = to
                 .exec(transform_sql_with_remap(

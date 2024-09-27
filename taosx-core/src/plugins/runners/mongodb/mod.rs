@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,7 +8,6 @@ use mongodb::bson::{Bson, Document};
 use serde_json::json;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
@@ -91,16 +91,31 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
-    let config = MongoDBConfig::from_dsn(dsn)?;
+    let mut config = MongoDBConfig::from_dsn(dsn)?;
     let mut query = MongoDBQuery::try_new(config.connect).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, String>> = Vec::new();
 
+    // replace subtable fields
+    let placeholders = config
+        .task
+        .subtable_fields
+        .keys()
+        .map(|k| (k.clone(), format!("\"{}\": {{\"$ne\":\"\"}}", k)))
+        .collect::<HashMap<String, String>>();
+    for (key, value) in placeholders.iter() {
+        config.task.sql = config
+            .task
+            .sql
+            .replace(&format!("${{{}}}", key), &value.to_string());
+    }
+
     // generate filter
     let database = config.task.generate_database()?;
     let collection = config.task.generate_collection()?;
     let filter = config.task.generate_filter()?;
+    let sort = config.task.generate_sort()?;
     tracing::info!(
         "get sample data, filter: {}, limit: {}",
         filter,
@@ -113,6 +128,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
             &database,
             &collection,
             filter,
+            sort,
             config.task.sample_data_limit,
         )
         .await?;
@@ -158,7 +174,6 @@ pub async fn mongodb_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -191,7 +206,6 @@ pub async fn mongodb_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )
@@ -270,7 +284,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Document(v) => {
-                    payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                    payload.insert(key.clone(), json!(v));
                 }
                 Bson::Boolean(v) => {
                     payload.insert(key.clone(), json!(v));
@@ -298,7 +312,8 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                    let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                    payload.insert(key.clone(), json!(format!("\\x{}", value)));
                 }
                 Bson::ObjectId(v) => {
                     payload.insert(key.clone(), json!(v.to_string()));
@@ -336,7 +351,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use mongodb::bson::{doc, oid::ObjectId, Decimal128};
+    use mongodb::bson::{doc, oid::ObjectId, spec::BinarySubtype, Binary, Decimal128};
 
     use super::*;
     use std::str::FromStr;
@@ -522,7 +537,7 @@ mod tests {
         let _ = test_clear_data().await;
         let _ = test_insert_data(4).await;
 
-        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_db6_2023&collection=tb_9&sql={\"createtime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2023-09-01T00:00:00+00:00&end=2023-09-30T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -559,7 +574,6 @@ mod tests {
             cancel,
             with_agent,
             transferred,
-            span,
             task_id,
             notify,
         );
@@ -582,7 +596,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 1).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 1)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         for document in documents {
@@ -601,5 +617,15 @@ mod tests {
         }
         // clear data
         let _ = test_clear_data().await;
+    }
+
+    #[test]
+    fn test_binary() {
+        let binary = Binary {
+            subtype: BinarySubtype::Generic,
+            bytes: vec![1, 2, 3],
+        };
+        let res: String = binary.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        println!("\\x{}", res);
     }
 }

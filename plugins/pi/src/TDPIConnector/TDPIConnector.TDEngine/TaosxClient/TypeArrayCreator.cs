@@ -28,6 +28,56 @@ namespace TDPIConnector.TDEngine.TaosxClient
             throw new NotImplementedException();
         }
     }
+
+    public class StringArrayCreator :
+        IArrowTypeVisitor<StringType>
+    {
+        private string[] values;
+        public StringArrayCreator(string[] values)
+        {
+            this.values = values;
+        }
+
+        public IArrowArray Array { get; private set; }
+
+        public void Visit(StringType type)
+        {
+            Array = new StringArray.Builder().AppendRange(values).Build();
+        }
+
+        public void Visit(IArrowType type)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class ListStringArrayCreator :
+        IArrowTypeVisitor<ListType>
+    {
+        private string[] values;
+        public ListStringArrayCreator(string[] values)
+        {
+            this.values = values;
+        }
+
+        public IArrowArray Array { get; private set; }
+
+        public void Visit(ListType type)
+        {
+            var creator = new StringArrayCreator(values);
+            type.ValueDataType.Accept(creator);
+
+            ArrowBuffer offsetsBuffer = new ArrowBuffer.Builder<int>()
+                           .Append(0).Append(values.Length).Build();
+
+            Array = new ListArray(type, 1, offsetsBuffer, creator.Array, ArrowBuffer.Empty);
+        }
+
+        public void Visit(IArrowType type)
+        {
+            throw new NotImplementedException();
+        }
+    }
     public class RecordsArrayCreator :
     IArrowTypeVisitor<StructType>
     {

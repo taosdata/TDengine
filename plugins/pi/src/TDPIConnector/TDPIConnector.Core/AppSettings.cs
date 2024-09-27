@@ -1,19 +1,23 @@
-﻿using log4net;
-using log4net.Config;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using System.Diagnostics;
+using log4net;
+using log4net.Config;
 using Tomlyn;
 
 namespace TDPIConnector.Core
 {
     public static class AppSettings
     {
-        public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-        public class TomlConfig {
+        public static readonly ILog log = LogManager.GetLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType
+        );
+
+        public class TomlConfig
+        {
             public string LogLevel { get; set; }
             public int MaxWaitLen { get; set; } = 10000;
             public int BackfillBatchSize { get; set; } = 10000;
@@ -51,6 +55,21 @@ namespace TDPIConnector.Core
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
             public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 
+            // 同步添加元素
+            public bool SyncAddElement { get; set; } = true;
+
+            // 同步删除元素
+            public bool SyncDeleteElement { get; set; } = true;
+
+            // 同步更新静态属性
+            public bool SyncUpdateAttribute { get; set; } = true;
+
+            // 同步删除时序数据
+            public bool SyncDeleteData { get; set; } = true;
+
+            // 同步更新时序数据
+            public bool SyncUpdateData { get; set; } = true;
+
             public string ConfigString()
             {
                 var sb = new StringBuilder();
@@ -77,7 +96,9 @@ namespace TDPIConnector.Core
 
                 if (TemplateForAFElement != null && TemplateForAFElement.Any())
                 {
-                    sb.AppendLine($"TemplateForAFElement={string.Join(", ", TemplateForAFElement)}");
+                    sb.AppendLine(
+                        $"TemplateForAFElement={string.Join(", ", TemplateForAFElement)}"
+                    );
                 }
                 if (PointList != null && PointList.Any())
                 {
@@ -89,7 +110,6 @@ namespace TDPIConnector.Core
                     {
                         sb.AppendLine($"PointList count: {ElementIDList.Count()}");
                     }
-                    
                 }
                 if (ElementIDList != null && ElementIDList.Any())
                 {
@@ -109,7 +129,12 @@ namespace TDPIConnector.Core
                 return sb.ToString();
             }
 
-            public void SetBackfillOption(bool backfillToFirstRecorded, bool backfillFromLastRecorded, DateTime start, DateTime end)
+            public void SetBackfillOption(
+                bool backfillToFirstRecorded,
+                bool backfillFromLastRecorded,
+                DateTime start,
+                DateTime end
+            )
             {
                 FromTDengineLastTime = backfillFromLastRecorded;
                 ToTDengineFirstTime = backfillToFirstRecorded;
@@ -121,8 +146,8 @@ namespace TDPIConnector.Core
         public static void Init(string tomlConfigFile)
         {
             tomlConfig = new TomlConfig();
-            if (tomlConfigFile != null && tomlConfigFile != "") {
-
+            if (tomlConfigFile != null && tomlConfigFile != "")
+            {
                 string fileData = System.IO.File.ReadAllText(tomlConfigFile);
 
                 var tomlOption = new TomlModelOptions();
@@ -147,10 +172,19 @@ namespace TDPIConnector.Core
             WebBaseUrl = GetStringFromAppSettings("WebBaseUrl");
             WebBasePort = GetIntegerFromAppSettings("WebBasePort", 80);
             WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents", 5);
-            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
-            WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
+            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings(
+                "WebMaxTDEngineHttpResponses",
+                5
+            );
+            WebMonitoringEventsEnabled = GetBooleanFromAppSettings(
+                "WebMonitoringEventsEnabled",
+                false
+            );
             BackfillQuitWait = GetIntegerFromAppSettings("BackfillQuitWait", 60);
-            MaxEventCountObserverFetchOnce = GetIntegerFromAppSettings("MaxEventCountObserverFetchOnce", 10000);
+            MaxEventCountObserverFetchOnce = GetIntegerFromAppSettings(
+                "MaxEventCountObserverFetchOnce",
+                10000
+            );
 
             if (TDEnginePITablesPrefix == null)
             {
@@ -171,14 +205,20 @@ namespace TDPIConnector.Core
 
             log.Info($"toml config Path: {tomlConfigFile}");
             log.Info($"toml file: \n{tomlConfig.ConfigString()}");
-            if (!string.IsNullOrEmpty(tomlConfig.LogLevel)) {
-                log4net.Repository.ILoggerRepository repository = log4net.LogManager.GetRepository();
-                log4net.Repository.Hierarchy.Hierarchy hier = (log4net.Repository.Hierarchy.Hierarchy)repository;
+            if (!string.IsNullOrEmpty(tomlConfig.LogLevel))
+            {
+                log4net.Repository.ILoggerRepository repository =
+                    log4net.LogManager.GetRepository();
+                log4net.Repository.Hierarchy.Hierarchy hier =
+                    (log4net.Repository.Hierarchy.Hierarchy)repository;
                 hier.Root.Level = hier.LevelMap[tomlConfig.LogLevel];
-                ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).RaiseConfigurationChanged(EventArgs.Empty);
+                (
+                    (log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()
+                ).RaiseConfigurationChanged(EventArgs.Empty);
                 log.Info($"Reset log level to {tomlConfig.LogLevel}.");
             }
         }
+
         public static string TDEngineHost { get; internal set; }
         public static int TDEnginePort { get; internal set; }
         public static string TDEngineUsername { get; internal set; }
@@ -206,7 +246,10 @@ namespace TDPIConnector.Core
             }
         }
 
-        private static bool GetBooleanFromAppSettings(string propertyName, bool? defaultValue = null)
+        private static bool GetBooleanFromAppSettings(
+            string propertyName,
+            bool? defaultValue = null
+        )
         {
             if (ConfigurationManager.AppSettings[propertyName] != null)
             {
@@ -251,4 +294,3 @@ namespace TDPIConnector.Core
         }
     }
 }
-

@@ -100,6 +100,9 @@ impl<'a> LicenseValidator<'a> {
                 LicenseKind::Connector(_) => {
                     return Ok(kind);
                 }
+                LicenseKind::Edition(_) => {
+                    return Ok(kind);
+                }
                 _ => {}
             }
         }

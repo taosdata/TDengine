@@ -379,20 +379,20 @@ namespace TDPIConnector.TDEngine
             return requestMessage;
         }
 
-        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
-        {
-            try
-            {
-                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.`{tbName}` " +
-                    $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
-                return await MakeHttpRequest(sqlCommand);
-            }
-            catch (Exception e)
-            {
-                log.Error($"ChangeTagValueForAFElements failed. {e}");
-                return null;
-            }
-        }
+        //public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
+        //{
+        //    try
+        //    {
+        //        string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.`{tbName}` " +
+        //            $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
+        //        return await MakeHttpRequest(sqlCommand);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        log.Error($"ChangeTagValueForAFElements failed. {e}");
+        //        return null;
+        //    }
+        //}
         public override async Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
             try
@@ -409,21 +409,21 @@ namespace TDPIConnector.TDEngine
             }
         }
 
-        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string tbName, string startTime, string endTime)
-        {
-            if (TDEngineClient.OnlyTestConnector) return null;
+        //public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string tbName, string startTime, string endTime)
+        //{
+        //    if (TDEngineClient.OnlyTestConnector) return null;
 
-            try
-            {
-                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{tbName} " +
-                    $"WHERE ts >= \'{startTime}\' AND ts <= \'{endTime}\';";
-                return await MakeHttpRequest(sqlCommand);
-            }
-            catch (Exception e)
-            {
-                log.Error($"DeleteByTimeRange failed. {e}");
-                return null;
-            }
-        }
+        //    try
+        //    {
+        //        string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{tbName} " +
+        //            $"WHERE ts >= \'{startTime}\' AND ts <= \'{endTime}\';";
+        //        return await MakeHttpRequest(sqlCommand);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        log.Error($"DeleteByTimeRange failed. {e}");
+        //        return null;
+        //    }
+        //}
     }
 }

@@ -1,13 +1,5 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Context;
-use serde::Deserialize;
-use serde_json::Value;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio_process_terminate::TerminateExt;
-use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Span};
-
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
@@ -15,10 +7,14 @@ use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::TaskNotify;
-use crate::{
-    build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
-    Action, Transferred,
-};
+use crate::{build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, Transferred};
+use anyhow::Context;
+use serde::Deserialize;
+use serde_json::Value;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio_process_terminate::TerminateExt;
+use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 pub mod config;
 pub mod transform;
@@ -59,7 +55,6 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -87,11 +82,12 @@ pub async fn pi_to_taos(
         sql_port.get(),
         task_id,
     )
-    .await?;
+    .await
+    .context("Failed to create PIConfig")?;
     pre_check_config(&config)?;
     let toml = toml::to_string(&config)?;
-    let mut config_file = tempfile::NamedTempFile::new()?;
-    write!(config_file, "{}", &toml)?;
+    let mut config_file = tempfile::NamedTempFile::new().context("Failed to create tempfile")?;
+    write!(config_file, "{}", &toml).context("Faile to write config file")?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
@@ -170,16 +166,6 @@ pub async fn pi_to_taos(
         }
     }
 
-    let server_cancellation_token = CancellationToken::new();
-    let server_cancellation_token_cloned = server_cancellation_token.clone();
-    let server = std::thread::spawn(move || {
-        spawn_rest_service(
-            target_pool,
-            sql_port.get(),
-            server_cancellation_token_cloned,
-        )
-    });
-
     let mut ipc = build_ipc(
         &config.ipc_stream,
         None,
@@ -190,27 +176,11 @@ pub async fn pi_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify.clone(),
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-
-    let client = reqwest::Client::new();
-    let mut retries = 0;
-    loop {
-        let resp = client.get(format!("{}/ping", config.sql_api)).send().await;
-        if resp.is_ok() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        if retries > 600 {
-            break;
-        }
-        retries += 1;
-    }
-
     let mut log_path = log_path();
     std::fs::create_dir_all(&log_path)
         .with_context(|| format!("Log path {}", log_path.display()))?;
@@ -276,12 +246,6 @@ pub async fn pi_to_taos(
                         tracing::info!("All IPC handlers have been finished");
                     });
                     temp_path.close().unwrap();
-                    tokio::spawn(async move {
-                        tracing::info!("Wait for rest api server finished");
-                        server_cancellation_token.cancel();
-                        let _ = server.join();
-                        tracing::info!("REST api server has been finished");
-                    });
                 });
             };
             (wait) => {
@@ -304,12 +268,6 @@ pub async fn pi_to_taos(
                         tracing::info!("All IPC handlers have been finished");
                     });
                     let _ = temp_path.close();
-                    tokio::spawn(async move {
-                        tracing::info!("Wait for rest api server finished");
-                        server_cancellation_token.cancel();
-                        let _ = server.join();
-                        tracing::info!("REST api server has been finished");
-                    });
                     exit
                 })
             };
@@ -651,6 +609,14 @@ fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
         }
         let start_time = config.backfill_start_time.unwrap();
         let end_time = config.backfill_end_time.unwrap();
+        let start_time_str = start_time.to_string();
+        let end_time_str = end_time.to_string();
+        let start_time: chrono::DateTime<chrono::Utc> = start_time_str
+            .parse()
+            .context(format!("Failed to parse start_time_str {}", start_time_str))?;
+        let end_time: chrono::DateTime<chrono::Utc> = end_time_str
+            .parse()
+            .context(format!("Failed to parse end_time_str {}", end_time_str))?;
         if start_time >= end_time {
             anyhow::bail!(
                 "PI backfill start time must be less than end time. start: {}, end: {}",
@@ -659,13 +625,11 @@ fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
             );
         }
         let now = chrono::Utc::now();
-        let now_str = now.to_rfc3339();
-        let toml_now = now_str.parse::<toml::value::Datetime>().unwrap();
-        if end_time > toml_now {
+        if end_time > now {
             anyhow::bail!(
                 "PI backfill end time must be less than current time. end: {}, now: {}",
                 end_time,
-                now_str
+                now
             );
         }
     }

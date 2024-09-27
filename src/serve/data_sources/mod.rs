@@ -18,9 +18,12 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::{dsv::DataSourceValidation, QueryDataSourceReq};
+use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::utils::timeout::{Timeout, TimeoutType};
+use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
+    plugins::transform::parse::plugin::ParserPlugin,
     plugins::transform::sample::DsSampleIn,
     runners::pi::{
         parse_query_datasource_params,
@@ -29,6 +32,7 @@ use taosx_core::{
 };
 
 mod definition;
+pub(crate) mod opc;
 mod query;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -179,10 +183,11 @@ pub(super) async fn data_sources_in_one(
             .json(ds),
         None => HttpResponse::NotFound()
             .content_type(ContentType::json())
-            .json(Failed {
-                code: Code::new(-1),
-                message: "Data source not found".into(),
-            }),
+            .json(Failed::new(
+                Code::new(-1),
+                "Data source not found".to_string(),
+                (),
+            )),
     }
 }
 
@@ -225,35 +230,23 @@ pub(super) async fn data_source_sample(
         Ok(output) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(output)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
-    // let schema = Arc::new(arrow::datatypes::Schema::new(
-    //     sample_in.input[0]
-    //         .iter()
-    //         .map(|(name, value)| {
-    //             let dt = match value {
-    //                 serde_json::Value::Null
-    //                 | serde_json::Value::String(_)
-    //                 | serde_json::Value::Object(_)
-    //                 | serde_json::Value::Array(_) => DataType::Utf8,
-    //                 serde_json::Value::Bool(_) => DataType::Boolean,
-    //                 serde_json::Value::Number(num) => {
-    //                     if num.is_u64() {
-    //                         DataType::UInt64
-    //                     } else if num.is_f64() {
-    //                         DataType::Float64
-    //                     } else {
-    //                         DataType::Int64
-    //                     }
-    //                 }
-    //             };
-    //             Field::new(name, dt, true)
-    //         })
-    //         .collect_vec(),
-    // ));
+}
+
+#[utoipa::path(
+    tag = "transform parser plugins",
+    responses(
+        (status = 200, description = "list all the parser plugins", body = Vec<String>),
+    )
+)]
+#[get("/transform/parser/plugins")]
+pub(super) async fn list_all_parser_plugins() -> impl Responder {
+    let plugins = ParserPlugin::list_all_plugins();
+    // let plugins = vec!["hebeipower".to_string(), "taos".to_string()];
+    HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .json(plugins)
 }
 
 #[test]
@@ -303,10 +296,7 @@ pub(super) async fn data_source_collection(
         Ok(data) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data)),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -317,8 +307,6 @@ pub struct DsnAgentQuery {
     via: Option<i64>,
     timeout: Option<u64>,
 }
-
-const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
 
 /// check data source validation by dsn
 #[utoipa::path(
@@ -331,7 +319,7 @@ const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
     params(
         ("dsn" = String, description = "dsn string"),
         ("via" = String, description = "agent id"),
-        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
+        ("timeout" = Option<String>, description = "timeout seconds, use default 30s when not set")
     ),
 )]
 #[get("/ds/in/validate")]
@@ -343,7 +331,15 @@ pub(super) async fn data_source_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    let timeout_sec = query.timeout.unwrap_or_else(|| {
+        let dsn = query.dsn.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::ValidateDataSource(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
     let span = Span::current();
     let result = timeout(
         Duration::from_secs(timeout_sec),
@@ -352,10 +348,11 @@ pub(super) async fn data_source_is_valid(
     .await;
     match result {
         Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
-        Err(_) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("Failed to connect to dsn: timed out"),
-        }),
+        Err(_) => Err(Failed::new(
+            Code::FAILED,
+            "Failed to connect to dsn: timed out".to_string(),
+            (),
+        )),
     }
 }
 
@@ -372,9 +369,103 @@ async fn is_datasource_valid_impl(
             let via = query.via;
             match via {
                 None => validate_dsn(d).await,
-                Some(agent) => controller.validate_dsn_via_agent(agent, d).await,
+                Some(agent) => controller.validate_dsn_via_agent(agent, &d).await,
             }
         }
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct DsnAgentQueryV2 {
+    #[param(allow_reserved)]
+    from: String,
+    #[param(allow_reserved)]
+    to: String,
+    via: Option<i64>,
+    timeout: Option<u64>,
+}
+
+/// check data source validation by dsn
+#[utoipa::path(
+    post,
+    path = "/ds/in/validate",
+    responses(
+        (status = 200, description = "data source is valid or not", body = DataSourceValidation),
+        (status = 500, description = "check data source failed", body = Failed),
+    )
+)]
+#[post("/ds/in/validate")]
+pub(super) async fn data_source_sink_is_valid(
+    controller: Data<TaskControllerRef>,
+    query: Json<DsnAgentQueryV2>,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    let query = query.into_inner();
+    let query_timeout = query.timeout.unwrap_or_else(|| {
+        let dsn = query.from.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::ValidateDataSource(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
+    let span = Span::current();
+    let result = timeout(
+        Duration::from_secs(query_timeout),
+        dsn_and_license_validate(controller, query).instrument(span),
+    )
+    .await;
+    match result {
+        Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
+        Err(_) => Err(Failed::new(
+            Code::FAILED,
+            "Failed to connect to dsn: timed out".to_string(),
+            (),
+        )),
+    }
+}
+
+async fn dsn_and_license_validate(
+    controller: Data<TaskControllerRef>,
+    query: DsnAgentQueryV2,
+) -> DataSourceValidation {
+    let from = match query.from.into_dsn() {
+        Ok(dsn) => dsn,
+        Err(err) => {
+            return DataSourceValidation::invalid(
+                "unknown".to_string(),
+                format!("DSN error: {err:#}"),
+            )
+        }
+    };
+
+    let via = query.via;
+    let res = match via {
+        None => validate_dsn(&from).await,
+        Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
+    };
+
+    let to = match query.to.into_dsn() {
+        Ok(dsn) => dsn,
+        Err(err) => {
+            return DataSourceValidation::invalid(
+                "unknown".to_string(),
+                format!("Target DSN error: {err:#}"),
+            )
+        }
+    };
+
+    match license::validate_enterprise_license(&from, &to).await {
+        Ok(license::LicenseKind::Good { .. }) => res,
+        Ok(license::LicenseKind::Feature(err))
+        | Ok(license::LicenseKind::Edition(err))
+        | Ok(license::LicenseKind::Connector(err))
+        | Err(err) => DataSourceValidation::invalid(
+            "unknown".to_string(),
+            format!("DSN license validate error: {err:#}"),
+        ),
     }
 }
 
@@ -399,32 +490,45 @@ pub(super) async fn get_sample(
 ) -> impl Responder {
     let query = query.into_inner();
 
-    // 获取示例数据的超时时间应该小于 query 中的timeout
-    let query_timeout = query.timeout.clone().unwrap_or(DEFAULT_REQUEST_TIMEOUT);
-    let dsn = query.dsn.clone().into_dsn().map_err(|err| Failed {
-        code: Code::FAILED,
-        message: format!("DSN error: {:#}", err),
-    })?;
-    let sample_timeout = plugins::parse_sample_timeout(&dsn).as_secs();
-    let timeout_sec = core::cmp::max(query_timeout, sample_timeout) + 5;
-    tracing::debug!(?query_timeout, ?sample_timeout, ?timeout_sec);
+    let query_timeout = query.timeout.clone().unwrap_or_else(|| {
+        let dsn = query.dsn.clone().into_dsn();
+        if let Ok(dsn) = dsn {
+            Timeout::get(TimeoutType::GetSample(dsn))
+        } else {
+            Timeout::get(TimeoutType::Default)
+        }
+    });
+    let query_timeout = Duration::from_secs(query_timeout);
+    tracing::debug!(
+        "get sample from: {}, timeout: {:?}",
+        query.dsn.as_str(),
+        query_timeout
+    );
 
-    let result = timeout(
-        Duration::from_secs(timeout_sec),
-        get_sample_impl(controller, query),
-    )
-    .await;
-
-    match result {
+    match timeout(query_timeout, get_sample_impl(controller, query)).await {
         Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
-        Ok(Err(err)) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("failed to get sample from data source, cause: {:#}", err),
-        }),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("get sample from data source timeout, cause: {:#}", err),
-        }),
+        Ok(Err(err)) => {
+            tracing::error!("failed to get sample from data source, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!(
+                    "failed to get sample from data source, cause: {}",
+                    err.to_string()
+                ),
+                (),
+            ))
+        }
+        Err(err) => {
+            tracing::error!("get sample from data source timeout, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!(
+                    "get sample from data source timeout, cause: {}",
+                    err.to_string()
+                ),
+                (),
+            ))
+        }
     }
 }
 
@@ -463,10 +567,7 @@ pub(super) async fn download_all_data_set_file(
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -487,10 +588,7 @@ pub(super) async fn init_download_file_task(
 
     match arrange_point_file_download_task(controller, params).await {
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: err.to_string(),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -507,10 +605,7 @@ pub(super) async fn check_point_file_ready(params: Query<TaskTicket>) -> impl Re
         Ok(complete) => {
             Ok(HttpResponse::Ok().json(TaskTicket::complete(params.ticket.clone(), complete)))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -533,10 +628,7 @@ pub(super) async fn download_point_file(
                 .set_content_disposition(content_disposition)
                 .into_response(&req))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -551,10 +643,7 @@ pub(super) async fn download_point_file(
 pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder {
     match load_point_data_page(&params).await {
         Ok(page) => Ok(HttpResponse::Ok().json(R::success(page))),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -585,10 +674,7 @@ pub(super) async fn download_point_template_file(
                 .set_content_disposition(content_disposition)
                 .into_response(&req))
         }
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -605,7 +691,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
@@ -618,20 +704,42 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
             "valid": true,
             "message": "csv file is valid"
         }))),
-        Ok(Err(err)) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("check csv file failed, cause: {:#}", err),
-        }),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("check csv file timeout, cause: {:#}", err),
-        }),
+        Ok(Err(err)) => {
+            tracing::error!("check csv file failed, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!("check csv file failed, cause: {}", err.to_string()),
+                (),
+            ))
+        }
+        Err(err) => {
+            tracing::error!("check csv file timeout, cause: {:?}", err);
+            Err(Failed::new(
+                Code::FAILED,
+                format!("check csv file timeout, cause: {}", err.to_string()),
+                (),
+            ))
+        }
     }
 }
 
 async fn is_opc_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
-    plugins::runners::opc::config::csv::CsvParser::is_valid(&dsn).await
+
+    let csv_config = OPCConfig::parse_csv_config_file(&dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in the dsn: {}",
+        dsn.to_string()
+    ))?;
+
+    if csv_config.is_empty() {
+        anyhow::bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
+    }
+
+    let parser = plugins::runners::opc::config::csv::CsvParser::from_dsn(&dsn)?;
+
+    let model_config = parser.parse().await?;
+
+    model_config.validate()
 }
 
 #[get("/ds/in/download/pi_default_config")]
@@ -644,10 +752,7 @@ pub(super) async fn download_pi_default_config(
 
     match get_pi_default_config(controller, params).await {
         Ok(file_name) => Ok(file_name),
-        Err(err) => Err(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 

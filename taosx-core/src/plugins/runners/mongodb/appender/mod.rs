@@ -45,7 +45,7 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Document(v) => {
-                        payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                        payload.insert(key.clone(), json!(v));
                     }
                     Bson::Boolean(v) => {
                         payload.insert(key.clone(), json!(v));
@@ -73,7 +73,8 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Binary(v) => {
-                        payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                        let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                        payload.insert(key.clone(), json!(format!("\\x{}", value)));
                     }
                     Bson::ObjectId(v) => {
                         payload.insert(key.clone(), json!(v.to_string()));
@@ -290,7 +291,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 7).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 7)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         let batches = to_record_batches(&documents, 3).unwrap();

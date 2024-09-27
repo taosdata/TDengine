@@ -5,6 +5,7 @@ use std::{
 
 use crate::types::dsv::DataSourceValidation;
 use chrono::{DateTime, Utc};
+use faststr::FastStr;
 use serde::{Deserialize, Serialize};
 use taosx_metrics::MetricsEvents;
 pub mod dsv;
@@ -209,6 +210,16 @@ impl Activity {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[repr(C)]
+pub enum TaskMetricsVariant {
+    Set = 0,
+    Inc,
+    Dec,
+}
+pub type TaskMetricItem = (i64, FastStr, TaskMetricsVariant, u64);
+pub type TaskMetrics = Vec<TaskMetricItem>;
 pub enum RespAction {
     Heartbeat,
     HeartbeatOk(HeartbeatResponse),
@@ -220,6 +231,7 @@ pub enum RespAction {
     PutFileOk(PutFileResp),
     AgentActivity(Activity),
     TaskActivity(Activity),
+    TaskMetrics(TaskMetrics),
     Metrics(MetricsEvents),
     QueryDataSourceOk(QueryDataSourceResp),
 }

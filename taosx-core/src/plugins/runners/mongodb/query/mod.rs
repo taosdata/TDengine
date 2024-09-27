@@ -1,7 +1,6 @@
-use anyhow::Context;
 use arrow::array::RecordBatch;
 use flume::Sender;
-use mongodb::bson::Document;
+use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::{AuthMechanism, ClientOptions, Compressor, Credential, Tls, TlsOptions};
 use mongodb::{Client, Cursor};
 use std::path::PathBuf;
@@ -12,6 +11,7 @@ use taos::StreamExt;
 use crate::runners::mongodb::appender;
 use crate::runners::mongodb::config::connect::ConnectConfig;
 
+#[derive(Clone)]
 pub struct MongoDBQuery {
     pub client: Client,
 }
@@ -124,6 +124,23 @@ impl MongoDBQuery {
         }
     }
 
+    pub async fn select_distinct_values(
+        &mut self,
+        database: &str,
+        collection: &str,
+        field: &str,
+    ) -> anyhow::Result<Vec<Bson>> {
+        // connect to mongodb
+        let database = self.client.database(database);
+        let collection: mongodb::Collection<Document> = database.collection(collection);
+        // select distinct values
+        let result = collection.distinct(field, doc! {}).await;
+        match result {
+            Ok(values) => Ok(values),
+            Err(err) => anyhow::bail!("failed to select distinct values, cause: {err:#}"),
+        }
+    }
+
     #[allow(unused)]
     pub async fn select_all_and_to_record_batches(
         &mut self,
@@ -164,6 +181,7 @@ impl MongoDBQuery {
         database: &str,
         collection: &str,
         filter: Document,
+        sort: Document,
         batch_size: usize,
         tx: Sender<RecordBatch>,
     ) -> anyhow::Result<u64> {
@@ -173,7 +191,8 @@ impl MongoDBQuery {
         // statistics
         let mut amount = 0;
         // select data
-        let result: Result<Cursor<Document>, mongodb::error::Error> = collection.find(filter).await;
+        let result: Result<Cursor<Document>, mongodb::error::Error> =
+            collection.find(filter).sort(sort).await;
         match result {
             Ok(mut cursor) => {
                 let mut documents = Vec::new();
@@ -188,9 +207,8 @@ impl MongoDBQuery {
                                     &tx,
                                     &mut amount,
                                 )?;
-                            } else {
-                                documents.push(item);
                             }
+                            documents.push(item);
                         }
                         Some(Err(e)) => {
                             anyhow::bail!("failed to select data, cause: {}", e.to_string());
@@ -212,13 +230,15 @@ impl MongoDBQuery {
         database: &str,
         collection: &str,
         filter: Document,
+        sort: Document,
         top_n: u32,
     ) -> anyhow::Result<Vec<Document>> {
         // connect to mongodb
         let database = self.client.database(database);
         let collection: mongodb::Collection<Document> = database.collection(collection);
         // select data
-        let result: Result<Cursor<Document>, mongodb::error::Error> = collection.find(filter).await;
+        let result: Result<Cursor<Document>, mongodb::error::Error> =
+            collection.find(filter).sort(sort).await;
         match result {
             Ok(mut cursor) => {
                 let mut documents = Vec::new();
@@ -253,7 +273,20 @@ fn send_documents_to_ipc(
     let batches = appender::to_record_batches(&*documents, batch_size)?;
     for batch in batches {
         if batch.num_rows() > 0 {
-            tx.send(batch).context("failed to send record batch")?;
+            // if the sending fails, retry 3 times by sleeping 1 second each time
+            for i in 1..4 {
+                let send_result = tx.send(batch.clone());
+                match send_result {
+                    Ok(_) => break,
+                    Err(e) => {
+                        tracing::warn!(
+                            "migrate mongodb, failed to send record batch to taosx, cause: {}, retrying {i} times...",
+                            e
+                        );
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
         }
     }
     *amount += documents.len() as u64;
@@ -382,6 +415,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_select_distinct_values() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str(
+            "mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={}",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MongoDBQuery::try_new(config).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query
+                    .select_distinct_values("test_taosx", "metrics", "string")
+                    .await;
+                match query_result {
+                    Ok(values) => {
+                        dbg!(&values);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
     async fn test_select_all_and_to_record_batches() {
         // prepare data
         let _ = test_create_table().await;
@@ -434,7 +503,9 @@ mod tests {
         let result = MongoDBQuery::try_new(config).await;
         match result {
             Ok(mut query) => {
-                let query_result = query.top_n("test_taosx", "metrics", doc! {}, 5).await;
+                let query_result = query
+                    .top_n("test_taosx", "metrics", doc! {}, doc! {}, 5)
+                    .await;
                 match query_result {
                     Ok(documents) => {
                         dbg!(&documents);

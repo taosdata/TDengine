@@ -11,7 +11,6 @@ use futures_util::{
     future::{self, Either},
     StreamExt as _,
 };
-use taos::Code;
 use taosx_core::core_metrics::CoreMetrics;
 use tokio::{pin, time::interval};
 use tracing::instrument;
@@ -183,10 +182,7 @@ pub(crate) async fn send_task_metrics(
     let task_id = match_info.get("task_id").unwrap();
     let task_id = i64::from_str_radix(task_id, 10);
     if let Err(err) = task_id {
-        return Err(Error::from(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }));
+        return Err(Error::from(Failed::from_error(err)));
     }
     let task_id = task_id.unwrap();
 

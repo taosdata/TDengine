@@ -119,7 +119,7 @@ namespace TDPIConnector.PI
                     afDataPipes[index].SignupAttrCount += 1;
                 }
                 catch (Exception e){
-                    log.Error($"SignUp retry failed! {attr.Element.GetPath()}.{attr.Element.Name}.{attr.Name} error:{e.Message}!");
+                    log.Error($"SignUp retry failed! {e.Message}!");
                 }
             }
         }

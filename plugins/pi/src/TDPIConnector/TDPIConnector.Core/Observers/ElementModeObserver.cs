@@ -27,7 +27,9 @@ namespace TDPIConnector.Core
 
         public void OnNext(AFDataPipeEventWrapper dpEvent)
         {
-            this.eventsSender.AddAFValue(dpEvent);
+            // OSIsoft.AF.Data.AFDataPipeAction action = dpEvent.AFEventAction();
+            // log.Info($"OnNext:{action}"); // Debug 事件丢失问题，确认是否在 SDK 层面就没有收到事件
+            eventsSender.AddAFValue(dpEvent);
         }
     }
 }

@@ -9,7 +9,6 @@ use oracle::SqlValue;
 use serde_json::json;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
@@ -70,13 +69,32 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     }}
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    let dsn = dsn.clone();
+    tokio::task::spawn_blocking(move || get_sample_sync(dsn)).await?
+}
+
+fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
     // create oracle query
-    let config = OracleConfig::from_dsn(dsn)?;
+    let mut config = OracleConfig::from_dsn(&dsn)?;
     let mut query = OracleQuery::try_new(config.connect, config.task.time_zone.clone())?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
+
+    // replace subtable fields
+    let distinct_sql = config.task.generate_distinct_sql()?;
+    let values = if !distinct_sql.is_empty() {
+        query.select_for_schema(&distinct_sql)?
+    } else {
+        LinkedHashMap::new()
+    };
+    values.iter().for_each(|(key, _)| {
+        config.task.sql = config
+            .task
+            .sql
+            .replace(&format!("${{{}}}", key), &format!("{} is not null", key));
+    });
 
     // generate sql
     let sql = config.task.generate_sql()?;
@@ -143,7 +161,6 @@ pub async fn oracle_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -176,7 +193,6 @@ pub async fn oracle_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )
@@ -482,7 +498,6 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_oracle_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
@@ -496,7 +511,6 @@ mod tests {
             cancel,
             with_agent,
             transferred,
-            span,
             task_id,
             notify,
         );

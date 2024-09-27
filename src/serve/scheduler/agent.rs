@@ -12,6 +12,7 @@ use tokio::{
     runtime::Handle,
     sync::{broadcast::error::RecvError, RwLock},
 };
+use tracing::Instrument;
 use utoipa::openapi::path;
 use uuid::Uuid;
 
@@ -153,169 +154,191 @@ impl AgentWorker {
 
         let agent_activity_sender_clone = agent_activity_sender.clone();
 
-        task_set.spawn(async move {
-            tokio::pin!(agent_notify_receiver);
-            loop {
-                match agent_notify_receiver.recv().await {
-                    Ok(item) => {
-                        tracing::debug!("Received agent notify: {:?}", item);
-                        let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
-                        let agent_states_cloned = agent_states_cloned.clone();
-                        let scheduler_notify_sender = scheduler_notify_sender.clone();
-                        let agent_activity_sender_clone = agent_activity_sender_clone.clone();
-                        tokio::spawn(async move {
-                            match item {
-                                AgentNotify::ServerStopped => {
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    agent_tasks.clear();
-                                }
-                                AgentNotify::AgentConnected(agent_id) => {
-                                    tracing::info!("Agent connected: {}", agent_id);
-                                    {
-                                        let mut states = agent_states_cloned.write().await;
-                                        if states.contains_key(&agent_id) {
-                                            states
-                                                .get_mut(&agent_id)
-                                                .unwrap()
-                                                .clone_from(&AgentState::Connected);
-                                        } else {
-                                            states.insert(agent_id, AgentState::Connected);
+        task_set.spawn(
+            async move {
+                tokio::pin!(agent_notify_receiver);
+                loop {
+                    match agent_notify_receiver.recv().await {
+                        Ok(item) => {
+                            tracing::debug!("Received agent notify: {:?}", item);
+                            let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
+                            let agent_states_cloned = agent_states_cloned.clone();
+                            let scheduler_notify_sender = scheduler_notify_sender.clone();
+                            let agent_activity_sender_clone = agent_activity_sender_clone.clone();
+                            tokio::spawn(
+                                async move {
+                                    match item {
+                                        AgentNotify::ServerStopped => {
+                                            let mut agent_tasks =
+                                                agent_tasks_sender_clone.write().await;
+                                            agent_tasks.clear();
                                         }
-                                    }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                        tokio::task::block_in_place(|| {
-                                            Handle::current().block_on(async {
-                                                *t.agent_state.write().await =
-                                                    AgentState::Connected;
-                                                t.sender
-                                                    .send(TaskActivity::agent_resumed(
-                                                        t.task_id, agent_id,
-                                                    ))
-                                                    .await;
+                                        AgentNotify::AgentConnected(agent_id) => {
+                                            tracing::info!("Agent connected: {}", agent_id);
+                                            {
+                                                let mut states = agent_states_cloned.write().await;
+                                                if states.contains_key(&agent_id) {
+                                                    states
+                                                        .get_mut(&agent_id)
+                                                        .unwrap()
+                                                        .clone_from(&AgentState::Connected);
+                                                } else {
+                                                    states.insert(agent_id, AgentState::Connected);
+                                                }
+                                            }
+                                            let mut agent_tasks =
+                                                agent_tasks_sender_clone.write().await;
+                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
+                                                tokio::task::block_in_place(|| {
+                                                    Handle::current().block_on(async {
+                                                        *t.agent_state.write().await =
+                                                            AgentState::Connected;
+                                                        t.sender
+                                                            .send(TaskActivity::agent_resumed(
+                                                                t.task_id, agent_id,
+                                                            ))
+                                                            .await;
+                                                    });
+                                                });
                                             });
-                                        });
-                                    });
-                                }
-                                AgentNotify::AgentDisconnected(agent_id) => {
-                                    tracing::info!("Agent disconnected: {}", agent_id);
-                                    {
-                                        let mut states = agent_states_cloned.write().await;
-                                        if states.contains_key(&agent_id) {
-                                            states
-                                                .get_mut(&agent_id)
-                                                .unwrap()
-                                                .clone_from(&AgentState::Disconnected);
                                         }
-                                    }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                        tokio::task::block_in_place(|| {
-                                            Handle::current().block_on(async {
-                                                *t.agent_state.write().await =
-                                                    AgentState::Disconnected;
+                                        AgentNotify::AgentDisconnected(agent_id) => {
+                                            tracing::info!("Agent disconnected: {}", agent_id);
+                                            {
+                                                let mut states = agent_states_cloned.write().await;
+                                                if states.contains_key(&agent_id) {
+                                                    states
+                                                        .get_mut(&agent_id)
+                                                        .unwrap()
+                                                        .clone_from(&AgentState::Disconnected);
+                                                }
+                                            }
+                                            let mut agent_tasks =
+                                                agent_tasks_sender_clone.write().await;
+                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
+                                                tokio::task::block_in_place(|| {
+                                                    Handle::current().block_on(async {
+                                                        *t.agent_state.write().await =
+                                                            AgentState::Disconnected;
 
-                                                t.sender
-                                                    .send(TaskActivity::waiting(
-                                                        t.task_id,
-                                                        format!("Agent {agent_id} is disconnected"),
-                                                    ))
-                                                    .await;
+                                                        t.sender
+                                                            .send(TaskActivity::waiting(
+                                                                t.task_id,
+                                                                format!(
+                                                                "Agent {agent_id} is disconnected"
+                                                            ),
+                                                            ))
+                                                            .await;
+                                                    });
+                                                });
                                             });
-                                        });
-                                    });
-                                }
-                                AgentNotify::AgentClosed(agent_id) => {
-                                    tracing::info!("Agent closed: {}", agent_id);
-                                    {
-                                        let mut states = agent_states_cloned.write().await;
-                                        if states.contains_key(&agent_id) {
-                                            states
-                                                .get_mut(&agent_id)
-                                                .unwrap()
-                                                .clone_from(&AgentState::Closed);
-                                        } else {
-                                            states.insert(agent_id, AgentState::Closed);
+                                        }
+                                        AgentNotify::AgentClosed(agent_id) => {
+                                            tracing::info!("Agent closed: {}", agent_id);
+                                            {
+                                                let mut states = agent_states_cloned.write().await;
+                                                if states.contains_key(&agent_id) {
+                                                    states
+                                                        .get_mut(&agent_id)
+                                                        .unwrap()
+                                                        .clone_from(&AgentState::Closed);
+                                                } else {
+                                                    states.insert(agent_id, AgentState::Closed);
+                                                }
+                                            }
+                                            let mut agent_tasks =
+                                                agent_tasks_sender_clone.write().await;
+                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
+                                                tokio::task::block_in_place(|| {
+                                                    Handle::current().block_on(async {
+                                                        *t.agent_state.write().await =
+                                                            AgentState::Closed;
+                                                    });
+                                                });
+                                            });
+                                        }
+                                        AgentNotify::TaskActivity(aid, activity) => {
+                                            tracing::info!(
+                                                agent.id = aid,
+                                                task.id = activity.id,
+                                                "Task activity: {:?}",
+                                                activity
+                                            );
+                                            let agent_tasks = agent_tasks_sender_clone.read().await;
+                                            // dbg!(&agent_tasks);
+                                            if let Some(task) =
+                                                agent_tasks.get_by_task_id(&activity.id)
+                                            {
+                                                if let Err(err) = task.sender.send(activity).await {
+                                                    tracing::warn!(
+                                                        "Error sending task activity {:?}",
+                                                        err
+                                                    );
+                                                }
+                                                // scheduler_notify_sender.push_task_activity(activity);
+                                            } else {
+                                                tracing::warn!(
+                                                    agent.id = aid,
+                                                    task.id = activity.id,
+                                                    task.activity = activity.activity,
+                                                    "Task worker not found: {:?}",
+                                                    activity.id
+                                                );
+                                            }
+                                        }
+                                        AgentNotify::AgentActivity(aid, activity) => {
+                                            tracing::info!(
+                                                agent.id = aid,
+                                                "Agent activity: {:?}",
+                                                activity
+                                            );
+                                            scheduler_notify_sender.push_agent_activity(activity);
+                                        }
+                                        AgentNotify::WriterError(agent_id, task_id, message) => {
+                                            tracing::warn!(
+                                                agent_id = agent_id,
+                                                task_id = task_id,
+                                                message = message.as_str(),
+                                                "Writer error: {}",
+                                                message
+                                            );
+                                            let mut agent_tasks =
+                                                agent_tasks_sender_clone.write().await;
+                                            // let agent_activity_sender = agent_activity_sender_clone.clone();
+                                            agent_tasks.modify_by_task_id(&task_id, |t| {
+                                                tokio::task::block_in_place(|| {
+                                                    Handle::current().block_on(async {
+                                                        t.sender
+                                                            .send(TaskActivity::interrupt(
+                                                                t.task_id,
+                                                                format!(
+                                                                    "Writer error: {}",
+                                                                    message
+                                                                ),
+                                                            ))
+                                                            .await;
+                                                    });
+                                                });
+                                            });
                                         }
                                     }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                        tokio::task::block_in_place(|| {
-                                            Handle::current().block_on(async {
-                                                *t.agent_state.write().await = AgentState::Closed;
-                                            });
-                                        });
-                                    });
                                 }
-                                AgentNotify::TaskActivity(aid, activity) => {
-                                    tracing::info!(
-                                        agent.id = aid,
-                                        task.id = activity.id,
-                                        "Task activity: {:?}",
-                                        activity
-                                    );
-                                    let agent_tasks = agent_tasks_sender_clone.read().await;
-                                    // dbg!(&agent_tasks);
-                                    if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
-                                        if let Err(err) = task.sender.send(activity).await {
-                                            tracing::warn!("Error sending task activity {:?}", err);
-                                        }
-                                        // scheduler_notify_sender.push_task_activity(activity);
-                                    } else {
-                                        tracing::warn!(
-                                            agent.id = aid,
-                                            task.id = activity.id,
-                                            task.activity = activity.activity,
-                                            "Task worker not found: {:?}",
-                                            activity.id
-                                        );
-                                    }
-                                }
-                                AgentNotify::AgentActivity(aid, activity) => {
-                                    tracing::info!(
-                                        agent.id = aid,
-                                        "Agent activity: {:?}",
-                                        activity
-                                    );
-                                    scheduler_notify_sender.push_agent_activity(activity);
-                                }
-                                AgentNotify::WriterError(agent_id, task_id, message) => {
-                                    tracing::warn!(
-                                        agent_id = agent_id,
-                                        task_id = task_id,
-                                        message = message.as_str(),
-                                        "Writer error: {}",
-                                        message
-                                    );
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    // let agent_activity_sender = agent_activity_sender_clone.clone();
-                                    agent_tasks.modify_by_task_id(&task_id, |t| {
-                                        tokio::task::block_in_place(|| {
-                                            Handle::current().block_on(async {
-                                                t.sender
-                                                    .send(TaskActivity::interrupt(
-                                                        t.task_id,
-                                                        format!("Writer error: {}", message),
-                                                    ))
-                                                    .await;
-                                            });
-                                        });
-                                    });
-                                }
-                            }
-                        });
-                    }
-                    Err(RecvError::Lagged(_)) => continue,
-                    Err(RecvError::Closed) => {
-                        tokio::spawn(async move {
-                            let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                            agent_tasks.clear();
-                        });
-                        break;
+                                .in_current_span(),
+                            );
+                        }
+                        Err(RecvError::Lagged(_)) => continue,
+                        Err(RecvError::Closed) => {
+                            tokio::spawn(async move {
+                                let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                agent_tasks.clear();
+                            });
+                            break;
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
         Self {
             agent_states,
             agent_tasks_sender,

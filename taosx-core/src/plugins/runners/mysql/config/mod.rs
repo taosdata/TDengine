@@ -55,6 +55,7 @@ impl MySqlConfig {
 
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
+    pub subtable_fields: Option<String>,
     pub sql: String,
     pub start: DateTime<Utc>,
     pub end: Option<DateTime<Utc>>,
@@ -67,6 +68,7 @@ pub struct TaskConfig {
 impl TaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(TaskConfig {
+            subtable_fields: Self::parse_subtable_fields(dsn),
             sql: Self::parse_sql(dsn)?,
             start: Self::parse_start(dsn)?,
             end: Self::parse_end(dsn)?,
@@ -75,6 +77,10 @@ impl TaskConfig {
             delay: Self::parse_delay(dsn)?,
             sample_data_limit: Self::parse_sample_data_limit(dsn)?,
         })
+    }
+
+    fn parse_subtable_fields(dsn: &Dsn) -> Option<String> {
+        dsn.params.get("subtable_fields").map(|s| s.to_string())
     }
 
     fn parse_sql(dsn: &Dsn) -> anyhow::Result<String> {
@@ -220,6 +226,45 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
+    pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
+        // generate sql
+        let mut sql = self.subtable_fields.clone().unwrap_or("".to_string());
+
+        // task start time with time zone
+        let start = self.start;
+        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+        let start_tz = start.with_timezone(&time_zone);
+
+        // replace the placeholders
+        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
+        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
+        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
+        sql = sql.replace(
+            "${M}",
+            start_tz.format("%m").to_string().trim_start_matches("0"),
+        );
+        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
+        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
+        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
+        sql = sql.replace(
+            "${D}",
+            start_tz.format("%d").to_string().trim_start_matches("0"),
+        );
+        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
+        sql = sql.replace(
+            "${J}",
+            start_tz.format("%j").to_string().trim_start_matches("0"),
+        );
+        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
+        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
+        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
+        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
+        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
+        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
+        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
+        anyhow::Ok(sql)
+    }
+
     pub fn generate_sql(&self) -> anyhow::Result<String> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
@@ -292,10 +337,22 @@ impl TaskConfig {
         sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
         sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
         sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
+        sql = sql.replace(
+            "${M}",
+            start_tz.format("%m").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
         sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
         sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
+        sql = sql.replace(
+            "${D}",
+            start_tz.format("%d").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
+        sql = sql.replace(
+            "${J}",
+            start_tz.format("%j").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
         sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
         sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
@@ -371,9 +428,42 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_subtable_fields() {
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?subtable_fields=select distinct sys_sn,sys_so from tablename&sql=select * from tablename where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(
+            config.task.subtable_fields.unwrap(),
+            "select distinct sys_sn,sys_so from tablename"
+        );
+
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from tablename where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.subtable_fields, None);
+    }
+
+    #[test]
+    fn test_generate_distinct_sql() {
+        // with time zone
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?subtable_fields=select distinct sys_sn,sys_so from tablename&sql=select * from tablename where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_distinct_sql().unwrap();
+        assert_eq!(sql, "select distinct sys_sn,sys_so from tablename");
+
+        // use placeholders
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?subtable_fields=select distinct sys_sn,sys_so from table_${Ymd}&sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_distinct_sql().unwrap();
+        assert_eq!(sql, "select distinct sys_sn,sys_so from table_20210101");
+    }
+
+    #[test]
     fn test_generate_sql() {
         // with time zone
-        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?subtable_fields=select distinct name,value from table_${Ymd}&sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
@@ -382,7 +472,7 @@ mod tests {
         assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
 
         // use {time} and cross days
-        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?subtable_fields=select distinct name,value from table_${Ymd}&sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();

@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use taosx_ipc::prelude::IpcDataType;
 
+#[derive(Debug, Clone)]
 pub struct CsvColumn {
     pub name: String,
     pub index: usize,
@@ -16,12 +17,11 @@ pub struct CsvColumn {
 }
 
 impl CsvColumn {
-    pub async fn try_new(name: &str, index: usize) -> anyhow::Result<Self> {
+    pub fn try_new(name: &str, index: usize) -> anyhow::Result<Self> {
         let col = match name {
             "point_id" | "tag_name" | "TagName" => Self::default(name, index),
             "enabled" => Self::default(name, index),
-            "stable" => Self::default(name, index),
-            "tbname" => Self::default(name, index),
+            "stable" | "tbname" => Self::expression_col(name, index),
             "value_col" => Self::default(name, index),
             "value_transform" | "ts_transform" | "received_ts_transform" => {
                 Self::transform_col(name, index)
@@ -41,7 +41,7 @@ impl CsvColumn {
         Ok(col)
     }
 
-    pub fn default(name: &str, index: usize) -> Self {
+    fn default(name: &str, index: usize) -> Self {
         Self {
             name: name.to_string(),
             index,
@@ -53,7 +53,7 @@ impl CsvColumn {
         }
     }
 
-    pub fn timestamp_col(name: &str, index: usize) -> Self {
+    fn timestamp_col(name: &str, index: usize) -> Self {
         Self {
             name: name.to_string(),
             index,
@@ -65,7 +65,7 @@ impl CsvColumn {
         }
     }
 
-    pub fn transform_col(name: &str, index: usize) -> Self {
+    fn transform_col(name: &str, index: usize) -> Self {
         Self {
             name: name.to_string(),
             index,
@@ -77,7 +77,11 @@ impl CsvColumn {
         }
     }
 
-    pub fn tag_col(pattern: &str, index: usize) -> anyhow::Result<Self> {
+    fn expression_col(name: &str, index: usize) -> Self {
+        Self::transform_col(name, index)
+    }
+
+    fn tag_col(pattern: &str, index: usize) -> anyhow::Result<Self> {
         // tag pattern is `tag::type::name`, example: tag::varchar(123)::unit
         let split_pattern = pattern.split("::").collect_vec();
         if split_pattern.len() != 3 {

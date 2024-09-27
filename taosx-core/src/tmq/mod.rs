@@ -1,16 +1,17 @@
 use std::{
     ops::{AddAssign, SubAssign},
     str::FromStr,
-    time::Duration,
 };
 
-use crate::dsv::DataSourceValidation;
 use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
+use crate::dsv::DataSourceValidation;
+
 pub mod tmq_metric;
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct TopicTable {
     pub(crate) stable: Option<String>,
@@ -55,9 +56,6 @@ impl TopicType {
             Self::Query
         }
     }
-    // fn is_query(&self) -> bool {
-    //     matches!(self, TopicType::Query)
-    // }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -92,13 +90,17 @@ pub const METRIC_TMQ_RECORDS: &str = "metrics.tmq.records";
 pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
 // pub const METRIC_TMQ_TIME_COST: &str = "tmq.time_cost";
 
-#[derive(Debug, Default)]
+/// StopAt is a enum to represent the stop time.
+/// example:
+/// - `now` or `0` means stop at now.
+/// - `-1s` means stop at now - 1s.
+/// - `+1s` means stop at now + 1s.
+/// - `2021-09-01T00:00:00+08:00` means stop at the specific time.
+/// - `1000rows` means stop when received 1000 rows.
+#[derive(Debug, Clone)]
 pub(crate) enum StopAt {
-    #[default]
-    Now,
-    Backward(Duration),
-    Forward(Duration),
-    At(chrono::DateTime<Local>),
+    DateTime(chrono::DateTime<Local>),
+    Rows(usize),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -106,47 +108,44 @@ pub(crate) enum StopAtError {
     #[error(transparent)]
     DurationParseError(#[from] parse_duration::parse::Error),
     #[error(transparent)]
+    DateTimeCalculateError(#[from] chrono::OutOfRangeError),
+    #[error(transparent)]
     DateTimeParseError(#[from] chrono::ParseError),
-}
-
-impl StopAt {
-    pub fn to_local_date_time(&self) -> chrono::DateTime<Local> {
-        let mut now = Local::now();
-        match self {
-            StopAt::Now => now,
-            StopAt::Backward(duration) => {
-                now.sub_assign(chrono::Duration::from_std(*duration).unwrap());
-                now
-            }
-            StopAt::Forward(duration) => {
-                now.add_assign(chrono::Duration::from_std(*duration).unwrap());
-                now
-            }
-            StopAt::At(dt) => *dt,
-        }
-    }
+    #[error("rows parse error: {0}")]
+    RowsParseError(#[from] std::num::ParseIntError),
 }
 
 impl FromStr for StopAt {
     type Err = StopAtError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let at = StopAt::Now;
+        let mut at = Local::now();
         match s {
-            "" | "0" | "now" => Ok(at),
+            "" | "0" | "now" => Ok(Self::DateTime(at)),
             s if s.starts_with('-') => {
                 let s = s.trim_start_matches('-');
-                let d = parse_duration::parse(s)?;
-                Ok(Self::Backward(d))
+                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
+                let duration = chrono::Duration::from_std(duration)
+                    .map_err(StopAtError::DateTimeCalculateError)?;
+                at.sub_assign(duration);
+                Ok(Self::DateTime(at))
             }
             s if s.starts_with('+') => {
                 let s = s.trim_start_matches('+');
-                let d = parse_duration::parse(s)?;
-                Ok(Self::Forward(d))
+                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
+                let duration = chrono::Duration::from_std(duration)
+                    .map_err(StopAtError::DateTimeCalculateError)?;
+                at.add_assign(duration);
+                Ok(Self::DateTime(at))
+            }
+            s if s.ends_with("rows") => {
+                let s = s.trim_end_matches("rows");
+                let rows = s.parse().map_err(|err| StopAtError::RowsParseError(err))?;
+                Ok(Self::Rows(rows))
             }
             s => {
                 let d = chrono::DateTime::parse_from_rfc3339(s)?;
-                Ok(Self::At(d.into()))
+                Ok(Self::DateTime(d.into()))
             }
         }
     }
@@ -753,7 +752,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
     if dsn.subject.is_none() {
         return DataSourceValidation::invalid(
-            "tmq".to_string(),
+            dsn.driver.clone(),
             format!(
                 "invalid dsn: {}, cause: subject is required in tmq dsn",
                 dsn.to_string()
@@ -768,7 +767,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let validation = check_tmq_dsn(dsn.clone()).await;
     match validation {
         Err(err) => DataSourceValidation::invalid(
-            "tmq".to_string(),
+            dsn.driver.clone(),
             format!(
                 "failed to check dsn: {}, cause: {}",
                 dsn.to_string(),
@@ -779,13 +778,13 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
-                    "tmq".to_string(),
+                    dsn.driver.clone(),
                     format!("failed to get server version, cause: {}", err.to_string()),
                 ),
                 Ok(version) => DataSourceValidation {
                     valid: true,
                     support: true,
-                    data_source: "tmq".to_string(),
+                    data_source: dsn.driver,
                     version: Some(version.to_string()),
                     message: None,
                     namespaces: None,
@@ -798,6 +797,45 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_stop_at() {
+        let now = Local::now().timestamp();
+        if let StopAt::DateTime(dt) = StopAt::from_str("now").unwrap() {
+            assert_eq!(now, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
+
+        let now = Local::now().timestamp();
+        if let StopAt::DateTime(dt) = StopAt::from_str("-1s").unwrap() {
+            assert_eq!(now - 1, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
+
+        let now = Local::now().timestamp();
+        if let StopAt::DateTime(dt) = StopAt::from_str("+1s").unwrap() {
+            assert_eq!(now + 1, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
+
+        if let StopAt::DateTime(dt) = StopAt::from_str("2021-09-01T00:00:00+08:00").unwrap() {
+            assert_eq!(1630425600, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
+
+        let stop_at = StopAt::from_str("1000rows").unwrap();
+        assert!(matches!(stop_at, StopAt::Rows(1000)));
+
+        let stop_at = StopAt::from_str("12abc22rows");
+        assert_eq!(
+            stop_at.unwrap_err().to_string(),
+            "rows parse error: invalid digit found in string"
+        );
+    }
 
     #[tokio::test]
     async fn test_invalid() {

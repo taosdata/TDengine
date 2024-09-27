@@ -1,5 +1,6 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    borrow::Cow,
+    collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
@@ -31,19 +32,20 @@ use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::{Dsn, IntoDsn};
+use taoslog::{utils::QidMetadataSetter, QidManager};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument, warn, Instrument};
 use uuid::Uuid;
 
-use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::{
-    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
-    PutFileResp, QueryDataSourceResp,
+    core_metrics::get_metrics, get_data_dir, utils::get_string_content_from_param_value,
+    utils::trace::Qid, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp,
+    QueryDataSourceResp, TaskMetricItem,
 };
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
@@ -396,10 +398,12 @@ impl FlightServiceImpl {
             let mut receiver = receiver;
             let tx = tx_cloned;
             let _ = std::env::set_current_dir(get_data_dir());
+            info!("agent action flight listener start");
             loop {
                 match receiver.recv().await {
                     Ok((id, action)) => {
                         if id == agent_id {
+                            tracing::debug!("receive action: {:?}, agent id: {}", action, id);
                             if let Some(batch) = action_to_arrow(
                                 &req_id,
                                 &senders,
@@ -430,6 +434,7 @@ impl FlightServiceImpl {
                     },
                 }
             }
+            info!("agent action flight listener stop");
         });
         (tx, rx)
     }
@@ -459,6 +464,25 @@ impl FlightServiceImpl {
             }
         }
     }
+
+    pub async fn replay_task_metrics_from_agent(events: Vec<TaskMetricItem>) {
+        for (task_id, key, ty, value) in events {
+            if let Some(metrics) = get_metrics(task_id).await {
+                use taosx_ipc::types::TaskMetricsVariant;
+                match ty {
+                    TaskMetricsVariant::Set => {
+                        metrics.ipc().set_extra_metric(&key, value);
+                    }
+                    TaskMetricsVariant::Inc => {
+                        metrics.ipc().add_extra_metric(&key, value);
+                    }
+                    TaskMetricsVariant::Dec => {
+                        metrics.ipc().sub_extra_metric(&key, value);
+                    }
+                }
+            }
+        }
+    }
 }
 
 // impl FlightServiceImpl {
@@ -471,6 +495,7 @@ impl FlightServiceImpl {
 impl FlightService for FlightServiceImpl {
     type HandshakeStream =
         Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send + Sync + 'static>>;
+
     async fn handshake(
         &self,
         req: Request<Streaming<HandshakeRequest>>,
@@ -592,10 +617,17 @@ impl FlightService for FlightServiceImpl {
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        let stream_trace_id = match meta.get("x-trace-id") {
-            Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
-            None => "0000",
+        let qid_str = match meta.get(taoslog::utils::QID_HEADER_KEY) {
+            Some(stream_trace_id) => Cow::Borrowed(stream_trace_id.to_str().unwrap()),
+            None => {
+                tracing::warn!(task_id, "qid not found in put stream");
+                Cow::Owned(Qid::init().display().to_string())
+            }
         };
+        let qid = Qid::from(u64::from_str_radix(&qid_str[2..], 16).expect("invalid qid"));
+        taoslog::utils::Span.set_qid(&qid);
+
+        tracing::info!("received qid str: {qid_str}, task_id: {task_id}");
 
         // let message = req.try_next().await?;
 
@@ -605,7 +637,7 @@ impl FlightService for FlightServiceImpl {
             req,
             self.notify_sender.clone(),
             addr,
-            TraceStreamId::from_hex(stream_trace_id),
+            qid,
             self.spawn_sender.clone(),
         )
         .await
@@ -722,7 +754,7 @@ impl FlightService for FlightServiceImpl {
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
                                     )
-                                    .unwrap(),
+                                        .unwrap(),
                                     action.value(0),
                                     req_id.value(0),
                                     res
@@ -828,7 +860,6 @@ impl FlightService for FlightServiceImpl {
                                                     "PutFileResp has no receiver"
                                                 );
                                             }
-
                                         });
                                     }
                                     "query-data-source" => {
@@ -931,10 +962,23 @@ impl FlightService for FlightServiceImpl {
                                             ("context", context),
                                             ("req_id", req_id),
                                         ])
-                                        .map_err(FlightError::Arrow);
+                                            .map_err(FlightError::Arrow);
                                         // tracing::info!("Send heartbeat response");
                                         let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
+                                    }
+                                    "task-metrics" => {
+                                        match serde_json::from_str::<Vec<TaskMetricItem>>(context) {
+                                            Ok(events) => {
+                                                tokio::spawn(async move {
+                                                    tracing::trace!("Received source metrics events, total: {}", events.len());
+                                                    Self::replay_task_metrics_from_agent(events).await;
+                                                });
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!(?err, "Invalid metrics events");
+                                            }
+                                        }
                                     }
                                     "metrics-events" => {
                                         match serde_json::from_str::<MetricsEvents>(context) {
@@ -948,7 +992,6 @@ impl FlightService for FlightServiceImpl {
                                                 tracing::warn!(?err, "Invalid metrics events");
                                             }
                                         }
-
                                     }
                                     action => {
                                         warn!("Unknown action: {action}");
@@ -999,7 +1042,7 @@ impl FlightService for FlightServiceImpl {
                 }
             }
             Ok::<_, anyhow::Error>(())
-        });
+        }.in_current_span());
         let stream: Self::DoExchangeStream = Box::pin({
             let schema = Arc::new(Schema::new(Fields::from(vec![
                 Field::new(
@@ -1031,12 +1074,12 @@ impl FlightService for FlightServiceImpl {
         &self,
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
+        taoslog::utils::Span.set_qid(&Qid::init());
         let (_meta, _part, action) = request.into_parts();
         // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
-
                 let mut status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
@@ -1101,32 +1144,54 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
 
 #[instrument(skip(dsn))]
 async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
-    let mut dsn = dsn.into_dsn()?;
-    tracing::debug!("dsn before modify: {:?}", &dsn);
-    let mut map = BTreeMap::new();
-    for (k, v) in dsn.params {
-        let new_value = if k == "csv_config_file" {
-            encode_csv_config_file(v.clone())?
-        } else if k == "transform_config_file" {
-            String::new()
-        } else if v.contains("@") {
-            get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
-        } else {
-            String::new()
-        };
-        let new_value = if new_value.is_empty() { v } else { new_value };
-        map.insert(k, new_value);
+    let mut dsn = dsn.into_dsn()?.clone();
+    tracing::debug!("dsn before modify: {}", &dsn);
+
+    if let Some(v) = dsn.params.get("csv_config_file") {
+        let csv_path = &v[1..];
+        dsn.params
+            .insert("csv_config_file_origin".to_string(), csv_path.to_string());
     }
-    dsn.params = map;
-    tracing::debug!("dsn after modify: {:?}", &dsn);
+
+    // let mut map = BTreeMap::new();
+    // for (k, v) in dsn.params {
+    //     let new_value = if k == "csv_config_file" {
+    //         encode_csv_config_file(v.clone())?
+    //     } else if k == "transform_config_file" {
+    //         String::new()
+    //     } else if v.contains("@") {
+    //         get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
+    //     } else {
+    //         String::new()
+    //     };
+    //     let new_value = if new_value.is_empty() { v } else { new_value };
+    //     map.insert(k, new_value);
+    // }
+    // dsn.params = map;
+    for (k, v) in dsn.params.iter_mut() {
+        if k == "csv_config_file" {
+            *v = encode_csv_config_file(v.clone())?;
+            continue;
+        }
+        if k == "transform_config_file" {
+            continue;
+        }
+        if v.contains("@") {
+            if let Some(new_value) = get_string_content_from_param_value(&v, false, false)? {
+                *v = new_value;
+            }
+        }
+    }
+
+    tracing::debug!("dsn after modify: {}", &dsn);
     Ok(dsn)
 }
 
-pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
+pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
     let mut new_value = String::new();
 
     // TODO use mime instead
-    let (files, strs): (Vec<String>, Vec<String>) = v
+    let (files, strs): (Vec<String>, Vec<String>) = csv_path
         .split(",")
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -1134,8 +1199,8 @@ pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
         .partition(|v| v.starts_with("@"));
     let file_len = files.len();
     for file in files {
-        info!(
-            "current log: {}",
+        tracing::debug!(
+            "current dir: {}",
             std::env::current_dir().unwrap().to_str().unwrap()
         );
         let file_data = std::fs::read(&file[1..])
@@ -1241,6 +1306,8 @@ mod tests {
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
+    use crate::serve::rpc::modify_dsn_params;
+    use crate::serve::tests::tracing_subscriber_init;
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow::{
@@ -1262,7 +1329,20 @@ mod tests {
         IntoStreamingRequest,
     };
 
-    use crate::serve::tests::tracing_subscriber_init;
+    #[tokio::test]
+    async fn test_modify_dsn_params() {
+        // modify the csv_config_file
+        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2F2.16OPCDA.csv".to_string();
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let csv_config = new_dsn.params.get("csv_config_file").unwrap();
+        assert_eq!("Tm8uLHRhZ19uYW1lLGVuYWJsZWQsc3RhYmxlLHRibmFtZSx2YWx1ZV9jb2wsdmFsdWVfdHJhbnNmb3JtLHR5cGUscXVhbGl0eV9jb2wsdHNfY29sLHJlY2VpdmVkX3RzX2NvbCx0c190cmFuc2Zvcm0scmVjZWl2ZWRfdHNfdHJhbnNmb3JtLHRhZzo6VkFSQ0hBUigyMDApOjpuYW1lCjEsZGV2aWNlMC50YWdkMF8wLDEsc3RiMSxzdGIxX3RiMSx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzAKMixkZXZpY2UwLnRhZ2QwXzEsMSxzdGIyLHN0YjJfdGIyLHZhbCwsLHF1YWxpdHksdHMscnRzLCwsdGFnZDBfMQozLGRldmljZTAudGFnZDBfMiwxLHN0YjMsc3RiM190YjMsdmFsLCwscXVhbGl0eSx0cyxydHMsLCx0YWdkMF8yCjQsZGV2aWNlMC50YWdkMF80LDEsc3RiNCxzdGI0X3RiNCx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzQ=", csv_config);
+
+        // do not modify the transform_config_file
+        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftests%2Fpi%2Fpi_singlecol_point.csv".to_string();
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let config_file = new_dsn.params.get("transform_config_file").unwrap();
+        assert_eq!("@./tests/pi/pi_singlecol_point.csv", config_file);
+    }
 
     // use super::FlightServiceImpl;
     // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
@@ -1286,6 +1366,7 @@ mod tests {
         // .unwrap();
         FlightServiceClient::new(channel)
     }
+
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn server_client() -> anyhow::Result<()> {

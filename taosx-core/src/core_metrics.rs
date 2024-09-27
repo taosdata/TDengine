@@ -380,7 +380,7 @@ pub async fn init_task_metrics(
                 Some(metrics)
             }
         }
-        ("tmq", "taos" | "local") => {
+        ("tmq" | "sync", "taos" | "local") => {
             let metrics = try_get_metrics::<TmqMetrics>(task_id).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);

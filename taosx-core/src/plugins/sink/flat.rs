@@ -3,7 +3,7 @@ use std::{
     clone::Clone,
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -16,6 +16,10 @@ use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, RawBlock, TaosBuilder, TaosPool, Ty};
+use taoslog::{
+    utils::{QidMetadataGetter, QidMetadataSetter, Span},
+    QidManager,
+};
 use taosx_ipc::{
     ack::LushAck,
     stream::{flat::FlatMessage, reader::IpcMessage},
@@ -35,7 +39,7 @@ use crate::{
             describe_table_with_connection_retries, exec_sql_with_connection_retries,
             get_minimum_timestamp, values_to_sqls,
         },
-        trace::{RequestID, TraceDataId, TraceStreamId},
+        trace::{BatchCounter, Qid},
     },
     Parser,
 };
@@ -130,14 +134,14 @@ async fn assert_create_stable(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     sql: &str,
-    req_id: &RequestID,
+    req_id: u64,
     cancel: &CancellationToken,
 ) -> Result<(), FlatWriteError> {
     match exec_sql_with_connection_retries(
         pool,
         taos,
         sql,
-        req_id.next(),
+        req_id,
         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
         cancel,
     )
@@ -161,10 +165,11 @@ lazy_static! {
         regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
 }
 
+#[instrument(skip_all)]
 async fn write_stable_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    req_id: &RequestID,
+    req_id: u64,
     records: &Records,
     cancel: &CancellationToken,
 ) -> Result<usize, FlatWriteError> {
@@ -177,7 +182,7 @@ async fn write_stable_with_sql(
             pool,
             taos,
             &sql,
-            req_id.next(),
+            req_id,
             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
             cancel,
         )
@@ -187,7 +192,7 @@ async fn write_stable_with_sql(
             pool,
             taos,
             sql,
-            req_id.next(),
+            req_id,
             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
             cancel,
         )
@@ -219,6 +224,11 @@ async fn write_stable_with_sql(
                     }
                     Err(err).map_err(Into::into)
                 }
+                0x267B => {
+                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
+                    // SQL internal error, ignore for now
+                    Ok(0)
+                }
                 _ => Err(err)
                     .context("flat message write sql error")
                     .map_err(Into::into),
@@ -233,7 +243,6 @@ pub async fn flat_write_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     target_precision: taos::Precision,
-    req_id: &RequestID,
     messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
     _notifier: Option<&crate::TaskNotifySender>,
@@ -257,9 +266,13 @@ pub async fn flat_write_with_sql(
             "message to sql cost: {:#?}",
             instant.elapsed()
         );
+        let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
+        // debug_assert!(qid.task_id() > 0);
+        // debug_assert!(qid.batch_id() > 0);
         for records in sqls {
             loop {
-                match write_stable_with_sql(pool, taos, req_id, &records, cancel).await {
+                qid.add_sub_batch_id();
+                match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
                     Ok(n) => {
                         tracing::debug!(stable, rows = n, "write stable success");
 
@@ -277,18 +290,27 @@ pub async fn flat_write_with_sql(
                         match err {
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
+                                    qid.add_sub_batch_id();
                                     tracing::info!(
                                         sql = stable_sql,
                                         stable = stable.as_deref(),
                                         "stable not exists, create stable with sql: {stable_sql}"
                                     );
-                                    assert_create_stable(pool, taos, &stable_sql, req_id, cancel)
-                                        .await?;
+                                    assert_create_stable(
+                                        pool,
+                                        taos,
+                                        &stable_sql,
+                                        qid.get(),
+                                        cancel,
+                                    )
+                                    .await?;
                                 }
 
                                 for m in &messages {
                                     let sql = m.table_sql();
-                                    assert_create_stable(pool, taos, &sql, req_id, cancel).await?;
+                                    qid.add_sub_batch_id();
+                                    assert_create_stable(pool, taos, &sql, qid.get(), cancel)
+                                        .await?;
                                 }
                             }
                             FlatWriteError::ContainerLengthTooShort(field) => {
@@ -360,13 +382,15 @@ pub async fn flat_write_with_raw_block(
     max_lengths: &mut HashMap<String, usize>,
     parser: &Parser,
     target_precision: taos::Precision,
-    req_id: &RequestID,
     messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
+    let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
     for records in messages {
         if records.records.num_rows() == 0 {
             continue;
@@ -416,6 +440,7 @@ pub async fn flat_write_with_raw_block(
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
+                        .in_current_span()
                         .await;
                         match res {
                             Ok(desc) => {
@@ -431,13 +456,16 @@ pub async fn flat_write_with_raw_block(
                                             "alter table `{table}` modify column `{}` {}({})",
                                             name, ty, length
                                         );
+                                        qid.add_sub_batch_id();
                                         let result = taos
                                             .as_ref()
                                             .unwrap()
-                                            .exec_with_req_id(&sql, req_id.next())
+                                            .exec_with_req_id(&sql, qid.get())
+                                            .in_current_span()
                                             .await;
                                         match result {
                                             Ok(_) => {
+                                                tracing::trace!("exec sql successfully");
                                                 max_lengths.insert(name.to_string(), length);
                                             }
                                             Err(err) => {
@@ -458,14 +486,17 @@ pub async fn flat_write_with_raw_block(
                                 }
                                 // Table not exists.
                                 if let Some(sql) = records.stable_sql() {
+                                    qid.add_sub_batch_id();
                                     tracing::debug!("flat message stable sql : {sql}");
                                     match taos
                                         .as_ref()
                                         .unwrap()
-                                        .exec_with_req_id(&sql, req_id.next())
+                                        .exec_with_req_id(&sql, qid.get())
+                                        .in_current_span()
                                         .await
                                     {
                                         Ok(_) => {
+                                            tracing::trace!("exec sql successfully");
                                             metrics.add_created_stables(1);
                                         }
                                         Err(err) => {
@@ -479,11 +510,12 @@ pub async fn flat_write_with_raw_block(
                                     let sql = records.table_sql();
 
                                     loop {
+                                        qid.add_sub_batch_id();
                                         match exec_sql_with_connection_retries(
                                             pool,
                                             taos,
                                             &sql,
-                                            req_id.next(),
+                                            qid.get(),
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                             cancel,
                                         )
@@ -506,6 +538,7 @@ pub async fn flat_write_with_raw_block(
                                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                                             cancel,
                                                         )
+                                                        .in_current_span()
                                                         .await?;
                                                     for f in desc.iter().filter(|f| {
                                                         f.is_tag() && f.ty().is_var_type()
@@ -517,11 +550,12 @@ pub async fn flat_write_with_raw_block(
                                                                         f.length() * 2
                                                                     );
 
+                                                        qid.add_sub_batch_id();
                                                         let _ = exec_sql_with_connection_retries(
                                                             pool,
                                                             taos,
                                                             &sql,
-                                                            req_id.next(),
+                                                            qid.get(),
                                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                                             cancel,
                                                         )
@@ -544,6 +578,7 @@ pub async fn flat_write_with_raw_block(
                                                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                                                 cancel,
                                                             )
+                                                            .in_current_span()
                                                             .await?;
                                                         res.into_iter().for_each(|tag_added| {
                                                             if tag_added.is_tag()
@@ -554,6 +589,7 @@ pub async fn flat_write_with_raw_block(
                                                             }
                                                         });
                                                         if need_add {
+                                                            qid.add_sub_batch_id();
                                                             let add_tag_sql = format!(
                                                                             "alter table `{table}` add tag `{}` {}",
                                                                             tag_meta.field(),
@@ -564,7 +600,7 @@ pub async fn flat_write_with_raw_block(
                                                                 pool,
                                                                 taos,
                                                                 &add_tag_sql,
-                                                                req_id.next(),
+                                                                qid.get(),
                                                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                                                 cancel,
                                                             )
@@ -580,12 +616,13 @@ pub async fn flat_write_with_raw_block(
                                     }
                                     //.inspect_err(|err| tracing::warn!("{}", err))?
                                 } else {
+                                    qid.add_sub_batch_id();
                                     let sql = records.table_sql();
                                     exec_sql_with_connection_retries(
                                         pool,
                                         taos,
                                         &sql,
-                                        req_id.next(),
+                                        qid.get(),
                                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                         cancel,
                                     )
@@ -597,10 +634,12 @@ pub async fn flat_write_with_raw_block(
                     }
                 }
             }
+            qid.add_sub_batch_id();
+            trace!("write raw block");
             if let Err(err) = taos
                 .as_ref()
                 .unwrap()
-                .write_raw_block_with_req_id(&raw, req_id.next())
+                .write_raw_block_with_req_id(&raw, qid.get())
                 .await
             {
                 let code = err.code();
@@ -619,11 +658,13 @@ pub async fn flat_write_with_raw_block(
                 if errno == 0x2603 || errno == 0x0618 {
                     if let Some(sql) = records.stable_sql() {
                         // dbg!(&sql);
+
+                        qid.add_sub_batch_id();
                         match exec_sql_with_connection_retries(
                             pool,
                             taos,
                             &sql,
-                            req_id.next(),
+                            qid.get(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
@@ -645,7 +686,7 @@ pub async fn flat_write_with_raw_block(
                                         tracing::debug!("error encountered, ignore(table already exists): {err:#}",);
                                     }
                                     _ => {
-                                        error!(sql, "create stable error: {err:#}");
+                                        tracing::error!(sql, "create stable error: {err:#}");
                                         Err(err).context("create stable error")?;
                                     }
                                 }
@@ -654,11 +695,12 @@ pub async fn flat_write_with_raw_block(
 
                         let sql = records.table_sql();
 
+                        qid.add_sub_batch_id();
                         match exec_sql_with_connection_retries(
                             pool,
                             taos,
                             &sql,
-                            req_id.next(),
+                            qid.get(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
@@ -678,6 +720,7 @@ pub async fn flat_write_with_raw_block(
                                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                         cancel,
                                     )
+                                    .in_current_span()
                                     .await?;
                                     for f in
                                         desc.iter().filter(|f| f.is_tag() && f.ty().is_var_type())
@@ -688,11 +731,12 @@ pub async fn flat_write_with_raw_block(
                                             f.ty(),
                                             f.length() * 2
                                         );
+                                        qid.add_sub_batch_id();
                                         let _ = exec_sql_with_connection_retries(
                                             pool,
                                             taos,
                                             &sql,
-                                            req_id.next(),
+                                            qid.get(),
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                             cancel,
                                         )
@@ -705,12 +749,13 @@ pub async fn flat_write_with_raw_block(
                         }
                         //.inspect_err(|err| tracing::warn!("{}", err))?
                     } else {
+                        qid.add_sub_batch_id();
                         let sql = records.table_sql();
                         exec_sql_with_connection_retries(
                             pool,
                             taos,
                             &sql,
-                            req_id.next(),
+                            qid.get(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
@@ -728,6 +773,7 @@ pub async fn flat_write_with_raw_block(
                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                         cancel,
                     )
+                    .in_current_span()
                     .await?;
                     let table = records.table.using.as_deref().unwrap_or(&table_name);
                     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
@@ -737,11 +783,12 @@ pub async fn flat_write_with_raw_block(
                             f.ty(),
                             f.length() * 2
                         );
+                        qid.add_sub_batch_id();
                         let _ = exec_sql_with_connection_retries(
                             pool,
                             taos,
                             &sql,
-                            req_id.next(),
+                            qid.get(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
@@ -761,6 +808,7 @@ pub async fn flat_write_with_raw_block(
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                             cancel,
                         )
+                        .in_current_span()
                         .await?;
                         let mut need_add = true;
                         desc.into_iter().for_each(|column_meta| {
@@ -783,12 +831,13 @@ pub async fn flat_write_with_raw_block(
                                 &column_name,
                                 ipc_data_type.unwrap(),
                             );
+                            qid.add_sub_batch_id();
                             tracing::info!("alter table column sql: {}", sql);
                             exec_sql_with_connection_retries(
                                 pool,
                                 taos,
                                 &sql,
-                                req_id.next(),
+                                qid.get(),
                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                 cancel,
                             )
@@ -815,13 +864,17 @@ pub async fn flat_write_with_raw_block(
                         &pool,
                         taos,
                         target_precision,
-                        &req_id,
                         &retry_messages,
                         metrics,
                         notifier,
                         cancel,
                     )
                     .await?;
+                    break;
+                } else if errno == 0x267B {
+                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
+                    // SQL internal error, ignore for now
+                    tracing::warn!("write raw block sql error: {err:#}",);
                     break;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
@@ -846,7 +899,7 @@ pub async fn flat_write_with_raw_block(
 
 pub type FlatItem = (
     Vec<MessageArrowRecords>,
-    RequestID,
+    Qid,
     tokio::sync::oneshot::Sender<usize>,
 );
 pub struct FlatSink {
@@ -854,7 +907,6 @@ pub struct FlatSink {
     taos: Option<TaosConnection>,
     parser: Arc<Parser>,
     target_precision: taos::Precision,
-    req_id: RequestID,
     db: String,
     senders: Vec<flume::Sender<FlatItem>>,
     set: Option<JoinSet<anyhow::Result<()>>>,
@@ -901,7 +953,8 @@ impl FlatSink {
                         let mut max_lengths = HashMap::new();
                         let mut total = 0;
                         loop {
-                            let (mut messages, req_id, sender): FlatItem = rx.recv_async().await?;
+                            let (mut messages, qid, sender): FlatItem = rx.recv_async().await?;
+                            taoslog::utils::Span.set_qid(&qid);
                             if messages.len() == 0 {
                                 continue;
                             }
@@ -916,7 +969,6 @@ impl FlatSink {
                                     &pool,
                                     &mut taos,
                                     target_precision,
-                                    &req_id,
                                     &messages,
                                     metrics,
                                     Some(&notifier),
@@ -931,7 +983,6 @@ impl FlatSink {
                                     &mut max_lengths,
                                     &parser,
                                     target_precision,
-                                    &req_id,
                                     &messages,
                                     metrics,
                                     Some(&notifier),
@@ -964,7 +1015,6 @@ impl FlatSink {
                                         let min = get_minimum_timestamp(
                                             &pool,
                                             &mut taos,
-                                            req_id.next(),
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
                                             &cancel,
                                         )
@@ -1002,7 +1052,6 @@ impl FlatSink {
                                                 &pool,
                                                 &mut taos,
                                                 target_precision,
-                                                &req_id,
                                                 &messages,
                                                 metrics,
                                                 Some(&notifier),
@@ -1017,7 +1066,6 @@ impl FlatSink {
                                                 &mut max_lengths,
                                                 &parser,
                                                 target_precision,
-                                                &req_id,
                                                 &messages,
                                                 metrics,
                                                 Some(&notifier),
@@ -1057,7 +1105,6 @@ impl FlatSink {
             taos,
             parser,
             target_precision,
-            req_id: RequestID::new(0),
             senders,
             db,
             set: Some(set),
@@ -1084,13 +1131,14 @@ impl FlatSink {
             taos,
             parser,
             target_precision,
-            req_id: self.req_id.clone(),
             senders: self.senders.clone(),
             db: self.db.clone(),
             set: None,
         })
     }
+
     pub async fn write(&self, messages: Vec<MessageArrowRecords>) -> anyhow::Result<usize> {
+        let qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
         let mut count = 0;
         let tables = messages.iter().map(|m| m.table.name.as_str()).collect_vec();
         if let Some(ids) = self
@@ -1111,10 +1159,9 @@ impl FlatSink {
                     "send messages to vgroup"
                 );
                 self.senders[id as usize % self.senders.len()]
-                    .send_async((messages, self.req_id.clone(), tx))
+                    .send_async((messages, qid.clone(), tx))
                     .await?;
                 // let written = rx.await?;
-                self.req_id.next();
                 // count += written;
             }
         } else {
@@ -1122,10 +1169,9 @@ impl FlatSink {
             let id: usize = rand::random();
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.senders[id as usize % self.senders.len()]
-                .send_async((messages, self.req_id.clone(), tx))
+                .send_async((messages, qid, tx))
                 .await?;
             let written = rx.await?;
-            self.req_id.next();
             count += written;
         }
         Ok(count)
@@ -1138,14 +1184,12 @@ impl FlatSink {
 ///
 /// - `count` will be increased by the number of rows written. Note that the number of rows written may be less than the number of rows in the message.
 #[framed]
-#[instrument(skip_all, fields(writer.count = count, trace.id = trace_id_str))]
+#[instrument(skip_all, fields(writer.count = count))]
 async fn consume_flat_record_with_sink(
     sink: &FlatSink,
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
-    _data_trace_id: TraceDataId,
-    trace_id_str: &str,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
@@ -1172,8 +1216,8 @@ pub async fn ipc_flat_stream_worker_vgroup(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
+    batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1187,7 +1231,6 @@ pub async fn ipc_flat_stream_worker_vgroup(
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
     let parser = Arc::new(parser.clone());
-    let batch_counter = Arc::new(AtomicU32::new(1));
 
     let workers = parser.global().concurrent_limit();
 
@@ -1204,6 +1247,9 @@ pub async fn ipc_flat_stream_worker_vgroup(
         anyhow::Ok(())
     });
 
+    let qid = Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
     for i in 0..workers {
         let count = count.clone();
         let parser = parser.clone();
@@ -1213,85 +1259,87 @@ pub async fn ipc_flat_stream_worker_vgroup(
         let notifier = notifier.clone();
         let metrics_arc = metrics_arc.clone();
         let ipc_error_strategy = ipc_error_strategy.clone();
-        let stream_trace_id = stream_trace_id.clone();
         let batch_counter = batch_counter.clone();
         let flat_sink = flat_sink.cloned().await?;
-        writer_set.spawn(async move {
-            let metrics = metrics_arc.ipc();
-            let mut worker_written = 0;
-            while let Ok(record) = msg_rx.recv_async().await {
-                let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = stream_trace_id.with_data_id(batch_number);
-                let data_trace_id_str: String = data_trace_id.to_string();
-                trace!("Writing batch {}", data_trace_id_str);
-                let mut written = 0;
-                let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-                })
-                .unwrap();
-                let res = consume_flat_record_with_sink(
-                    &flat_sink,
-                    &record,
-                    &mut written,
-                    &parser,
-                    data_trace_id,
-                    &data_trace_id_str,
-                )
-                .await;
-                worker_written += written;
-                count.fetch_add(written, Ordering::SeqCst);
-                match res {
-                    Err(err) => {
-                        metrics.add_failed_batches(1);
-                        error!("Writing batch {} error: {err:#}", data_trace_id_str);
-                        let ack = LushAck {
-                            code: 0,
-                            message: Some(err.to_string()),
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                    "written":  written,
-                                })
-                                .to_string(),
-                            ),
-                        };
-                        ack_tx.send_async(ack).await.context("ACK writer error")?;
-                        if ipc_error_strategy.will_stop() {
-                            Err(err).context("write batch error")?;
-                        } else if let Err(_) =
-                            notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
-                        {
-                            Err(err).context("write batch error")?;
+        let mut qid = qid.clone();
+        let batch_counter = batch_counter.clone();
+        writer_set.spawn(
+            async move {
+                let metrics = metrics_arc.ipc();
+                let mut worker_written = 0;
+                while let Ok(record) = msg_rx.recv_async().await {
+                    let batch_number = if let Some(batch_counter) = batch_counter.as_ref() {
+                        let batch_number = batch_counter.next().await?;
+                        qid.set_batch_id(batch_number);
+                        Some(batch_number)
+                    } else {
+                        None
+                    };
+                    trace!(batch_number, "Writing batch");
+                    let mut written = 0;
+                    let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                        std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+                    })
+                    .unwrap();
+                    let res =
+                        consume_flat_record_with_sink(&flat_sink, &record, &mut written, &parser)
+                            .await;
+                    worker_written += written;
+                    count.fetch_add(written, Ordering::SeqCst);
+                    match res {
+                        Err(err) => {
+                            metrics.add_failed_batches(1);
+                            error!(batch_number, "Writing batch error: {err:#}");
+                            let ack = LushAck {
+                                code: 0,
+                                message: Some(err.to_string()),
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                        "written":  written,
+                                    })
+                                    .to_string(),
+                                ),
+                            };
+                            ack_tx.send_async(ack).await.context("ACK writer error")?;
+                            if ipc_error_strategy.will_stop() {
+                                Err(err).context("write batch error")?;
+                            } else if let Err(_) =
+                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                            {
+                                Err(err).context("write batch error")?;
+                            }
+                        }
+                        Ok(_) => {
+                            metrics.add_processed_batches(1);
+                            trace!(batch_number, written, "Writing batch done");
+                            let ack = LushAck {
+                                code: 0,
+                                message: None,
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                        "written":  written
+                                    })
+                                    .to_string(),
+                                ),
+                            };
+                            ack_tx.send_async(ack).await.context("ACK writer error")?;
                         }
                     }
-                    Ok(_) => {
-                        metrics.add_processed_batches(1);
-                        trace!(trace.id = data_trace_id_str, written, "Writing batch done");
-                        let ack = LushAck {
-                            code: 0,
-                            message: None,
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                    "written":  written
-                                })
-                                .to_string(),
-                            ),
-                        };
-                        ack_tx.send_async(ack).await.context("ACK writer error")?;
-                    }
                 }
+                if worker_written > 0 {
+                    info!(
+                        worker.id = i,
+                        worker.written = worker_written,
+                        "Flat stream worker {} done",
+                        i
+                    );
+                }
+                return anyhow::Ok(());
             }
-            if worker_written > 0 {
-                info!(
-                    worker.id = i,
-                    worker.written = worker_written,
-                    "Flat stream worker {} done",
-                    i
-                );
-            }
-            return anyhow::Ok(());
-        });
+            .in_current_span(),
+        );
     }
 
     tokio::pin!(stream);
@@ -1344,8 +1392,8 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
+    batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1359,7 +1407,6 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
     // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
-    let batch_counter = Arc::new(AtomicU32::new(1));
 
     let (ack_tx, ack_rx) = flume::bounded(4);
 
@@ -1372,6 +1419,9 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         }
         anyhow::Ok(())
     });
+    // let qid = Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
+    // debug_assert!(qid.batch_id() > 0);
 
     let metrics = metrics_arc.ipc();
     tokio::pin!(stream);
@@ -1380,29 +1430,24 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         match record {
             Ok(record) => {
                 // msg_tx.send_async(record).await?;
-                let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = stream_trace_id.with_data_id(batch_number);
-                let data_trace_id_str: String = data_trace_id.to_string();
-                trace!("Writing batch {}", data_trace_id_str);
+                let batch_number = if let Some(batch_counter) = batch_counter.clone() {
+                    Some(batch_counter.next().await?)
+                } else {
+                    None
+                };
+                trace!(batch_number, "Writing batch");
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
                 })
                 .unwrap();
-                let res = consume_flat_record_with_sink(
-                    &flat_sink,
-                    &record,
-                    &mut written,
-                    &parser,
-                    data_trace_id,
-                    &data_trace_id_str,
-                )
-                .await;
+                let res =
+                    consume_flat_record_with_sink(&flat_sink, &record, &mut written, &parser).await;
                 count.fetch_add(written, Ordering::SeqCst);
                 match res {
                     Err(err) => {
                         metrics.add_failed_batches(1);
-                        error!("Writing batch {} error: {err:#}", data_trace_id_str);
+                        error!("Writing batch error: {err:#}");
                         let ack = LushAck {
                             code: 0,
                             message: Some(err.to_string()),
@@ -1425,7 +1470,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                     }
                     Ok(_) => {
                         metrics.add_processed_batches(1);
-                        trace!(trace.id = data_trace_id_str, written, "Writing batch done");
+                        trace!(batch_number, written, "Writing batch done");
                         let ack = LushAck {
                             code: 0,
                             message: None,
@@ -1484,8 +1529,8 @@ pub async fn ipc_flat_stream_worker_concurrent(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
+    batch_counter: Option<BatchCounter>,
 ) -> anyhow::Result<()> {
     tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
@@ -1495,7 +1540,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
         target_precision,
     };
     // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
-    let batch_counter = Arc::new(AtomicU32::new(1));
     let workers = parser.global().concurrent_limit();
 
     let (msg_tx, msg_rx) = flume::bounded(workers);
@@ -1514,20 +1558,20 @@ pub async fn ipc_flat_stream_worker_concurrent(
             }
             anyhow::Ok(())
         }
-        .instrument(tracing::info_span!("ack_writer")),
+        .in_current_span(),
     );
-
+    let qid = Span.get_qid().unwrap_or_else(Qid::init);
+    // debug_assert!(qid.task_id() > 0);
     for i in 0..workers {
         let count = count.clone();
         let context = context.clone();
         let msg_rx = msg_rx.clone();
         let ack_tx = ack_tx.clone();
-        let count = count.clone();
         let notifier = notifier.clone();
         let metrics_arc = metrics_arc.clone();
         let ipc_error_strategy = ipc_error_strategy.clone();
-        let stream_trace_id = stream_trace_id.clone();
         let batch_counter = batch_counter.clone();
+        let mut qid = qid.clone();
         if cancel.is_cancelled() {
             writer_set.abort_all();
             return Ok(());
@@ -1539,9 +1583,11 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
-                    let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                    let data_trace_id = stream_trace_id.with_data_id(batch_number);
-                    trace!("Writing batch {}", data_trace_id);
+                    if let Some(batch_counter) = batch_counter.as_ref() {
+                        let batch_number = batch_counter.next().await?;
+                        qid.set_batch_id(batch_number);
+                    }
+                    tracing::trace!("Writing batch");
                     let mut written = 0;
                     let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
                         std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -1555,7 +1601,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         &cancel,
                         &context.parser,
                         context.target_precision,
-                        data_trace_id,
                         metrics,
                         Some(&notifier),
                     )
@@ -1565,7 +1610,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
-                            error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
+                            error!("Writing batch error: {err:#}");
                             let ack = LushAck {
                                 code: 0xFFFF,
                                 message: Some(err.to_string()),
@@ -1600,7 +1645,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         }
                         Ok(_) => {
                             metrics.add_processed_batches(1);
-                            trace!(trace.id = %data_trace_id, written, "Writing batch done");
+                            trace!(written, "Writing batch done");
                             let ack = LushAck {
                                 code: 0,
                                 message: None,
@@ -1818,6 +1863,13 @@ mod tests {
                 }
                 Arc::new(builder.finish())
             }
+            VarBinary(_) => {
+                let mut builder = StringBuilder::new();
+                for _ in 0..len {
+                    builder.append_value(format!("\\x0102030405060708090a0b0c0d0e0f10"));
+                }
+                Arc::new(builder.finish())
+            }
         };
         (field, value)
     }
@@ -2015,7 +2067,6 @@ mod tests {
 
         let pool = TaosBuilder::from_dsn("taos+ws:///flat")?.pool()?;
 
-        let req_id = RequestID::new(0);
         let mut taos = Some(pool.get().await?);
 
         taos.as_ref()
@@ -2027,7 +2078,6 @@ mod tests {
             &pool,
             &mut taos,
             taos::Precision::Millisecond,
-            &req_id,
             &messages,
             &metrics,
             None,

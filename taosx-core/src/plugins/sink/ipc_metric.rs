@@ -1,7 +1,14 @@
 use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
+use faststr::FastStr;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering::SeqCst;
+use std::sync::{atomic::Ordering::SeqCst, OnceLock};
+use taosx_ipc::types::{TaskMetricItem, TaskMetricsVariant};
+
+/// Metrics sender for agent.
+///
+/// Items: (task_id, key, value)
+pub static AGENT_METRICS_SENDER: OnceLock<flume::Sender<TaskMetricItem>> = OnceLock::new();
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -34,6 +41,9 @@ pub struct IpcMetrics {
     pub failed_points: AtomicU64,
     pub written_raw_blocks: AtomicU64,
     pub failed_raw_blocks: AtomicU64,
+
+    #[serde(flatten)]
+    pub extras: scc::HashIndex<FastStr, u64>,
 }
 
 impl IpcMetrics {
@@ -43,6 +53,50 @@ impl IpcMetrics {
             ..Default::default()
         }
     }
+
+    fn task_id(&self) -> i64 {
+        self.com.task_id
+    }
+
+    pub fn set_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            entry.update(value);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Set, value));
+        }
+    }
+
+    pub fn add_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            let new = *entry.get() + value;
+            entry.update(new);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| value);
+        }
+
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Inc, value));
+        }
+    }
+    pub fn sub_extra_metric(&self, key: &FastStr, value: u64) {
+        if let Some(entry) = self.extras.get(key) {
+            let new = if *entry.get() > value {
+                *entry.get() - value
+            } else {
+                0
+            };
+            entry.update(new);
+        } else {
+            self.extras.entry(key.clone()).or_insert_with(|| 0);
+        }
+        if let Some(sender) = AGENT_METRICS_SENDER.get() {
+            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Dec, value));
+        }
+    }
+
     #[inline]
     pub fn add_received_batches(&self, n: u64) {
         self.total_received_batches.fetch_add(n, SeqCst);
@@ -148,6 +202,8 @@ impl TaskMetrics for IpcMetrics {
         self.written_raw_blocks.store(0, SeqCst);
         self.failed_raw_blocks.store(0, SeqCst);
         self.failed_batches.store(0, SeqCst);
+
+        self.extras.retain(|k, _| k.contains("total"));
     }
 
     fn com(&self) -> &CommonMetrics {

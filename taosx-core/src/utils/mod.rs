@@ -5,6 +5,7 @@ use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
+pub mod dsn;
 pub mod files;
 pub mod interval;
 pub mod license;
@@ -14,6 +15,7 @@ pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
+pub mod timeout;
 pub mod trace;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
@@ -231,6 +233,7 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
             name_value
         );
     }
+
     if name_value.contains(".") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: .",
@@ -238,6 +241,7 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
             name_value
         );
     }
+
     if name_value.contains("`") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: `",

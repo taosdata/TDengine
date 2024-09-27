@@ -30,6 +30,7 @@ use thiserror::Error;
 pub mod cast;
 mod join;
 mod json;
+pub mod plugin;
 mod regex;
 mod split;
 mod udt;
@@ -102,6 +103,7 @@ pub enum FieldParser {
     Split(Split),
     Udt(Udt),
     Join(Join),
+    Plugin(plugin::ParserPlugin),
     // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
@@ -119,6 +121,7 @@ impl Parse for FieldParser {
             FieldParser::Udt(udt) => udt.parse_array(field, array),
             FieldParser::Cast(cast) => cast.parse_array(field, array),
             FieldParser::Regex(regex) => regex.parse_array(field, array),
+            FieldParser::Plugin(plugin) => plugin.parse_array(field, array),
 
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
@@ -135,6 +138,18 @@ impl ParserImpl {
     pub fn new(map: LinkedHashMap<String, FieldParser>) -> Self {
         Self(map)
     }
+
+    // pub fn list_plugins() -> LinkedHashMap<String, FieldParser> {
+    //     let mut map = LinkedHashMap::new();
+    //     map.insert("regex".to_string(), FieldParser::Regex(Regex::default()));
+    //     map.insert("cast".to_string(), FieldParser::Cast(Cast::default()));
+    //     map.insert("alias".to_string(), FieldParser::Alias { alias: "".to_string() });
+    //     map.insert("split".to_string(), FieldParser::Split(Split::default()));
+    //     map.insert("udt".to_string(), FieldParser::Udt(Udt::default()));
+    //     map.insert("join".to_string(), FieldParser::Join(Join::default()));
+    //     map.insert("json".to_string(), FieldParser::Json(Json::default()));
+    //     map
+    // }
 }
 impl std::ops::Deref for ParserImpl {
     type Target = LinkedHashMap<String, FieldParser>;
@@ -421,9 +436,129 @@ pub trait ArrayForTaos: Array {
                     let array = self.as_any().downcast_ref::<LargeStringArray>().unwrap();
                     taos::Value::VarChar(array.value(index).into())
                 }
-                arrow::datatypes::DataType::List(_) => {
+                arrow::datatypes::DataType::List(field) => {
                     let array = self.as_any().downcast_ref::<ListArray>().unwrap();
-                    taos::Value::VarChar(format!("{:?}", array.value(index)))
+                    let value = array.value(index);
+                    let result = match field.data_type() {
+                        arrow_schema::DataType::UInt8 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<UInt8Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::UInt16 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<UInt16Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::UInt32 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::UInt64 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Int8 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Int8Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Int16 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Int16Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Int32 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Int32Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Int64 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Binary | arrow_schema::DataType::LargeBinary => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<LargeBinaryArray>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| String::from_utf8(v.unwrap_or_default().to_vec()).unwrap())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Float32 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Float32Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Float64 => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<Float64Array>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        arrow_schema::DataType::Boolean => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<BooleanArray>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                        _ => {
+                            let vec = arrow::array::Array::as_any(&value)
+                                .downcast_ref::<StringArray>()
+                                .unwrap()
+                                .iter()
+                                .map(|v| v.unwrap_or_default())
+                                .collect::<Vec<_>>();
+                            serde_json::to_string(&vec).unwrap()
+                        }
+                    };
+                    taos::Value::VarChar(result)
                 }
                 arrow::datatypes::DataType::Struct(_) => {
                     let array = self.as_any().downcast_ref::<StructArray>().unwrap();

@@ -10,8 +10,10 @@ use tempfile::NamedTempFile;
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
-use crate::runners::opc::config::points::{PointsConfig, UpdateMode};
+use crate::runners::opc::config::model::{
+    ColumnConfig, GeneratePointMappingBy, OpcModelConfig, OpcPointMappingRule,
+};
+use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
@@ -23,6 +25,22 @@ pub mod model;
 pub mod points;
 mod report;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PointsMode {
+    ByCsv,
+    ByCommand,
+}
+
+impl PointsMode {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let csv_config_file = OPCConfig::parse_csv_config_file(dsn);
+        if csv_config_file.is_some() {
+            return Ok(Self::ByCsv);
+        }
+        Ok(Self::ByCommand)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct OPCConfig {
     pub opc_type: OpcType,
@@ -32,6 +50,8 @@ pub struct OPCConfig {
     pub points: Option<PointsConfig>,
     pub collect: Option<CollectConfig>,
 
+    #[serde(skip)]
+    pub points_mode: Option<PointsMode>, // 数据点位的模式, csv 或 command
     #[serde(skip)]
     model_config: Option<OpcModelConfig>,
 }
@@ -51,20 +71,34 @@ impl OPCConfig {
         let connect = ConnectConfig::from_dsn(dsn)?;
         let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
-        let csv_config_file = Self::parse_csv_config_file(dsn);
-        let model_config = if csv_config_file.is_some() {
-            let parser = CsvParser::from_dsn(dsn).await?;
-            let model_config = parser.get_model_config();
-            model_config
-        } else {
-            let points = opc_datasets_impl(dsn.clone()).await?;
-            let mut opc_model_config = OpcModelConfig::new();
-            let point_model_config = OpcPointModelConfig::from_dsn(dsn)?;
-            opc_model_config.set_point_model_config(point_model_config);
-            opc_model_config.add_points(points)?;
-            opc_model_config
+        let points_mode = PointsMode::from_dsn(dsn)?;
+        // OPC model config
+        let model_config = match points_mode {
+            PointsMode::ByCsv => {
+                // 上传 csv 配置文件
+                let mut parser = CsvParser::from_dsn(dsn)?;
+                parser.set_csv_origin(Self::parse_csv_origin(dsn));
+                parser.parse().await?
+            }
+            PointsMode::ByCommand => {
+                // 选择数据点位
+                // 1. 执行 taosx-opc point 查询点位
+                let points = opc_datasets_impl(dsn.clone()).await?;
+                // 2. 从 dsn 中解析点位到 TDengine 的映射规则
+                let rule = OpcPointMappingRule::from_dsn(dsn)?;
+                // 3. 生成 model_config
+                let (point_map, table_map) = rule.generate(points)?;
+
+                OpcModelConfig {
+                    opc_type: opc_type.clone(),
+                    generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
+                    point_config_map: point_map,
+                    table_config_map: table_map,
+                }
+            }
         };
 
+        // points config
         let points_config = PointsConfig::from_dsn(dsn)?;
 
         // 这里把 model_config 中的点位写到 dsn 中，是为了在 collect 中使用。
@@ -87,6 +121,7 @@ impl OPCConfig {
             report,
             points: Some(points_config),
             collect: Some(collect),
+            points_mode: Some(points_mode),
             model_config: Some(model_config),
         })
     }
@@ -113,6 +148,7 @@ impl OPCConfig {
             collect: None,
             report: ReportConfig::from_dsn(&dsn, 0)?,
             model_config: None,
+            points_mode: None,
         })
     }
 
@@ -125,6 +161,7 @@ impl OPCConfig {
             collect: None,
             report: ReportConfig::from_dsn(dsn, 0)?,
             model_config: None,
+            points_mode: None,
         })
     }
 
@@ -190,6 +227,26 @@ impl OPCConfig {
                     return None;
                 }
                 Some(v.to_string())
+            })
+            .flatten()
+    }
+
+    pub fn parse_csv_config_files(dsn: &Dsn) -> Option<Vec<String>> {
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+
+                let csv_files = v
+                    .split(",")
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect_vec();
+
+                Some(csv_files)
             })
             .flatten()
     }
@@ -294,37 +351,17 @@ impl OPCConfig {
             Some(primary_key_alias)
         }))
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct OpcPointModelConfig {
-    pub opc_type: OpcType,
-    pub update_mode: UpdateMode,
-    pub stable_expression: String,
-    pub tbname_expression: String,
-    pub primary_key: String,
-    pub primary_key_alias: String,
-}
-
-impl OpcPointModelConfig {
-    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let opc_type = OpcType::from_dsn(dsn)?;
-        let update_mode = PointsConfig::parse_update_mode(dsn)?.unwrap_or(UpdateMode::None);
-        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
-        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
-        let primary_key =
-            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
-        let primary_key_alias =
-            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
-
-        Ok(Self {
-            opc_type,
-            update_mode,
-            stable_expression,
-            tbname_expression,
-            primary_key,
-            primary_key_alias,
-        })
+    pub fn parse_csv_origin(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("csv_config_file_origin")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+                Some(v.to_string())
+            })
+            .flatten()
     }
 }
 

@@ -7,6 +7,7 @@ use oracle::{
     sql_type::OracleType,
 };
 
+#[derive(Clone)]
 pub struct OracleQuery {
     pub pool: Pool,
     time_zone: String,
@@ -40,6 +41,49 @@ impl OracleQuery {
         let pool_builder = PoolBuilder::new(username, password, addr);
         // TODO timezone
         Ok(pool_builder.build()?)
+    }
+
+    pub fn select_distinct_values(
+        &mut self,
+        sql: &str,
+    ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
+        let conn = self.pool.get()?;
+        // modify session timezone
+        let _ = conn.execute(
+            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
+            &[],
+        )?;
+        let _ = conn.commit()?;
+        // select data
+        let result = conn.query(sql, &[]);
+        let mut col_map = LinkedHashMap::new();
+        let mut rows = Vec::new();
+        match result {
+            Ok(mut rs) => {
+                let cols = rs.column_info();
+                for col in cols {
+                    col_map.insert(col.name().to_string(), col.oracle_type().clone());
+                }
+                while let Some(row) = rs.next() {
+                    match row {
+                        Ok(row) => {
+                            rows.push(row);
+                        }
+                        Err(err) => {
+                            anyhow::bail!(
+                                "failed to select distinct values, cause: {}",
+                                err.to_string()
+                            )
+                        }
+                    }
+                }
+            }
+            Err(err) => anyhow::bail!(
+                "failed to select distinct values, cause: {}",
+                err.to_string()
+            ),
+        }
+        Ok((col_map, rows))
     }
 
     pub fn select_for_schema(
@@ -265,6 +309,25 @@ mod tests {
 
         let query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
         assert!(query.pool.get().is_ok());
+    }
+
+    #[test]
+    fn test_select_distinct_values() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(7);
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
+
+        let (col_map, rows) = query
+            .select_distinct_values("select distinct name,value from t_metric")
+            .unwrap();
+        dbg!(&col_map);
+        dbg!(&rows);
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]

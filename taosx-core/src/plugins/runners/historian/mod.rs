@@ -8,7 +8,6 @@ use serde_json::json;
 use taos::Dsn;
 use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
@@ -167,7 +166,6 @@ pub async fn historian_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -199,7 +197,6 @@ pub async fn historian_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id.clone(),
         notify,
     )

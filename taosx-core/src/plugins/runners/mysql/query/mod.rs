@@ -8,6 +8,7 @@ use sqlx::{Error, Executor, MySql, MySqlPool, Pool, Row};
 
 use crate::runners::mysql::config::connect::ConnectConfig;
 
+#[derive(Clone)]
 pub struct MySqlQuery {
     pub pool: Pool<MySql>,
 }
@@ -122,6 +123,17 @@ impl MySqlQuery {
             Err(err) => anyhow::bail!("failed to show columns, cause: {}", err.to_string()),
         };
         Ok(columns)
+    }
+
+    pub async fn select_distinct_values(&mut self, sql: &str) -> anyhow::Result<Vec<MySqlRow>> {
+        let result = self.pool.fetch_all(sql).await;
+        match result {
+            Ok(rows) => Ok(rows),
+            Err(err) => anyhow::bail!(
+                "failed to select distinct values, cause: {}",
+                err.to_string()
+            ),
+        }
     }
 
     pub async fn select_one_for_schema(&mut self, sql: &str) -> anyhow::Result<Option<MySqlRow>> {
@@ -306,6 +318,27 @@ mod tests {
             .cloned()
             .collect()
         );
+    }
+
+    #[tokio::test]
+    async fn test_select_distinct_values() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
+
+        let rows = query
+            .select_distinct_values("select distinct name,value from t_metric")
+            .await
+            .unwrap();
+        dbg!(&rows);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]

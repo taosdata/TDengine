@@ -51,9 +51,9 @@ impl LicenseKind {
     pub fn ok(self) -> Result<()> {
         match self {
             LicenseKind::Good { .. } => Ok(()),
-            LicenseKind::Edition(err) => Err(err),
-            LicenseKind::Feature(err) => Err(err),
-            LicenseKind::Connector(err) => Err(err),
+            LicenseKind::Edition(err) => anyhow::bail!(format!("License error: {:#}", err)),
+            LicenseKind::Feature(err) => anyhow::bail!(format!("License error: {:#}", err)),
+            LicenseKind::Connector(err) => anyhow::bail!(format!("License error: {:#}", err)),
         }
     }
 
@@ -120,11 +120,11 @@ async fn check_grant_of(
         .await
         .with_context(|| format!("Failed to check {grant} license"))?
         .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
-    tracing::debug!(ok, expire, sql, "active-active license check");
+    tracing::debug!(ok, expire, sql, "{grant} license check");
     if ok {
         Ok(LicenseKind::good())
     } else {
-        Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")))
+        Ok(LicenseKind::Edition(anyhow!("{grant} expired at {expire}, please contact the TDengine customer success team for further assistance.")))
     }
 }
 
@@ -136,8 +136,12 @@ async fn check_connector_grant_of(
     // get tdengine server version and handle compatibility
     // skip license check for newly-added connectors in old version
     let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
+    let connectors_3330 = vec!["csv"];
 
     if *version < VERSION_3_2_3 && connectors_old.contains(&connector) {
+        return Ok(LicenseKind::good());
+    }
+    if *version < VERSION_3_3_3 && connectors_3330.contains(&connector) {
         return Ok(LicenseKind::good());
     }
     let grants_sql = if *version >= VERSION_3_2_3 {
@@ -246,39 +250,26 @@ async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
-    let source_dsn_context = || format!("License error in source: {}", mask_dsn(&from));
-    let sink_dsn_context = || format!("License error in sink: {}", mask_dsn(&to));
+    let source_dsn_context = || format!("Source error with {}", mask_dsn(&from));
+    let sink_dsn_context = || format!("Sink error with {}", mask_dsn(to));
     // Check if enterprise available
     match (from.driver.as_str(), to.driver.as_str()) {
         ("tmq", "taos") => {
             let mut from = from.clone();
             from.subject.take();
-            let source_builder = TaosBuilder::from_dsn(&from)?;
-            let sink_builder = TaosBuilder::from_dsn(to)?;
+            to.subject
+                .as_deref()
+                .ok_or_else(|| anyhow!("Sink database must be set"))?;
+            let source_builder = TaosBuilder::from_dsn(&from).with_context(source_dsn_context)?;
+            let sink_builder = TaosBuilder::from_dsn(to).with_context(source_dsn_context)?;
 
-            let source_version = semver::Version::parse(
-                &source_builder
-                    .server_version()
-                    .await
-                    .with_context(source_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
-
-            let sink_version = semver::Version::parse(
-                &sink_builder
-                    .server_version()
-                    .await
-                    .with_context(sink_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
-
-            if source_version >= VERSION_3_3_0 && sink_version < VERSION_3_3_0 {
-                bail!("Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported.");
-            }
+            let (source_version, sink_version) = get_valid_taos_version(
+                &source_builder,
+                source_dsn_context,
+                &sink_builder,
+                sink_dsn_context,
+            )
+            .await?;
 
             if from.get("replica").is_some() {
                 if source_version < VERSION_3_3_0 {
@@ -312,11 +303,8 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             } else {
                 // plain tmq to taos task.
 
-                // Check source enterprise license
-                let mut conn = sink_builder
-                    .build()
-                    .await
-                    .context("sink connection failed")?;
+                // Check target enterprise license
+                let mut conn = sink_builder.build().await.with_context(sink_dsn_context)?;
                 if let Err(err) = sink_builder.ping(&mut conn).await {
                     if *err.code() == 0x0388 {
                         let subject = to.subject.as_deref().unwrap_or("unknown");
@@ -339,20 +327,94 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
                 }
 
-                let sink_version = semver::Version::parse(
-                    &sink_builder
-                        .server_version()
-                        .await
-                        .with_context(sink_dsn_context)?
-                        .split('.')
-                        .take(3)
-                        .join("."),
-                )?;
                 return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
                     .in_current_span()
                     .await
                     .with_context(sink_dsn_context);
             }
+        }
+        ("sync", "taos") => {
+            let mut from = from.clone();
+            from.subject.take();
+            from.driver = "tmq".to_string();
+            let source_builder = TaosBuilder::from_dsn(&from)?;
+            let sink_builder = TaosBuilder::from_dsn(to)?;
+
+            let (source_version, _sink_version) = get_valid_taos_version(
+                &source_builder,
+                source_dsn_context,
+                &sink_builder,
+                sink_dsn_context,
+            )
+            .await?;
+
+            // Check source enterprise license
+            let mut conn = source_builder
+                .build()
+                .await
+                .context("source connection failed")?;
+            if let Err(err) = source_builder.ping(&mut conn).await {
+                if *err.code() == 0x0388 {
+                    let subject = from.subject.as_deref().unwrap_or("unknown");
+                    Err(err.context(format!("source database {subject}")))?
+                } else {
+                    bail!("Failed to connect source server: {err}");
+                }
+            };
+            if !is_cloud(&from) {
+                let edition = source_builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                    .assert_enterprise_edition();
+                if let Err(err) = edition {
+                    return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                }
+            }
+
+            // check source grant
+            if source_version >= VERSION_3_3_3 {
+                let kind = check_grant_of(&source_builder, &source_version, "data_sync")
+                    .in_current_span()
+                    .await
+                    .with_context(source_dsn_context)?;
+                if kind.is_err() {
+                    return Ok(kind);
+                }
+            }
+            let kind = check_grant_of(&source_builder, &source_version, "subscription")
+                .in_current_span()
+                .await
+                .with_context(source_dsn_context)?;
+            if kind.is_err() {
+                return Ok(kind);
+            }
+
+            // Check target enterprise license
+            let mut conn = sink_builder
+                .build()
+                .await
+                .context("target connection failed")?;
+            if let Err(err) = sink_builder.ping(&mut conn).await {
+                if *err.code() == 0x0388 {
+                    let subject = to.subject.as_deref().unwrap_or("unknown");
+                    Err(err.context(format!("target database {subject}")))?
+                } else {
+                    bail!("Failed to connect target server: {err}");
+                }
+            };
+            if is_cloud(&to) {
+                return Ok(LicenseKind::good());
+            }
+            let edition = sink_builder
+                .get_edition()
+                .await
+                .context("Failed to check destination edition")?
+                .assert_enterprise_edition();
+            if let Err(err) = edition {
+                return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+            }
+            return Ok(LicenseKind::good());
         }
         ("taos", "tmq" | "taos") => {
             let mut from = from.clone();
@@ -361,7 +423,18 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
 
             let mut to = to.clone();
             to.subject.take();
+
+            let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(&to)?;
+
+            let (_source_version, sink_version) = get_valid_taos_version(
+                &source_builder,
+                source_dsn_context,
+                &sink_builder,
+                sink_dsn_context,
+            )
+            .await?;
+
             let mut conn = sink_builder
                 .build()
                 .await
@@ -387,15 +460,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             if let Err(err) = edition {
                 return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
             }
-            let sink_version = semver::Version::parse(
-                &sink_builder
-                    .server_version()
-                    .await
-                    .with_context(sink_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
+
             return check_connector_grant_of(&sink_builder, &sink_version, "td2.6")
                 .await
                 .with_context(sink_dsn_context);
@@ -497,9 +562,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 crate::runners::oracle::ORACLE_ID => "oracle",
                 crate::runners::mssql::MSSQL_ID => "mssql",
                 crate::runners::mongodb::MONGODB_ID => "mongodb",
-                "csv" => {
-                    return Ok(LicenseKind::good());
-                }
+                "csv" => "csv",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
                 }
@@ -514,6 +577,37 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
         _ => (),
     };
     Ok(LicenseKind::good())
+}
+
+async fn get_valid_taos_version(
+    from: &TaosBuilder,
+    source_dsn_context: impl Fn() -> String,
+    to: &TaosBuilder,
+    sink_dsn_context: impl Fn() -> String,
+) -> anyhow::Result<(Version, Version)> {
+    let source_version = semver::Version::parse(
+        &from
+            .server_version()
+            .await
+            .with_context(source_dsn_context)?
+            .split('.')
+            .take(3)
+            .join("."),
+    )?;
+
+    let sink_version = semver::Version::parse(
+        &to.server_version()
+            .await
+            .with_context(sink_dsn_context)?
+            .split('.')
+            .take(3)
+            .join("."),
+    )?;
+
+    if source_version >= VERSION_3_3_0 && sink_version < VERSION_3_3_0 {
+        bail!("Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported.");
+    }
+    Ok((source_version, sink_version))
 }
 
 #[cfg(test)]

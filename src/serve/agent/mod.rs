@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     HttpResponse, Responder,
 };
-use taos::Code;
 
 use crate::serve::{
     controller::{
@@ -28,10 +27,7 @@ pub(super) async fn create_agent(
 ) -> impl Responder {
     match task_store.create_agent(agent.into_inner()).await {
         Ok(agent) => Ok(HttpResponse::Ok().json(&agent)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -50,10 +46,7 @@ pub(super) async fn delete_agent(
 ) -> impl Responder {
     match task_store.delete_agent(agent_id.into_inner()).await {
         Ok(_) => Ok(HttpResponse::Ok().json(serde_json::Value::Null)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -77,10 +70,7 @@ pub(super) async fn get_agents(
         Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
             .json(&agents)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -99,10 +89,7 @@ pub(super) async fn get_agent_by_id(
 ) -> impl Responder {
     match task_store.get_agent_by_id(agent_id.into_inner()).await {
         Ok(agents) => Ok(HttpResponse::Ok().json(&agents)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: err.to_string(),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -126,10 +113,7 @@ pub(super) async fn get_agent_tasks(
         Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
             .json(&agents)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -155,10 +139,7 @@ pub(super) async fn get_agent_activities(
         Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
             .json(&agents)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: err.to_string(),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }
 
@@ -182,9 +163,6 @@ pub(super) async fn update_agent(
         .await
     {
         Ok(agents) => Ok(HttpResponse::Ok().json(&agents)),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("{:#}", err),
-        }),
+        Err(err) => Err(Failed::from_error(err)),
     }
 }

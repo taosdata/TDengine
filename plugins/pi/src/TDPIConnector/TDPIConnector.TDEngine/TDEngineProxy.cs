@@ -157,21 +157,13 @@ namespace TDPIConnector.TDEngine
         }
         public virtual void Connect()
         {
-            taosxCommonClient.Connect();
+           // taosxCommonClient.Connect();
         }
 
         public virtual Task<TDEngineResponse> GetServerVersion()
         {
             return null;
         }
-        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
-        {
-            return taosxCommonClient.ChangeTagValueForAFElements(db, tbName, attriName, value);
-        }
-        // public virtual Task<TDEngineResponse> DropElementTable(string db, string tbName)
-        // {
-        //     return taosxCommonClient.DropElementTable(db, tbName);
-        // }
         public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
             return taosxCommonClient.UpdateAFElementAttributeNULL(db, elementName, attriName, ts);
@@ -362,12 +354,6 @@ namespace TDPIConnector.TDEngine
             initPointModeTables();
             return Task.CompletedTask;
         }
-
-        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string tbName, string startTime, string endTime)
-        {
-            return taosxCommonClient.DeleteByTimeRange(database, tbName, startTime, endTime);
-        }
-
         private void initPointModeTables()
         {
             lock (taosxClientsLock)
@@ -456,7 +442,9 @@ namespace TDPIConnector.TDEngine
             }
             return Task.FromResult<TDEngineResponse>(null);
         }
-        public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, in Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, in List<string> columnNames)
+
+        // stable -> element_id -> timestamp -> values
+        public virtual Task<TDEngineResponse> InsertValuesForAFElements(in Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, in List<string> columnNames)
         {
             foreach (var tables in stables)
             {
@@ -469,6 +457,57 @@ namespace TDPIConnector.TDEngine
 
             }
             return Task.FromResult<TDEngineResponse>(null);
+        }
+
+        public void DropElement(string elementId) 
+        {
+            try
+            {
+                List<TDEngineClientManager> clientManagers = new List<TDEngineClientManager>(taosxClients.Values);
+                Random rand = new Random();
+                TDEngineClientManager randomClientManager = clientManagers[rand.Next(clientManagers.Count)];
+                TDEngineTaosxClient randomClient = randomClientManager.DefaultClient;
+                string message = ControlMessageBuilder.BuildDropMessage(elementId);
+                randomClient.SendControlMessage(new string[] { message });
+            }
+            catch (Exception e)
+            {
+                log.Error($"DeleteElement failed! {e.Message}", e);
+            }
+        }
+
+        public void ChangeTagValueForAFElements(string superTableName, string elementId, string attributeName, string value) {
+            try
+            {
+                TDEngineTaosxClient client = GetDefaultTaosxClient(superTableName);
+                if (client == null) {
+                    log.Error("Process TagChange event error, no taosx client found");
+                    return;
+                }
+                string alterTableClause = $"SET TAG {attributeName.ToTDEngineNamingPattern()}='{value}'";
+                string message = ControlMessageBuilder.BuildAlterMessage(elementId, alterTableClause);
+                client.SendControlMessage(new string[] { message });
+            }
+            catch (Exception e)
+            {
+                log.Error($"ChangeTagValueForAFElements failed! {e.Message}", e);
+            }
+        }
+
+        public void DeleteByTimeRange(string superTableName, string elementId, string startTime, string endTime)
+        {
+            TDEngineTaosxClient client = GetDefaultTaosxClient(superTableName);
+            string condition = $"ts >= '{startTime}' AND ts <= '{endTime}'";
+            string message = ControlMessageBuilder.BuildDeleteMessage(elementId, condition);
+            client.SendControlMessage(new string[] { message });
+        }
+
+        /// 用 null 覆盖原来的值
+        public void DeleteByTime(string superTableName, string elementId, string column, string timestamp) {
+            TDEngineTaosxClient client = GetDefaultTaosxClient(superTableName);
+            string columnValues = $"(ts, `{column}`) values('{timestamp}', null)";
+            string message = ControlMessageBuilder.BuildInsertMessage(elementId, columnValues);
+            client.SendControlMessage(new string[] { message });
         }
 
         public TDEngineTaosxClient GetTaosxClient(string superTableName) {

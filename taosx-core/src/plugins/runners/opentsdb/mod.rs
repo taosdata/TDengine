@@ -7,7 +7,7 @@ use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument, Span};
+use tracing::{instrument, Instrument};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
@@ -61,7 +61,6 @@ pub async fn opentsdb_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-    span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -98,7 +97,6 @@ pub async fn opentsdb_to_taos(
     }
 
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
-    exec_span.follows_from(&span);
 
     // create socket channel
     let mut ipc_handler = build_ipc(
@@ -111,7 +109,6 @@ pub async fn opentsdb_to_taos(
         &cancel,
         with_agent,
         transferred,
-        span,
         task_id,
         notify,
     )

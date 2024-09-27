@@ -1,14 +1,15 @@
-﻿using log4net;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using log4net;
 using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
+using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.Models;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace TDPIConnector.Core
 {
@@ -17,23 +18,33 @@ namespace TDPIConnector.Core
         private readonly TDEngineProxy tdEngineProxy;
         private readonly ConcurrentQueue<AFDataPipeEventWrapper> dpPIEvents;
         private readonly ConcurrentQueue<AFDataPipeEventWrapper> dpAFEvents;
-        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog log = LogManager.GetLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType
+        );
 
-        public event EventHandler<List<AFDataPipeEventWrapper>> OnPIEventReceivedListSuccess = delegate { };
-        public event EventHandler<List<AFDataPipeEventWrapper>> OnAFEventReceivedListSuccess = delegate { };
+        public event EventHandler<List<AFDataPipeEventWrapper>> OnPIEventReceivedListSuccess =
+            delegate { };
+        public event EventHandler<List<AFDataPipeEventWrapper>> OnAFEventReceivedListSuccess =
+            delegate { };
 
         public event EventHandler<AFDataPipeEventWrapper> OnPIEventReceivedSuccess = delegate { };
         public event EventHandler<AFDataPipeEventWrapper> OnAFEventReceivedSuccess = delegate { };
 
         List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
         RangeDeleteEventsSender deleteSender;
+        private readonly bool SyncDeleteData;
+        private readonly bool SyncUpdateData;
+        private readonly bool SyncUpdateAttribute;
 
         public EventsSender(TDEngineProxy tdEngineProxy)
         {
             this.tdEngineProxy = tdEngineProxy;
-            this.dpPIEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
-            this.dpAFEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
+            dpPIEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
+            dpAFEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
             deleteSender = new RangeDeleteEventsSender(tdEngineProxy, null);
+            SyncDeleteData = AppSettings.tomlConfig.SyncDeleteData;
+            SyncUpdateData = AppSettings.tomlConfig.SyncUpdateData;
+            SyncUpdateAttribute = AppSettings.tomlConfig.SyncUpdateAttribute;
         }
 
         public void SetBackfill(BackfillManager backfill)
@@ -41,114 +52,242 @@ namespace TDPIConnector.Core
             deleteSender.SetBackfill(backfill);
         }
 
-        public void OnAFElementEventBatch(ref List<AFDataPipeEventWrapper> allEvents) {
-            this.OnAFEventReceivedListSuccess(this, allEvents.Take(100).ToList());
-
-            var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
+        public void OnAFElementEventBatch(ref List<AFDataPipeEventWrapper> allEvents)
+        {
+            OnAFEventReceivedListSuccess(this, allEvents.Take(100).ToList());
+            log.Debug($"AFElementEventBatch:{allEvents.Count}");
+            var stables =
+                new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
             var columnNames = new List<string>();
 
             foreach (var dpEvent in allEvents)
             {
-                string stableName;
-                if (dpEvent.Value.Attribute.Element != null)
+                try
                 {
-                    if (!dpEvent.Value.Attribute.Element.hasTemplate())
+                    OSIsoft.AF.Data.AFDataPipeAction action = dpEvent.AFEventAction();
+                    string stableName;
+                    if (dpEvent.Value.Attribute.Element != null)
                     {
-                        stableName = TableNameConvert.GetSingleElementSuperTableName(dpEvent.Value.Attribute.Element);
-                    }
-                    else
-                    {
-                        stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
-                    }
-
-                }
-                else { 
-                    log.Error($"element event {dpEvent.Value.Attribute.Name} has no element");
-                    continue;
-                }
-
-                var elementTbName = ElemenetTableConverter.GetTDTableNameForElement(dpEvent.Value.Attribute.Element);
-                var elementUniKey = dpEvent.Value.Attribute.Element.ID.ToString();
-                var tdValue = dpEvent.Value.ToTDValue();
-                if (tdValue == null) continue;
-                var timestamp = tdValue.TimestampString;
-
-                var attributeName = dpEvent.Value.Attribute.Name;
-                if (dpEvent.IsAFDataPipeRangeDeletedEvent())
-                {
-                    var rangeDeleteEvent = dpEvent.ToAFDataPipeRangeDeletedEventWrapper();
-                    var startTime = rangeDeleteEvent.StartTime;
-                    var endTime = rangeDeleteEvent.EndTime;
-                    deleteSender.AddDeleteRange(dpEvent.Value.Attribute.Element, startTime, endTime);
-                    log.Debug($"element range delete event {elementTbName}:{attributeName} {startTime.LocalTime}-{endTime.LocalTime}");
-                    continue;
-                }
-                if (dpEvent.Value.Attribute.IsChild())
-                {
-                    tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(dpEvent.Value.Attribute.Parent, dpEvent.Value.Attribute);
-                }
-                else
-                {
-                    tdValue.Name = dpEvent.Value.Attribute.Name;
-                }
-                if (dpEvent.Value.Attribute.IsTDengineTag())
-                {
-                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update ||
-                        dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Add)
-                    {
-                        var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
-                        log.Info($"element tag change {elementTbName}:{attributeName}:{valueString}");
-                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, tdValue.Name, valueString.Trim()).Wait();
-                    }
-                    continue;
-                }
-
-                if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete &&
-                    !dpEvent.Value.Attribute.Unsupported())
-                {
-                    log.Debug($"element event delete {elementTbName}:{attributeName}:{timestamp}");
-                    tdValue.SetTDDeleted();
-                }
-                if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh && !dpEvent.Value.Attribute.Unsupported())
-                {
-                    // log.Info($"element event refresh {elementName}:{attributeName}:{timestamp}");
-                    continue;
-                }
-                if (!columnNames.Contains(attributeName))
-                {
-                    columnNames.Add(attributeName);
-                }
-
-                if (stables.ContainsKey(stableName))
-                {
-                    if (stables[stableName].ContainsKey(elementUniKey))
-                    {
-                        var table = stables[stableName][elementUniKey];
-                        if (table.ContainsKey(timestamp))
+                        if (!dpEvent.Value.Attribute.Element.hasTemplate())
                         {
-                            table[timestamp].Add(tdValue);
+                            stableName = TableNameConvert.GetSingleElementSuperTableName(
+                                dpEvent.Value.Attribute.Element
+                            );
                         }
                         else
                         {
-                            table.Add(timestamp, new List<TDValue>() { tdValue });
+                            stableName = TableNameConvert.GetAFPointSuperTableName(
+                                dpEvent.Value.Attribute.Element.Template
+                            );
                         }
                     }
                     else
                     {
-                        stables[stableName].Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                        log.Error(
+                            $"DataPipeEvent-{action}:{dpEvent.Value.Attribute.Name} has no element"
+                        );
+                        continue;
                     }
+
+                    var elementId = dpEvent.Value.Attribute.Element.ID.ToString();
+                    var elementName = dpEvent.Value.Attribute.Element.Name;
+                    var attributeName = dpEvent.Value.Attribute.Name;
+                    var tdValue = dpEvent.Value.ToTDValue();
+                    if (tdValue == null)
+                    {
+                        log.Warn(
+                            $"DataPipeEvent-{action}:{dpEvent.Value.Attribute.Name}, ToTDValue failed"
+                        );
+                        continue;
+                    }
+                    if (dpEvent.Value.Attribute.IsChild())
+                    {
+                        // 计算子属性的列名
+                        tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(
+                            dpEvent.Value.Attribute.Parent,
+                            dpEvent.Value.Attribute
+                        );
+                    }
+                    else
+                    {
+                        tdValue.Name = dpEvent.Value.Attribute.Name;
+                    }
+                    var timestamp = tdValue.TimestampString;
+                    bool isTDTag = dpEvent.Value.Attribute.IsTDengineTag();
+                    // 更新历史数据(Update)、插入新数据(Add)、插入历史数据(Insert)
+                    if (
+                        (
+                            action == OSIsoft.AF.Data.AFDataPipeAction.Add
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Insert
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                        ) && !isTDTag
+                    )
+                    {
+                        if (
+                            action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Insert
+                        )
+                        {
+                            log.Info(
+                                $"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}"
+                            );
+                            if (
+                                action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                                && !SyncUpdateData
+                            )
+                            {
+                                log.Info($"DataPipeEvent-{action}:ignore update event");
+                                continue;
+                            }
+                        }
+                        if (!columnNames.Contains(attributeName))
+                        {
+                            columnNames.Add(attributeName);
+                        }
+
+                        if (stables.ContainsKey(stableName))
+                        {
+                            if (stables[stableName].ContainsKey(elementId))
+                            {
+                                var table = stables[stableName][elementId];
+                                if (table.ContainsKey(timestamp))
+                                {
+                                    table[timestamp].Add(tdValue);
+                                }
+                                else
+                                {
+                                    table.Add(timestamp, new List<TDValue>() { tdValue });
+                                }
+                            }
+                            else
+                            {
+                                stables[stableName]
+                                    .Add(
+                                        elementId,
+                                        new Dictionary<string, List<TDValue>>()
+                                        {
+                                            {
+                                                timestamp,
+                                                new List<TDValue>() { tdValue }
+                                            }
+                                        }
+                                    );
+                            }
+                        }
+                        else
+                        {
+                            var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>
+                            {
+                                {
+                                    elementId,
+                                    new Dictionary<string, List<TDValue>>()
+                                    {
+                                        {
+                                            timestamp,
+                                            new List<TDValue>() { tdValue }
+                                        }
+                                    }
+                                }
+                            };
+                            stables.Add(stableName, tables);
+                        }
+                        continue;
+                    }
+                    // 日志记录所有其它事件
+                    log.Info(
+                        $"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}"
+                    );
+
+                    // 处理 TAG 列变化
+                    if (isTDTag)
+                    {
+                        if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update)
+                        {
+                            if (!SyncUpdateAttribute)
+                            {
+                                log.Info($"DataPipeEvent-{action}:ignore update tag event");
+                                continue;
+                            }
+                            var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
+                            log.Info(
+                                $"DataPipeEvent-{action}:Tag change,{stableName}:{elementName}_{elementId}:{attributeName}:{valueString}"
+                            );
+                            tdEngineProxy.ChangeTagValueForAFElements(
+                                stableName,
+                                elementId,
+                                tdValue.Name,
+                                valueString.Trim()
+                            );
+                        }
+                        else
+                        {
+                            log.Debug($"DataPipeEvent-{action}:ignore other tag event");
+                        }
+                        continue;
+                    }
+                    // 删除历史数据
+                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete)
+                    {
+                        if (!SyncDeleteData)
+                        {
+                            log.Info($"DataPipeEvent-{action}:ignore delete event");
+                            continue;
+                        }
+                        if (dpEvent.Value.Attribute.Unsupported())
+                        {
+                            log.Info(
+                                $"DataPipeEvent-{action}:ignore unsupported datarefrence type"
+                            );
+                        }
+                        else
+                        {
+                            // 更新属性值为 null
+                            tdEngineProxy.DeleteByTime(
+                                stableName,
+                                elementId,
+                                tdValue.Name.ToTDEngineNamingPattern(),
+                                timestamp
+                            );
+                        }
+                        continue;
+                    }
+                    // Analyses 重计算事件
+                    if (dpEvent.IsAFDataPipeRangeDeletedEvent())
+                    {
+                        var rangeDeleteEvent = dpEvent.ToAFDataPipeRangeDeletedEventWrapper();
+                        var startTime = rangeDeleteEvent.StartTime;
+                        var endTime = rangeDeleteEvent.EndTime;
+                        log.Info(
+                            $"DataPipeRangeDeletedEvent:{stableName}:{elementName}_{elementId}:{attributeName},{startTime.LocalTime}-{endTime.LocalTime}"
+                        );
+                        deleteSender.AddDeleteRange(
+                            stableName,
+                            dpEvent.Value.Attribute.Element,
+                            startTime,
+                            endTime
+                        );
+                        continue;
+                    }
+                    // 处理刷新事件
+                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh)
+                    {
+                        log.Info($"DataPipeEvent-{action}:ignore refresh event");
+                        continue;
+                    }
+                    // 处理其它事件, 理论不应该走到这里，如果走到这里，需要检查代码逻辑
+                    log.Warn($"DataPipeEvent-{action}:ignored");
                 }
-                else
+                catch (InvalidOperationException oe) { 
+                    log.Warn($"Process DataPipeEvent Warn: {oe.Message}");
+                }
+                catch (Exception e)
                 {
-                    var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
-                    tables.Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
-                    stables.Add(stableName, tables);
+                    log.Error("Process DataPipeEvent Error", e);
                 }
             }
-            log.Info($"Element mode events {allEvents.Count}");
             try
             {
-                this.tdEngineProxy.InsertValuesForAFElements(AppSettings.tomlConfig.TDDataBase, stables, columnNames).Wait();
+                tdEngineProxy.InsertValuesForAFElements(stables, columnNames).Wait();
             }
             catch (Exception e)
             {
@@ -163,15 +302,16 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            while (!this.dpAFEvents.IsEmpty)
+            while (!dpAFEvents.IsEmpty)
             {
-                bool result = this.dpAFEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
+                bool result = dpAFEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
                 if (result)
                 {
                     allEvents.Add(dpEvent);
                     this.OnAFEventReceivedSuccess(this, dpEvent);
                 }
-                if (allEvents.Count >= 10000) {
+                if (allEvents.Count >= 10000)
+                {
                     OnAFElementEventBatch(ref allEvents);
                     allEvents.Clear();
                 }
@@ -192,15 +332,14 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            while (!this.dpPIEvents.IsEmpty)
+            while (!dpPIEvents.IsEmpty)
             {
-                bool result = this.dpPIEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
+                bool result = dpPIEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
                 if (result)
                 {
                     allEvents.Add(dpEvent);
 
-                    this.OnPIEventReceivedSuccess(this, dpEvent);
-
+                    OnPIEventReceivedSuccess(this, dpEvent);
                 }
             }
 
@@ -209,18 +348,21 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            this.OnPIEventReceivedListSuccess(this, allEvents.Take(100).ToList());
+            OnPIEventReceivedListSuccess(this, allEvents.Take(100).ToList());
             foreach (var dpEvent in allEvents)
             {
-                var superTableName = PIInfoScanner.GeneratePointSuperTableName(dpEvent.Value.PIPoint);
+                var superTableName = PIInfoScanner.GeneratePointSuperTableName(
+                    dpEvent.Value.PIPoint
+                );
                 var tdValue = dpEvent.Value.ToTDValue();
-                if (tdValue == null) continue;
+                if (tdValue == null)
+                    continue;
                 var timestamp = tdValue.TimestampString;
                 tdValue.Name = dpEvent.Value.PIPoint.Name;
 
                 try
                 {
-                    this.tdEngineProxy.InsertValueForPIPoints(superTableName, tdValue);
+                    tdEngineProxy.InsertValueForPIPoints(superTableName, tdValue);
                 }
                 catch (Exception e)
                 {
@@ -241,23 +383,41 @@ namespace TDPIConnector.Core
         }
     }
 
-    class RangeDelete {
-        public RangeDelete(AFElementWrapper element, AFTimeWrapper startTime, AFTimeWrapper endTime) {
+    class RangeDelete
+    {
+        public RangeDelete(
+            AFElementWrapper element,
+            string stableName,
+            AFTimeWrapper startTime,
+            AFTimeWrapper endTime
+        )
+        {
             this.element = element;
+            StableName = stableName;
             StartTime = startTime;
             EndTime = endTime;
         }
+
         public AFElementWrapper element;
+        public string StableName;
         public AFTimeWrapper StartTime;
         public AFTimeWrapper EndTime;
     }
 
-    class RangeDeleteEventsSender {
-        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+    class RangeDeleteEventsSender
+    {
+        private static readonly ILog log = LogManager.GetLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType
+        );
         private readonly TDEngineProxy tdProxy;
         private BackfillManager backfillManager;
 
-        public Dictionary<string, RangeDelete> deleteElements = new Dictionary<string, RangeDelete> { }; // key: string elementName;
+        public Dictionary<string, RangeDelete> timeRangesToDelete = new Dictionary<
+            string,
+            RangeDelete
+        >
+        {
+            }; // key: string elementName;
         private readonly Object stLock = new Object();
         public DateTime LastUpdataTime;
         public bool startBackfill = false;
@@ -267,23 +427,36 @@ namespace TDPIConnector.Core
             this.tdProxy = tdProxy;
             this.backfillManager = backfillManager;
         }
-        public void AddDeleteRange(AFElementWrapper element, AFTimeWrapper startTime, AFTimeWrapper endTime) {
-            lock (stLock) {
-                var tbName = ElemenetTableConverter.GetTDTableNameForElement(element);
-                if (deleteElements.ContainsKey(tbName))
+
+        public void AddDeleteRange(
+            string stableName,
+            AFElementWrapper element,
+            AFTimeWrapper startTime,
+            AFTimeWrapper endTime
+        )
+        {
+            lock (stLock)
+            {
+                var elementId = element.ID.ToString();
+                if (timeRangesToDelete.ContainsKey(elementId))
                 {
-                    deleteElements[tbName].EndTime =
-                        deleteElements[tbName].EndTime > endTime ? deleteElements[tbName].EndTime : endTime;
-                    deleteElements[tbName].StartTime =
-                        deleteElements[tbName].StartTime < startTime ? deleteElements[tbName].StartTime : startTime;
+                    timeRangesToDelete[elementId].EndTime =
+                        timeRangesToDelete[elementId].EndTime > endTime
+                            ? timeRangesToDelete[elementId].EndTime
+                            : endTime;
+                    timeRangesToDelete[elementId].StartTime =
+                        timeRangesToDelete[elementId].StartTime < startTime
+                            ? timeRangesToDelete[elementId].StartTime
+                            : startTime;
                 }
                 else
                 {
-                    var range = new RangeDelete(element, startTime, endTime);
-                    deleteElements.Add(tbName, range);
+                    var range = new RangeDelete(element, stableName, startTime, endTime);
+                    timeRangesToDelete.Add(elementId, range);
                 }
                 LastUpdataTime = DateTime.Now;
-                if (!startBackfill) {
+                if (!startBackfill)
+                {
                     startBackfill = true;
                     Task task = Task.Run(async () =>
                     {
@@ -297,19 +470,26 @@ namespace TDPIConnector.Core
 
         public void Send()
         {
-            while (true) {
-                if (DateTime.Now < LastUpdataTime.AddSeconds(30)) {
+            while (true)
+            {
+                if (DateTime.Now < LastUpdataTime.AddSeconds(30))
+                {
                     Thread.Sleep(1000);
                     continue;
                 }
                 lock (stLock)
                 {
-                    foreach (var element in deleteElements)
+                    foreach (var kv in timeRangesToDelete)
                     {
-                        tdProxy.DeleteByTimeRange(AppSettings.tomlConfig.TDDataBase, element.Key,
-                            element.Value.StartTime.FormatUtcTime(),
-                            element.Value.EndTime.FormatUtcTime()).Wait();
-                        log.Info($"element range delete event after merge {element.Key}:{element.Value.StartTime.LocalTime}-{element.Value.EndTime.LocalTime}");
+                        string elementId = kv.Key;
+                        string elementName = kv.Value.element.Name;
+                        string superTableName = kv.Value.StableName;
+                        string startTime = kv.Value.StartTime.FormatUtcTime();
+                        string endTime = kv.Value.EndTime.FormatUtcTime();
+                        tdProxy.DeleteByTimeRange(superTableName, elementId, startTime, endTime);
+                        log.Info(
+                            $"Delete:{superTableName}:{elementName}_{elementId}:{kv.Value.StartTime.LocalTime}-{kv.Value.EndTime.LocalTime}"
+                        );
                     }
                     Thread.Sleep(1000);
                     Backfill();
@@ -318,24 +498,46 @@ namespace TDPIConnector.Core
                 break;
             }
         }
+
         public void Backfill()
         {
-            if (backfillManager == null) {
-                log.Info($"backfill in range delete sender is null");
+            if (backfillManager == null)
+            {
+                log.Info($"Backfill in range delete sender is null");
                 return;
             }
             lock (stLock)
             {
-                foreach (var element in deleteElements)
+                foreach (var kv in timeRangesToDelete)
                 {
-                    backfillManager.GetBackfill().BackfillElement(AppSettings.tomlConfig.TDDataBase, element.Value.element, element.Value.StartTime.UtcTime, element.Value.EndTime.UtcTime);
-                    log.Info($"element {element.Key} refresh time range in:{element.Value.StartTime.LocalTime}-{element.Value.EndTime.LocalTime}");
+                    try
+                    {
+                        backfillManager
+                            .GetBackfill()
+                            .BackfillElement(
+                                AppSettings.tomlConfig.TDDataBase,
+                                kv.Value.element,
+                                kv.Value.StartTime.UtcTime,
+                                kv.Value.EndTime.UtcTime
+                            );
+                        log.Info(
+                            $"Backfill element {kv.Key} refresh time range in:{kv.Value.StartTime.LocalTime}-{kv.Value.EndTime.LocalTime}"
+                        );
+                    }
+                    catch (Exception e)
+                    {
+                        log.Error(
+                            $"Backfill element {kv.Key} refresh time range in:{kv.Value.StartTime.LocalTime}-{kv.Value.EndTime.LocalTime} error",
+                            e
+                        );
+                    }
                 }
-                deleteElements.Clear();
+                timeRangesToDelete.Clear();
             }
         }
 
-        public void SetBackfill(BackfillManager backfillManager) {
+        public void SetBackfill(BackfillManager backfillManager)
+        {
             this.backfillManager = backfillManager;
         }
     }

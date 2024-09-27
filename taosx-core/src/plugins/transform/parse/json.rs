@@ -1,17 +1,23 @@
 use std::{borrow::Cow, str::FromStr, sync::Arc};
 
+use anyhow::Context;
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, ListBuilder, NullArray, StringArray, StringBuilder,
-        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder,
+        NullArray, StringArray, StringBuilder, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     },
-    datatypes::{DataType, Schema, TimeUnit},
+    datatypes::{
+        DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, Schema,
+        TimeUnit, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    },
     record_batch::RecordBatch,
 };
 use arrow_schema::{Field, Fields};
 use itertools::Itertools;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
@@ -23,6 +29,7 @@ pub struct Json {
     pub(crate) json: Option<Select>,
     #[serde(default)]
     pub(crate) keep: bool,
+    pub(crate) depth: Option<usize>,
 }
 
 #[derive(Debug, Error)]
@@ -152,8 +159,19 @@ impl Parse for Json {
 
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
-        if let Some(select) = self.json.as_ref() {
-            schema = select.schema(&schema);
+
+        match self.json.as_ref() {
+            Some(select) if select != &Select::pattern(Regex::new("").unwrap()) => {
+                schema = select.schema(&schema);
+            }
+            _ => {
+                if let Some(depth) = self.depth {
+                    let keys = flat_fields(schema.fields(), &String::new(), depth);
+                    let keys = serde_json::to_string(&keys).context("Fields to json string")?;
+                    let select = Select::from_str(&keys).context("Json string to select")?;
+                    schema = select.schema(&schema);
+                }
+            }
         }
         // dbg!(&schema);
         let json_values: Vec<_> = (0..num_rows)
@@ -527,40 +545,233 @@ impl Parse for Json {
                     r_fields.push(f);
                     r_arrays.push(array);
                 }
-                DataType::List(_) => {
-                    let capacity = json_values.len();
-                    let builder = StringBuilder::new();
-                    let mut list = ListBuilder::with_capacity(builder, capacity);
-                    json_values.iter().for_each(|(_n, v)| {
-                        if let Some(v) = v.as_ref().and_then(getter) {
-                            match v.as_array() {
-                                Some(array) => {
-                                    array.iter().for_each(|v| match v {
-                                        JsonValue::String(v) => {
-                                            list.values().append_value(v);
-                                        }
-                                        _ => {
-                                            list.values().append_value(v.to_string());
-                                        }
-                                    });
-                                    list.append(true);
-                                }
-                                None => {
-                                    list.append_null();
-                                }
-                            }
-                        } else {
-                            list.append_null();
+                DataType::List(field) => {
+                    let array = match field.data_type() {
+                        DataType::UInt8 => ListArray::from_iter_primitive::<UInt8Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u8)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt16 => ListArray::from_iter_primitive::<UInt16Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u16)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt32 => ListArray::from_iter_primitive::<UInt32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u32)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt64 => ListArray::from_iter_primitive::<UInt64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int8 => ListArray::from_iter_primitive::<Int8Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i8)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int16 => ListArray::from_iter_primitive::<Int16Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i16)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int32 => ListArray::from_iter_primitive::<Int32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i32)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int64 => ListArray::from_iter_primitive::<Int64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Binary | DataType::LargeBinary => {
+                            let mut array =
+                                ListBuilder::with_capacity(BinaryBuilder::new(), json_values.len());
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_str()
+                                                .map(|s| s.as_bytes())
+                                                .map(Cow::Borrowed)
+                                                .or_else(|| {
+                                                    serde_json::to_vec(v).map(Cow::Owned).ok()
+                                                })
+                                        })
+                                    })
+                                })
+                            }));
+                            array.finish()
                         }
-                    });
-                    let array = Arc::new(list.finish()) as ArrayRef;
-                    // set field type to List<Utf8>
-                    let field = Field::new_list(
-                        f.name(),
-                        Field::new_list_field(DataType::Utf8, true),
-                        true,
-                    );
-                    // push to arrow
+                        DataType::Float32 => ListArray::from_iter_primitive::<Float32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_f64()
+                                                .map(|f| f as f32)
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Float64 => ListArray::from_iter_primitive::<Float64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_f64()
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Boolean => {
+                            let mut array = ListBuilder::with_capacity(
+                                BooleanBuilder::new(),
+                                json_values.len(),
+                            );
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_bool()
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }));
+                            array.finish()
+                        }
+                        _ => {
+                            let field = Field::new_list(
+                                f.name(),
+                                Field::new_list_field(DataType::Utf8, true),
+                                f.is_nullable(),
+                            );
+                            // utf8 type and other types...
+                            let mut array =
+                                ListBuilder::with_capacity(StringBuilder::new(), json_values.len());
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_str().map(Cow::Borrowed).or_else(|| {
+                                                serde_json::to_string(v).map(Cow::Owned).ok()
+                                            })
+                                        })
+                                    })
+                                })
+                            }));
+                            r_fields.push(field);
+                            r_arrays.push(Arc::new(array.finish()) as ArrayRef);
+                            continue;
+                        }
+                    };
+                    r_fields.push(f);
+                    r_arrays.push(Arc::new(array) as ArrayRef)
+                }
+                DataType::Struct(_) => {
+                    let values = json_values
+                        .iter()
+                        .map(|(_n, v)| {
+                            if let Some(v) = v.as_ref().and_then(getter) {
+                                serde_json::to_string(v).ok()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    let array: ArrayRef = Arc::new(StringArray::from_iter(values));
+                    // set field type to Utf8
+                    let field = Field::new(f.name(), DataType::Utf8, true);
                     r_fields.push(field);
                     r_arrays.push(array);
                 }
@@ -692,11 +903,94 @@ impl Parse for Json {
     }
 }
 
+fn flat_fields(fields: &Fields, current: &String, depth: usize) -> Vec<String> {
+    let keys = &mut Vec::new();
+    fields.iter().for_each(|field| {
+        let field_name = field.name();
+        let field_type = field.data_type();
+        // renew current field name
+        let current = if current.is_empty() {
+            field_name.clone()
+        } else {
+            format!("{}.{}", current, field_name)
+        };
+        // when depth > 0, we need to flat the nested fields
+        if depth > 0 {
+            match field_type {
+                DataType::Struct(fields) => {
+                    keys.append(flat_fields(fields, &current, depth - 1).as_mut());
+                }
+                _ => {
+                    keys.push(format!(
+                        "$.{}={}",
+                        current.clone(),
+                        current.clone().replace(".", "_")
+                    ));
+                }
+            }
+        } else {
+            keys.push(format!(
+                "$.{}={}",
+                current.clone(),
+                current.clone().replace(".", "_")
+            ));
+        }
+    });
+    keys.clone()
+}
+
 #[cfg(test)]
 mod tests {
     use arrow_schema::Field;
 
     use super::*;
+
+    fn parse_json(json_str: &str) -> Result<serde_json::Value, serde_json::Error> {
+        let json = serde_json::from_str::<serde_json::Value>(&json_str);
+        json
+    }
+
+    fn build_schema_by_json(json: serde_json::Value) -> Result<Schema, arrow::error::ArrowError> {
+        let mut json_data = Vec::with_capacity(1);
+        match json {
+            JsonValue::Object(object) => {
+                json_data.push(Ok(JsonValue::Object(object)));
+            }
+            _ => unreachable!(),
+        }
+        let schema = arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter());
+        schema
+    }
+
+    #[test]
+    fn test_parse_json() {
+        let json_str =
+            r#"{"a":1,"b":"2","c":[3,4],"d":{"d1":1,"d2":{"d21":1,"d22":{"d221":1,"d222":2}}}}"#;
+        let json = parse_json(json_str).unwrap();
+        dbg!(&json);
+    }
+
+    #[test]
+    fn test_build_schema_by_json() {
+        let json_str =
+            r#"{"a":1,"b":"2","c":[3,4],"d":{"d1":1,"d2":{"d21":1,"d22":{"d221":1,"d222":2}}}}"#;
+        let json = parse_json(json_str).unwrap();
+        let schema = build_schema_by_json(json).unwrap();
+        dbg!(&schema);
+        dbg!(&schema.fields());
+    }
+
+    #[test]
+    fn test_flat_fields_by_depth() {
+        let depth = 2;
+        let json_str =
+            r#"{"a":1,"b":"2","c":[3,4],"d":{"d1":1,"d2":{"d21":1,"d22":{"d221":1,"d222":2}}}}"#;
+        let json = parse_json(json_str).unwrap();
+        let schema = build_schema_by_json(json).unwrap();
+        let keys = flat_fields(schema.fields(), &String::new(), depth);
+        dbg!(keys);
+        // println!("{}", serde_json::to_string(&keys).unwrap());
+    }
 
     #[test]
     fn json_extract() {
@@ -704,6 +998,7 @@ mod tests {
             // select: None,
             json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
             keep: false,
+            depth: Some(0),
         };
         dbg!(&extract);
 
@@ -742,6 +1037,32 @@ mod tests {
         dbg!(&indices);
         assert_eq!(records.num_columns(), 4);
         assert_eq!(records.num_rows(), 3);
+        assert!(indices.is_none());
+    }
+
+    #[test]
+    fn json_extract_object_by_depth() {
+        let extract = Json {
+            // select: None,
+            json: None,
+            keep: false,
+            depth: Some(2),
+        };
+
+        let field = Field::new("a1", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"a1": "a1", "b1": 1.2}"#,
+            r#"{"a1": "a2", "b1": 2.5, "e1": 1}"#,
+            r#"{"a1": "a3", "c1": 1}"#,
+            r#"{"a":1,"b":"2","c":[3,4],"d":{"d1":1,"d2":{"d21":1,"d22":{"d221":1,"d222":2}}}}"#,
+        ]));
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.num_columns(), 10);
+        assert_eq!(records.num_rows(), 4);
         assert!(indices.is_none());
     }
 
@@ -957,19 +1278,17 @@ mod tests {
 
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
-            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none", }]"#,
+            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none"}]"#,
             r#"{"a1": "a2", "c1": 1}"#,
         ]));
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
         let v = extract.parse_array(&field, &array);
-        assert!(v.is_err());
+        assert!(!v.is_err());
 
-        // dbg!(&records);
-        // dbg!(&indices);
-        // assert_eq!(records.num_columns(), 2);
-        // assert_eq!(records.num_rows(), 1);
-        // assert_eq!(indices, Some(vec![1]));
+        let (records, indices) = v.unwrap();
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indices, Some(vec![0, 0, 1]));
     }
 }

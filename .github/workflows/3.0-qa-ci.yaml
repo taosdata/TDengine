@@ -2,8 +2,8 @@ name: 3.0 QA-workflow
 # run-name: ${{ github.actor }}, your PR is under test. 🚀
 
 on:
-  schedule:
-    - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
+  #schedule:
+  #  - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
   workflow_dispatch:
   # pull_request:
   # push:

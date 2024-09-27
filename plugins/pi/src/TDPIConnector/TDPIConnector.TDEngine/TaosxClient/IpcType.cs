@@ -84,6 +84,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         Table = 1,
         Children,
         Insert,
+        Control,
     }
 
     public class LushMessageInit

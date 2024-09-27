@@ -94,6 +94,7 @@ func (conn *Connector) connect(conf *config.MQTT) {
 			},
 		},
 	}
+	cliCfg.SetUsernamePassword(conf.Username, []byte(conf.Password))
 	if schema == "ssl" || schema == "wss" {
 		tlsConfig, err := newTLSConfig(conf)
 		if err != nil {
@@ -114,19 +115,20 @@ func newTLSConfig(conf *config.MQTT) (*tls.Config, error) {
 	certPool := x509.NewCertPool()
 	caCert := []byte(conf.CA)
 	certPool.AppendCertsFromPEM(caCert)
-
-	cert, err := tls.X509KeyPair([]byte(conf.Cert), []byte(conf.CertKey))
-	if err != nil {
-		return nil, err
-	}
-
-	return &tls.Config{
+	tlsConfig := &tls.Config{
 		RootCAs:            certPool,
 		ClientAuth:         tls.NoClientCert,
-		ClientCAs:          nil,
 		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{cert},
-	}, nil
+	}
+	if conf.Cert != "" || conf.CertKey != "" {
+		cert, err := tls.X509KeyPair([]byte(conf.Cert), []byte(conf.CertKey))
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.ClientAuth = tls.RequestClientCert
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	return tlsConfig, nil
 }
 
 func NewConnector(conf *config.MQTT, logger logrus.FieldLogger, onConnect connector.OnConnect, onDisconnected connector.OnDisconnected, onMessage connector.OnMessage) *Connector {

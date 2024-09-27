@@ -1,24 +1,29 @@
 ﻿#define CLOUD_LICENSE_ONLY_DISABLED
-using log4net;
 using System;
-using Apache.Arrow;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Apache.Arrow;
 using Apache.Arrow.Types;
-using System.Collections;
-using IpcDataType = System.String;
+using log4net;
 using TDPIConnector.TDEngine.Models;
+using IpcDataType = System.String;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
-    public class RawRecord {
-
+    public class RawRecord
+    {
         public string key;
         public DateTime ts;
         public Dictionary<string, string> valDic;
         public Dictionary<string, int> statusDic;
 
-        public RawRecord(string key, DateTime ts, Dictionary<string, string> valDic, Dictionary<string, int> statusDic)
+        public RawRecord(
+            string key,
+            DateTime ts,
+            Dictionary<string, string> valDic,
+            Dictionary<string, int> statusDic
+        )
         {
             this.key = key;
             this.ts = ts;
@@ -30,10 +35,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
     /// <summary>
     ///  暂存各种类型的数据，用于构建ArrowArray
     /// </summary>
-    public class ColumnValueBuilder {
+    public class ColumnValueBuilder
+    {
         public TDValueType ValueType { get; set; }
         public object ArrowArray;
-        public ColumnValueBuilder(TDValueType valueType) {
+
+        public ColumnValueBuilder(TDValueType valueType)
+        {
             ValueType = valueType;
             switch (valueType)
             {
@@ -63,8 +71,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public void AppendNull() {
-            switch (ValueType) { 
+        public void AppendNull()
+        {
+            switch (ValueType)
+            {
                 case TDValueType.String:
                     ((StringArray.Builder)ArrowArray).AppendNull();
                     break;
@@ -91,8 +101,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public void Append(object value) {
-            switch (ValueType) {
+        public void Append(object value)
+        {
+            switch (ValueType)
+            {
                 case TDValueType.String:
                     if (value == null)
                     {
@@ -108,7 +120,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((Int32Array.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((Int32Array.Builder)ArrowArray).Append((int)value);
                     }
                     break;
@@ -117,7 +130,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((Int64Array.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((Int64Array.Builder)ArrowArray).Append((long)value);
                     }
                     break;
@@ -126,7 +140,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((FloatArray.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((FloatArray.Builder)ArrowArray).Append((float)value);
                     }
                     break;
@@ -135,7 +150,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((DoubleArray.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((DoubleArray.Builder)ArrowArray).Append((double)value);
                     }
                     break;
@@ -144,7 +160,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((TimestampArray.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((TimestampArray.Builder)ArrowArray).Append((DateTime)value);
                     }
                     break;
@@ -153,7 +170,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     {
                         ((BooleanArray.Builder)ArrowArray).AppendNull();
                     }
-                    else {
+                    else
+                    {
                         ((BooleanArray.Builder)ArrowArray).Append((bool)value);
                     }
                     break;
@@ -162,8 +180,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public void Clear() {
-            switch (ValueType) {
+        public void Clear()
+        {
+            switch (ValueType)
+            {
                 case TDValueType.String:
                     ((StringArray.Builder)ArrowArray).Clear();
                     break;
@@ -212,15 +232,16 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     throw new Exception("Unsupported TDType");
             }
         }
-
     }
 
     public class MessageBuilder
     {
-        public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        public static readonly ILog log = LogManager.GetLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType
+        );
 
-        public List<KeyValuePair<string, TDValueType>> columnNameTypes
-            = new List<KeyValuePair<string, TDValueType>>();
+        public List<KeyValuePair<string, TDValueType>> columnNameTypes =
+            new List<KeyValuePair<string, TDValueType>>();
         public List<KeyValuePair<string, string>> tagNames;
         public StructType recordType { get; set; }
         public StructType tableType { get; set; }
@@ -232,18 +253,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public StringArray.Builder tableUniqKeyArrowArray;
         public TimestampArray.Builder tsArrowArray;
 
-        public Dictionary<string, Int32Array.Builder> statusArrowArrayList
-            = new Dictionary<string, Int32Array.Builder>();
+        public Dictionary<string, Int32Array.Builder> statusArrowArrayList =
+            new Dictionary<string, Int32Array.Builder>();
 
-        public Dictionary<string, ColumnValueBuilder> valArrowArrayList
-            = new Dictionary<string, ColumnValueBuilder>();
+        public Dictionary<string, ColumnValueBuilder> valArrowArrayList =
+            new Dictionary<string, ColumnValueBuilder>();
 
-        // pointId is table tag for PI mode 
+        // pointId is table tag for PI mode
         // public Dictionary<string, int> pointIds
         //    = new Dictionary<string, int>();
         // AFElement mode tags
-        public Dictionary<string, List<KeyValuePair<string, string>>> tagVals
-            = new Dictionary<string, List<KeyValuePair<string, string>>>();
+        public Dictionary<string, List<KeyValuePair<string, string>>> tagVals =
+            new Dictionary<string, List<KeyValuePair<string, string>>>();
 
         public IpcMetadata Metadata { get; set; }
         public List<IpcField> Columns { get; set; }
@@ -253,7 +274,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public readonly string stableName;
 
-        public MessageBuilder(PIDataMode mode, string stableName, StreamType stream, AckType ackType)
+        public MessageBuilder(
+            PIDataMode mode,
+            string stableName,
+            StreamType stream,
+            AckType ackType
+        )
         {
             this.mode = mode;
             this.stableName = stableName;
@@ -268,16 +294,19 @@ namespace TDPIConnector.TDEngine.TaosxClient
             var init = new LushMessageInit
             {
                 Name = name,
-                Columns = columns.Select(f => new LushField
-                {
-                    Name = f.Name,
-                    Type = f.IpcDataType ?? FromArrowDataType(f.ArrowDataType),
-                }).ToList(),
+                Columns = columns
+                    .Select(f => new LushField
+                    {
+                        Name = f.Name,
+                        Type = f.IpcDataType ?? FromArrowDataType(f.ArrowDataType),
+                    })
+                    .ToList(),
                 Tags = tags.Select(f => new LushField
-                {
-                    Name = f.Name,
-                    Type = f.IpcDataType ?? FromArrowDataType(f.ArrowDataType),
-                }).ToList(),
+                    {
+                        Name = f.Name,
+                        Type = f.IpcDataType ?? FromArrowDataType(f.ArrowDataType),
+                    })
+                    .ToList(),
             };
 
             Columns = columns;
@@ -323,50 +352,48 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public RecordBatch BuildInsertMessage()
         {
             var recordCounts = tableUniqKeyArrowArray.Length;
-            IEnumerable<IArrowArray> arrays = CreateInsertArrays(this, recordCounts);
-            var batch = new RecordBatch(
-                Schema,
-                arrays,
-                1
-                );
+            IEnumerable<IArrowArray> arrays = CreateArraysForInsertMessage(this, recordCounts);
+            var batch = new RecordBatch(Schema, arrays, 1);
             return batch;
         }
 
         public RecordBatch BuildTablesMessage()
         {
-            int length;
-            if (mode == PIDataMode.PointMode)
-            {
-                length = tagVals.Count;
-            }
-            else
-            {
-                length = tagVals.Count;
-            }
-
-
-            IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Children, length);
-            var batch = new RecordBatch(
-                Schema,
-                arrays,
-                1
-                );
+            int length = tagVals.Count;
+            IEnumerable<IArrowArray> arrays = CreateArraysForTablesMessage(this, length);
+            var batch = new RecordBatch(Schema, arrays, 1);
             return batch;
         }
-        private IEnumerable<IArrowArray> CreateArrays(MessageBuilder builder, MessageType msgType, int recordCounts)
+
+        public RecordBatch BuildControlMessage(string[] values)
+        {
+            IEnumerable<IArrowArray> arrays = CreateArraysForControlMessage(values);
+            var batch = new RecordBatch(Schema, arrays, 1);
+            return batch;
+        }
+
+        private IEnumerable<IArrowArray> CreateArraysForTablesMessage(
+            MessageBuilder builder,
+            int recordCounts
+        )
         {
             var schema = builder.Schema;
             const int fieldCount = 3;
             List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
             // 添加 __type__ 列
             Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
-            arrays.Add(CreateTypeArray(typeField, msgType));
+            arrays.Add(CreateTypeArray(typeField, MessageType.Children));
             // 添加 __tables__ 列
             Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
-            arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));       
+            arrays.Add(CreateTablesArray(builder, tablesField, MessageType.Children, recordCounts));
             // 添加 __records__ 列
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
-            arrays.Add(CreateRecordsArray(builder, recordsField, msgType, recordCounts));
+            arrays.Add(
+                CreateRecordsArray(builder, recordsField, MessageType.Children, recordCounts)
+            );
+            // 添加 __control__ 列
+            Field controlField = schema.GetFieldByName(TaosxConstants.CONTROL);
+            arrays.Add(CreateControlArray(controlField, new string[0]));
 
             return arrays;
         }
@@ -374,7 +401,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         /// <summary>
         /// 针对 Insert 消息，优化 __tables__ 列的构建
         /// </summary>
-        private IEnumerable<IArrowArray> CreateInsertArrays(MessageBuilder builder, int recordCounts)
+        private IEnumerable<IArrowArray> CreateArraysForInsertMessage(
+            MessageBuilder builder,
+            int recordCounts
+        )
         {
             var schema = builder.Schema;
             const int fieldCount = 3;
@@ -388,10 +418,32 @@ namespace TDPIConnector.TDEngine.TaosxClient
             // 添加 __records__ 列
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
             arrays.Add(CreateRecordsArray(builder, recordsField, MessageType.Insert, recordCounts));
+            // 添加 __control__ 列
+            Field controlField = schema.GetFieldByName(TaosxConstants.CONTROL);
+            arrays.Add(CreateControlArray(controlField, new string[0]));
 
             return arrays;
         }
 
+        private IEnumerable<IArrowArray> CreateArraysForControlMessage(string[] values)
+        {
+            var schema = Schema;
+            const int fieldCount = 3;
+            List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
+            // 添加 __type__ 列
+            Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
+            arrays.Add(CreateTypeArray(typeField, MessageType.Control));
+            // 添加 __tables__ 列
+            Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
+            arrays.Add(CreateTablesArray(this, tablesField, MessageType.Insert, 0));
+            // 添加 __records__ 列
+            Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
+            arrays.Add(CreateRecordsArray(this, recordsField, MessageType.Insert, 0));
+            // 添加 __control__ 列
+            Field controlField = schema.GetFieldByName(TaosxConstants.CONTROL);
+            arrays.Add(CreateControlArray(controlField, values));
+            return arrays;
+        }
 
         // type just needs one piece of data
         private IArrowArray CreateTypeArray(Field typeField, MessageType msgType)
@@ -401,14 +453,24 @@ namespace TDPIConnector.TDEngine.TaosxClient
             return creator.Array;
         }
 
-        private IArrowArray CreateRecordsArray(MessageBuilder builder, Field recordsField, MessageType msgType, int recordCounts)
+        private IArrowArray CreateRecordsArray(
+            MessageBuilder builder,
+            Field recordsField,
+            MessageType msgType,
+            int recordCounts
+        )
         {
             var creator = new ListRecordsArrayCreator(builder, recordCounts, msgType);
             recordsField.DataType.Accept(creator);
             return creator.Array;
         }
 
-        private IArrowArray CreateTablesArray(MessageBuilder builder, Field tablesField, MessageType msgType, int recordCounts)
+        private IArrowArray CreateTablesArray(
+            MessageBuilder builder,
+            Field tablesField,
+            MessageType msgType,
+            int recordCounts
+        )
         {
             var creator = new ListTablesArrayCreator(builder, recordCounts, msgType);
             tablesField.DataType.Accept(creator);
@@ -416,10 +478,21 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         // attrs just needs one piece of data
-        private IArrowArray CreateAttrsArray(MessageBuilder builder, Field attrsField, MessageType msgType)
+        private IArrowArray CreateAttrsArray(
+            MessageBuilder builder,
+            Field attrsField,
+            MessageType msgType
+        )
         {
             var creator = new AttrsArrayCreator(builder, 1, msgType);
             attrsField.DataType.Accept(creator);
+            return creator.Array;
+        }
+
+        private IArrowArray CreateControlArray(Field controlField, string[] values)
+        {
+            var creator = new ListStringArrayCreator(values);
+            controlField.DataType.Accept(creator);
             return creator.Array;
         }
 
@@ -432,23 +505,35 @@ namespace TDPIConnector.TDEngine.TaosxClient
             var colField = new List<Field>();
             foreach (var column in columnNameTypes)
             {
-                colIpcField.Add(new IpcField(column.Key, true, TDTypeV1Converter.ToArrowType(column.Value), TDTypeV1Converter.ToIpcType(column.Value)));
+                colIpcField.Add(
+                    new IpcField(
+                        column.Key,
+                        true,
+                        TDTypeV1Converter.ToArrowType(column.Value),
+                        TDTypeV1Converter.ToIpcType(column.Value)
+                    )
+                );
                 if (column.Key == "ts")
                 {
                     colField.Add(new Field(column.Key, TimestampType.Default, true));
                 }
-                else {
-                    colField.Add(new Field(column.Key, TDTypeV1Converter.ToArrowType(column.Value), true));
+                else
+                {
+                    colField.Add(
+                        new Field(column.Key, TDTypeV1Converter.ToArrowType(column.Value), true)
+                    );
                 }
             }
             // 用于生成 Metadata.Init 中的标签列
             var ipcTagField = new List<IpcField>();
             // lush 消息 __tables__ 列的各字段
             var tagField = new List<Field>();
-         
+
             foreach (var tag in tagNames)
             {
-                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tag.Value));
+                ipcTagField.Add(
+                    new IpcField(tag.Key.ToLower(), true, StringType.Default, tag.Value)
+                );
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
             }
             GenerateMetadata(stableName, colIpcField, ipcTagField);
@@ -458,34 +543,30 @@ namespace TDPIConnector.TDEngine.TaosxClient
             recordType = new StructType(colField);
             Field recordtructField = new Field("item", recordType, true);
 
-            //var arrType = new StructType(new List<Field>{
-            //    new Field("table", BinaryType.Default, true),
-            //    new Field("using", BinaryType.Default, true),
-            //    new Field("tags", tagStruct, true)
-            //    }
-            //);
-
             Schema = new Schema.Builder()
-                .Field(f => f.Name(TaosxConstants.TYPE)
-                    .DataType(UInt8Type.Default)
-                    .Nullable(false))
-                .Field(f => f.Name(TaosxConstants.TABLES)
-                    .DataType(new ListType(tagStructField))
-                    .Nullable(true))
-                //.Field(f => f.Name(TaosxConstants.ATTRS)
-                //    .DataType(arrType)
-                //    .Nullable(true))
-                .Field(f => f.Name(TaosxConstants.RECORDS)
-                    .DataType(new ListType(recordtructField))
-                    .Nullable(false))
+                .Field(f => f.Name(TaosxConstants.TYPE).DataType(UInt8Type.Default).Nullable(false))
+                .Field(f =>
+                    f.Name(TaosxConstants.TABLES)
+                        .DataType(new ListType(tagStructField))
+                        .Nullable(true)
+                )
+                .Field(f =>
+                    f.Name(TaosxConstants.RECORDS)
+                        .DataType(new ListType(recordtructField))
+                        .Nullable(false)
+                )
+                .Field(f =>
+                    f.Name(TaosxConstants.CONTROL)
+                        .DataType(new ListType(StringType.Default))
+                        .Nullable(true)
+                )
                 .Metadata(Metadata.ToDictionary())
                 .Build();
         }
 
         public StructType subTableType()
         {
-            var table_fields = new List<Field>();   // self.table_fields();
-            table_fields.Add(new Field("__name__", BinaryType.Default, true));
+            var table_fields = new List<Field> { new Field("__name__", BinaryType.Default, true) }; // self.table_fields();
             table_fields.AddRange(tagFileds());
             return new StructType(table_fields);
         }
@@ -499,6 +580,5 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
             return tagFields;
         }
-
     }
 }

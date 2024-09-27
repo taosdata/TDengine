@@ -22,7 +22,7 @@ use super::{
 
 use anyhow::Result;
 use tokio_cron_scheduler::JobNotification;
-use tracing::info;
+use tracing::{info, Instrument};
 use uuid::Uuid;
 
 pub async fn notify_by_job_id(
@@ -72,16 +72,19 @@ pub async fn notify_by_job_id(
             // TODO： 只对 PI 任务执行下面的代码
             let lush_table_cache = lush_table_cache.clone();
             let task_breakpoint_db = task_breakpoint_db.clone();
-            tokio::task::spawn(async move {
-                let mut lush_table_cache = lush_table_cache.write().await;
-                if let Some(cache) = lush_table_cache.remove(&task_id) {
-                    info!("Removed lush_table_cache task.id={:?}", task_id);
+            tokio::task::spawn(
+                async move {
+                    let mut lush_table_cache = lush_table_cache.write().await;
+                    if let Some(cache) = lush_table_cache.remove(&task_id) {
+                        info!("Removed lush_table_cache task.id={:?}", task_id);
+                    }
+                    let mut task_breakpoint_db = task_breakpoint_db.write().await;
+                    if let Some(cache) = task_breakpoint_db.remove(&task_id) {
+                        info!("Removed task_breakpoint_db task.id={:?}", task_id);
+                    }
                 }
-                let mut task_breakpoint_db = task_breakpoint_db.write().await;
-                if let Some(cache) = task_breakpoint_db.remove(&task_id) {
-                    info!("Removed task_breakpoint_db task.id={:?}", task_id);
-                }
-            });
+                .in_current_span(),
+            );
         }
         JobNotification::Removed => {
             info!("Removed task {:?}", task_id);
