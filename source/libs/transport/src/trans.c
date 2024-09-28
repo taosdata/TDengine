@@ -131,13 +131,8 @@ void rpcClose(void* arg) {
   if (arg == NULL) {
     return;
   }
-  if (transRemoveExHandle(transGetInstMgt(), (int64_t)arg) != 0) {
-    tError("failed to remove rpc handle");
-  }
-
-  if (transReleaseExHandle(transGetInstMgt(), (int64_t)arg) != 0) {
-    tError("failed to release rpc handle");
-  }
+  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }

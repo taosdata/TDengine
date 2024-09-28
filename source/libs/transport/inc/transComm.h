@@ -297,7 +297,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 int32_t transInitBuffer(SConnBuffer* buf);
 int32_t transClearBuffer(SConnBuffer* buf);
-int32_t transDestroyBuffer(SConnBuffer* buf);
+void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
@@ -327,7 +327,7 @@ int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
 
-int32_t transSockInfo2Str(struct sockaddr* sockname, char* dst);
+void transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int32_t transAllocHandle(int64_t* refId);
 
@@ -367,7 +367,7 @@ int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(void* arg));
  * put arg into queue
  * if queue'size > 1, return false; else return true
  */
-int32_t transQueuePush(STransQueue* queue, void* arg);
+void transQueuePush(STransQueue* queue, void* arg);
 /*
  * the size of queue
  */
@@ -457,9 +457,9 @@ int32_t transDecompressMsg(char** msg, int32_t* len);
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);
 int64_t transAddExHandle(int32_t refMgt, void* p);
-int32_t transRemoveExHandle(int32_t refMgt, int64_t refId);
+void    transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
-int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
+void    transReleaseExHandle(int32_t refMgt, int64_t refId);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
@@ -510,6 +510,8 @@ void        destroyWQ(queue* wq);
 uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
+
+int32_t transSetReadOption(uv_handle_t* handle);
 #ifdef __cplusplus
 }
 #endif

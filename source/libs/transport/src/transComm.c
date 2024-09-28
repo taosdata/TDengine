@@ -97,13 +97,12 @@ void transFreeMsg(void* msg) {
   tTrace("rpc free cont:%p", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
-int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
+void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
 
   char buf[20] = {0};
   int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
   sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
-  return r;
 }
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
@@ -118,10 +117,9 @@ int32_t transInitBuffer(SConnBuffer* buf) {
   buf->invalid = 0;
   return 0;
 }
-int32_t transDestroyBuffer(SConnBuffer* p) {
+void transDestroyBuffer(SConnBuffer* p) {
   taosMemoryFree(p->buf);
   p->buf = NULL;
-  return 0;
 }
 
 int32_t transClearBuffer(SConnBuffer* buf) {
@@ -335,11 +333,12 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   SAsyncItem* item = async->data;
 
   if (taosThreadMutexLock(&item->mtx) != 0) {
-    tError("failed to lock mutex");
+    tError("failed to lock mutex since %s", tstrerror(terrno));
+    return terrno;
   }
 
   QUEUE_PUSH(&item->qmsg, q);
-  (void)taosThreadMutexUnlock(&item->mtx);
+  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
 
   int ret = uv_async_send(async);
   if (ret != 0) {
@@ -426,12 +425,10 @@ int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   wq->size = 0;
   return 0;
 }
-int32_t transQueuePush(STransQueue* q, void* arg) {
+void transQueuePush(STransQueue* q, void* arg) {
   queue* node = arg;
   QUEUE_PUSH(&q->node, node);
   q->size++;
-
-  return 0;
 }
 void* transQueuePop(STransQueue* q) {
   if (q->size == 0) return NULL;
@@ -737,18 +734,24 @@ int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle
   return taosAddRef(refMgt, p);
 }
-int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
+void transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(refMgt, refId);
+  int32_t code = taosRemoveRef(refMgt, refId);
+  if (code != 0) {
+    tTrace("failed to remove %" PRId64 " from resetId:%d", refId, refMgt);
+  }
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
-int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
+void transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
-  return taosReleaseRef(refMgt, refId);
+  int32_t code = taosReleaseRef(refMgt, refId);
+  if (code != 0) {
+    tTrace("failed to release %" PRId64 " from resetId:%d", refId, refMgt);
+  }
 }
 void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
@@ -869,15 +872,22 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
 // }
 
 int32_t initWQ(queue* wq) {
+  int32_t code = 0;
   QUEUE_INIT(wq);
   for (int i = 0; i < 4; i++) {
     SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    if (w == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _exception);
+    }
     w->wreq.data = w;
     w->arg = NULL;
     QUEUE_INIT(&w->node);
     QUEUE_PUSH(wq, &w->q);
   }
   return 0;
+_exception:
+  destroyWQ(wq);
+  return code;
 }
 void destroyWQ(queue* wq) {
   while (!QUEUE_IS_EMPTY(wq)) {
@@ -899,6 +909,9 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
     return &w->wreq;
   } else {
     SWReqsWrapper* w = taosMemoryCalloc(1, sizeof(SWReqsWrapper));
+    if (w == NULL) {
+      return NULL;
+    }
     w->wreq.data = w;
     w->arg = arg;
     QUEUE_INIT(&w->node);
@@ -909,4 +922,16 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg) {
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
   QUEUE_INIT(&w->node);
   QUEUE_PUSH(wq, &w->q);
+}
+
+int32_t transSetReadOption(uv_handle_t* handle) {
+  int32_t code = 0;
+  int32_t fd;
+  int     ret = uv_fileno((uv_handle_t*)handle, &fd);
+  if (ret != 0) {
+    tWarn("failed to get fd since %s", uv_err_name(ret));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  code = taosSetSockOpt2(fd);
+  return code;
 }
