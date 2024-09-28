@@ -214,6 +214,7 @@ rpcMaxTime 101
         self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
 
     def stop(self):
+        print("self._subProcess----", self._subProcess)
         self._subProcess.stop()
         self._subProcess = None
 
@@ -338,6 +339,7 @@ class TdeSubProcess:
         # self._popen should always be valid.
 
         Logging.info("Terminating TDengine service running as the sub process...")
+        print("self.getStatus()---", self.getStatus())
         if self.getStatus().isStopped():
             Logging.info("Service already stopped")
             return
@@ -389,28 +391,28 @@ class TdeSubProcess:
             child.send_signal(sig)
             try:
                 retCode = child.wait(20) # type: ignore
-                print("--------retCode:", retCode)
-                if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
-                    Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
-                elif (- retCode) == sig : # type: ignore
-                    Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
+                if retCode is None:
+                    Logging.info(f"can not get retCode for process: {child.pid}")
                 else:
-                    Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode)) # type: ignore
-                return True # terminated successfully
+                    if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
+                        Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
+                    elif (- retCode) == sig : # type: ignore
+                        Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
+                    else:
+                        Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode)) # type: ignore
+                    return True # terminated successfully
             except psutil.TimeoutExpired as err:
                 Logging.warning("Failed to kill sub-sub process {} with signal {}".format(child.pid, sig))
             return False # did not terminate
 
         def doKill(proc: Popen, sig: int):
             pid = proc.pid
-            print("kill pid:????", pid)
             try:
                 topSubProc = psutil.Process(pid) # Now that we are doing "exec -c", should not have children any more
-                print("topSubProc:????", topSubProc)
                 for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
-                    print("child:????", child)
-                    Logging.warning("Unexpected child to be killed")
-                    doKillChild(child, sig)
+                    if child.name() != 'udfd':
+                        Logging.warning("Unexpected child to be killed")
+                        doKillChild(child, sig)
             except psutil.NoSuchProcess as err:
                 Logging.info("Process not found, can't kill, pid = {}".format(pid))
 
