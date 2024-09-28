@@ -354,7 +354,7 @@ int32_t cliGetConnTimer(SCliThrd* pThrd, SCliConn* pConn) {
     tDebug("no available timer, create a timer %p", timer);
     int ret = uv_timer_init(pThrd->loop, timer);
     if (ret != 0) {
-      tError("conn %p failed to init timer %p, ret:%d", pConn, timer, uv_err_name(ret));
+      tError("conn %p failed to init timer %p since %s", pConn, timer, uv_err_name(ret));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
   }
@@ -1063,7 +1063,8 @@ static void cliDestroy(uv_handle_t* handle) {
     int64_t* qid = taosHashGetKey(pIter, NULL);
     code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
     if (code != 0) {
-      tDebug("%s conn %p failed to remove state %" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, *qid, code);
+      tDebug("%s conn %p failed to remove state %" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, *qid,
+             tstrerror(code));
     }
     pIter = taosHashIterate(conn->pQTable, pIter);
     tDebug("%s conn %p destroy state %" PRId64 "", CONN_GET_INST_LABEL(conn), conn, *qid);

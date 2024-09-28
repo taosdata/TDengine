@@ -870,7 +870,8 @@ int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
       transFreeMsg(p->msg.pCont);
       code = taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
       if (code != 0) {
-        tError("%s conn %p failed release qid:%d since %s", transLabel(pConn->pInst), pConn, tstrerror(code));
+        tError("%s conn %p failed to release qid:%" PRId64 " since %s", transLabel(pConn->pInst), pConn, qid,
+               tstrerror(code));
       }
     }
   }
@@ -1131,7 +1132,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     }
     code = uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
     if (code != 0) {
-      tWarn("%s conn %p failed to start to read since %s", uv_err_name(code));
+      tWarn("conn %p failed to start to read since %s", pConn, uv_err_name(code));
       transUnrefSrvHandle(pConn);
       return;
     }
