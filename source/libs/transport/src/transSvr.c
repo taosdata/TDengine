@@ -611,7 +611,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 
   code = transSetReadOption((uv_handle_t*)cli);
   if (code != 0) {
-    tWarn("%s conn %p failed to set recv opt since %s", transLabel(pInst), conn, code);
+    tWarn("%s conn %p failed to set recv opt since %s", transLabel(pInst), conn, tstrerror(code));
   }
 
   SConnBuffer* pBuf = &conn->readBuf;
@@ -870,7 +870,7 @@ int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
       transFreeMsg(p->msg.pCont);
       code = taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
       if (code != 0) {
-        tError("%s conn %p failed release qid:%d since %s", tstrerror(code));
+        tError("%s conn %p failed release qid:%d since %s", transLabel(pConn->pInst), pConn, tstrerror(code));
       }
     }
   }

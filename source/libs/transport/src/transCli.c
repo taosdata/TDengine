@@ -401,7 +401,7 @@ void cliConnMayUpdateTimer(SCliConn* conn, int timeout) {
   }
   int ret = uv_timer_start(conn->timer, cliConnTimeout__checkReq, timeout, 0);
   if (ret != 0) {
-    tError("%s conn %p failed to start timer %p, ret:%d", CONN_GET_INST_LABEL(conn), conn, conn->timer,
+    tError("%s conn %p failed to start timer %p since %s", CONN_GET_INST_LABEL(conn), conn, conn->timer,
            uv_err_name(ret));
   }
 }
@@ -579,11 +579,11 @@ void cliHandleResp(SCliConn* conn) {
   int32_t        msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0);
   if (msgLen < 0) {
     taosMemoryFree(pHead);
-    tWarn("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
+    tWarn("%s conn %p recv invalid packet", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
     code = pThrd->notifyExceptCb(pThrd, NULL, NULL);
     if (code != 0) {
-      tError("%s conn %p failed to notify user since %s", tstrerror(code));
+      tError("%s conn %p failed to notify user since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
     }
     return;
   }
@@ -894,7 +894,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   SCliConn* conn = handle->data;
   code = transSetReadOption((uv_handle_t*)handle);
   if (code != 0) {
-    tWarn("%s conn %p failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, code);
+    tWarn("%s conn %p failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
   }
 
   SConnBuffer* pBuf = &conn->readBuf;
@@ -1488,16 +1488,14 @@ void cliConnCb(uv_connect_t* req, int status) {
   pConn->connnected = 1;
   code = cliConnSetSockInfo(pConn);
   if (code != 0) {
-    tDebug("%s conn %p failed to get sock info,reason:%s ", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
-           tstrerror(code));
+    tDebug("%s conn %p failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
 
   code = cliBatchSend(pConn);
   if (code != 0) {
-    tDebug("%s conn %p failed to get sock info,reason:%s ", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
-           tstrerror(code));
+    tDebug("%s conn %p failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
 }
