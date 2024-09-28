@@ -31,6 +31,7 @@
      <el-input
       v-else
       v-model="expression"
+      @blur="$emit('updateData', expression)"
       :placeholder="$t('datasource.transformer.jsonPlaceholder')"
       size="small"
     >
