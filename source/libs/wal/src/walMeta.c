@@ -937,6 +937,7 @@ static int walFindCurMetaVer(SWal* pWal) {
   TdDirPtr pDir = taosOpenDir(pWal->path);
   if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    regfree(&walMetaRegexPattern);
     return terrno;
   }
 
@@ -956,6 +957,7 @@ static int walFindCurMetaVer(SWal* pWal) {
   }
   if (taosCloseDir(&pDir) != 0) {
     wError("failed to close dir, ret:%s", tstrerror(terrno));
+    regfree(&walMetaRegexPattern);
     return terrno;
   }
   regfree(&walMetaRegexPattern);
