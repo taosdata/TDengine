@@ -21,6 +21,10 @@ typedef struct SKeyInfo {
   int32_t keyLen;
 } SKeyInfo;
 
+static bool identicalName(const char *pDb, const char *pParam, int32_t len) {
+  return (strlen(pDb) == len) && (strncmp(pDb, pParam, len) == 0);
+}
+
 int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t streamId) {
   SStreamTransInfo info = {
       .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamId = streamId};
@@ -117,7 +121,8 @@ int32_t mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char
     }
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
-      if ((strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) && (strcmp(pTransName, MND_STREAM_TASK_RESET_NAME) != 0)) {
+      if ((strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) && (strcmp(pTransName, MND_STREAM_TASK_RESET_NAME) != 0) &&
+          (strcmp(pTransName, MND_STREAM_RESTART_NAME) != 0)) {
         mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
               tInfo.name);
         return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -126,7 +131,8 @@ int32_t mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char
       }
     } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0) ||
-               strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
+               (strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) ||
+               strcmp(tInfo.name, MND_STREAM_RESTART_NAME) == 0) {
       mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
             tInfo.name);
       return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -280,10 +286,6 @@ int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msg
                          .retryCode = retryCode,
                          .acceptableCode = acceptCode};
   return mndTransAppendRedoAction(pTrans, &action);
-}
-
-static bool identicalName(const char *pDb, const char *pParam, int32_t len) {
-  return (strlen(pDb) == len) && (strncmp(pDb, pParam, len) == 0);
 }
 
 int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {

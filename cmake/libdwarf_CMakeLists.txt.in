@@ -5,8 +5,9 @@ ExternalProject_Add(libdwarf
         GIT_TAG libdwarf-0.3.1
         SOURCE_DIR "${TD_CONTRIB_DIR}/libdwarf"
         BINARY_DIR "${TD_CONTRIB_DIR}/libdwarf"
-        CONFIGURE_COMMAND "" 
-        BUILD_COMMAND ""  
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
         )

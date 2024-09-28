@@ -28,6 +28,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
+,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
@@ -353,7 +354,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 

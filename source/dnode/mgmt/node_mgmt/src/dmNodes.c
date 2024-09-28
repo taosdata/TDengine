@@ -15,6 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmUtil.h"
+#include "monitor.h"
+#include "audit.h"
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
@@ -97,6 +100,9 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
       return code;
     }
   }
+
+  auditSetDnodeId(dmGetDnodeId(&pDnode->data));
+  monSetDnodeId(dmGetDnodeId(&pDnode->data));
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
   return 0;

@@ -217,6 +217,7 @@ int32_t dmInitDndInfo(SDnodeData *pData);
 
 // dmEps.c
 int32_t dmGetDnodeSize(SDnodeData *pData);
+int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);

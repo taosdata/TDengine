@@ -1092,6 +1092,9 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope) {
   while((scope = strsep(&pScopeStr, "|")) != NULL){
     taosMemoryFreeClear(tmp);
     tmp = taosStrdup(scope);
+    if (tmp == NULL) {
+      TAOS_RETURN(terrno);
+    }
     (void)strtrim(tmp);
     if (0 == strcasecmp(tmp, "all")) {
       slowScope |= SLOW_LOG_TYPE_ALL;

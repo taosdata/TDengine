@@ -544,7 +544,7 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pPrevRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -579,7 +579,7 @@ static int32_t initNextRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pNextRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pNextRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -615,7 +615,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pLinearInfo = taosArrayInit(4, sizeof(SFillLinearInfo));
   if (pInfo->pLinearInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);

@@ -412,7 +412,7 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
     if (taosArrayPush(toDel, &p) == NULL) {
       taosMemoryFree(pMeta);
       taosMemoryFree(p);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -812,29 +812,32 @@ bool streamBackendDataIsExist(const char* path, int64_t chkpId) {
   return exist;
 }
 
-void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
+int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, SBackendWrapper** pBackend) {
   char*   backendPath = NULL;
-  int32_t code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);
+  int32_t code = 0;
+  int32_t lino = 0;
+  char*   err = NULL;
+  size_t  nCf = 0;
+
+  *pBackend = NULL;
+
+  code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
 
   stDebug("start to init stream backend:%s, checkpointId:%" PRId64 " vgId:%d", backendPath, chkpId, vgId);
 
   uint32_t         dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
-  if (pHandle == NULL) {
-    goto _EXIT;
-  }
+  TSDB_CHECK_NULL(pHandle, code, lino, _EXIT, terrno);
 
   pHandle->list = tdListNew(sizeof(SCfComparator));
-  if (pHandle->list == NULL) {
-    goto _EXIT;
-  }
+  TSDB_CHECK_NULL(pHandle->list, code, lino, _EXIT, terrno);
 
   (void)taosThreadMutexInit(&pHandle->mutex, NULL);
   (void)taosThreadMutexInit(&pHandle->cfMutex, NULL);
+
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  if (pHandle->cfInst == NULL) {
-    goto _EXIT;
-  }
+  TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
 
@@ -862,9 +865,6 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   pHandle->filterFactory = rocksdb_compactionfilterfactory_create(
       NULL, destroyCompactFilteFactory, compactFilteFactoryCreateFilter, compactFilteFactoryName);
   rocksdb_options_set_compaction_filter_factory(pHandle->dbOpt, pHandle->filterFactory);
-
-  char*  err = NULL;
-  size_t nCf = 0;
 
   char** cfs = rocksdb_list_column_families(opts, backendPath, &nCf, &err);
   if (nCf == 0 || nCf == 1 || err != NULL) {
@@ -894,7 +894,9 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   stDebug("init stream backend at %s, backend:%p, vgId:%d", backendPath, pHandle, vgId);
   taosMemoryFreeClear(backendPath);
 
-  return (void*)pHandle;
+  *pBackend = pHandle;
+  return code;
+
 _EXIT:
   rocksdb_options_destroy(opts);
   rocksdb_cache_destroy(cache);
@@ -904,9 +906,9 @@ _EXIT:
   taosHashCleanup(pHandle->cfInst);
   pHandle->list = tdListFree(pHandle->list);
   taosMemoryFree(pHandle);
-  stDebug("failed to init stream backend at %s", backendPath);
+  stDebug("failed to init stream backend at %s, vgId:%d line:%d code:%s", backendPath, vgId, lino, tstrerror(code));
   taosMemoryFree(backendPath);
-  return NULL;
+  return code;
 }
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
@@ -1100,17 +1102,17 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   (void)taosThreadRwlockWrlock(&pBackend->chkpDirLock);
 
   if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   chkpDel = taosArrayInit(8, sizeof(int64_t));
   if (chkpDel == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   chkpDup = taosArrayInit(8, sizeof(int64_t));
   if (chkpDup == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   int64_t firsId = 0;
@@ -1121,11 +1123,11 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (id >= firsId) {
         if (taosArrayPush(chkpDup, &id) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       } else {
         if (taosArrayPush(chkpDel, &id) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
     }
@@ -1136,13 +1138,13 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
     for (int i = 0; i < dsz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (taosArrayPush(chkpDel, &id) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+        TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
     for (int i = dsz < 0 ? 0 : dsz; i < sz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
       if (taosArrayPush(chkpDup, &id) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+        TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
   }
@@ -1303,7 +1305,7 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
       int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64 "", &checkpointId);
       if (ret == 1) {
         if (taosArrayPush(pBackend->chkpSaved, &checkpointId) == NULL) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
+          TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
     } else {
@@ -1328,7 +1330,7 @@ int32_t chkpGetAllDbCfHandle2(STaskDbWrapper* pBackend, rocksdb_column_family_ha
     if (pBackend->pCf[i]) {
       rocksdb_column_family_handle_t* p = pBackend->pCf[i];
       if (taosArrayPush(pHandle, &p) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exception;
       }
     }
@@ -1483,7 +1485,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       // remove chkpid from chkp-in-use set
       taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
       taskDbRemoveRef(pTaskDb);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       break;
     }
     if (taosArrayPush(pSnap, &snap) == NULL) {
@@ -2573,11 +2575,15 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId) {
 }
 
 STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
-  char*  err = NULL;
-  char** cfNames = NULL;
-  size_t nCf = 0;
+  char*   err = NULL;
+  char**  cfNames = NULL;
+  size_t  nCf = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   STaskDbWrapper* pTaskDb = taosMemoryCalloc(1, sizeof(STaskDbWrapper));
+  TSDB_CHECK_NULL(pTaskDb, code, lino, _EXIT, terrno);
+
   pTaskDb->idstr = key ? taosStrdup(key) : NULL;
   pTaskDb->path = statePath ? taosStrdup(statePath) : NULL;
 
@@ -2592,6 +2598,7 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
     if (pTaskDb->db == NULL) {
       stError("%s open state-backend failed, reason:%s", key, err);
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       goto _EXIT;
     }
 
@@ -2608,11 +2615,12 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
     if (err != NULL) {
       stError("%s failed to create column-family, %s, %" PRIzu ", reason:%s", key, dbPath, nCf, err);
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
       goto _EXIT;
     }
   }
 
-  if (taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf) != 0) {
+  if ((code = taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf)) != 0) {
     goto _EXIT;
   }
 
@@ -2625,6 +2633,8 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
   return pTaskDb;
 
 _EXIT:
+  stError("%s taskDb open failed, %s at line:%d code:%s", key, __func__, lino, tstrerror(code));
+
   taskDbDestroy(pTaskDb, false);
   if (err) taosMemoryFree(err);
   if (cfNames) rocksdb_list_column_families_destroy(cfNames, nCf);
@@ -3429,7 +3439,6 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateGetGroupKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3875,7 +3884,6 @@ SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, con
 }
 
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  stDebug("streamStateSessionGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -3975,7 +3983,6 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
   return NULL;
 }
 int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
   }
@@ -4923,12 +4930,12 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     char* filename = taosArrayGetP(p->pDel, i);
     char* p = taosStrdup(filename);
     if (p == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _ERROR;
     }
     if (taosArrayPush(list, &p) == NULL) {
       taosMemoryFree(p);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _ERROR;
     }
   }
@@ -5029,14 +5036,14 @@ int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
 
   p->pDbChkpTbl = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (p->pDbChkpTbl == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     bkdMgtDestroy(p);
     return code;
   }
 
   p->path = taosStrdup(path);
   if (p->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     bkdMgtDestroy(p);
     return code;
   }

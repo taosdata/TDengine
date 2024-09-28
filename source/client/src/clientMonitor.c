@@ -216,9 +216,7 @@ static void reportSendProcess(void* param, void* tmrId) {
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
   bool reset = taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
-  if (!reset){
-    tscError("failed to reset timer, pMonitor:%p", pMonitor);
-  }
+  tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
 
@@ -736,6 +734,16 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
       continue;
     }
     char* tmp = taosStrdup(filename);
+    if (tmp == NULL) {
+      tscError("failed to dup string:%s since %s", filename, terrstr());
+      if (taosUnLockFile(pFile) != 0) {
+        tscError("failed to unlock file:%s, terrno:%d", filename, terrno);
+      }
+      if (taosCloseFile(&(pFile)) != 0) {
+        tscError("failed to close file:%s, terrno:%d", filename, terrno);
+      }
+      continue;
+    }
     monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
     taosMemoryFree(tmp);
   }

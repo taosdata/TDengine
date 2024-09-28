@@ -417,6 +417,10 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     }
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
+    if(pJson == NULL) {
+      uError("parseTagDatatoJson failed, pJson == NULL");
+      goto end;
+    }
     cJSON* tag = cJSON_CreateObject();
     RAW_NULL_CHECK(tag);
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
@@ -727,6 +731,10 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
+          if(buf == NULL) {
+            uError("parseTagDatatoJson failed, buf == NULL");
+            goto end;
+          }
         } else {
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
             buf = taosMemoryCalloc(vAlterTbReq.nTagVal * 2 + 2 + 3, 1);

@@ -70,11 +70,14 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   }
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
+  if (pTq->path == NULL) {
+    return terrno;
+  }
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (pTq->pHandle == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pHandle, tqDestroyTqHandle);
 
@@ -82,18 +85,18 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   if (pTq->pPushMgr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pTq->pCheckInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pOffset, (FDelete)tDeleteSTqOffset);
 
@@ -102,7 +105,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-
   int32_t code = streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1,
                                 tqStartTaskCompleteCallback, &pTq->pStreamMeta);
   if (code != TSDB_CODE_SUCCESS) {
@@ -110,7 +112,6 @@ int32_t tqInitialize(STQ* pTq) {
   }
 
   streamMetaLoadAllTasks(pTq->pStreamMeta);
-
   return tqMetaOpen(pTq);
 }
 
@@ -466,7 +467,6 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   void* buf = rpcMallocCont(len);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
   SEncoder encoder = {0};
@@ -713,8 +713,7 @@ end:
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
 int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessVer) {
-  STQ* pTq = (STQ*)pTqObj;
-
+  STQ*    pTq = (STQ*)pTqObj;
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to build task", pTask->id.taskId);
 
@@ -744,16 +743,25 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
     SSchemaWrapper* pschemaWrapper = pOutputInfo->tbSink.pSchemaWrapper;
     pOutputInfo->tbSink.pTSchema = tBuildTSchema(pschemaWrapper->pSchema, pschemaWrapper->nCols, ver1);
     if (pOutputInfo->tbSink.pTSchema == NULL) {
-      return -1;
+      return terrno;
     }
 
     pOutputInfo->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pOutputInfo->tbSink.pTblInfo == NULL) {
+      tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
+
     tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTblInfo, freePtr);
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
+    if (pTask->exec.pWalReader == NULL) {
+      tqError("vgId:%d failed init wal reader, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
   }
 
   streamTaskResetUpstreamStageInfo(pTask);
@@ -1007,9 +1015,13 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
+  if (code) {
+    tqError("vgId:%d failed to create task run req, code:%s", TD_VID(pTq->pVnode), tstrerror(code));
+    return code;
+  }
 
   // let's continue scan data in the wal files
-  if (code == 0 && (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK)) {
+  if (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK) {
     code = tqScanWalAsync(pTq, false);  // it's ok to failed
     if (code) {
       tqError("vgId:%d failed to start scan wal file, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));

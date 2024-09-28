@@ -351,11 +351,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       if (data == NULL) {
         // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then
         // retry
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        terrno = code;
-
         tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
-        return code;
+        return terrno;
       }
 
       (void)memcpy(data, pBody, len);
@@ -580,7 +577,7 @@ static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, 
       int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != TSDB_CODE_SUCCESS) {
         blockDataFreeRes(pBlock);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else {

@@ -49,7 +49,7 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value);
  */
 int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value);
 
-void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
+int32_t taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 
 void taosVariantDestroy(SVariant *pV);
 
