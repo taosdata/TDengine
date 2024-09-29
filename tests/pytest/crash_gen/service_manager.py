@@ -516,7 +516,7 @@ class ServiceManager:
         self.inSigHandler = True
 
         choice = self._doMenu()
-        if choice == "1":            
+        if choice == "1":
             self.sigHandlerResume() # TODO: can the sub-process be blocked due to us not reading from queue?
         elif choice == "2":
             self.stopTaosServices()
