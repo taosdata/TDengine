@@ -184,10 +184,16 @@ int32_t stmtBackupQueryFields(STscStmt* pStmt) {
 
   int32_t size = pRes->numOfCols * sizeof(TAOS_FIELD);
   pRes->fields = taosMemoryMalloc(size);
-  pRes->userFields = taosMemoryMalloc(size);
-  if (NULL == pRes->fields || NULL == pRes->userFields) {
+  if (pRes->fields == NULL) {
     STMT_ERR_RET(terrno);
   }
+
+  pRes->userFields = taosMemoryMalloc(size);
+  if (pRes->userFields == NULL) {
+    taosMemoryFreeClear(pRes->fields);
+    STMT_ERR_RET(terrno);
+  }
+
   (void)memcpy(pRes->fields, pStmt->exec.pRequest->body.resInfo.fields, size);
   (void)memcpy(pRes->userFields, pStmt->exec.pRequest->body.resInfo.userFields, size);
 
