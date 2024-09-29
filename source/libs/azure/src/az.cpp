@@ -225,6 +225,6 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   return TSDB_CODE_SUCCESS;
 }
 
-void azDeleteObjectsByPrefix(const char *prefix) { return TSDB_CODE_SUCCESS; }
+void azDeleteObjectsByPrefix(const char *prefix) {}
 
 #endif
