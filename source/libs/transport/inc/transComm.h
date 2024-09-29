@@ -137,10 +137,19 @@ typedef struct SCvtAddr {
 } SCvtAddr;
 
 typedef struct {
-  SEpSet epSet;  // ip list provided by app
-  SEpSet origEpSet;
-  void*  ahandle;  // handle provided by app
-  tmsg_t msgType;  // message type
+  int32_t inUse;
+  int32_t numOfEps;
+  SEp     eps[];
+} SReqEpSet;
+
+int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
+int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
+
+typedef struct {
+  SReqEpSet* epSet;  // ip list provided by app
+  SReqEpSet* origEpSet;
+  void*      ahandle;  // handle provided by app
+  tmsg_t     msgType;  // message type
 
   STransCtx      userCtx;   //
   STransMsg*     pRsp;      // for synchronous API
@@ -438,9 +447,9 @@ void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
-bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+bool transRepEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
 
-bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
+bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b);
 /*
  * init global func
  */

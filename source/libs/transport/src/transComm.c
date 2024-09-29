@@ -667,7 +667,7 @@ void transPrintEpSet(SEpSet* pEpSet) {
   len += snprintf(buf + len, sizeof(buf) - len, "}");
   tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
-bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
+bool transRepEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
     return false;
   }
@@ -678,7 +678,7 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   }
   return true;
 }
-bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
+bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps) {
     return false;
   }
@@ -934,4 +934,46 @@ int32_t transSetReadOption(uv_handle_t* handle) {
   }
   code = taosSetSockOpt2(fd);
   return code;
+}
+
+int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet) {
+  if (pEpset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pReqEpSet == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  taosMemoryFree(*pReqEpSet);
+
+  int32_t    size = sizeof(SReqEpSet) + sizeof(SEp) * pEpset->numOfEps;
+  SReqEpSet* pReq = (SReqEpSet*)taosMemoryCalloc(1, size);
+  if (pReq == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pReq->inUse = pEpset->inUse;
+  pReq->numOfEps = pEpset->numOfEps;
+  for (int32_t i = 0; i < pEpset->numOfEps; i++) {
+    pReq->eps[i].port = pEpset->eps[i].port;
+    strcpy(pReq->eps[i].fqdn, pEpset->eps[i].fqdn);
+  }
+
+  *pReqEpSet = pReq;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet) {
+  if (pReqEpSet == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pEpSet->inUse = pReqEpSet->inUse;
+  pEpSet->numOfEps = pReqEpSet->numOfEps;
+  for (int32_t i = 0; i < pReqEpSet->numOfEps; i++) {
+    pEpSet->eps[i].port = pReqEpSet->eps[i].port;
+    strcpy(pEpSet->eps[i].fqdn, pReqEpSet->eps[i].fqdn);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
