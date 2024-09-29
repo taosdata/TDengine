@@ -7,31 +7,35 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-
-current_path=$(pwd)  
-  
-if [[ $current_path == *"TDinternal"* ]]; then  
-    TEST_PATH="../../../debug/build/bin"
-else  
-    TEST_PATH="../../debug/build/bin"
-fi
-
+TEST_PATH="../../docs/examples/c"
 echo "setting TEST_PATH: $TEST_PATH" 
 
+cd "${TEST_PATH}" || { echo -e "${RED}Failed to change directory to ${TEST_PATH}${NC}"; exit 1; }
 
 LOG_FILE="docs-c-test-out.log"
 
 > $LOG_FILE
 
+make > "$LOG_FILE" 2>&1
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Make completed successfully.${NC}"
+else
+    echo -e "${RED}Make failed. Check log file: $LOG_FILE${NC}"
+    cat "$LOG_FILE"
+    exit 1
+fi
+
+
 declare -a TEST_EXES=(
-    "docs_connect_example"
-    "docs_create_db_demo"
-    "docs_insert_data_demo"
-    "docs_query_data_demo"
-    "docs_with_reqid_demo"
-    "docs_stmt_insert_demo"
-    "docs_tmq_demo"
-    "docs_sml_insert_demo"
+    "connect_example"
+    "create_db_demo"
+    "insert_data_demo"
+    "query_data_demo"
+    "with_reqid_demo"
+    "stmt_insert_demo"
+    "tmq_demo"
+    "sml_insert_demo"
 )
 
 declare -a NEED_CLEAN=(
@@ -59,7 +63,7 @@ for i in "${!TEST_EXES[@]}"; do
     fi
 
     echo "Executing $TEST_EXE..."
-    $TEST_PATH/$TEST_EXE >> $LOG_FILE 2>&1
+    ./$TEST_EXE >> $LOG_FILE 2>&1
     RESULT=$?
 
     if [ "$RESULT" -eq 0 ]; then

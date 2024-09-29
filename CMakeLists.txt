@@ -41,7 +41,6 @@ add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(examples/c)
-add_subdirectory(docs/examples/c)
 add_subdirectory(tests)
 include(${TD_SUPPORT_DIR}/cmake.install)
 
