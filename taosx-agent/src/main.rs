@@ -783,7 +783,6 @@ fn main() -> anyhow::Result<()> {
         args.log
             .as_ref()
             .and_then(|opts| opts.path.clone())
-            .and_then(|p| p.canonicalize().ok())
             .and_then(|p| p.to_str().map(ToString::to_string))
             .unwrap_or_else(|| get_env_log_dir()),
     );
