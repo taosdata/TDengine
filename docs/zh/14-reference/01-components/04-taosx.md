@@ -451,6 +451,16 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | written_blocks          | 本次运行此任务写人成功的 raw block 数                       |
 | failed_blocks           | 本次运行此任务写入失败的 raw block 数                       |
 
+### Kafka 数据源相关指标
+
+| 字段                          | 描述                         |
+| ----------------------------- | ---------------------------- |
+| kafka_consumers               | 本次运行任务 Kafka 消费者数  |
+| kafka_total_partitions        | Kafka 主题总分区数           |
+| kafka_consuming_partitions    | 本次运行任务正在消费的分区数 |
+| kafka_consumed_messages       | 本次运行任务已经消费的消息数 |
+| total_kafka_consumed_messages | 累计消费的消息总数           |
+
 ## taosX 数据解析插件
 
 接入 kafka / mqtt 消息中间件时，需要对原始数据进行解析，如果使用 json/regex 等模式解析器无法满足解析需求，同时 UDT(自定义解析脚本) 也无法满足性能要求时，可以自定义数据解析插件。
