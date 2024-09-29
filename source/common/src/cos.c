@@ -4,6 +4,7 @@
 #include "cos_cp.h"
 #include "tdef.h"
 
+
 extern char   tsS3Endpoint[];
 extern char   tsS3AccessKeyId[];
 extern char   tsS3AccessKeySecret[];
