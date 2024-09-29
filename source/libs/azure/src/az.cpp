@@ -38,6 +38,16 @@ int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 
 void azEnd() {}
 
+int32_t azCheckCfg() {
+  int32_t code = 0, lino = 0;
+
+  // TODO:
+
+  azEnd();
+
+  TAOS_RETURN(code);
+}
+
 int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
   int32_t code = 0;
 

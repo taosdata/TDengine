@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_AZURE_H_
-#define _TD_AZURE_H_
+#ifndef _TD_TOS_H_
+#define _TD_TOS_H_
 
 #include "os.h"
 #include "tarray.h"
@@ -26,15 +26,28 @@
 extern "C" {
 #endif
 
-int32_t azBegin();
-void    azEnd();
-int32_t azCheckCfg();
-int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size);
-int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock);
-void    azDeleteObjectsByPrefix(const char *prefix);
+extern int8_t  tsS3Enabled;
+extern int8_t  tsS3EnabledCfg;
+extern int32_t tsS3UploadDelaySec;
+
+typedef struct {
+  int32_t (*Begin)();
+  void (*End)();
+  int32_t (*CheckCfg)();
+
+  int32_t (*PutObjectFromFileOffset)(const char* file, const char* object_name, int64_t offset, int64_t size);
+  int32_t (*GetObjectBlock)(const char* object_name, int64_t offset, int64_t size, bool check, uint8_t** ppBlock);
+
+  void (*DeleteObjectsByPrefix)(const char* prefix);
+} STos;
+
+extern STos tos;
+
+int32_t tosInit();
+void    tosUninit();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // _TD_AZURE_H_
+#endif  // _TD_TOS_H_

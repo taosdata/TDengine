@@ -20,6 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
+#include "tos.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -97,9 +98,9 @@ static bool dmDataSpaceAvailable() {
 static int32_t dmCheckDiskSpace() {
   // availability
   int32_t code = 0;
-  code =  osUpdate();
-  if(code != 0) {
-    code = 0; // ignore the error, just log it
+  code = osUpdate();
+  if (code != 0) {
+    code = 0;  // ignore the error, just log it
     dError("failed to update os info since %s", tstrerror(code));
   }
   if (!dmDataSpaceAvailable()) {
@@ -162,13 +163,6 @@ static int32_t dmCheckDataDirVersionWrapper() {
   }
   return 0;
 }
-#if defined(USE_S3)
-
-extern int32_t s3Begin();
-extern void    s3End();
-extern int8_t  tsS3Enabled;
-
-#endif
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
@@ -186,7 +180,7 @@ int32_t dmInit() {
   if ((code = dmInitDnode(dmInstance())) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 #if defined(USE_S3)
-  if ((code = s3Begin()) != 0) return code;
+  if ((code = tosInit()) != 0) return code;
 #endif
 
   dInfo("dnode env is initialized");
@@ -219,7 +213,7 @@ void dmCleanup() {
   DestroyRegexCache();
 
 #if defined(USE_S3)
-  s3End();
+  tosUninit();
 #endif
 
   dInfo("dnode env is cleaned up");

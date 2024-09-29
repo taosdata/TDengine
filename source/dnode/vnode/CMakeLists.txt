@@ -119,7 +119,7 @@ if (${BUILD_CONTRIB})
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/azure"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tos"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -130,7 +130,7 @@ else()
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/azure"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tos"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -180,7 +180,7 @@ target_link_libraries(
 if(${TD_LINUX})
 target_link_libraries(
     vnode
-    PUBLIC az
+    PUBLIC tos
 )
 endif(${TD_LINUX})
 

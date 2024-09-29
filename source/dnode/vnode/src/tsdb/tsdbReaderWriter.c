@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "az.h"
-#include "cos.h"
 #include "crypt.h"
+#include "tos.h"
 #include "tsdb.h"
 #include "tsdbDef.h"
 #include "vnd.h"
@@ -392,7 +391,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, boo
 
       snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", chunkno);
 
-      code = azGetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
+      code = tos.GetObjectBlock(object_name_prefix, cOffset, nRead, check, &pBlock);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       memcpy(buf + n, pBlock, nRead);
