@@ -11,7 +11,7 @@
 # server instance id
 #
 # The instanceId of each instance is unique on the host
-# instanceId = 16
+instanceId = 16
 
 [serve]
 # listen to ip:port address
