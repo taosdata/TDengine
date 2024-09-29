@@ -2881,22 +2881,20 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
   int32_t code = 0;
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
+  SCliReq* pCliReq = NULL;
   SReqCtx* pCtx = taosMemoryCalloc(1, sizeof(SReqCtx));
   if (pCtx == NULL) {
-    return terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->epSet);
   if (code != 0) {
-    taosMemoryFree(pCtx);
-    return code;
+    TAOS_CHECK_GOTO(code, NULL, _exception);
   }
 
   code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->origEpSet);
   if (code != 0) {
-    taosMemoryFree(pCtx);
-    taosMemoryFree(pCtx->epSet);
-    return code;
+    TAOS_CHECK_GOTO(code, NULL, _exception);
   }
 
   pCtx->ahandle = pReq->info.ahandle;
@@ -2904,10 +2902,9 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
 
   if (ctx != NULL) pCtx->userCtx = *ctx;
 
-  SCliReq* pCliReq = taosMemoryCalloc(1, sizeof(SCliReq));
+  pCliReq = taosMemoryCalloc(1, sizeof(SCliReq));
   if (pReq == NULL) {
-    taosMemoryFree(pCtx);
-    return terrno;
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
   pCliReq->ctx = pCtx;
@@ -2916,8 +2913,15 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
   pCliReq->type = Normal;
 
   *pCliMsg = pCliReq;
-
-  return 0;
+  return code;
+_exception:
+  if (pCtx == NULL) {
+    taosMemoryFree(pCtx->epSet);
+    taosMemoryFree(pCtx->origEpSet);
+    taosMemoryFree(pCtx);
+  }
+  taosMemoryFree(pCliReq);
+  return code;
 }
 
 int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
