@@ -579,7 +579,7 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
   if (pLastCol->dirty) {
     if (tsdbCacheFlushDirty(key, klen, pLastCol, ud) != 0) {
       STsdb *pTsdb = (STsdb *)ud;
-      tsdbError("tsdb/cache: vgId:%d, flush cache %s failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
+      tsdbTrace("tsdb/cache: vgId:%d, flush cache %s failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
     }
   }
 
@@ -780,17 +780,13 @@ int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWrap
 
       code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST_ROW);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
       code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
     }
   } else {
@@ -808,17 +804,13 @@ int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWrap
 
       code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST_ROW);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
       code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
     }
 
@@ -837,10 +829,8 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
   code = tsdbCacheCommitNoLock(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   if (pSchemaRow != NULL) {
@@ -855,10 +845,8 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
     }
   } else {
@@ -881,10 +869,8 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        TAOS_RETURN(code);
       }
     }
 
@@ -905,10 +891,8 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
 
   code = tsdbCacheCommitNoLock(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   STSchema *pTSchema = NULL;
@@ -934,11 +918,8 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-        taosMemoryFree(pTSchema);
-        TAOS_RETURN(code);
       }
     }
   }
@@ -959,17 +940,13 @@ int32_t tsdbCacheNewNTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t 
 
   code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, 0);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
   code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, 1);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
   // rocksMayWrite(pTsdb, true, false, false);
   (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
@@ -984,18 +961,14 @@ int32_t tsdbCacheDropNTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, bool h
 
   code = tsdbCacheCommitNoLock(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   rocksMayWrite(pTsdb, false);
@@ -1015,17 +988,13 @@ int32_t tsdbCacheNewSTableColumn(STsdb *pTsdb, SArray *uids, int16_t cid, int8_t
 
     code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, 0);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+      tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                 tstrerror(code));
-      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-      TAOS_RETURN(code);
     }
     code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, 1);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+      tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                 tstrerror(code));
-      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-      TAOS_RETURN(code);
     }
   }
 
@@ -1041,10 +1010,8 @@ int32_t tsdbCacheDropSTableColumn(STsdb *pTsdb, SArray *uids, int16_t cid, bool 
 
   code = tsdbCacheCommitNoLock(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
@@ -1052,10 +1019,8 @@ int32_t tsdbCacheDropSTableColumn(STsdb *pTsdb, SArray *uids, int16_t cid, bool 
 
     code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+      tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                 tstrerror(code));
-      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-      TAOS_RETURN(code);
     }
   }
 
@@ -1438,9 +1403,8 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
         }
         code = tSimpleHashIterateRemove(iColHash, &iCol, sizeof(iCol), &pIte, &iter);
         if (code != TSDB_CODE_SUCCESS) {
-          tsdbError("vgId:%d, %s tSimpleHashIterateRemove failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+          tsdbTrace("vgId:%d, %s tSimpleHashIterateRemove failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
                     __LINE__, tstrerror(code));
-          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
     }
@@ -1449,9 +1413,8 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   // 3. do update
   code = tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
   if (code < TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
@@ -1538,9 +1501,8 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   // 3. do update
   code = tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s tsdbCacheUpdate failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
@@ -1910,8 +1872,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     if (h) {
       code = taosLRUCacheRelease(pCache, h, false);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbError("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-        goto _exit;
+        tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
       }
     }
   }
@@ -1943,8 +1904,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       if (h) {
         code = taosLRUCacheRelease(pCache, h, false);
         if (code != TSDB_CODE_SUCCESS) {
-          tsdbError("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-          goto _exit;
+          tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
         }
       }
     }
@@ -1981,10 +1941,8 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
 
   code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+    tsdbTrace("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-    TAOS_RETURN(code);
   }
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
@@ -2003,7 +1961,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
           code = tsdbCachePutToLRU(pTsdb, &lastKey, &noneCol);
         }
         if (taosLRUCacheRelease(pTsdb->lruCache, h, false) != TSDB_CODE_SUCCESS) {
-          tsdbError("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
+          tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
         }
         TAOS_CHECK_EXIT(code);
       } else {
@@ -3564,7 +3522,7 @@ _err:
 
 void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) {
   if (taosLRUCacheRelease(pCache, h, false)) {
-    tsdbError("%s release lru cache failed at line %d.", __func__, __LINE__);
+    tsdbTrace("%s release lru cache failed at line %d.", __func__, __LINE__);
   }
 }
 
