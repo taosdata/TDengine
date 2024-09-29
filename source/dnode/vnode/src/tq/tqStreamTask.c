@@ -117,10 +117,10 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
   if (code) {
     tqError("vgId:%d failed to get tmr ctrl during sched scan wal", vgId);
     taosMemoryFree(pParam);
-    return code;
+  } else {
+    streamTmrStart(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal-fut");
   }
 
-  streamTmrStart(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal-fut");
   return code;
 }
 
