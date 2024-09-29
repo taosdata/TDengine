@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   shell.args.cloud = true;
   shell.args.local = false;
 #endif
-#ifndef TD_ACORE
+#ifdef TD_ACORE
   tsAcoreOS = true;
 #endif
 

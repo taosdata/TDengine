@@ -9,13 +9,8 @@ add_subdirectory(test)
 
 aux_source_directory(exe EXEC_SRC)
 add_library(taosd ${EXEC_SRC})
-add_library(taosd_static ${EXEC_SRC})
 target_include_directories(
     taosd
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
-)
-target_include_directories(
-    taosd_static
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
 
@@ -26,6 +21,10 @@ IF (TD_ENTERPRISE)
       add_definitions(-DUSE_COS)
   ENDIF()
 ENDIF()
+
+if(${TD_ACORE})
+    add_definitions(-DTD_ACORE)
+endif(${TD_ACORE})
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
@@ -40,6 +39,4 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
 ELSE ()
     target_link_libraries(taosd dnode crypt)
 ENDIF ()
-
-target_link_libraries(taosd_static dnode crypt)
 

@@ -346,7 +346,7 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
-#ifndef TD_ACORE
+#ifdef TD_ACORE
 int dmStartDaemon(int argc, char const *argv[]) {
 #else
 int main(int argc, char const *argv[]) {

@@ -26,6 +26,10 @@ ELSE ()
     SET(LINK_WEBSOCKET "")
 ENDIF ()
 
+if(${TD_ACORE})
+    add_definitions(-DTD_ACORE)
+endif(${TD_ACORE})
+
 IF (TD_LINUX AND TD_ALPINE)
     SET(LINK_ARGP "/usr/lib/libargp.a")
 ELSE ()
@@ -48,4 +52,4 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-# SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
+SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)

@@ -22,7 +22,7 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
-#ifndef TD_ACORE
+#ifdef TD_ACORE
 extern int  dmStartDaemon(int argc, char const *argv[]);
 extern void dmStopDaemon();
 
@@ -1299,7 +1299,7 @@ void *shellThreadLoop(void *arg) {
   return NULL;
 }
 
-#ifndef TD_ACORE
+#ifdef TD_ACORE
 typedef struct {
   int32_t argc;
   char  **argv;
@@ -1399,7 +1399,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
-#ifndef TD_ACORE
+#ifdef TD_ACORE
   if ((code = shellStartDaemon(argc, argv)) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _exit_half);
   }
@@ -1519,12 +1519,12 @@ int32_t shellExecute(int argc, char *argv[]) {
   goto _exit;  // normal exit
 
 _exit_half:
-#ifndef TD_ACORE
+#ifdef TD_ACORE
   shellStopDaemon();
 #endif
   TAOS_RETURN(code);
 _exit:
-#ifndef TD_ACORE
+#ifdef TD_ACORE
   shellStopDaemon();
 #endif
   shellCleanupHistory();
