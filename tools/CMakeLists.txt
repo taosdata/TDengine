@@ -18,7 +18,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
+            COMMAND export CFLAGS=-fno-builtin && RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
@@ -37,7 +37,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
+            COMMAND export CFLAGS=-fno-builtin && cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib
@@ -57,7 +57,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
+            COMMAND export CFLAGS=-fno-builtin && cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
