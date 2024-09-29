@@ -96,8 +96,8 @@ static FORCE_INLINE int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len) {
 
   return nRead;
 }
-static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset) {
-  int32_t total = 0, nread = 0;
+static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset) {
+  int64_t total = 0, nread = 0;
   int32_t blkId = offset / kBlockSize;
   int32_t blkOffset = offset % kBlockSize;
   int32_t blkLeft = kBlockSize - blkOffset;
@@ -122,7 +122,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       int32_t left = ctx->file.size - offset;
       if (left < kBlockSize) {
         nread = TMIN(left, len);
-        int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
+        int64_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
         if (bytes != nread) {
           total = TSDB_CODE_INDEX_INVALID_FILE;
           break;
@@ -134,6 +134,9 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         int32_t cacheMemSize = sizeof(SDataBlock) + kBlockSize;
 
         SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
+        if (blk == NULL) {
+          return terrno;
+        }
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
         if (blk->nread < kBlockSize && blk->nread < len) {
@@ -211,6 +214,10 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       ctx->file.wBufOffset = 0;
       ctx->file.wBufCap = kBlockSize * 4;
       ctx->file.wBuf = taosMemoryCalloc(1, ctx->file.wBufCap);
+      if (ctx->file.wBuf == NULL) {
+        indexError("failed to allocate memory for write buffer");
+        goto END;
+      }
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
       code = taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
@@ -228,6 +235,11 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     }
   } else if (ctx->type == TMEMORY) {
     ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
+    if (ctx->mem.buf == NULL) {
+      indexError("failed to allocate memory for memory buffer");
+      goto END;
+    }
+
     ctx->mem.cap = capacity;
   }
 
@@ -325,6 +337,10 @@ int idxFileFlush(IdxFstFile* write) {
 
 void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
   uint8_t* buf = taosMemoryCalloc(8, sizeof(uint8_t));
+  if (buf == NULL) {
+    indexError("failed to allocate memory for packing uint");
+    return;
+  }
   for (uint8_t i = 0; i < nBytes; i++) {
     buf[i] = (uint8_t)n;
     n = n >> 8;

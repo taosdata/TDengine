@@ -32,7 +32,7 @@ int32_t syncRespMgrCreate(void *data, int64_t ttl, SSyncRespMgr **ppObj) {
       taosHashInit(sizeof(uint64_t), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pObj->pRespHash == NULL) {
     taosMemoryFree(pObj);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pObj->ttl = ttl;
@@ -132,7 +132,7 @@ static int32_t syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   SArray *delIndexArray = taosArrayInit(4, sizeof(uint64_t));
   if (delIndexArray == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   sDebug("vgId:%d, resp manager begin clean by ttl", pNode->vgId);

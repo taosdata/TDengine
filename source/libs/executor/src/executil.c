@@ -2111,6 +2111,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->saveHandle.currentPage = -1;
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
+    pCtx->needCleanup = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -2210,10 +2211,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     return terrno;
   }
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
-  if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  if (pCond->pSlotList == NULL) {
     taosMemoryFreeClear(pCond->colList);
-    taosMemoryFreeClear(pCond->pSlotList);
     return terrno;
   }
 

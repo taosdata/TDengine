@@ -106,7 +106,7 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  TAOS_UNUSED(tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem));
+  int32_t r = tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
 #ifdef BUILD_NO_CALL
@@ -609,7 +609,10 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   SValue    value;
 
   if (pRow->type == TSDBROW_ROW_FMT) {
-    (void)tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    int32_t ret = tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    if (ret != 0) {
+      tsdbError("failed to get column value, code:%d", ret);
+    }
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
       *pColVal =

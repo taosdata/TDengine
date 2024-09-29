@@ -179,7 +179,7 @@ int  tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int
 // tdbPager.c ====================================
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
-int  tdbPagerClose(SPager *pPager);
+void tdbPagerClose(SPager *pPager);
 int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
@@ -214,7 +214,7 @@ int tdbPagerRollback(SPager *pPager);
 // For page ref
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
-int    tdbPCacheClose(SPCache *pCache);
+void   tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);

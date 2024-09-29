@@ -14,13 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndQnode.h"
+#include "audit.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "audit.h"
 
 #define QNODE_VER_NUMBER   1
 #define QNODE_RESERVE_SIZE 64
@@ -209,9 +209,7 @@ int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) {
-  return pQnode->pDnode->id == dnodeId;
-}
+bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) { return pQnode->pDnode->id == dnodeId; }
 
 int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
   int32_t          code = 0;
@@ -224,8 +222,10 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
-
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  if (code < 0) {
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", createReq.dnodeId, terrstr());
+  }
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
@@ -252,7 +252,10 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  if (code < 0) {
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", dropReq.dnodeId, terrstr());
+  }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -383,7 +386,10 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
     code = terrno;
     TAOS_RETURN(code);
   }
-  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  code = tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  if (code < 0) {
+    mError("qnode:%d, failed to serialize create drop qnode request since %s", dropReq.dnodeId, terrstr());
+  }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -536,7 +542,10 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  (void)tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
+  code = tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
+  if (code < 0) {
+    mError("failed to serialize qnode list response since %s", terrstr());
+  }
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -561,15 +570,16 @@ static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false), pSdb, pObj);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)ep, false), pSdb, pObj);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false), pSdb,
+                                   pObj);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
