@@ -40,6 +40,7 @@ cluster = "http://localhost:6041"
 # native endpoint to connect to the cluster.
 # Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
 # If you enable it, you will get more performance for data migration tasks.
+# If modify this config item, you must relogin to clear the cache in browser local storage.
 #
 # cluster_native = "taos://localhost:6030"
 

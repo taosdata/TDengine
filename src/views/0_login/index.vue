@@ -368,6 +368,8 @@ export default {
 
         if (res.cluster_native) {
           localStorage.setItem("native_url", res.cluster_native);
+        } else {
+          localStorage.removeItem("native_url");
         }
         
         if (res && res.dashboard) {
