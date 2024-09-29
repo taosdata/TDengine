@@ -642,7 +642,7 @@ void mndDeleteTrans() {
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
 
-  (void)walInit(NULL);
+  (void)walInit();
   (void)syncInit();
 
   SMnodeOpt opt = {.msgCb = msgCb};
