@@ -3401,16 +3401,11 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   }
 
 _exception:
-  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
   if (code != 0) {
     if (transpointId != 0) {
-      if (transReleaseExHandle(transGetRefMgt(), transpointId) != 0) {
-        tError("failed to release refId %" PRId64 "", transpointId);
-      }
-
-      if (transRemoveExHandle(transGetRefMgt(), transpointId) != 0) {
-        tError("failed to remove refId %" PRId64 "", transpointId);
-      }
+      TAOS_UNUSED(transReleaseExHandle(transGetRefMgt(), transpointId));
+      TAOS_UNUSED(transRemoveExHandle(transGetRefMgt(), transpointId));
     }
     taosMemoryFree(pCli);
   }
