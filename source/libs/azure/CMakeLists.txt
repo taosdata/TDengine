@@ -1,7 +1,17 @@
-if(${TD_LINUX})
+#if(${TD_LINUX})
 aux_source_directory(src AZ_SRC)
 
 add_library(az STATIC ${AZ_SRC})
+
+if(${BUILD_S3})
+  add_definitions(-DUSE_S3)
+  target_link_libraries(
+    az
+    PUBLIC _azure_sdk
+    PUBLIC crypt
+  )
+endif()
+
 target_include_directories(
     az
     PUBLIC "${TD_SOURCE_DIR}/include/libs/azure"
@@ -10,15 +20,13 @@ target_include_directories(
 
 target_link_libraries(
     az
-    PUBLIC _azure_sdk
     PUBLIC cjson
     PUBLIC os
     PUBLIC util
     PUBLIC common
-    PUBLIC crypt
 )
 
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
-endif(${TD_LINUX})
+#endif(${TD_LINUX})

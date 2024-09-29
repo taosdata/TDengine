@@ -34,6 +34,8 @@ extern char tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeySecret[][TSDB_FQDN_LEN];
 extern char tsS3BucketName[TSDB_FQDN_LEN];
 
+#if defined(USE_S3)
+
 int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 
 void azEnd() {}
@@ -206,3 +208,23 @@ void azDeleteObjectsByPrefix(const char *prefix) {
     // uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
   }
 }
+
+#else
+
+int32_t azBegin() { return TSDB_CODE_SUCCESS; }
+
+void azEnd() {}
+
+int32_t azCheckCfg() { return TSDB_CODE_SUCCESS; }
+
+int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+  return TSDB_CODE_SUCCESS;
+}
+
+void azDeleteObjectsByPrefix(const char *prefix) { return TSDB_CODE_SUCCESS; }
+
+#endif
