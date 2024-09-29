@@ -677,7 +677,7 @@ static void httpHandleReq(SHttpMsg* msg) {
     tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reson:%s",
            cli->addr, cli->port, chanId, cli->seq, uv_strerror(ret));
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
-    destroyHttpClient(cli);
+    uv_tcp_close_reset((uv_tcp_t*)&cli->tcp, httpDestroyClientCb);
   }
   TAOS_UNUSED(taosReleaseRef(httpRefMgt, chanId));
   return;
