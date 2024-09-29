@@ -54,14 +54,18 @@ static void doScan(SMeta *pMeta) {
 
   code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
   if (code) {
-    taosCloseFile(&fp);
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
     metaError("failed to open table.db cursor, reason:%s", tstrerror(terrno));
     return;
   }
 
   code = tdbTbcMoveToFirst(cursor);
   if (code) {
-    taosCloseFile(&fp);
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
     tdbTbcClose(cursor);
     metaError("failed to move to first, reason:%s", tstrerror(terrno));
     return;
