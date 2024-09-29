@@ -329,6 +329,15 @@ static int32_t adjustInterpDataRequirement(SInterpFuncLogicNode* pInterp, EDataO
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustForecastDataRequirement(SForecastFuncLogicNode* pForecast, EDataOrderLevel requirement) {
+  if (requirement <= pForecast->node.requireDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pForecast->node.resultDataOrder = requirement;
+  pForecast->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -365,6 +374,9 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
       break;

@@ -450,6 +450,8 @@ typedef struct SSelectStmt {
   bool          hasTailFunc;
   bool          hasInterpFunc;
   bool          hasInterpPseudoColFunc;
+  bool          hasForecastFunc;
+  bool          hasForecastPseudoColFunc;
   bool          hasLastRowFunc;
   bool          hasLastFunc;
   bool          hasTimeLineFunc;

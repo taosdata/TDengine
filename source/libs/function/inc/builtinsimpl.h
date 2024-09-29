@@ -138,10 +138,7 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
 int32_t diffFunctionByRow(SArray* pCtx);
 
-bool    getForecastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
-int32_t forecastFunction(SqlFunctionCtx* pCtx);
-int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);

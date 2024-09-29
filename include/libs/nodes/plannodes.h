@@ -204,6 +204,12 @@ typedef struct SInterpFuncLogicNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncLogicNode;
 
+typedef struct SForecastFuncLogicNode {
+  SLogicNode  node;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+} SForecastFuncLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode  node;
   bool        grpColsMayBeNull;  
@@ -509,6 +515,13 @@ typedef struct SInterpFuncPhysiNode {
   SNode*      pFillValues;  // SNodeListNode
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
+
+typedef struct SForecastFuncPhysiNode {
+  SPhysiNode  node;
+  SNodeList*  pExprs;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+} SForecastFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;

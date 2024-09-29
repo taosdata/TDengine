@@ -3810,6 +3810,62 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum {
+  PHY_FORECAST_FUNC_CODE_BASE_NODE = 1,
+  PHY_FORECAST_FUNC_CODE_EXPR,
+  PHY_FORECAST_FUNC_CODE_FUNCS,
+  PHY_FORECAST_FUNC_CODE_TIME_RANGE,
+  PHY_FORECAST_FUNC_CODE_INTERVAL,
+  PHY_FORECAST_FUNC_CODE_INTERVAL_UNIT,
+  PHY_FORECAST_FUNC_CODE_FILL_MODE,
+  PHY_FORECAST_FUNC_CODE_FILL_VALUES,
+  PHY_FORECAST_FUNC_CODE_TIME_SERIES
+};
+
+static int32_t physiForecastFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SForecastFuncPhysiNode* pNode = (const SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_EXPR, nodeListToMsg, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiForecastFuncNode(STlvDecoder* pDecoder, void* pObj) {
+  SForecastFuncPhysiNode* pNode = (SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_FORECAST_FUNC_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_FORECAST_FUNC_CODE_EXPR:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pExprs);
+        break;
+      case PHY_FORECAST_FUNC_CODE_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
+        break;
+      case PHY_FORECAST_FUNC_CODE_TIME_RANGE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->timeRange);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum { PHY_DATA_SINK_CODE_INPUT_DESC = 1 };
 
 static int32_t physicDataSinkNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4591,6 +4647,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = physiInterpFuncNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = physiForecastFuncNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = physiDispatchNodeToMsg(pObj, pEncoder);
       break;
@@ -4755,6 +4814,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = msgToPhysiInterpFuncNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = msgToPhysiForecastFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = msgToPhysiDispatchNode(pDecoder, pObj);
