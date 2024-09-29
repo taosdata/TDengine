@@ -951,14 +951,7 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
   if (pReq == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pReq->inUse = pEpset->inUse;
-  pReq->numOfEps = pEpset->numOfEps;
-  for (int32_t i = 0; i < pEpset->numOfEps; i++) {
-    pReq->eps[i].port = pEpset->eps[i].port;
-    strcpy(pReq->eps[i].fqdn, pEpset->eps[i].fqdn);
-  }
-
+  memcpy((char*)pReqEpSet, (char*)pEpset, size);
   *pReqEpSet = pReq;
   return TSDB_CODE_SUCCESS;
 }
@@ -967,13 +960,6 @@ int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEp
   if (pReqEpSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-
-  pEpSet->inUse = pReqEpSet->inUse;
-  pEpSet->numOfEps = pReqEpSet->numOfEps;
-  for (int32_t i = 0; i < pReqEpSet->numOfEps; i++) {
-    pEpSet->eps[i].port = pReqEpSet->eps[i].port;
-    strcpy(pEpSet->eps[i].fqdn, pReqEpSet->eps[i].fqdn);
-  }
-
+  memcpy((char*)pEpSet, (char*)pReqEpSet, sizeof(SReqEpSet) + sizeof(SEp) * pReqEpSet->numOfEps);
   return TSDB_CODE_SUCCESS;
 }
