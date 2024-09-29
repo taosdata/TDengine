@@ -52,7 +52,7 @@ class MndTestTrans2 : public ::testing::Test {
     taosRemoveDir(logpath);
     taosMkDir(logpath);
     tstrncpy(tsLogDir, logpath, PATH_MAX);
-    if (taosInitLog("taosdlog", 1, false) != 0) {
+    if (taosInitLog("taosdlog", 1, LOG_MODE_TAOSD) != 0) {
       printf("failed to init log file\n");
     }
   }

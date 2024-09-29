@@ -162,7 +162,7 @@ void ctgTestInitLogFile() {
   (void)ctgdEnableDebug("cache", true);
   (void)ctgdEnableDebug("lock", true);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, LOG_MODE_TAOSC) < 0) {
     (void)printf("failed to open log file in directory:%s\n", tsLogDir);
     ASSERT(0);
   }

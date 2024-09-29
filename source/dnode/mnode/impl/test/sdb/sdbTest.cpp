@@ -35,7 +35,7 @@ class MndTestSdb : public ::testing::Test {
     taosRemoveDir(path);
     taosMkDir(path);
     tstrncpy(tsLogDir, path, PATH_MAX);
-    if (taosInitLog("taosdlog", 1, false) != 0) {
+    if (taosInitLog("taosdlog", 1, LOG_MODE_TAOSD) != 0) {
       printf("failed to init log file\n");
     }
   }
