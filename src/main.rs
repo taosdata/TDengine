@@ -398,7 +398,7 @@ fn get_effective_config_path(args: &Args) -> PathBuf {
     args.opt_args
         .config
         .clone()
-        .unwrap_or_else(|| get_default_config_path())
+        .unwrap_or_else(get_default_config_path)
 }
 
 impl Args {
@@ -467,31 +467,28 @@ impl Args {
         args.global.jobs = executor_worker_threads(args.global.jobs);
         let matches = Args::command().get_matches();
 
-        match &mut args.commands {
-            Some(Commands::Serve(cli)) => {
-                let mut serve = configurable_opts.serve.unwrap_or_default();
+        if let Some(Commands::Serve(cli)) = &mut args.commands {
+            let mut serve = configurable_opts.serve.unwrap_or_default();
 
-                if let Some(matches) = matches.subcommand_matches("serve") {
-                    macro_rules! take_or_not {
-                        ($f:ident) => {
-                            match matches.value_source(stringify!($f)) {
-                                Some(ValueSource::DefaultValue) | None => {}
-                                _ => {
-                                    serve.$f.take();
-                                }
+            if let Some(matches) = matches.subcommand_matches("serve") {
+                macro_rules! take_or_not {
+                    ($f:ident) => {
+                        match matches.value_source(stringify!($f)) {
+                            Some(ValueSource::DefaultValue) | None => {}
+                            _ => {
+                                serve.$f.take();
                             }
-                        };
-                    }
-                    take_or_not!(listen);
-                    take_or_not!(grpc);
-                    take_or_not!(database_url);
-                    take_or_not!(secret_prefix);
-                    take_or_not!(request_timeout);
-                    take_or_not!(do_not_resume);
+                        }
+                    };
                 }
-                cli.merge_from(serve);
+                take_or_not!(listen);
+                take_or_not!(grpc);
+                take_or_not!(database_url);
+                take_or_not!(secret_prefix);
+                take_or_not!(request_timeout);
+                take_or_not!(do_not_resume);
             }
-            _ => {}
+            cli.merge_from(serve);
         }
         Ok(args)
     }
@@ -703,7 +700,7 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
         LevelFilter::Debug => LevelFilter::Trace,
         LevelFilter::Trace => LevelFilter::Trace,
     };
-    return level_upgrade(level, num - 1);
+    level_upgrade(level, num - 1)
 }
 
 fn get_log_path() -> PathBuf {
@@ -713,10 +710,10 @@ fn get_log_path() -> PathBuf {
 }
 
 fn get_env_log_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_LOGS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_LOGS_HOME) {
         return dir;
     }
-    if let Some(dir) = std::env::var(ENV_TAOSX_LOGS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_LOGS_HOME) {
         return dir;
     }
 
@@ -728,7 +725,7 @@ fn get_env_log_dir() -> String {
 }
 
 fn get_env_data_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_TAOSX_DATA_DIR).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_DATA_DIR) {
         return dir;
     }
 
@@ -740,10 +737,10 @@ fn get_env_data_dir() -> String {
 }
 
 fn get_env_plugin_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_PLUGINS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_PLUGINS_HOME) {
         return dir;
     }
-    if let Some(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME) {
         return dir;
     }
 
@@ -804,34 +801,33 @@ fn main() -> Result<()> {
         args.global
             .data_dir
             .clone()
-            .unwrap_or_else(|| get_env_data_dir()),
+            .unwrap_or_else(get_env_data_dir),
     );
     set_env_log_home_dir(
         args.global
             .logs_home
             .clone()
-            .unwrap_or_else(|| get_env_log_dir()),
+            .unwrap_or_else(get_env_log_dir),
     );
     let args_log_path = args
         .global
         .log
         .as_ref()
         .and_then(|opts| opts.path.clone())
-        .and_then(|p| p.canonicalize().ok())
         .and_then(|p| p.to_str().map(ToString::to_string));
     set_env_log_home_dir(args_log_path.unwrap_or_else(get_env_log_dir));
     set_env_plugins_home_dir(
         args.global
             .plugins_home
             .clone()
-            .unwrap_or_else(|| get_env_plugin_dir()),
+            .unwrap_or_else(get_env_plugin_dir),
     );
     set_env_log_keep_days(
         args.global
             .log
             .as_ref()
             .and_then(|opts| opts.keep_days.map(|days| days as i64))
-            .or(args.global.log_keep_days.clone()),
+            .or(args.global.log_keep_days),
     );
 
     // Set a panic hook
@@ -900,7 +896,7 @@ fn main() -> Result<()> {
         })?;
         watcher
             .watch(
-                &config_file.parent().context("get config dir error")?,
+                config_file.parent().context("get config dir error")?,
                 notify::RecursiveMode::NonRecursive,
             )
             .context("start watch config file error")?;
@@ -911,7 +907,7 @@ fn main() -> Result<()> {
         config_file.display()
     );
 
-    let worker_threads = args.global.jobs.clone();
+    let worker_threads = args.global.jobs;
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
@@ -1001,7 +997,7 @@ fn default_env_filter(
     tracing_level_filter: tracing::level_filters::LevelFilter,
 ) -> anyhow::Result<EnvFilter> {
     let mut env_filter = EnvFilter::builder()
-        .with_default_directive(tracing_level_filter.clone().into())
+        .with_default_directive(tracing_level_filter.into())
         .with_regex(true)
         .from_env_lossy();
     if tracing_level_filter > tracing::level_filters::LevelFilter::INFO {

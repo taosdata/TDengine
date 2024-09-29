@@ -149,10 +149,10 @@ async fn action_to_arrow(
                     ("req_id", req_id),
                 ])
                 .context("failed to build record batch")?;
-                return Ok(Some(batch));
+                Ok(Some(batch))
             } else {
                 tracing::warn!("Received Run action for task {id} but currently not found");
-                return Ok(None);
+                Ok(None)
             }
         }
         AgentAction::Stop(id) => {
@@ -174,10 +174,10 @@ async fn action_to_arrow(
                     ("req_id", req_id),
                 ])
                 .context("failed to build record batch")?;
-                return Ok(Some(batch));
+                Ok(Some(batch))
             } else {
                 tracing::warn!("Received Stop action for task {id} but currently not found");
-                return Ok(None);
+                Ok(None)
             }
         }
         AgentAction::Interrupt(id) => {
@@ -199,10 +199,10 @@ async fn action_to_arrow(
                     ("req_id", req_id),
                 ])
                 .context("failed to build record batch")?;
-                return Ok(Some(batch));
+                Ok(Some(batch))
             } else {
                 tracing::warn!("Received Cancel action for task {id} but currently not found");
-                return Ok(None);
+                Ok(None)
             }
         }
         AgentAction::Cancel(id) => {
@@ -224,10 +224,10 @@ async fn action_to_arrow(
                     ("req_id", req_id),
                 ])
                 .context("failed to build record batch")?;
-                return Ok(Some(batch));
+                Ok(Some(batch))
             } else {
                 tracing::warn!("Received Cancel action for task {id} but currently not found");
-                return Ok(None);
+                Ok(None)
             }
         }
         AgentAction::ListDataSets(dataset, sender) => {
@@ -251,7 +251,7 @@ async fn action_to_arrow(
                 let mut senders = datasets_senders.write().await;
                 senders.insert(req_id, sender);
             });
-            return Ok(Some(batch));
+            Ok(Some(batch))
         }
         AgentAction::Check(dsn, sender) => {
             let context: ArrayRef = Arc::new(StringArray::from_iter_values([
@@ -272,7 +272,7 @@ async fn action_to_arrow(
                 let mut senders = dsv_senders.write().await;
                 senders.insert(req_id, sender);
             });
-            return Ok(Some(batch));
+            Ok(Some(batch))
         }
         AgentAction::GetSample(dsn, sender) => {
             let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
@@ -297,7 +297,7 @@ async fn action_to_arrow(
                 let mut senders = string_senders.write().await;
                 senders.insert(req_id, sender);
             });
-            return Ok(Some(batch));
+            Ok(Some(batch))
         }
         AgentAction::PutFile(put_file_req, sender) => {
             let context: ArrayRef =
@@ -320,7 +320,7 @@ async fn action_to_arrow(
                 let mut senders = string_senders.write().await;
                 senders.insert(req_id, sender);
             });
-            return Ok(Some(batch));
+            Ok(Some(batch))
         }
         AgentAction::QueryDataSource(query_data_source_req, sender) => {
             let context: ArrayRef =
@@ -344,11 +344,11 @@ async fn action_to_arrow(
                 let mut senders = string_senders.write().await;
                 senders.insert(req_id, sender);
             });
-            return Ok(Some(batch));
+            Ok(Some(batch))
         }
         action => {
             tracing::warn!("Unknown action: {action:?}");
-            return Ok(None);
+            Ok(None)
         }
     }
 }
@@ -421,11 +421,9 @@ impl FlightServiceImpl {
                                     break;
                                 }
                             }
-                        } else {
-                            if tx.is_disconnected() {
-                                tracing::info!(agent_id, "Task listener disconnected");
-                                break;
-                            }
+                        } else if tx.is_disconnected() {
+                            tracing::info!(agent_id, "Task listener disconnected");
+                            break;
                         }
                     }
                     Err(err) => match err {
@@ -766,7 +764,7 @@ impl FlightService for FlightServiceImpl {
                                 match action {
                                     "list" => {
                                         let resp: ListResponse =
-                                            serde_json::from_str(&context).unwrap();
+                                            serde_json::from_str(context).unwrap();
 
                                         let datasets_senders = datasets_sender.clone();
                                         tokio::spawn(async move {
@@ -792,7 +790,7 @@ impl FlightService for FlightServiceImpl {
                                     }
                                     "check" => {
                                         let resp: CheckResponse =
-                                            serde_json::from_str(&context).unwrap();
+                                            serde_json::from_str(context).unwrap();
 
                                         let dsv_senders = dsv_senders.clone();
                                         tokio::spawn(async move {
@@ -817,7 +815,7 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "sample" => {
-                                        let resp: SampleResponse = serde_json::from_str(&context).unwrap();
+                                        let resp: SampleResponse = serde_json::from_str(context).unwrap();
                                         let string_senders = string_senders.clone();
                                         tokio::spawn(async move {
                                             let req_id = resp.req_id;
@@ -840,7 +838,7 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "put-file" => {
-                                        let resp: PutFileResp = serde_json::from_str(&context).unwrap();
+                                        let resp: PutFileResp = serde_json::from_str(context).unwrap();
                                         let string_senders = string_senders.clone();
                                         tokio::spawn(async move {
                                             let req_id = resp.req_id;
@@ -863,7 +861,7 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "query-data-source" => {
-                                        let resp: QueryDataSourceResp = serde_json::from_str(&context).unwrap();
+                                        let resp: QueryDataSourceResp = serde_json::from_str(context).unwrap();
                                         let string_senders = string_senders.clone();
                                         tokio::spawn(async move {
                                             let req_id = resp.req_id;
@@ -886,7 +884,7 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "agent-activity" => {
-                                        let activity: Activity = serde_json::from_str(&context)
+                                        let activity: Activity = serde_json::from_str(context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
                                                     "Invalid activity `{context}`: {err:#}"
@@ -900,7 +898,7 @@ impl FlightService for FlightServiceImpl {
                                             .send(AgentNotify::AgentActivity(agent_id, activity));
                                     }
                                     "task-activity" => {
-                                        let activity: TaskActivity = serde_json::from_str(&context)
+                                        let activity: TaskActivity = serde_json::from_str(context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
                                                     "Invalid activity `{context}`: {err:#}"
@@ -916,7 +914,7 @@ impl FlightService for FlightServiceImpl {
                                     }
                                     "heartbeat-ok" => {
                                         let resp: HeartbeatResponse =
-                                            serde_json::from_str(&context).unwrap();
+                                            serde_json::from_str(context).unwrap();
                                         let delay = resp.duration();
                                         if delay > chrono::Duration::seconds(5) {
                                             info!(
@@ -1177,7 +1175,7 @@ async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
             continue;
         }
         if v.contains("@") {
-            if let Some(new_value) = get_string_content_from_param_value(&v, false, false)? {
+            if let Some(new_value) = get_string_content_from_param_value(v, false, false)? {
                 *v = new_value;
             }
         }
@@ -1206,7 +1204,7 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
         let file_data = std::fs::read(&file[1..])
             .with_context(|| anyhow::format_err!("Failed to read file: {}", &file[1..]))?;
         new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
-        new_value.push_str(",");
+        new_value.push(',');
     }
     if file_len > 0 {
         new_value.pop();
@@ -1214,7 +1212,7 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
     let str_len = strs.len();
     for content in strs {
         new_value.push_str(content.as_str());
-        new_value.push_str(",");
+        new_value.push(',');
     }
     if str_len > 0 {
         new_value.pop();
@@ -1239,7 +1237,7 @@ impl RpcConfig {
         spawn_sender: AgentSpawnSender,
         monitor: Monitor,
     ) -> Result<(), anyhow::Error> {
-        let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
+        let max_frame_size: Option<u32> = Some((1 << 24) - 1_u32);
         let activity_receiver = channel.agent_activity_receiver;
         let service = FlightServiceImpl {
             controller: controller.clone(),
@@ -1512,9 +1510,7 @@ mod tests {
             let req = Data { data }.into_streaming_request();
 
             let response = client.do_exchange(req).await.unwrap();
-            let stream = FlightDataDecoder::new(
-                response.into_inner().map_err(|err| FlightError::Tonic(err)),
-            );
+            let stream = FlightDataDecoder::new(response.into_inner().map_err(FlightError::Tonic));
             // .into_inner();
 
             stream

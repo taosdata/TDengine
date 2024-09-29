@@ -47,10 +47,7 @@ impl Scope {
 impl Cli {
     #[tracing::instrument(skip_all, name = "privileges")]
     pub async fn run(self, _: super::OptArgs) -> Result<()> {
-        let options = self
-            .scope
-            .map(Scope::into_options)
-            .unwrap_or(taosx_core::migrations::Options::default());
+        let options = self.scope.map(Scope::into_options).unwrap_or_default();
         match (self.from, self.to, self.input, self.output) {
             (Some(from), Some(to), None, None) => {
                 let results = taosx_core::migrations::migrate(&from, &to, &options).await?;

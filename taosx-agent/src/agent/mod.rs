@@ -260,13 +260,13 @@ impl Client {
                         Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
                     tracing::info!("Send heartbeat request: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::HeartbeatOk(resp) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -281,13 +281,13 @@ impl Client {
                         Arc::new(StringArray::from_iter_values(["heartbeat-ok".to_string()]));
                     tracing::info!("Send heartbeat response: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::TaskError(_) => unreachable!(),
                 RespAction::ListOk(sets) => {
@@ -323,13 +323,13 @@ impl Client {
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["check".to_string()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::SampleOk(resp) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -344,13 +344,12 @@ impl Client {
                         .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
 
-                    let item = RecordBatch::try_from_iter(vec![
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::PutFileOk(resp) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -364,13 +363,13 @@ impl Client {
                         )
                         .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::QueryDataSourceOk(resp) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -385,13 +384,13 @@ impl Client {
                         )
                         .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::AgentActivity(activity) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -407,13 +406,13 @@ impl Client {
                             ["agent-activity".to_string()],
                         ));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::TaskActivity(activity) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -427,13 +426,13 @@ impl Client {
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["task-activity".to_string()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::TaskMetrics(metrics) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -447,13 +446,13 @@ impl Client {
                         )
                         .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
                 RespAction::Metrics(metrics_event) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -469,13 +468,13 @@ impl Client {
                         )
                         .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                    let item = RecordBatch::try_from_iter(vec![
+
+                    RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
                         ("req_id", req_id),
-                    ]);
-                    item
+                    ])
                 }
             }
         }
@@ -533,30 +532,30 @@ impl Client {
                 }
                 match action {
                     "run" => {
-                        let task: Task = serde_json::from_str(&context).unwrap();
+                        let task: Task = serde_json::from_str(context).unwrap();
                         info!("Start task {}", task.id);
                         sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
-                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(context).unwrap();
                         info!("Stop task {}", task.id);
                         sender.send_async(Action::Stop(task.id)).await?;
                         // let task:
                     }
                     "cancel" => {
-                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(context).unwrap();
                         info!("Cancel task {}", task.id);
                         sender.send_async(Action::Cancel(task.id)).await?;
                         // let task:
                     }
                     "interrupt" => {
-                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(context).unwrap();
                         info!("Interrupt task {}", task.id);
                         sender.send_async(Action::Interrupt(task.id)).await?;
                         // let task:
                     }
                     "list" => {
-                        let req: DataSetsReq = serde_json::from_str(&context).unwrap();
+                        let req: DataSetsReq = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
                             let sets = list_datasets_from(&req).await.map_err(Fail::new);
@@ -573,7 +572,7 @@ impl Client {
                         });
                     }
                     "check" => {
-                        let dsn: String = serde_json::from_str(&context).unwrap();
+                        let dsn: String = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
                             let dsv = validate_dsn(dsn.clone()).await;
@@ -592,7 +591,7 @@ impl Client {
                         });
                     }
                     "sample" => {
-                        let dsn: String = serde_json::from_str(&context).unwrap();
+                        let dsn: String = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
                             let sample = plugins::get_sample(dsn.clone()).await;
@@ -620,13 +619,13 @@ impl Client {
                         });
                     }
                     "put-file" => {
-                        let req: PutFileReq = serde_json::from_str(&context).unwrap();
+                        let req: PutFileReq = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(do_put_file(req, req_id, resp_tx));
                     }
                     "query-data-source" => {
                         tracing::info!(?req_id, "[query-data-source]: {}", &context);
-                        let req: QueryDataSourceReq = serde_json::from_str(&context).unwrap();
+                        let req: QueryDataSourceReq = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
                             let result = taosx_core::plugins::query_data_source(req).await;
@@ -661,10 +660,10 @@ impl Client {
                             req: ts.naive_utc().and_utc(),
                             res: Utc::now(),
                         };
-                        let _ = resp_tx.send_async(RespAction::HeartbeatOk(resp)).await?;
+                        resp_tx.send_async(RespAction::HeartbeatOk(resp)).await?;
                     }
                     "heartbeat-ok" => {
-                        let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();
+                        let resp: HeartbeatResponse = serde_json::from_str(context).unwrap();
                         // let delay = resp.duration().to_std().unwrap();
                         info!(
                             "Server is alive, delay: {}ms",

@@ -26,8 +26,7 @@ pub(crate) mod ws;
 )]
 #[get("/metrics")]
 async fn metrics_exporter(handle: actix_web::web::Data<TaosXRecorderHandle>) -> impl Responder {
-    let output = handle.render();
-    output
+    handle.render()
 }
 
 #[utoipa::path(

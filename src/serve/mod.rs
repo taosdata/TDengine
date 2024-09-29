@@ -199,18 +199,12 @@ async fn health() -> impl Responder {
             let socket_addr = SocketAddr::from(([0, 0, 0, 0], 6055));
             let bind_result = socket.bind(&socket_addr.into());
             match bind_result {
-                Ok(_) => {
-                    return HttpResponse::InternalServerError()
-                        .json("The 6055 port provided to the agent is not listening");
-                }
-                Err(_) => {
-                    return HttpResponse::Ok().json("ok");
-                }
+                Ok(_) => HttpResponse::InternalServerError()
+                    .json("The 6055 port provided to the agent is not listening"),
+                Err(_) => HttpResponse::Ok().json("ok"),
             }
         }
-        Err(_) => {
-            return HttpResponse::InternalServerError().json("socket error");
-        }
+        Err(_) => HttpResponse::InternalServerError().json("socket error"),
     }
 }
 
@@ -465,11 +459,11 @@ impl Cli {
                 .wrap(cors)
                 .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
                 .app_data(recorder.clone())
-                .app_data(PayloadConfig::new(std::usize::MAX))
+                .app_data(PayloadConfig::new(usize::MAX))
                 .app_data(
                     MultipartFormConfig::default()
                         .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
-                        .total_limit(std::usize::MAX),
+                        .total_limit(usize::MAX),
                 ) // payload set to 2G
                 .configure(configure(store.clone()))
                 .service(

@@ -41,7 +41,7 @@ impl TaskTicket {
     pub fn new_task(ticket: String) -> Self {
         Self {
             code: Some(0),
-            ticket: ticket,
+            ticket,
             complete: None,
             page: None,
             page_size: None,
@@ -51,7 +51,7 @@ impl TaskTicket {
     pub fn complete(ticket: String, ready: bool) -> Self {
         Self {
             code: Some(0),
-            ticket: ticket,
+            ticket,
             complete: Some(ready),
             page: None,
             page_size: None,
@@ -142,7 +142,7 @@ pub async fn download_all_point_csv_file(
         &config_file.path().to_str().unwrap_or("")
     );
     write!(config_file, "{}", &data)?;
-    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+    Ok(NamedFile::open(config_file.path())?)
 }
 
 enum TaskStatus {
@@ -267,7 +267,6 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 // skip +1， is the header
                 let data: Vec<OpcPoint> = reader
                     .records()
-                    .into_iter()
                     .skip(page * page_size)
                     .take(page_size)
                     .map(|record| {
@@ -307,7 +306,7 @@ pub async fn get_point_file_template(driver: &str, lang: &str) -> anyhow::Result
         &config_file.path().to_str().unwrap_or("")
     );
     write!(config_file, "{}", &template_file_data)?;
-    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+    Ok(NamedFile::open(config_file.path())?)
 }
 
 fn get_safe_string_for_csv(s: &String) -> String {
@@ -417,7 +416,7 @@ fn get_enabled(item: DataSet) -> i8 {
                     if o.display == "0" {
                         return 0;
                     }
-                    return 1;
+                    1
                 })
                 .unwrap_or(1)
         })
@@ -447,7 +446,7 @@ fn get_opcua_csv_header(_lang: &str, demo: bool) -> String {
         "tag::VARCHAR(200)::name",
     ];
     let mut header = columns.iter().join(",");
-    header.push_str("\n");
+    header.push('\n');
 
     if demo {
         header.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,double,quality,ts,rts,,,temperature\n");
@@ -481,7 +480,7 @@ fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
         "tag::VARCHAR(200)::name",
     ];
     let mut header = columns.iter().join(",");
-    header.push_str("\n");
+    header.push('\n');
 
     if demo {
         header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");

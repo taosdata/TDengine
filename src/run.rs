@@ -106,17 +106,17 @@ impl Cli {
         let parser = args.parser.as_ref().map(|p| {
             let content = utils::get_string_content_from_file_path(p);
             let content = content.is_none().then(|| p.clone()).or(content);
-            let content = content.map(|p| serde_json::from_str(&p)).unwrap();
-            content
+
+            content.map(|p| serde_json::from_str(&p)).unwrap()
         });
         let parser = if parser.is_some() {
-            parser.unwrap().map_err(|_err| anyhow::Error::msg(format!("parser config should be a valid json or a file path with '@' as prefix and a valid json content")))?
+            parser.unwrap().map_err(|_err| anyhow::Error::msg("parser config should be a valid json or a file path with '@' as prefix and a valid json content".to_string()))?
         } else {
             None
         };
         // validate parser
         if let Some(parser) = args.parser.as_ref() {
-            if !check_parser_timestamp_precision(&parser) {
+            if !check_parser_timestamp_precision(parser) {
                 bail!("parser should have same timestamp precision");
             }
         }
@@ -159,7 +159,7 @@ impl Cli {
             with_agent: None,
             breakpoints: None,
             transferred: Default::default(),
-            task_id: args.task_id.clone().map(|v| v.to_string()),
+            task_id: args.task_id.map(|v| v.to_string()),
             notify,
         };
 

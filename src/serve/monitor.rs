@@ -470,7 +470,7 @@ fn records2tables(vec: Vec<Record>) -> Vec<Table> {
         });
         table.metrics.push(record.metric);
     }
-    tables.into_iter().map(|(_, v)| v).collect()
+    tables.into_values().collect()
 }
 
 /// 将属于同一超级表的子表聚合到一起
@@ -489,7 +489,7 @@ fn grouptables2stable(vec: Vec<Table>) -> Vec<Stable> {
         };
         stable.metric_groups.push(metrics_group);
     }
-    stables.into_iter().map(|(_, v)| v).collect()
+    stables.into_values().collect()
 }
 
 /// 最终的 JSON 结构

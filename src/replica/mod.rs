@@ -230,11 +230,11 @@ impl Replica {
     }
 
     fn canonical_source(&self) -> &str {
-        &self.source.as_canonical_str()
+        self.source.as_canonical_str()
     }
 
     fn canonical_sink(&self) -> &str {
-        &self.sink.as_canonical_str()
+        self.sink.as_canonical_str()
     }
 
     fn source_pool(&self) -> &taos::TaosPool {
@@ -608,14 +608,14 @@ impl ReplicaConfig {
                 println!("* replicating database: `{}`", source_db);
 
                 // check if database exists in source and sink when use custom databases.
-                if !source_conn.database_exists(&source_db).await? {
+                if !source_conn.database_exists(source_db).await? {
                     bail!(
                         "Database `{}` not exists in {}",
                         source_db,
                         replica.canonical_source()
                     );
                 }
-                if !sink_conn.database_exists(&sink_db).await? {
+                if !sink_conn.database_exists(sink_db).await? {
                     bail!(
                         "Database `{}` not exists in {}",
                         sink_db,
@@ -944,8 +944,8 @@ impl Cli {
                         let replica = Replica::new(&id, source, sink)?;
                         if let Some((replica, tasks)) = config
                             .search_replicas_by_source_sink(
-                                &replica.canonical_source(),
-                                &replica.canonical_sink(),
+                                replica.canonical_source(),
+                                replica.canonical_sink(),
                             )
                             .await?
                         {

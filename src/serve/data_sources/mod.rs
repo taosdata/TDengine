@@ -490,7 +490,7 @@ pub(super) async fn get_sample(
 ) -> impl Responder {
     let query = query.into_inner();
 
-    let query_timeout = query.timeout.clone().unwrap_or_else(|| {
+    let query_timeout = query.timeout.unwrap_or_else(|| {
         let dsn = query.dsn.clone().into_dsn();
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::GetSample(dsn))
@@ -511,10 +511,7 @@ pub(super) async fn get_sample(
             tracing::error!("failed to get sample from data source, cause: {:?}", err);
             Err(Failed::new(
                 Code::FAILED,
-                format!(
-                    "failed to get sample from data source, cause: {}",
-                    err.to_string()
-                ),
+                format!("failed to get sample from data source, cause: {}", err),
                 (),
             ))
         }
@@ -522,10 +519,7 @@ pub(super) async fn get_sample(
             tracing::error!("get sample from data source timeout, cause: {:?}", err);
             Err(Failed::new(
                 Code::FAILED,
-                format!(
-                    "get sample from data source timeout, cause: {}",
-                    err.to_string()
-                ),
+                format!("get sample from data source timeout, cause: {}", err),
                 (),
             ))
         }
@@ -708,7 +702,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
             tracing::error!("check csv file failed, cause: {:?}", err);
             Err(Failed::new(
                 Code::FAILED,
-                format!("check csv file failed, cause: {}", err.to_string()),
+                format!("check csv file failed, cause: {}", err),
                 (),
             ))
         }
@@ -716,7 +710,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
             tracing::error!("check csv file timeout, cause: {:?}", err);
             Err(Failed::new(
                 Code::FAILED,
-                format!("check csv file timeout, cause: {}", err.to_string()),
+                format!("check csv file timeout, cause: {}", err),
                 (),
             ))
         }

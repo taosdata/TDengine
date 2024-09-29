@@ -135,8 +135,8 @@ async fn check_connector_grant_of(
 ) -> Result<LicenseKind> {
     // get tdengine server version and handle compatibility
     // skip license check for newly-added connectors in old version
-    let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
-    let connectors_3330 = vec!["csv"];
+    let connectors_old = ["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
+    let connectors_3330 = ["csv"];
 
     if *version < VERSION_3_2_3 && connectors_old.contains(&connector) {
         return Ok(LicenseKind::good());

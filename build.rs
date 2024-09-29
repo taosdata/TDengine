@@ -9,7 +9,7 @@ use sqlx::sqlite::SqliteJournalMode;
 static MIGRATOR: Migrator = sqlx::migrate!();
 
 async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
-    let options = sqlx::sqlite::SqliteConnectOptions::from_str(&dsn)?
+    let options = sqlx::sqlite::SqliteConnectOptions::from_str(dsn)?
         .create_if_missing(true)
         .busy_timeout(Duration::from_secs(30))
         .journal_mode(SqliteJournalMode::Wal);
@@ -39,20 +39,20 @@ fn labeling(mut file: &File) -> SdResult<()> {
     } else {
         cus_prompt.trim()
     };
-    let content = std::fs::read_to_string(&readme)
+    let content = std::fs::read_to_string(readme)
         .unwrap()
-        .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
-        .replace(DEFAULT_CUS_NAME, &cus_name);
+        .replace(DEFAULT_CUS_PROMPT, cus_prompt)
+        .replace(DEFAULT_CUS_NAME, cus_name);
 
     let service_template = manifest_dir.join("src").join("systemd.service");
     let service = std::fs::read_to_string(&service_template)
-        .expect(&format!("{}", service_template.display()))
-        .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
-        .replace(DEFAULT_CUS_NAME, &cus_name);
+        .unwrap_or_else(|_| panic!("{}", service_template.display()))
+        .replace(DEFAULT_CUS_PROMPT, cus_prompt)
+        .replace(DEFAULT_CUS_NAME, cus_name);
     if !target_dir.exists() {
         std::fs::create_dir_all(&target_dir).unwrap();
     }
-    std::fs::write(&target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
+    std::fs::write(target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;

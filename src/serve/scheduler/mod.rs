@@ -355,7 +355,7 @@ impl TaskScheduler {
         let mut tasks = self.tasks.write().await;
         let task_job = tasks
             .get_by_task_id(&task)
-            .ok_or_else(|| StopError::NotFound(task))?;
+            .ok_or(StopError::NotFound(task))?;
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
 
@@ -382,7 +382,7 @@ impl TaskScheduler {
         let mut tasks = self.tasks.write().await;
         let task_job = tasks
             .get_by_task_id(&task)
-            .ok_or_else(|| StopError::NotFound(task))?;
+            .ok_or(StopError::NotFound(task))?;
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
 
@@ -895,14 +895,14 @@ mod tests {
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::running(id, format!("info activity")),
+                    TaskActivity::running(id, "info activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
-                    TaskActivity::error(id, format!("error activity")),
+                    TaskActivity::error(id, "error activity".to_string()),
                 ))
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;

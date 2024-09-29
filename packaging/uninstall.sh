@@ -155,6 +155,7 @@ remove_taosx() {
     fi
 
     remove_custom_data_dir ${CONFIG_DIR}/${xName}.toml
+    remove_custom_log_dir ${CONFIG_DIR}/${xName}.toml
     ${csudo}rm -rf ${DATA_DIR}/${xName}
     ${csudo}rm -rf ${LOG_DIR}/${xName}.log*
     ${csudo}rm -rf ${LOG_DIR}/${TAOSX_LOG_NAME}
@@ -162,11 +163,13 @@ remove_taosx() {
     echo "${xName} is removed successfully!"
 
     remove_custom_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
+    remove_custom_log_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
     ${csudo}rm -rf ${DATA_DIR}/${EXPLORER_CONFIG_NAME}
     ${csudo}rm -rf ${LOG_DIR}/${TAOS_EXPLORER_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml*
     echo "${explorerName} is removed successfully!"
 
+    remove_custom_log_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml*
@@ -185,9 +188,23 @@ remove_custom_data_dir() {
     fi
     # find data dir from config file
     custom_data_dir=$(grep '^\s*data_dir' ${config_file} | sed 's/.*=.*"\(.*\)"/\1/')
-    # data dir is not empty and is a absolute path
+    # data dir is not empty and is an absolute path
     if [[ -n "$custom_data_dir" && "$custom_data_dir" == /* ]]; then
-        rm -rf $custom_data_dir
+        ${csudo}rm -rf $custom_data_dir
+    fi
+}
+
+remove_custom_log_dir() {
+    # find config file
+    config_file=$1
+    if [ ! -e "${config_file}" ]; then
+        return
+    fi
+    # find log path from config file
+    custom_log_dir=$(sed -n '/\[log\]/,/\[.*\]/p' ${config_file} | grep -v '^#' | grep '^\s*path' | sed 's/.*=.*"\(.*\)"/\1/')
+    # log path is not empty and is an absolute path
+    if [[ -n "$custom_log_dir" && "$custom_log_dir" == /* ]]; then
+        ${csudo}rm -rf $custom_log_dir
     fi
 }
 
@@ -225,6 +242,7 @@ remove_taos_agent() {
         return
     fi
 
+    remove_custom_log_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml

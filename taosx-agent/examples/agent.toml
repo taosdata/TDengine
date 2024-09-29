@@ -10,7 +10,8 @@
 # server instance id
 # 
 # The instanceId of each instance is unique on the host
-instanceId = 48
+#instanceId = 64
+
 
 # enable communication data compression between Agent and taosX
 #

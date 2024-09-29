@@ -64,7 +64,7 @@ impl IpcParser {
                     LushMessageType::Table => todo!(),
                     LushMessageType::Children => {
                         let (tables, full_records) = self.parse_children(record);
-                        return Ok(Box::new(LushMessage::Tables(tables, full_records)));
+                        Ok(Box::new(LushMessage::Tables(tables, full_records)))
                     }
                     LushMessageType::Control => {
                         let values = record.column_by_name(__CONTROL__).ok_or_else(|| {
@@ -81,15 +81,15 @@ impl IpcParser {
                             .as_any()
                             .downcast_ref::<StringArray>()
                             .ok_or_else(|| {
-                                ArrowError::InvalidArgumentError(format!(
-                                    "__control__ should be StringArray"
-                                ))
+                                ArrowError::InvalidArgumentError(
+                                    "__control__ should be StringArray".to_string(),
+                                )
                             })?;
                         let control = s.value(0);
                         tracing::info!("Receive control message: {}", control);
                         let control: LushMessageControl =
                             serde_json::from_str(control).expect("Parse LushMessageControl error");
-                        return Ok(Box::new(LushMessage::Control(control)));
+                        Ok(Box::new(LushMessage::Control(control)))
                     }
                     LushMessageType::Insert => {
                         if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -111,7 +111,7 @@ impl IpcParser {
                                 };
                                 message.push(i);
                             }
-                            return Ok(Box::new(LushMessage::Insert(message)));
+                            Ok(Box::new(LushMessage::Insert(message)))
                         } else {
                             let values = record.column_by_name(__RECORDS__).unwrap();
 
@@ -129,18 +129,18 @@ impl IpcParser {
                                 };
                                 message.push(i);
                             }
-                            return Ok(Box::new(LushMessage::Insert(message)));
+                            Ok(Box::new(LushMessage::Insert(message)))
                         }
                     }
                 }
             }
             StreamType::Point => {
                 let record = RecordMessage { record };
-                return Ok(Box::new(PointMessage::new(vec![record])));
+                Ok(Box::new(PointMessage::new(vec![record])))
             }
             StreamType::Flat => {
                 let record = RecordMessage { record };
-                return Ok(Box::new(FlatMessage::new(vec![record])));
+                Ok(Box::new(FlatMessage::new(vec![record])))
             }
             _ => todo!(),
         }
@@ -927,7 +927,7 @@ mod arrow_to_taos {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.and_then(|v| {
+                        v.map(|v| {
                             let v = if v.starts_with("\\x") {
                                 v.get(2..).unwrap()
                             } else {
@@ -942,7 +942,7 @@ mod arrow_to_taos {
                                     Err(_) => tracing::warn!("Invalid byte string: {}", byte_str),
                                 }
                             });
-                            Some(bytes)
+                            bytes
                         })
                     })
                     .collect::<Vec<_>>();
@@ -989,7 +989,7 @@ impl LushMessageInsert {
                 self.metadata
                     .init()
                     .and_then(|init| init.column_data_type(field.name()))
-                    .map(Clone::clone)
+                    .cloned()
                     .unwrap()
             })
             .collect_vec();
@@ -1054,7 +1054,7 @@ impl LushMessageInsert {
         match index {
             None => None,
             Some(i) => {
-                let mut sql = format!("INSERT INTO ");
+                let mut sql = "INSERT INTO ".to_string();
                 let c = data.get(i).unwrap();
                 if c.len() == 0 {
                     return None;

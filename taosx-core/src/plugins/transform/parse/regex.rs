@@ -404,7 +404,7 @@ mod tests {
     fn regex_caps() {
         let re = Regex {
             regex: regex::Regex::new(r"'([^']+)'\s+\((\d{4})\)").unwrap(),
-            select: Some(serde_json::from_str(&r#"["a1::nchar(100)", "a2::i32"]"#).unwrap()),
+            select: Some(serde_json::from_str(r#"["a1::nchar(100)", "a2::i32"]"#).unwrap()),
             keep: false,
         };
         let field = Field::new("a", DataType::Utf8, false);

@@ -36,8 +36,7 @@ impl<'a> LicenseValidator<'a> {
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         {
             let kind =
-                taosx_core::utils::license::validate_enterprise_license(&self.from, &self.to)
-                    .await?;
+                taosx_core::utils::license::validate_enterprise_license(self.from, self.to).await?;
             let pool = match self.pool {
                 Some(pool) => pool,
                 None => {

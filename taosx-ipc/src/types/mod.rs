@@ -204,8 +204,7 @@ impl Activity {
             status: status.into(),
             context: context.into().map(|v| {
                 let v = v.to_string();
-                serde_json::Value::from_str(v.as_str())
-                    .unwrap_or_else(|_| serde_json::Value::String(v))
+                serde_json::Value::from_str(v.as_str()).unwrap_or(serde_json::Value::String(v))
             }),
         }
     }

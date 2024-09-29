@@ -72,7 +72,9 @@ mod datetime_format {
     where
         S: Serializer,
     {
-        let s = format!("{}", date.to_rfc3339_opts(SecondsFormat::Millis, true));
+        let s = date
+            .to_rfc3339_opts(SecondsFormat::Millis, true)
+            .to_string();
         serializer.serialize_str(&s)
     }
 
@@ -105,7 +107,9 @@ mod option_datetime_format {
         S: Serializer,
     {
         if let Some(date) = date.as_ref() {
-            let s = format!("{}", date.to_rfc3339_opts(SecondsFormat::Millis, true));
+            let s = date
+                .to_rfc3339_opts(SecondsFormat::Millis, true)
+                .to_string();
             serializer.serialize_str(&s)
         } else {
             serializer.serialize_none()
@@ -320,7 +324,7 @@ impl TaskControllerRef {
             task.load_breakpoints().await?;
             push_task_activity(
                 &self.pool,
-                &TaskActivity::info(id, format!("Automatically wake up task."), "waken"),
+                &TaskActivity::info(id, "Automatically wake up task.".to_string(), "waken"),
             )
             .await?;
             if let Err(err) = self.scheduler.push_task(task).await {
@@ -400,7 +404,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             sqlx::query("UPDATE tasks SET status = ?, reason = ?, finished_at = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
-                .bind(&activity.at)
+                .bind(activity.at)
                 .bind(activity.id)
                 .execute(txn.as_mut())
                 .in_current_span()
@@ -461,8 +465,8 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(activity.id)
-            .bind(&activity.at)
-            .bind(&activity.level)
+            .bind(activity.at)
+            .bind(activity.level)
             .bind(&activity.activity)
             .bind(&activity.status)
             .bind(&activity.context)
@@ -500,10 +504,10 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
             "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)"
         )
         .bind(activity.id)
-        .bind(&activity.at)
-        .bind(&activity.level)
+        .bind(activity.at)
+        .bind(activity.level)
         .bind(&activity.activity)
-        .bind(&status)
+        .bind(status)
         .bind(&activity.context)
         .execute(pool)
         .in_current_span()
@@ -530,7 +534,7 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
         {
             sqlx::query("delete from task_activities where id = ? and `at` < ?")
                 .bind(id)
-                .bind(&at)
+                .bind(at)
                 .execute(pool)
                 .in_current_span()
                 .await?;
@@ -553,7 +557,7 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
         {
             sqlx::query("delete from agent_activities where id = ? and `at` < ?")
                 .bind(id)
-                .bind(&at)
+                .bind(at)
                 .execute(pool)
                 .await?;
         }
@@ -575,7 +579,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     .fetch_all(pool)
     .in_current_span()
     .await?;
-    if tasks.len() > 0 {
+    if !tasks.is_empty() {
         tracing::info!(
             "{} tasks are in running status, set them to suspended",
             tasks.len()
@@ -648,8 +652,7 @@ impl TaskController {
             let path = std::path::Path::new(&file);
             if let Some(dir) = path.parent() {
                 if !dir.exists() {
-                    std::fs::create_dir_all(&dir)
-                        .context("Cannot create directory for database")?;
+                    std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
                 }
             }
         }
@@ -816,11 +819,8 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        match (from.driver.as_str(), to.driver.as_str()) {
-            (_, "taos") => {
-                TaosBuilder::from_dsn(&to)?.build().await?;
-            }
-            _ => (),
+        if let (_, "taos") = (from.driver.as_str(), to.driver.as_str()) {
+            TaosBuilder::from_dsn(&to)?.build().await?;
         }
 
         license::validate_task(&from, &to, Some(&self.pool)).await?;
@@ -907,12 +907,10 @@ impl TaskController {
             validate_dsn(&from).await.ok()?;
         }
 
-        if task.clear {
-            if to.driver == "taos" {
-                taosx_core::utils::clear_database(&to)
-                    .await
-                    .with_context(|| format!("Failed to clear target database with {to}"))?;
-            }
+        if task.clear && to.driver == "taos" {
+            taosx_core::utils::clear_database(&to)
+                .await
+                .with_context(|| format!("Failed to clear target database with {to}"))?;
         }
         task.patch_labels();
         let now = chrono::Utc::now();
@@ -928,7 +926,7 @@ impl TaskController {
                     ..Default::default()
                 })
                 .await?;
-            if tasks.len() > 0 {
+            if !tasks.is_empty() {
                 anyhow::bail!("Task name {:?} already exists", name);
             }
         }
@@ -946,13 +944,13 @@ impl TaskController {
         .bind(&task.from)
         .bind(&task.oneshot_topic)
         .bind(&task.to)
-        .bind(&task.jobs)
-        .bind(&task.compression_level)
-        .bind(&now)
+        .bind(task.jobs)
+        .bind(task.compression_level)
+        .bind(now)
         .bind(&Status::Created)
         .bind(&task.after_delete)
         .bind(&task.trigger)
-        .bind(&task.via)
+        .bind(task.via)
         .bind(&task.parser)
         .execute(txn.as_mut())
         .in_current_span()
@@ -1057,7 +1055,7 @@ impl TaskController {
         task.agent = agent;
 
         if not_start {
-            return Ok(task.into());
+            return Ok(task);
         }
 
         if let Err(err) = self.start_task(&task).await {
@@ -1077,7 +1075,7 @@ impl TaskController {
             .await?;
             let context =
                 json!({ "code": 0xFFFFi32, "error": err.to_string(), "task": id }).to_string();
-            let activity = format!("Trying to start task but failed");
+            let activity = "Trying to start task but failed".to_string();
             sqlx::query!(
                 "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                 id,
@@ -1093,7 +1091,7 @@ impl TaskController {
             task.reason.replace(err.to_string());
             task.status = status;
         }
-        Ok(task.into())
+        Ok(task)
     }
 
     #[instrument(skip_all, name = "task::update", fields(task.id = id))]
@@ -1146,7 +1144,7 @@ impl TaskController {
             };
         }
         bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force parser trigger);
-        query = query.bind(&task.via);
+        query = query.bind(task.via);
 
         if task.via.is_none() {
             validate_dsn(task.from.as_deref().unwrap_or(old.from.as_str()))
@@ -1204,7 +1202,7 @@ impl TaskController {
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 let _ = scheduler.push_task(task_in_spawn).await;
             });
-            Ok(Some(task.into()))
+            Ok(Some(task))
         } else {
             Ok(None)
         }
@@ -1456,21 +1454,21 @@ impl TaskController {
     pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
-        let res = serde_json::to_value(&offsets)?;
+        let res = serde_json::to_value(offsets)?;
         Ok(Some(res))
     }
 
     pub async fn influxdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
-        let res = serde_json::to_value(&offsets)?;
+        let res = serde_json::to_value(offsets)?;
         Ok(Some(res))
     }
 
     pub async fn opentsdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
-        let res = serde_json::to_value(&offsets)?;
+        let res = serde_json::to_value(offsets)?;
         Ok(Some(res))
     }
 
@@ -1478,7 +1476,7 @@ impl TaskController {
         let from = self.get(id).await?;
         if let Some(task) = from {
             let mut from = task.from.parse::<Dsn>()?;
-            if from.driver == "sync".to_string() {
+            if from.driver == *"sync" {
                 from.driver = "tmq".to_string();
             }
             let offsets = taosx_core::tmq_offsets(from).await?;
@@ -1518,7 +1516,7 @@ impl TaskController {
         let result = self
             .find_agent_by_name_and_cluster_id(&agent.name, Some(&agent.cluster_id), None)
             .await?;
-        if result.len() > 0 {
+        if !result.is_empty() {
             anyhow::bail!("agent name has existed");
         }
 
@@ -1553,7 +1551,7 @@ impl TaskController {
     pub async fn get_agents(&self, filter: AgentFilter) -> anyhow::Result<Vec<Agent>> {
         let sql = match filter.to_sql_condition() {
             Some(cond) => format!("select * from agents where {cond}"),
-            None => format!("select * from agents"),
+            None => "select * from agents".to_string(),
         };
         let mut agents: Vec<Agent> = sqlx::query_as(&sql)
             .fetch_all(&self.pool)
@@ -1646,7 +1644,7 @@ impl TaskController {
         let result = self
             .find_agent_by_name_and_cluster_id(name, None, Some(agent_id as usize))
             .await?;
-        if result.len() > 0 {
+        if !result.is_empty() {
             anyhow::bail!("Agent name {} exists", name);
         }
         // let sql = update.update_agent_with(agent_id);
@@ -1764,10 +1762,8 @@ impl TaskController {
         }
 
         let scheduler = self.scheduler.clone();
-        let handle = tokio::spawn(async move {
-            let result = scheduler.list_datasets_via_agent(agent_id, req).await;
-            result
-        });
+        let handle =
+            tokio::spawn(async move { scheduler.list_datasets_via_agent(agent_id, req).await });
         match tokio::time::timeout(Duration::from_secs(600), handle).await {
             Ok(data) => data?.context("Retrieve datasets result error"),
             Err(err) => {
@@ -1879,16 +1875,13 @@ impl TaskController {
             bail!("Agent {} is not alive", agent);
         }
         let dsn_agent = Dsn::from_str(&dsn);
-        match dsn_agent {
-            Ok(dsn_agent) => {
-                // 检查是否有需要发送到 agent 的文件
-                let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
-                if let Some(path) = file_to_send {
-                    tracing::info!("Put file to agent {}: {}", agent, path);
-                    let _ = self.put_file_to_agent(agent, path.clone()).await;
-                }
+        if let Ok(dsn_agent) = dsn_agent {
+            // 检查是否有需要发送到 agent 的文件
+            let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+            if let Some(path) = file_to_send {
+                tracing::info!("Put file to agent {}: {}", agent, path);
+                let _ = self.put_file_to_agent(agent, path.clone()).await;
             }
-            Err(_) => {}
         }
 
         scheduler.get_sample_via_agent(agent, dsn).await
@@ -2432,7 +2425,7 @@ impl TaskActivity {
             id,
             at: Utc::now(),
             level: LevelFilter::Info,
-            activity: format!("Wait for next tick in schedule."),
+            activity: "Wait for next tick in schedule.".to_string(),
             status: "ticked".to_string(),
             context: Some(json!({"jid": jid}).into()),
         }
@@ -2453,7 +2446,7 @@ impl TaskActivity {
             id,
             at: Utc::now(),
             level: LevelFilter::Info,
-            activity: format!("Agent is putting data"),
+            activity: "Agent is putting data".to_string(),
             status: "ipc-started".to_string(),
             context: None,
         }
@@ -2463,7 +2456,7 @@ impl TaskActivity {
             id,
             at: Utc::now(),
             level: LevelFilter::Info,
-            activity: format!("IPC finished"),
+            activity: "IPC finished".to_string(),
             status: "ipc-finished".to_string(),
             context: None,
         }
@@ -2869,9 +2862,9 @@ impl Task {
 
     pub async fn load_breakpoints(&mut self) -> anyhow::Result<()> {
         let id = self.id;
-        tokio::task::spawn_blocking(move || load_breakpoints(id))
-            .await?
-            .map(|s| self.set_breakpoints(Some(s)));
+        if let Some(s) = tokio::task::spawn_blocking(move || load_breakpoints(id)).await? {
+            self.set_breakpoints(Some(s))
+        }
         Ok(())
     }
 }
@@ -3073,12 +3066,7 @@ pub(crate) struct NewTask {
 
 impl NewTask {
     fn patch_labels(&mut self) {
-        let mut labels = match self.labels.take() {
-            Some(labels) => labels,
-            None => {
-                vec![]
-            }
-        };
+        let mut labels = self.labels.take().unwrap_or_default();
         if let Some(value) = self.stream_type.as_ref() {
             labels.push(format!("stream_type::{}", value));
         }
@@ -3089,7 +3077,7 @@ impl NewTask {
         if let Some(value) = self.to_cluster.as_deref() {
             labels.push(format!("to_cluster::{value}"))
         }
-        if labels.len() > 0 {
+        if !labels.is_empty() {
             self.labels = Some(labels)
         } else {
             self.labels = None
@@ -3136,12 +3124,7 @@ struct NewTaskV1 {
 
 impl From<NewTask> for NewTaskV1 {
     fn from(value: NewTask) -> Self {
-        let mut labels = match value.labels {
-            Some(labels) => labels,
-            None => {
-                vec![]
-            }
-        };
+        let mut labels = value.labels.unwrap_or_default();
         if let Some(value) = value.stream_type {
             labels.push(format!("stream_type::{}", value));
         }
@@ -3432,15 +3415,15 @@ mod tests {
             .await?;
         dbg!(&agent);
 
-        let task_props: NewTask = serde_json::from_str(&format!(
+        let task_props: NewTask = serde_json::from_str(
             r#"
-        {{
+        {
             "from": "mqtt:///db2",
             "to":"taos:///db2",
             "via": 1
-        }}
+        }
         "#,
-        ))
+        )
         .unwrap();
 
         let task = controller.create(task_props).await;
@@ -3505,15 +3488,15 @@ mod tests {
 
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
-        let task_props: NewTask = serde_json::from_str(&format!(
+        let task_props: NewTask = serde_json::from_str(
             r#"
-        {{
+        {
             "from": "tmq:///ws_abc1",
             "to":"taos:///db2",
             "force": true
-        }}
+        }
         "#,
-        ))
+        )
         .unwrap();
 
         let task = controller.create(task_props).await?;

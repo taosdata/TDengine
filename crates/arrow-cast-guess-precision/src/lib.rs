@@ -162,7 +162,7 @@ impl CastOptions<'_> {
 impl<'r, 'a> From<&'r CastOptions<'a>> for arrow::compute::CastOptions<'r> {
     fn from(options: &'r CastOptions) -> arrow::compute::CastOptions<'r> {
         arrow::compute::CastOptions {
-            safe: options.safe.clone(),
+            safe: options.safe,
             format_options: options.format_options.clone(),
         }
     }
@@ -178,7 +178,7 @@ pub fn cast_with_options(
     if from_type == to_type {
         return Ok(make_array(array.to_data()));
     }
-    if array.len() == 0 {
+    if array.is_empty() {
         return Ok(new_empty_array(to_type));
     }
     if from_type == &Null {
@@ -200,10 +200,10 @@ pub fn cast_with_options(
             let array = arrow::compute::cast(array, &Int64)?;
             if cast_options.timestamp_options.guess_timestamp_precision {
                 let array = arrow::compute::cast(&array, &Timestamp(TimeUnit::Second, tz))?;
-                return arrow::compute::cast_with_options(&array, to_type, &cast_options.into());
+                arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
                 let array = arrow::compute::cast(&array, &Timestamp(unit.clone(), tz))?;
-                return arrow::compute::cast_with_options(&array, to_type, &cast_options.into());
+                arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
 
@@ -213,25 +213,25 @@ pub fn cast_with_options(
                     DataType::Utf8 => {
                         let v = array.as_any().downcast_ref::<StringArray>().unwrap();
                         v.iter()
-                            .filter_map(|v| v)
-                            .all(|x| x.chars().all(|c| c.is_digit(10)))
+                            .flatten()
+                            .all(|x| x.chars().all(|c| c.is_ascii_digit()))
                     }
                     DataType::LargeUtf8 => {
                         let v = array.as_any().downcast_ref::<LargeStringArray>().unwrap();
                         v.iter()
-                            .filter_map(|v| v)
-                            .all(|x| x.chars().all(|c| c.is_digit(10)))
+                            .flatten()
+                            .all(|x| x.chars().all(|c| c.is_ascii_digit()))
                     }
                     DataType::Binary => {
                         let v = array.as_any().downcast_ref::<BinaryArray>().unwrap();
                         v.iter()
-                            .filter_map(|v| v)
+                            .flatten()
                             .all(|x| x.iter().all(|c| c.is_ascii_digit()))
                     }
                     DataType::LargeBinary => {
                         let v = array.as_any().downcast_ref::<LargeBinaryArray>().unwrap();
                         v.iter()
-                            .filter_map(|v| v)
+                            .flatten()
                             .all(|x| x.iter().all(|c| c.is_ascii_digit()))
                     }
                     DataType::FixedSizeBinary(_) => {
@@ -240,10 +240,10 @@ pub fn cast_with_options(
                             .downcast_ref::<FixedSizeBinaryArray>()
                             .unwrap();
                         v.iter()
-                            .filter_map(|v| v)
+                            .flatten()
                             .all(|x| x.iter().all(|c| c.is_ascii_digit()))
                     }
-                    _ => return false,
+                    _ => false,
                 }
             }
             if all_is_digit(array) {
@@ -274,10 +274,10 @@ pub fn cast_with_options(
                         tz,
                     ),
                 )?;
-                return arrow::compute::cast_with_options(&array, to_type, &cast_options.into());
+                arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
                 let array = cast(&array, &Timestamp(unit.clone(), tz))?;
-                return arrow::compute::cast_with_options(&array, to_type, &cast_options.into());
+                arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
         _ => arrow::compute::cast_with_options(array, to_type, &cast_options.into()),
