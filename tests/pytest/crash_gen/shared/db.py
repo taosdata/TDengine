@@ -7,13 +7,14 @@ import time
 import threading
 import requests
 from requests.auth import HTTPBasicAuth
-
+from taos.error import SchemalessError
 
 import taos
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.log import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 import traceback
 # from .service_manager import TdeInstance
@@ -26,8 +27,6 @@ class DbConn:
     TYPE_NATIVE = "native-c"
     TYPE_REST =   "rest-api"
     TYPE_INVALID = "invalid"
-    
-
 
     # class variables
     lastSqlFromThreads : dict[int, str] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
@@ -36,58 +35,58 @@ class DbConn:
     @classmethod
     def saveSqlForCurrentThread(cls, sql: str):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        
-        th = threading.current_thread()        
+
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.lastSqlFromThreads[shortTid] = sql # Save this for later
         cls.record_save_sql_time()
 
     @classmethod
-    def fetchSqlForThread(cls, shortTid : int) -> str : 
+    def fetchSqlForThread(cls, shortTid : int) -> str :
 
         print("=======================")
         if shortTid not in cls.lastSqlFromThreads:
             raise CrashGenError("No last-attempted-SQL found for thread id: {}".format(shortTid))
-        return cls.lastSqlFromThreads[shortTid] 
+        return cls.lastSqlFromThreads[shortTid]
 
     @classmethod
     def get_save_sql_time(cls, shortTid : int):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        return cls.current_time[shortTid] 
+        return cls.current_time[shortTid]
 
     @classmethod
     def record_save_sql_time(cls):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.current_time[shortTid] = float(time.time()) # Save this for later
  
     @classmethod
     def sql_exec_spend(cls, cost: float):
         '''
-        Let us save the last SQL statement on a per-thread basis, so that when later we 
-        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        Let us save the last SQL statement on a per-thread basis, so that when later we
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use
         that information to find what what SQL statement is stuck.
         '''
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.spendThreads[shortTid] = cost # Save this for later
 
     @classmethod
     def get_time_cost(cls) ->float:
-        th = threading.current_thread()        
+        th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         return cls.spendThreads.get(shortTid)
 
@@ -120,7 +119,6 @@ class DbConn:
         return "[DbConn: type={}, target={}]".format(self._type, self._dbTarget)
 
     def getLastSql(self):
-        
         return self._lastSql
 
     def open(self):
@@ -166,8 +164,8 @@ class DbConn:
         # print("dbs = {}, str = {}, ret2={}, type2={}".format(dbs, dbName,ret2, type(dbName)))
         return dbName in dbs # TODO: super weird type mangling seen, once here
 
-    def existsSuperTable(self, stName):
-        self.query("show stables")
+    def existsSuperTable(self, dbName, stName):
+        self.query(f"show {dbName}.stables")
         sts = [v[0] for v in self.getQueryResult()]
         return stName in sts
 
@@ -203,6 +201,9 @@ class DbConn:
     def getResultCols(self):
         raise RuntimeError("Unexpected execution, should be overriden")
 
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        raise RuntimeError("Unexpected execution, should be overriden")
+
 # Sample: curl -u root:taosdata -d "select * from information_schema.ins_databases" localhost:6020/rest/sql
 
 
@@ -217,7 +218,7 @@ class DbConnRest(DbConn):
             dbTarget.hostAddr, dbTarget.port + self.REST_PORT_INCREMENT)
         self._result = None
 
-    def openByType(self):  # Open connection        
+    def openByType(self):  # Open connection
         pass  # do nothing, always open
 
     def close(self):
@@ -232,16 +233,16 @@ class DbConnRest(DbConn):
         self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         time_cost = -1
         time_start = time.time()
-        try:   
-            r = requests.post(self._url, 
+        try:
+            r = requests.post(self._url,
                 data = sql,
-                auth = HTTPBasicAuth('root', 'taosdata'))    
+                auth = HTTPBasicAuth('root', 'taosdata'))
         except:
             print("REST API Failure (TODO: more info here)")
             self.sql_exec_spend(-2)
             raise
         finally:
-            time_cost = time.time()- time_start 
+            time_cost = time.time()- time_start
             self.sql_exec_spend(time_cost)
         rj = r.json()
         # Sanity check for the "Json Result"
@@ -275,7 +276,6 @@ class DbConnRest(DbConn):
             "[SQL-REST] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
         return nRows
 
-    
 
     def query(self, sql):  # return rows affected
         return self.execute(sql)
@@ -305,12 +305,13 @@ class MyTDSql:
 
     def __init__(self, hostAddr, cfgPath):
         # Make the DB connection
-        self._conn = taos.connect(host=hostAddr, config=cfgPath) 
+        self._conn = taos.connect(host=hostAddr, config=cfgPath)
         self._cursor = self._conn.cursor()
-
+        self.cfgPath = cfgPath
         self.queryRows = 0
         self.queryCols = 0
         self.affectedRows = 0
+        self.line = str()
 
     # def init(self, cursor, log=True):
     #     self.cursor = cursor
@@ -323,8 +324,8 @@ class MyTDSql:
         self._conn.close() # TODO: very important, cursor close does NOT close DB connection!
         self._cursor.close()
 
-    def _execInternal(self, sql):        
-        startTime = time.time() 
+    def _execInternal(self, sql):
+        startTime = time.time()
         # Logging.debug("Executing SQL: " + sql)
         # ret = None # TODO: use strong type here
         # try: # Let's not capture the error, and let taos.error.ProgrammingError pass through
@@ -332,7 +333,7 @@ class MyTDSql:
         # except taos.error.ProgrammingError as err:
         #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
         #     raise CrashGenError(err.msg)
-            
+
         # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime
         # Record the query time
@@ -362,11 +363,12 @@ class MyTDSql:
                     raise CrashGenError("Did not find db_0 in CREATE TABLE statement: {}".format(sql))
             else: # not an insert statement
                 pass
-        
         return ret
 
     def query(self, sql):
         self.sql = sql
+        # print(self.sql)
+        self.recordSql(self.sql)
         try:
             self._execInternal(sql)
             self.queryResult = self._cursor.fetchall()
@@ -381,6 +383,8 @@ class MyTDSql:
 
     def execute(self, sql):
         self.sql = sql
+        # print(self.sql)
+        self.recordSql(self.sql)
         try:
             self.affectedRows = self._execInternal(sql)
         except Exception as e:
@@ -390,13 +394,41 @@ class MyTDSql:
             raise
         return self.affectedRows
 
+    def recordSql(self, sql):
+        sql_file = os.path.join(os.path.dirname(self.cfgPath), "log/sql.txt")
+        with open(sql_file, 'a') as f:
+            if sql.endswith(";"):
+                f.write(f'{sql}\n')
+            else:
+                f.write(f'{sql};\n')
+
+    def recordSmlLine(self, line):
+        line_file = os.path.join(os.path.dirname(self.cfgPath), "log/sml_line.txt")
+        with open(line_file, 'a') as f:
+            f.write(f'{line}\n')
+
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        precision = None if ts_type is None else ts_type
+        try:
+            self._conn.execute(f'use {dbname}')
+            self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision)
+            self.recordSmlLine(line)
+            # Logging.info(f"Inserted influxDb Line: {line}")
+        except SchemalessError as e:
+            Logging.error(f"SchemalessError-{e}: {line}")
+            raise f"SchemalessError: {e}"
+
+    def openTsdbTelnetLineInsert(self, line, ts_type=None):
+        # TODO finish
+        precision = None if ts_type is None else ts_type
+        self._conn.schemaless_insert([line], TDSmlProtocolType.TELNET.value, precision)
 
 class DbTarget:
     def __init__(self, cfgPath, hostAddr, port):
         self.cfgPath  = cfgPath
         self.hostAddr = hostAddr
         self.port     = port
-    
+
     def __repr__(self):
         return "[DbTarget: cfgPath={}, host={}:{}]".format(
             Helper.getFriendlyPath(self.cfgPath), self.hostAddr, self.port)
@@ -409,18 +441,18 @@ class DbConnNative(DbConn):
     _lock = threading.Lock()
     # _connInfoDisplayed = False # TODO: find another way to display this
     totalConnections = 0 # Not private
-    totalRequests = 0 
+    totalRequests = 0
     time_cost = -1
 
     def __init__(self, dbTarget):
         super().__init__(dbTarget)
         self._type = self.TYPE_NATIVE
         self._conn = None
-        # self._cursor = None   
-        
+        # self._cursor = None
+
     @classmethod
-    def resetTotalRequests(cls):        
-        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!            
+    def resetTotalRequests(cls):
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
             cls.totalRequests = 0
 
     def openByType(self):  # Open connection
@@ -435,21 +467,21 @@ class DbConnNative(DbConn):
             dbTarget = self._dbTarget
             # if not cls._connInfoDisplayed:
             #     cls._connInfoDisplayed = True # updating CLASS variable
-            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))                    
-            # Make the connection         
+            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))
+            # Make the connection
             # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
             # self._cursor = self._conn.cursor()
             # Record the count in the class
             self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath) # making DB connection
-            cls.totalConnections += 1 
-        
+            cls.totalConnections += 1
+
         self._tdSql.execute('reset query cache')
         # self._cursor.execute('use db') # do this at the beginning of every
 
         # Open connection
         # self._tdSql = MyTDSql()
         # self._tdSql.init(self._cursor)
-        
+
     def close(self):
         if (not self.isOpen):
             raise RuntimeError("Cannot clean up database until connection is open")
@@ -480,7 +512,7 @@ class DbConnNative(DbConn):
         finally:
             time_cost =  time.time() - time_start
             self.sql_exec_spend(time_cost)
-        
+
         cls = self.__class__
         cls.totalRequests += 1
         Logging.debug(
@@ -513,6 +545,9 @@ class DbConnNative(DbConn):
 
     def getResultCols(self):
         return self._tdSql.queryCols
+
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
 
 
 class DbManager():

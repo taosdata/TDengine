@@ -90,8 +90,8 @@ class TdeInstance():
     def __repr__(self):
         return "[TdeInstance: {}, subdir={}]".format(
             self._buildDir, Helper.getFriendlyPath(self._subdir))
-    
-    def generateCfgFile(self):       
+
+    def generateCfgFile(self):
         # print("Logger = {}".format(logger))
         # buildPath = self.getBuildPath()
         # taosdPath = self._buildPath + "/build/bin/taosd"
@@ -114,37 +114,24 @@ class TdeInstance():
         # Now we have a good cfg dir
         cfgValues = {
             'runDir':   self.getRunDir(),
-            'ip':       '127.0.0.1', # TODO: change to a network addressable ip
+            'ip':       'localhost', # TODO: change to a network addressable ip
             'port':     self._port,
             'fepPort':  self._fepPort,
         }
         cfgTemplate = """
-dataDir {runDir}/data
-logDir  {runDir}/log
-
-charset UTF-8
-
 firstEp {ip}:{fepPort}
 fqdn {ip}
+dataDir {runDir}/data
+logDir  {runDir}/log
 serverPort {port}
-
-# was all 135 below
-dDebugFlag 135
-cDebugFlag 135
-rpcDebugFlag 135
-qDebugFlag 135
-# httpDebugFlag 143
-# asyncLog 0
-# tables 10
-maxtablesPerVnode 10
+debugFlag   135
+supportVnodes   1024
+numOfLogLines   300000000
+checkpointInterval      60
+snodeAddress    127.0.0.1:873
+logKeepDays     -1
+asyncLog 0
 rpcMaxTime 101
-# cache 2
-keep 36500
-# walLevel 2
-walLevel 1
-#
-# maxConnections 100
-quorum 2
 """
         cfgContent = cfgTemplate.format_map(cfgValues)
         f = open(cfgFile, "w")
@@ -227,6 +214,7 @@ quorum 2
         self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
 
     def stop(self):
+        print("self._subProcess----", self._subProcess)
         self._subProcess.stop()
         self._subProcess = None
 
@@ -237,7 +225,7 @@ quorum 2
         if self._subProcess is None:
             Logging.warning("Incorrect TI status for procIpcBatch-10 operation")
             return
-        self._subProcess.procIpcBatch(trimToTarget=10, forceOutput=True)  
+        self._subProcess.procIpcBatch(trimToTarget=10, forceOutput=True)
 
     def procIpcBatch(self):
         if self._subProcess is None:
@@ -300,7 +288,7 @@ class TdeSubProcess:
 
     def _start(self, cmdLine) -> Popen :
         ON_POSIX = 'posix' in sys.builtin_module_names
-        
+
         # Prepare environment variables for coverage information
         # Ref: https://stackoverflow.com/questions/2231227/python-subprocess-popen-with-a-modified-environment
         myEnv = os.environ.copy()
@@ -310,7 +298,7 @@ class TdeSubProcess:
         # print("Starting TDengine with env: ", myEnv.items())
         print("Starting TDengine: {}".format(cmdLine))
 
-        ret = Popen(            
+        ret = Popen(
             ' '.join(cmdLine), # ' '.join(cmdLine) if useShell else cmdLine,
             shell=True, # Always use shell, since we need to pass ENV vars
             stdout=PIPE,
@@ -334,23 +322,24 @@ class TdeSubProcess:
 
         Common POSIX signal values (from man -7 signal):
         SIGHUP           1
-        SIGINT           2 
-        SIGQUIT          3 
+        SIGINT           2
+        SIGQUIT          3
         SIGILL           4
         SIGTRAP          5
-        SIGABRT          6 
-        SIGIOT           6 
-        SIGBUS           7 
-        SIGEMT           - 
-        SIGFPE           8  
-        SIGKILL          9  
-        SIGUSR1         10 
+        SIGABRT          6
+        SIGIOT           6
+        SIGBUS           7
+        SIGEMT           -
+        SIGFPE           8
+        SIGKILL          9
+        SIGUSR1         10
         SIGSEGV         11
         SIGUSR2         12
         """
         # self._popen should always be valid.
 
         Logging.info("Terminating TDengine service running as the sub process...")
+        print("self.getStatus()---", self.getStatus())
         if self.getStatus().isStopped():
             Logging.info("Service already stopped")
             return
@@ -400,15 +389,18 @@ class TdeSubProcess:
         def doKillChild(child: psutil.Process, sig: int):
             Logging.info("Killing sub-sub process {} with signal {}".format(child.pid, sig))
             child.send_signal(sig)
-            try:            
+            try:
                 retCode = child.wait(20) # type: ignore
-                if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
-                    Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
-                elif (- retCode) == sig : # type: ignore
-                    Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
+                if retCode is None:
+                    Logging.info(f"can not get retCode for process: {child.pid}")
                 else:
-                    Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode)) # type: ignore
-                return True # terminated successfully
+                    if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
+                        Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
+                    elif (- retCode) == sig : # type: ignore
+                        Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
+                    else:
+                        Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode)) # type: ignore
+                    return True # terminated successfully
             except psutil.TimeoutExpired as err:
                 Logging.warning("Failed to kill sub-sub process {} with signal {}".format(child.pid, sig))
             return False # did not terminate
@@ -418,11 +410,12 @@ class TdeSubProcess:
             try:
                 topSubProc = psutil.Process(pid) # Now that we are doing "exec -c", should not have children any more
                 for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
-                    Logging.warning("Unexpected child to be killed")
-                    doKillChild(child, sig)
+                    if child.name() != 'udfd':
+                        Logging.warning("Unexpected child to be killed")
+                        doKillChild(child, sig)
             except psutil.NoSuchProcess as err:
                 Logging.info("Process not found, can't kill, pid = {}".format(pid))
-            
+
             return doKillTdService(proc, sig)
             # TODO: re-examine if we need to kill the top process, which is always the SHELL for now
             # try:
@@ -441,15 +434,15 @@ class TdeSubProcess:
             return doKill(proc, sig)
 
         def hardKill(proc):
-            return doKill(proc, signal.SIGKILL) 
+            return doKill(proc, signal.SIGKILL)
 
         pid = proc.pid
         Logging.info("Terminate running processes under {}, with SIG #{} and wait...".format(pid, sig))
-        if softKill(proc, sig):            
+        if softKill(proc, sig):
             return # success
-        if sig != signal.SIGKILL: # really was soft above            
+        if sig != signal.SIGKILL: # really was soft above
             if hardKill(proc):
-                return 
+                return
         raise CrashGenError("Failed to stop process, pid={}".format(pid))
 
     def getStatus(self):
@@ -487,7 +480,7 @@ class ServiceManager:
         #     self.svcMgrThreads.append(thread)
 
     def _createTdeInstance(self, dnIndex):
-        if not self._runCluster: # single instance 
+        if not self._runCluster: # single instance
             subdir = 'test'
         else:        # Create all threads in a cluster
             subdir = 'cluster_dnode_{}'.format(dnIndex)
@@ -603,7 +596,7 @@ class ServiceManager:
                     if  status.isStopped():
                         ti.procIpcBatch() # one last time?
                     # self._updateThreadStatus()
-                    
+
             time.sleep(self.PAUSE_BETWEEN_IPC_CHECK)  # pause, before next round
         # raise CrashGenError("dummy")
         Logging.info("Service Manager Thread (with subprocess) ended, main thread exiting...")
@@ -623,16 +616,14 @@ class ServiceManager:
                     time.sleep(2.0)
                     proc.kill()
                 # print("Process: {}".format(proc.name()))
-            
             # self.svcMgrThread = ServiceManagerThread()  # create the object
-            
             for ti in self._tInsts:
-                ti.start()  
-                if not ti.isFirst():                                    
+                ti.start()
+                if not ti.isFirst():
                     tFirst = self._getFirstInstance()
                     tFirst.createDnode(ti.getDbTarget())
                 ti.printFirst10Lines()
-                # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines                                     
+                # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines
 
     def stopTaosServices(self):
         with self._lock:
@@ -642,7 +633,7 @@ class ServiceManager:
 
             for ti in self._tInsts:
                 ti.stop()
-                
+
     def run(self):
         self.startTaosServices()
         self._procIpcAll()  # pump/process all the messages, may encounter SIG + restart
@@ -674,7 +665,7 @@ class ServiceManagerThread:
     A class representing a dedicated thread which manages the "sub process"
     of the TDengine service, interacting with its STDOUT/ERR.
 
-    It takes a TdeInstance parameter at creation time, or create a default    
+    It takes a TdeInstance parameter at creation time, or create a default
     """
     MAX_QUEUE_SIZE = 10000
 
@@ -725,7 +716,6 @@ class ServiceManagerThread:
 
         self._status.set(Status.STATUS_STARTING)
         # self._tdeSubProcess = TdeSubProcess.start(cmdLine) # TODO: verify process is running
-
         self._ipcQueue = Queue() # type: Queue
         self._thread = threading.Thread( # First thread captures server OUTPUT
             target=self.svcOutputReader,
@@ -738,7 +728,6 @@ class ServiceManagerThread:
             self.stop()
             raise CrashGenError("Failed to start thread to monitor STDOUT")
         Logging.info("Successfully started process to monitor STDOUT")
-
         self._thread2 = threading.Thread( # 2nd thread captures server ERRORs
             target=self.svcErrorReader,
             args=(subProc.getIpcStdErr(), self._ipcQueue, logDir))
@@ -776,7 +765,6 @@ class ServiceManagerThread:
         for col in cols:
             # print("col = {}".format(col))
             ep = col[1].split(':') # 10.1.30.2:6030
-            print("Found ep={}".format(ep))
             if tInst.getPort() == int(ep[1]): # That's us
                 # print("Valid Dnode matched!")
                 isValid = True # now we are valid
@@ -813,7 +801,7 @@ class ServiceManagerThread:
                 if self._thread:
                     self._thread.join()
                     self._thread = None
-                if self._thread2: # STD ERR thread            
+                if self._thread2: # STD ERR thread
                     self._thread2.join()
                     self._thread2 = None
             else:
@@ -837,7 +825,7 @@ class ServiceManagerThread:
             except Empty:
                 break  # break out of for loop, no more trimming
 
-    TD_READY_MSG = "TDengine is initialized successfully"
+    TD_READY_MSG = "The daemon initialized successfully"
 
     def procIpcBatch(self, trimToTarget=0, forceOutput=False):
         '''
@@ -874,11 +862,11 @@ class ServiceManagerThread:
 
     BinaryChunk = NewType('BinaryChunk', bytes) # line with binary data, directly from STDOUT, etc.
     TextChunk   = NewType('TextChunk', str) # properly decoded, suitable for printing, etc.
-   
+
     @classmethod
     def _decodeBinaryChunk(cls, bChunk: bytes) -> Optional[TextChunk] :
         try:
-            tChunk = bChunk.decode("utf-8").rstrip() 
+            tChunk = bChunk.decode("utf-8").rstrip()
             return cls.TextChunk(tChunk)
         except UnicodeError:
             print("\nNon-UTF8 server output: {}\n".format(bChunk.decode('cp437')))
@@ -889,7 +877,7 @@ class ServiceManagerThread:
         '''
         Take an input stream with binary data (likely from Popen), produced a generator of decoded
         "text chunks".
-        
+
         Side effect: it also save the original binary data in a log file.
         '''
         os.makedirs(logDir, exist_ok=True)
@@ -915,14 +903,13 @@ class ServiceManagerThread:
         :param queue: the queue where we dump the roughly parsed chunk-by-chunk text data
         :param logDir: where we should dump a verbatim output file
         '''
-        
+
         # Important Reference: https://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
         # print("This is the svcOutput Reader...")
         # stdOut.readline() # Skip the first output? TODO: remove?
         for tChunk in self._textChunkGenerator(ipcStdOut, logDir, 'stdout.log') :
             queue.put(tChunk) # tChunk garanteed not to be None
             self._printProgress("_i")
-
             if self._status.isStarting():  # we are starting, let's see if we have started
                 if tChunk.find(self.TD_READY_MSG) != -1:  # found
                     Logging.info("Waiting for the service to become FULLY READY")

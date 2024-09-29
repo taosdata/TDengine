@@ -27,11 +27,11 @@ import datetime
 import random
 import threading
 import argparse
-
+from decimal import Decimal, getcontext
+import re
 import sys
 import os
 import io
-import datetime
 import signal
 import traceback
 import requests
@@ -52,7 +52,9 @@ from .service_manager import ServiceManager, TdeInstance
 from .shared.config import Config
 from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
-from .shared.types import TdDataType
+from .shared.types import TdDataType, DataBoundary, FunctionMap
+from .shared.common import TDCom
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 # Config.init()
 
@@ -111,6 +113,10 @@ class WorkerThread:
 
     def logInfo(self, msg):
         Logging.info("    TRD[{}] {}".format(self._tid, msg))
+
+    def logError(self, msg):
+        Logging.cfgPath = self._dbConn._dbTarget.cfgPath
+        Logging.error("    TRD[{}] {}".format(self._tid, msg))
 
     # def dbInUse(self):
     #     return self._dbInUse
@@ -178,7 +184,7 @@ class WorkerThread:
                     dummy = 0
                 else:
                     print("\nCaught programming error. errno=0x{:X}, msg={} ".format(errno, err.msg))
-                    raise
+                    raise CrashGenError("func _doTaskLoop error")
 
             # Fetch a task from the Thread Coordinator
             Logging.debug("[TRD] Worker thread [{}] about to fetch task".format(self._tid))
@@ -257,7 +263,7 @@ class WorkerThread:
 
 
 class ThreadCoordinator:
-    WORKER_THREAD_TIMEOUT = 120  # Normal: 120
+    WORKER_THREAD_TIMEOUT = 300  # Normal: 120
 
     def __init__(self, pool: ThreadPool, dbManager: DbManager):
         self._curStep = -1  # first step is 0
@@ -307,9 +313,10 @@ class ThreadCoordinator:
         return False
 
     def _hasAbortedTask(self):  # from execution of previous step
+        print("------- self._executedTasks: {}".format(self._executedTasks))
         for task in self._executedTasks:
             if task.isAborted():
-                # print("Task aborted: {}".format(task))
+                print("------- Task aborted: {}".format(task))
                 # hasAbortedTask = True
                 return True
         return False
@@ -382,7 +389,7 @@ class ThreadCoordinator:
                 self._te = None  # Not running any more
                 self._execStats.registerFailure("State transition error: {}".format(err))
             else:
-                raise
+                raise CrashGenError("func _doTransition error")
         # return transitionFailed # Why did we have this??!!
 
         self.resetExecutedTasks()  # clear the tasks after we are done
@@ -423,8 +430,8 @@ class ThreadCoordinator:
                 self._execStats.registerFailure("Aborted due to worker thread timeout")
                 Logging.error("\n")
 
-                Logging.error("Main loop aborted, caused by worker thread(s) time-out of {} seconds".format(
-                    ThreadCoordinator.WORKER_THREAD_TIMEOUT))
+                Logging.error("Main loop aborted, task {} caused by worker thread(s) time-out of {} seconds".format(
+                    ThreadCoordinator.WORKER_THREAD_TIMEOUT, self._executedTasks))
                 Logging.error("TAOS related threads blocked at (stack frames top-to-bottom):")
                 ts = ThreadStacks()
                 ts.record_current_time(time.time())  # record thread exit time at current moment
@@ -555,7 +562,6 @@ class ThreadCoordinator:
         else:
             taskType = db.getStateMachine().balance_pickTaskType()  # and an method can get  balance task types
             pass
-
         return taskType(self._execStats, db)  # create a task from it
 
     def resetExecutedTasks(self):
@@ -681,19 +687,24 @@ class AnyState:
 
     STATE_VAL_IDX = 0
     CAN_CREATE_DB = 1
-    # For below, if we can "drop the DB", but strictly speaking 
+    # For below, if we can "drop the DB", but strictly speaking
     # only "under normal circumstances", as we may override it with the -b option
     CAN_DROP_DB = 2
     CAN_CREATE_FIXED_SUPER_TABLE = 3
     CAN_CREATE_STREAM = 3  # super table must exists
     CAN_CREATE_TOPIC = 3  # super table must exists
     CAN_CREATE_CONSUMERS = 3
+    CAN_CREATE_TSMA = 3
     CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_DROP_TOPIC = 4
     CAN_DROP_STREAM = 4
+    CAN_PAUSE_STREAM = 4
+    CAN_RESUME_STREAM = 4
+    CAN_DROP_TSMA = 4
     CAN_ADD_DATA = 5
     CAN_READ_DATA = 6
     CAN_DELETE_DATA = 6
+    
 
     def __init__(self):
         self._info = self.getInfo()
@@ -753,11 +764,23 @@ class AnyState:
     def canCreateConsumers(self):
         return self._info[self.CAN_CREATE_CONSUMERS]
 
+    def canCreateTsma(self):
+        return self._info[self.CAN_CREATE_TSMA]
+
+    def canDropTsma(self):
+        return self._info[self.CAN_DROP_TSMA]
+
     def canCreateStreams(self):
         return self._info[self.CAN_CREATE_STREAM]
 
     def canDropStream(self):
         return self._info[self.CAN_DROP_STREAM]
+
+    def canPauseStream(self):
+        return self._info[self.CAN_PAUSE_STREAM]
+
+    def canResumeStream(self):
+        return self._info[self.CAN_RESUME_STREAM]
 
     def canAddData(self):
         return self._info[self.CAN_ADD_DATA]
@@ -957,7 +980,7 @@ class StateMechine:
         except taos.error.ProgrammingError as err:
             Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
             traceback.print_stack()
-            raise  # re-throw
+            raise CrashGenError("func StateMechine init error")  # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -1098,11 +1121,11 @@ class StateMechine:
         BasicTypes = self.getTaskTypes()
         weightsTypes = BasicTypes.copy()
 
-        # this matrixs can balance  the Frequency of TaskTypes 
-        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 10,
-                                    'TaskDropStreamTables': 10,
+        # this matrixs can balance  the Frequency of TaskTypes
+        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 1, 'TaskDropTsmas': 1,
+                                    'TaskDropStreamTables': 10, 'TaskPauseStreams': 1, 'TaskResumeStreams': 1,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
-                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 3,
+                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10,
                                     'TaskCreateTopic': 3,
                                     'TaskCreateConsumers': 10,
                                     'TaskCreateSuperTable': 10}  # TaskType : balance_matrixs of task
@@ -1367,6 +1390,11 @@ class Task():
             "Step[{}.{}] {}".format(
                 self._curStep, self._taskNum, msg))
 
+    def logError(self, msg):
+        self._workerThread.logError(
+            "Step[{}.{}] {}".format(
+                self._curStep, self._taskNum, msg))
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         raise RuntimeError(
             "To be implemeted by child classes, class name: {}".format(
@@ -1470,9 +1498,13 @@ class Task():
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
             elif self._isErrAcceptable(errno2, err.__str__()):
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
                 # print("_", end="", flush=True)
                 Progress.emit(Progress.ACCEPTABLE_ERROR)
@@ -1485,6 +1517,7 @@ class Task():
                     shortTid,
                     err, wt.getDbConn().getLastSql())
                 self.logDebug(errMsg)
+                self.logError(f'-------------------\nProgram ABORTED Due to Unexpected TAOS Error:{errMsg}\n-------------------')
                 if Config.getConfig().debug:
                     # raise # so that we see full stack
                     traceback.print_exc()
@@ -1625,6 +1658,7 @@ class ExecutionStats:
                     self._failureReason) if self._failed else "SUCCEEDED"))
         Logging.info("| Task Execution Times (success/total):")
         execTimesAny = 0.0
+        print("----self._execTimes:", self._execTimes)
         for k, n in self._execTimes.items():
             execTimesAny += n[0]
             errStr = None
@@ -1710,6 +1744,80 @@ class TaskCreateDb(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateDb()
 
+    def convert_to_hours(self, value, unit):
+        """
+        Convert the given time value and unit into hours.
+        """
+        if unit == 'm':
+            return value / 60  # Convert minutes to hours
+        elif unit == 'd':
+            return value * 24  # Convert days to hours
+
+    def convert_from_hours(self, hours, unit):
+        """
+        Convert hours to the specified unit.
+        """
+        if unit == 'm':
+            return int(hours * 60)  # Convert hours to minutes
+        elif unit == 'h':
+            return int(hours)       # Keep hours unchanged
+        elif unit == 'd':
+            return max(1, int(hours / 24))  # Convert hours to days, minimum 1 day
+
+    def random_duration_and_keeps(self):
+        # Randomly select the unit and value for duration
+        units = ['m', 'h', 'd']
+        duration_unit = random.choice(['m', 'd'])  # Only choose minutes or days
+        if duration_unit == 'm':
+            duration = random.randint(60, 1440)  # From 1 hour to 1 day in minutes
+        elif duration_unit == 'd':
+            duration = random.randint(1, 3)      # From 1 to 3 days
+
+        # Convert duration to hours for calculation purposes
+        duration_hours = self.convert_to_hours(duration, duration_unit)
+
+        # Minimum of 10 years in hours for the initial keep
+        min_years = 10
+        min_keep_hours = min_years * 365 * 24 + 3 * duration_hours  # Adding 3 times the duration_hours
+
+        # Ensure keep0, keep1, keep2 are increasing and start from at least the calculated minimum
+        keep0_hours = random.uniform(min_keep_hours, min_keep_hours + 100)
+        keep1_hours = random.uniform(keep0_hours, keep0_hours + 100)
+        keep2_hours = random.uniform(keep1_hours, keep1_hours + 100)
+
+        # Randomly choose units for keeps and convert times
+        keep0_unit = random.choice(units)
+        keep1_unit = random.choice(units)
+        keep2_unit = random.choice(units)
+
+        keep0 = f"{self.convert_from_hours(keep0_hours, keep0_unit)}{keep0_unit}"
+        keep1 = f"{self.convert_from_hours(keep1_hours, keep1_unit)}{keep1_unit}"
+        keep2 = f"{self.convert_from_hours(keep2_hours, keep2_unit)}{keep2_unit}"
+
+        duration_with_unit = f"{duration}{duration_unit}"
+        keep_val = random.choice([keep0, keep1, keep2, f'{keep0},{keep1},{keep2}'])
+        return duration_with_unit, keep_val
+
+
+    def get_min_maxrows(self):
+        """
+        Selects a random number of rows within the specified boundaries.
+
+        Returns:
+            tuple: A tuple containing the minimum and maximum number of rows selected.
+        Raises:
+            ValueError: If the maximum number of rows is less than the minimum number of rows.
+        """
+        minrows = random.randint(*DataBoundary.MINROWS_BOUNDARY.value)
+        maxrows_min = max(minrows + 1, DataBoundary.MINROWS_BOUNDARY.value[0])
+        if DataBoundary.MINROWS_BOUNDARY.value[1] < maxrows_min:
+            raise ValueError("maxrows < minrows")
+        maxrows = random.randint(maxrows_min, DataBoundary.MINROWS_BOUNDARY.value[1])
+        if Dice.throw(2) == 0:
+            return minrows, maxrows
+        else:
+            return 100, 1000
+
     # Actually creating the database(es)
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
@@ -1724,15 +1832,28 @@ class TaskCreateDb(StateTransitionTask):
         buffer = random.randint(3, 128)
         walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
-        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {} wal_retention_period {}  ".format(dbName, repStr,
+        duration_with_unit, keep_val = self.random_duration_and_keeps()
+        minrows, maxrows = self.get_min_maxrows()
+        stt_trigger = Dice.choice(DataBoundary.STT_TRIGGER_BOUNDARY.value)
+        precision = Dice.choice(DataBoundary.PRECISION_BOUNDARY.value)
+        comp = Dice.choice(DataBoundary.COMP_BOUNDARY.value)
+        cachesize = Dice.choice(DataBoundary.CACHESIZE_BOUNDARY.value)
+        self.execWtSql(wt, 'create database {} {} {} vgroups {} cachemodel "{}" cachesize {} buffer {} wal_retention_period {} duration {} keep {} minrows {} maxrows {} stt_trigger {} precision "{}" comp {}'.format(dbName, repStr,
                                                                                                     updatePostfix,
                                                                                                     vg_nums,
                                                                                                     cache_model,
+                                                                                                    cachesize,
                                                                                                     buffer,
-                                                                                                    walRetentionPeriod))
+                                                                                                    walRetentionPeriod,
+                                                                                                    duration_with_unit,
+                                                                                                    keep_val,
+                                                                                                    minrows,
+                                                                                                    maxrows,
+                                                                                                    stt_trigger,
+                                                                                                    precision,
+                                                                                                    comp))
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix))
-
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
@@ -1757,7 +1878,7 @@ class TaskDropDb(StateTransitionTask):
 
 
 class TaskCreateStream(StateTransitionTask):
-
+    maxSelectItems = 5
     @classmethod
     def getEndState(cls):
         return StateHasData()
@@ -1766,38 +1887,212 @@ class TaskCreateStream(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateStreams()
 
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        dbname = self._db.getName()
+    def getFillHistoryValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        fillHistoryVal = f'FILL_HISTORY 1' if useTag else random.choice(["FILL_HISTORY 0", ""])
+        return fillHistoryVal
 
-        sub_stream_name = dbname + '_sub_stream'
-        sub_stream_tb_name = 'stream_tb_sub'
-        super_stream_name = dbname + '_super_stream'
-        super_stream_tb_name = 'stream_tb_super'
-        if not self._db.exists(wt.getDbConn()):
-            Logging.debug("Skipping task, no DB yet")
-            return
+    def getExpiredValue(self, rand=None, countWindow=False):
+        if countWindow:
+            return random.choice(["IGNORE EXPIRED 1", ""])
+        useTag = random.choice([True, False]) if rand is None else True
+        expiredVal = f'IGNORE EXPIRED 0' if useTag else random.choice(["IGNORE EXPIRED 1", ""])
+        return expiredVal
 
-        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
-        # wt.execSql("use db")    # should always be in place
-        stbname = sTable.getName()
-        sub_tables = sTable.getRegTables(wt.getDbConn())
-        aggExpr = Dice.choice([
-            'count(*)', 'avg(speed)', 'sum(speed)', 'stddev(speed)', 'min(speed)', 'max(speed)', 'first(speed)',
-            'last(speed)',
-            'apercentile(speed, 10)', 'last_row(*)', 'twa(speed)'])
+    def getUpdateValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        updateVal = f'IGNORE UPDATE 0' if useTag else random.choice(["IGNORE UPDATE 1", ""])
+        return updateVal
 
-        stream_sql = ''  # set default value
+    def getTriggerValue(self, forceTrigger=None):
+        if forceTrigger is not None:
+            return f"TRIGGER {forceTrigger}"
+        maxDelayTime = random.choice(DataBoundary.MAX_DELAY_UNIT.value)
+        return random.choice(["TRIGGER AT_ONCE", "TRIGGER WINDOW_CLOSE", f"TRIGGER MAX_DELAY {maxDelayTime}", ""])
 
-        if sub_tables:
-            sub_tbname = sub_tables[0]
-            # create stream with query above sub_table
-            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
-                format(sub_stream_name, dbname, sub_stream_tb_name, aggExpr, dbname, sub_tbname)
+    def getDeleteMarkValue(self):
+        deleteMarkTime = random.choice(DataBoundary.DELETE_MARK_UNIT.value)
+        return random.choice([f"DELETE_MARK {deleteMarkTime}", ""])
+
+    def getWatermarkValue(self, rand=None):
+        useTag = random.choice([True, False]) if rand is None else True
+        timeVal = random.choice(DataBoundary.WATERMARK_UNIT.value)
+        watermarkTime = f"WATERMARK {timeVal}" if useTag else random.choice([f"WATERMARK {timeVal}", ""])
+        return watermarkTime
+
+    def getSubtableValue(self, partitionList):
+        subTablePre = "pre"
+        partitionList = ['tbname']
+        for colname in partitionList:
+            subtable = f'CONCAT("{subTablePre}", {colname})'
+        return random.choice([f'SUBTABLE({subtable})', ""])
+
+    def remove_duplicates(self, selectPartStr):
+        parts = selectPartStr.split(',')
+        seen_now = seen_today = seen_timezone = False
+        result = []
+        for part in parts:
+            part_stripped = part.strip()
+            if part_stripped == "NOW()":
+                if not seen_now:
+                    seen_now = True
+                    result.append(part)
+            elif part_stripped == "TODAY()":
+                if not seen_today:
+                    seen_today = True
+                    result.append(part)
+            elif part_stripped == "TIMEZONE()":
+                if not seen_timezone:
+                    seen_timezone = True
+                    result.append(part)
+            else:
+                result.append(part)
+        return ', '.join(result)
+
+    # def formatSelectPartStr(self, selectPart):
+    #     parts = selectPart.split(',')
+    #     parts = [f"`{part}`" for part in parts]
+    #     return ','.join(parts)
+
+    def generateRandomSubQuery(self, st, colDict, dbname, tbname, subtable=False, doAggr=0):
+        selectPartList = []
+        groupKeyList = []
+        colTypes = [member.name for member in FunctionMap]
+        tsCol = "ts"
+        for column_name, column_type in colDict.items():
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, groupKey = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr, subquery=True)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(f'`{groupKey}`')
+
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
+        if doAggr == 1:
+            selectPartList = [tsCol] + selectPartList
+        selectPartStr = ', '.join(selectPartList)
+        selectPartStr = self.remove_duplicates(selectPartStr)
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            partitionVal = st.getPartitionValue(groupKeyStr)
+            if subtable:
+                partitionVal = f'{partitionVal},tbname' if len(partitionVal) > 0 else "partition by tbname"
+            return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {partitionVal} {st.getOrderByValue(groupKeyStr)} {st.getSlimitValue()};"
         else:
-            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
-                format(super_stream_name, dbname, super_stream_tb_name, aggExpr, dbname, stbname)
-        self.execWtSql(wt, stream_sql)
-        Logging.debug("[OPS] stream is creating at {}".format(time.time()))
+            groupKeyStr = "tbname"
+            partitionVal = "partition by tbname" if subtable else ""
+        randomSelectPart = random.choice(selectPartList) if len(selectPartList) > 0 else groupKeyStr
+        randomSelectPartStr = st.formatSelectPartStr(randomSelectPart)
+        windowStr = st.getWindowStr(st.getRandomWindow(), colDict, stream=True)
+        if ("COUNT_WINDOW" in windowStr or "STATE_WINDOW" in windowStr or "EVENT_WINDOW" in windowStr) and "partition" not in partitionVal:
+            windowStr = f"partition by tbname {windowStr}"
+        return f"SELECT {selectPartStr} FROM {dbname}.{tbname} {st.getTimeRangeFilter(tbname, tsCol, doAggr=doAggr)} {partitionVal} {windowStr} {st.getFillValue()} {st.getOrderByValue(randomSelectPartStr)};"
+
+    def genCreateStreamSql(self, st, colDict, tbname):
+        dbname = self._db.getName()
+        doAggr = random.choice([0, 1, 2])
+        forceTrigger = "AT_ONCE" if doAggr == 1 else None
+        streamName = f'{dbname}_{tbname}_stm'
+        target = f'stm_{dbname}_{tbname}_target'
+        # TODO
+        existStbFields = ""
+        customTags = ""
+        subtable = self.getSubtableValue(colDict.keys())
+        subQuery = self.generateRandomSubQuery(st, colDict, dbname, tbname, subtable, doAggr)
+        expiredValue = self.getExpiredValue(countWindow=True) if "COUNT_WINDOW" in subQuery else self.getExpiredValue()
+        streamOps = f'{self.getTriggerValue(forceTrigger)} {self.getWatermarkValue()} {self.getFillHistoryValue()} {expiredValue} {self.getUpdateValue()}'
+        if ("COUNT_WINDOW" in subQuery or "STATE_WINDOW" in subQuery) and "WATERMARK" not in streamOps:
+            streamOps = f'{self.getTriggerValue(forceTrigger)} {self.getWatermarkValue(True)} {self.getFillHistoryValue()} {expiredValue} {self.getUpdateValue()}'
+        return f"CREATE STREAM IF NOT EXISTS {streamName} {streamOps} into {dbname}.{target} {existStbFields} {customTags} {subtable} AS {subQuery};"
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbc = wt.getDbConn()
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+            if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+                return
+            tags = sTable._getTags(dbc)
+            print("stream tags------", tags)
+            cols = sTable._getCols(dbc)
+            print("stream cols------", cols)
+            # if not tags or not cols:
+            #     return "no table exists"
+            tagCols = {**tags, **cols}
+            print("stream tagCols------", tagCols)
+            selectCnt = random.randint(1, len(tagCols))
+            print("stream selectCnt------", selectCnt)
+            selectKeys = random.sample(list(tagCols.keys()), selectCnt)
+            print("stream selectKeys------", selectKeys)
+            selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
+            print("stream selectItems------", selectItems)
+
+
+            # wt.execSql("use db")    # should always be in place
+            stbname = sTable.getName()
+            streamSql = self.genCreateStreamSql(sTable, selectItems, stbname)
+            print("streamSql------", streamSql)
+            self.execWtSql(wt, streamSql)
+            Logging.debug("[OPS] stream is creating at {}".format(time.time()))
+        except Exception as e:
+            self.logError(f"func TaskCreateStream error: {e}")
+            raise CrashGenError(f"func TaskCreateStream error: {e}")
+
+"""
+try:
+                sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullRegTableName,
+                    fullStableName,
+                    tagNames,
+                    tagStrs,
+                    colNames,
+                    colStrs)
+                dbc.execute(sql)
+            except Exception as e:  # Any exception at all
+                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
+                self._unlockTableIfNeeded(fullRegTableName)
+                raise CrashGenError(f"func _addDataByAutoCreateTable_n error: {e}")
+"""
+
+
+    # def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+    #     dbname = self._db.getName()
+
+    #     sub_stream_name = dbname + '_sub_stream'
+    #     sub_stream_tb_name = 'stream_tb_sub'
+    #     super_stream_name = dbname + '_super_stream'
+    #     super_stream_tb_name = 'stream_tb_super'
+    #     if not self._db.exists(wt.getDbConn()):
+    #         Logging.debug("Skipping task, no DB yet")
+    #         return
+
+    #     sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+    #     # wt.execSql("use db")    # should always be in place
+    #     stbname = sTable.getName()
+    #     sub_tables = sTable.getRegTables(wt.getDbConn())
+    #     aggExpr = Dice.choice([
+    #         'count(*)', 'avg(speed)', 'sum(speed)', 'stddev(speed)', 'min(speed)', 'max(speed)', 'first(speed)',
+    #         'last(speed)',
+    #         'apercentile(speed, 10)', 'last_row(*)', 'twa(speed)'])
+
+    #     stream_sql = ''  # set default value
+
+    #     if sub_tables:
+    #         sub_tbname = sub_tables[0]
+    #         # create stream with query above sub_table
+    #         stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
+    #             format(sub_stream_name, dbname, sub_stream_tb_name, aggExpr, dbname, sub_tbname)
+    #     else:
+    #         stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
+    #             format(super_stream_name, dbname, super_stream_tb_name, aggExpr, dbname, stbname)
+    #     self.execWtSql(wt, stream_sql)
+    #     Logging.debug("[OPS] stream is creating at {}".format(time.time()))
 
 
 class TaskCreateTopic(StateTransitionTask):
@@ -1826,6 +2121,8 @@ class TaskCreateTopic(StateTransitionTask):
         # create topic if not exists topic_ctb_column as select ts, c1, c2, c3 from stb1;
 
         stbname = sTable.getName()
+        if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+            return
         sub_tables = sTable.getRegTables(wt.getDbConn())
 
         scalarExpr = Dice.choice(
@@ -1860,6 +2157,70 @@ class TaskCreateTopic(StateTransitionTask):
         self.execWtSql(wt, topic_sql)
         Logging.debug("[OPS] db topic is creating at {}".format(time.time()))
 
+
+class TaskCreateTsma(StateTransitionTask):
+    maxSelectItems = 5
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canCreateTsma()
+
+    def generateRandomFuncs(self, st, colDict):
+        selectPartList = []
+        doAggr = random.choice([0, 1]) # tsma must use aggFuncs or selectFuncs
+        for column_name, column_type in colDict.items():
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, _ = st.selectFuncsFromType(fm.value, column_name, column_type, doAggr, tsma=True)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+        return ', '.join(selectPartList)
+
+    def doubleWindow(self, windowStr):
+        match = re.search(r"INTERVAL\((\d+)(\w+)\)", windowStr)
+        if match:
+            num = int(match.group(1))
+            unit = match.group(2)
+            new_num = num * 2
+            return f"INTERVAL({new_num}{unit})"
+
+    def genCreateTsmaSql(self, st, colDict, tbname):
+        dbname = self._db.getName()
+        tsmaName = f'{dbname}_{tbname}_tsma'
+        recursiveTsmaName = f'{dbname}_{tbname}_rcs_tsma'
+        funcs = self.generateRandomFuncs(st, colDict)
+        windowStr = st.getWindowStr("INTERVAL", colDict, tsma=True)
+        createTsmaSql = f"CREATE TSMA  IF NOT EXISTS {tsmaName} ON {dbname}.{tbname} FUNCTION({funcs}) {windowStr};"
+        createRecursiveTsmaSql = f"CREATE RECURSIVE TSMA IF NOT EXISTS {recursiveTsmaName} ON {dbname}.{tsmaName} {self.doubleWindow(windowStr)};"
+        return [createTsmaSql, createRecursiveTsmaSql]
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+            cols = sTable._getCols(dbc)
+            selectCnt = random.randint(1, len(cols))
+            selectKeys = random.sample(list(cols.keys()), selectCnt)
+            selectItems = {key: cols[key] for key in selectKeys[:self.maxSelectItems]}
+            stbname = sTable.getName()
+            if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+                return
+            createTsmaSqls = self.genCreateTsmaSql(sTable, selectItems, stbname)
+            self.execWtSql(wt, "use {}".format(dbname))
+            for createTsmaSql in createTsmaSqls:
+                self.execWtSql(wt, createTsmaSql)
+            Logging.debug("[OPS] db tsma is creating at {}".format(time.time()))
+        except Exception as e:
+            self.logError(f"func TaskCreateTsma error: {e}")
+            raise CrashGenError(f"func TaskCreateTsma error: {e}")
 
 class TaskDropTopics(StateTransitionTask):
 
@@ -1910,6 +2271,54 @@ class TaskDropStreams(StateTransitionTask):
             sTable.dropStreams(wt.getDbConn())  # drop stream of database
 
 
+class TaskPauseStreams(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canPauseStream()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        # TODO pause stream maybe failed because checkpoint trasactions
+        if sTable.hasStreams(wt.getDbConn()):
+            sTable.pauseStreams(wt.getDbConn())  # pause stream
+
+class TaskResumeStreams(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canResumeStream()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        # TODO stream may at ready state but resume can be success, so we just execute it and ignore conflict
+        if sTable.hasStreams(wt.getDbConn()):
+            sTable.resumeStreams(wt.getDbConn())  # pause stream
+
 class TaskDropStreamTables(StateTransitionTask):
 
     @classmethod
@@ -1957,6 +2366,29 @@ class TaskCreateConsumers(StateTransitionTask):
             print(" restful not support tmq consumers")
             return
 
+class TaskDropTsmas(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canDropTsma()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        # wt.execSql("use db")    # should always be in place
+        # tblName = sTable.getName()
+        if sTable.hasTsmas(wt.getDbConn()):
+            sTable.dropStreams(wt.getDbConn())  # drop stream of database
+
 
 class TaskCreateSuperTable(StateTransitionTask):
     @classmethod
@@ -1974,10 +2406,52 @@ class TaskCreateSuperTable(StateTransitionTask):
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
-
+        # backup 20240606 by jayden
+        # sTable.create(wt.getDbConn(),
+        #               {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
+        #                   'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+        #               dropIfExists=True
+        #               )
+        cols = {
+                    'ts'                        : TdDataType.TIMESTAMP,
+                    'speed'                     : TdDataType.INT,
+                    'color'                     : TdDataType.BINARY16,
+                    'tinyint_type_col_name'     : TdDataType.TINYINT,
+                    'smallint_type_col_name'    : TdDataType.SMALLINT,
+                    'bigint_type_col_name'      : TdDataType.BIGINT,
+                    'utinyint_type_col_name'    : TdDataType.TINYINT,
+                    'usmallint_type_col_name'   : TdDataType.SMALLINT,
+                    'uint_type_col_name'        : TdDataType.INT,
+                    'ubigint_type_col_name'     : TdDataType.BIGINT,
+                    'float_type_col_name'       : TdDataType.FLOAT,
+                    'double_type_col_name'      : TdDataType.DOUBLE,
+                    'bool_type_col_name'        : TdDataType.BOOL,
+                    'nchar_type_col_name'       : TdDataType.NCHAR16,
+                    'varchar_type_col_name'     : TdDataType.VARCHAR16,
+                    'varbinary_type_col_name'   : TdDataType.VARBINARY16,
+                    'geometry_type_col_name'    : TdDataType.GEOMETRY32,
+                }
+        tags = {
+                    'b'                         : TdDataType.BINARY200,
+                    'f'                         : TdDataType.FLOAT,
+                    'tinyint_type_tag_name'     : TdDataType.TINYINT,
+                    'smallint_type_tag_name'    : TdDataType.SMALLINT,
+                    'int_type_tag_name'         : TdDataType.INT,
+                    'bigint_type_tag_name'      : TdDataType.BIGINT,
+                    'utinyint_type_tag_name'    : TdDataType.TINYINT,
+                    'usmallint_type_tag_name'   : TdDataType.USMALLINT,
+                    'uint_type_tag_name'        : TdDataType.UINT,
+                    'ubigint_type_tag_name'     : TdDataType.BIGINT,
+                    'double_type_tag_name'      : TdDataType.DOUBLE,
+                    'bool_type_tag_name'        : TdDataType.BOOL,
+                    'nchar_type_tag_name'       : TdDataType.NCHAR16,
+                    'varchar_type_tag_name'     : TdDataType.VARCHAR16,
+                    'varbinary_type_tag_name'   : TdDataType.VARBINARY16,
+                    'geometry_type_tag_name'    : TdDataType.GEOMETRY32,
+                }
         sTable.create(wt.getDbConn(),
-                      {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
-                          'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+                      cols,
+                      tags,
                       dropIfExists=True
                       )
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
@@ -2006,7 +2480,7 @@ class TdSuperTable:
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
-        return dbc.existsSuperTable(self._stName)
+        return dbc.existsSuperTable(self._dbName, self._stName)
 
     # TODO: odd semantic, create() method is usually static?
     def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists=False):
@@ -2016,7 +2490,7 @@ class TdSuperTable:
         dbc.execute("USE " + dbName)
         fullTableName = dbName + '.' + self._stName
 
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(self._dbName, self._stName):
             if dropIfExists:
                 dbc.execute("DROP TABLE {}".format(fullTableName))
 
@@ -2059,7 +2533,7 @@ class TdSuperTable:
                 pass
             return
 
-        # mulit Consumer 
+        # mulit Consumer
         current_topic_list = self.getTopicLists(dbc)
         for i in range(Consumer_nums):
             consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
@@ -2084,7 +2558,7 @@ class TdSuperTable:
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
             Logging.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
-            raise
+            raise CrashGenError(f"func getRegTables error: {err}")
 
         qr = dbc.getQueryResult()
         return [v[0] for v in
@@ -2092,7 +2566,7 @@ class TdSuperTable:
 
     def hasRegTables(self, dbc: DbConn):
 
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(self._dbName, self._stName):
 
             return dbc.query("SELECT * FROM {}.{}".format(self._dbName, self._stName)) > 0
         else:
@@ -2104,6 +2578,9 @@ class TdSuperTable:
 
     def hasStreams(self, dbc: DbConn):
         return dbc.query("show streams") > 0
+
+    def hasTsmas(self, dbc: DbConn):
+        return dbc.query("show tsmas") > 0
 
     def hasTopics(self, dbc: DbConn):
 
@@ -2150,6 +2627,15 @@ class TdSuperTable:
 
         return not dbc.query("show streams ") > 0
 
+    def dropTsmas(self, dbc: DbConn):
+        dbc.query("show tsmas ")
+        tsmas = dbc.getQueryResult()
+        for tsma in tsmas:
+            if tsma[0].startswith(self._dbName):
+                dbc.execute('drop tsma {}'.format(tsma[0]))
+
+        return not dbc.query("show tsmas ") > 0
+
     def dropStreamTables(self, dbc: DbConn):
         dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
 
@@ -2161,6 +2647,35 @@ class TdSuperTable:
 
         return not dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
 
+    def pauseStreams(self, dbc: DbConn):
+        dbc.query("show streams ")
+        Streams = dbc.getQueryResult()
+        for Stream in Streams:
+            if Stream[0].startswith(self._dbName):
+                dbc.execute('pause stream {}'.format(Stream[0]))
+        return True
+
+    def resumeStreams(self, dbc: DbConn):
+        dbc.query("show streams ")
+        Streams = dbc.getQueryResult()
+        for Stream in Streams:
+            if Stream[0].startswith(self._dbName):
+                resumeSql = random.choice([f'resume stream {Stream[0]}', f'resume stream ignore untreated {Stream[0]}'])
+                dbc.execute(resumeSql)
+        return True
+
+    def ensureSuperTable(self, task: Optional[Task], dbc: DbConn):
+        '''
+        Make sure a super table exists for this database.
+        If there is an associated "Task" that wants to do this, "lock" this table so that
+        others don't access it while we create it.
+        '''
+        dbName = self._dbName
+        # if not self._checkStableExists(dbc, self._stName):
+        #     return
+        sql = f'select `stable_name` from information_schema.ins_stables where db_name = "{dbName}" and stable_name = "{self._stName}";'
+        return dbc.query(sql) > 0
+
     def ensureRegTable(self, task: Optional[Task], dbc: DbConn, regTableName: str):
         '''
         Make sure a regular table exists for this super table, creating it if necessary.
@@ -2168,10 +2683,11 @@ class TdSuperTable:
         others don't access it while we create it.
         '''
         dbName = self._dbName
+        # if not self._checkStableExists(dbc, self._stName):
+        #     return
         sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
         if dbc.query(sql) >= 1:  # reg table exists already
             return
-
         # acquire a lock first, so as to be able to *verify*. More details in TD-1471
         fullTableName = dbName + '.' + regTableName
         if task is not None:  # Somethime thie operation is requested on behalf of a "task"
@@ -2179,12 +2695,12 @@ class TdSuperTable:
             task.lockTable(fullTableName)  # in which case we'll lock this table to ensure serialized access
             # Logging.info("Table locked for creation".format(fullTableName))
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT)  # ATTEMPT to create a new table
-        # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
+        # print("(" + fullTableName[-3:] + ")", end="", flush=True)
         try:
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc)
             )
-            # Logging.info("Creating regular with SQL: {}".format(sql))            
+            # Logging.info("Creating regular with SQL: {}".format(sql))
             dbc.execute(sql)
             # Logging.info("Regular table created: {}".format(sql))
         finally:
@@ -2193,30 +2709,126 @@ class TdSuperTable:
                 task.unlockTable(fullTableName)  # no matter what
                 # Logging.info("Table unlocked after creation: {}".format(fullTableName))
 
+    def formatSelectPartStr(self, selectPart):
+        level = 0
+        parts = []
+        current_part = []
+
+        for char in selectPart:
+            if char == '(':
+                level += 1
+            elif char == ')':
+                level -= 1
+
+            if char == ',' and level == 0:
+                parts.append(''.join(current_part))
+                current_part = []
+            else:
+                current_part.append(char)
+
+        if current_part:
+            parts.append(''.join(current_part))
+
+        parts = [f"`{part}`" for part in parts]
+        return ','.join(parts)
+
     def _getTagStrForSql(self, dbc):
         tags = self._getTags(dbc)
         tagStrs = []
+        record_str_idx_lst = list()
+        start_idx = 0
         for tagName in tags:
             tagType = tags[tagName]
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
-            elif tagType == 'VARCHAR':
-                tagStrs.append("'London-Paris-Berlin'")
-            elif tagType == 'FLOAT':
-                tagStrs.append('9.9')
+                record_str_idx_lst.append(start_idx)
+            elif tagType == 'VARCHAR' or tagType == 'VARBINARY' or tagType == 'NCHAR':
+                tagStrs.append(TDCom.get_long_name(16))
+                record_str_idx_lst.append(start_idx)
+            elif tagType == 'GEOMETRY':
+                tagStrs.append(random.choice(DataBoundary.GEOMETRY_BOUNDARY.value))
+                record_str_idx_lst.append(start_idx)
+            elif tagType == 'TINYINT':
+                tagStrs.append(random.randint(DataBoundary.TINYINT_BOUNDARY.value[0], DataBoundary.TINYINT_BOUNDARY.value[1]))
+            elif tagType == 'SMALLINT':
+                tagStrs.append(random.randint(DataBoundary.SMALLINT_BOUNDARY.value[0], DataBoundary.SMALLINT_BOUNDARY.value[1]))
             elif tagType == 'INT':
-                tagStrs.append('88')
+                tagStrs.append(random.randint(DataBoundary.INT_BOUNDARY.value[0], DataBoundary.INT_BOUNDARY.value[1]))
+            elif tagType == 'BIGINT':
+                tagStrs.append(random.randint(DataBoundary.BIGINT_BOUNDARY.value[0], DataBoundary.BIGINT_BOUNDARY.value[1]))
+            elif tagType == 'TINYINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UTINYINT_BOUNDARY.value[0], DataBoundary.UTINYINT_BOUNDARY.value[1]))
+            elif tagType == 'SMALLINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.USMALLINT_BOUNDARY.value[0], DataBoundary.USMALLINT_BOUNDARY.value[1]))
+            elif tagType == 'INT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UINT_BOUNDARY.value[0], DataBoundary.UINT_BOUNDARY.value[1]))
+            elif tagType == 'BIGINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UBIGINT_BOUNDARY.value[0], DataBoundary.UBIGINT_BOUNDARY.value[1]))
+            elif tagType == 'FLOAT':
+                tagStrs.append(random.uniform(DataBoundary.FLOAT_BOUNDARY.value[0], DataBoundary.FLOAT_BOUNDARY.value[1]))
+            elif tagType == 'DOUBLE':
+                getcontext().prec = 50
+                low = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[0])
+                high = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[1])
+                random_decimal = low + (high - low) * Decimal(random.random())
+                tagStrs.append(float(random_decimal))
+            elif tagType == 'BOOL':
+                tagStrs.append(random.choice(DataBoundary.BOOL_BOUNDARY.value))
             else:
                 raise RuntimeError("Unexpected tag type: {}".format(tagType))
-        return ", ".join(tagStrs)
+            start_idx += 1
+        tagStrs_to_string_list = list(map(lambda x:str(x), tagStrs))
+        trans_tagStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagStrs_to_string_list)))
+        return ", ".join(trans_tagStrs_to_string_list)
 
-    def _getTags(self, dbc) -> dict:
+    def _checkStableExists(self, dbc, table):
+        """
+        Check if a table exists in the stable list of a database.
+
+        Args:
+            dbc (DatabaseConnection): The database connection object.
+            table (str): The name of the table to check.
+
+        Returns:
+            bool: True if the table exists in the stable list, False otherwise.
+        """
+        dbc.query("show {}.stables".format(self._dbName))
+        stCols = dbc.getQueryResult()
+        tables = [row[0] for row in stCols]
+        return table in tables
+
+    def _getTags(self, dbc):
+        """
+        Retrieves the tags from the specified database table.
+
+        Args:
+            dbc: The database connection object.
+
+        Returns:
+            A dictionary containing the tags retrieved from the table, where the keys are the tag names and the values are the tag types.
+        """
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
-        # print(stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
-        # print("Tags retrieved: {}".format(ret))
         return ret
+
+    def _getCols(self, dbc):
+        """
+        Retrieve the columns of a table from the database.
+
+        Args:
+            dbc: The database connection object.
+
+        Returns:
+            A dictionary containing the column names as keys and their corresponding types as values.
+        """
+        # if self._checkStableExists(dbc, self._stName):
+        dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
+        stCols = dbc.getQueryResult()
+        ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
+        return ret
+        # else:
+        #     return False
 
     def addTag(self, dbc, tagName, tagType):
         if tagName in self._getTags(dbc):  # already
@@ -2241,109 +2853,871 @@ class TdSuperTable:
         sql = "alter table {}.{} change tag {} {}".format(self._dbName, self._stName, oldTag, newTag)
         dbc.execute(sql)
 
-    def generateQueries(self, dbc: DbConn) -> List[SqlQuery]:
-        ''' Generate queries to test/exercise this super table '''
+    # def generateQueries(self, dbc: DbConn) -> List[SqlQuery]:
+    #     ''' Generate queries to test/exercise this super table '''
+    #     ret = []  # type: List[SqlQuery]
+
+    #     for rTbName in self.getRegTables(dbc):  # regular tables
+
+    #         filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
+    #             None
+    #         ])
+
+    #         # Run the query against the regular table first
+    #         doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
+    #         if not doAggr:  # don't do aggregate query, just simple one
+    #             commonExpr = Dice.choice([
+    #                 '*',
+    #                 'abs(speed)',
+    #                 'acos(speed)',
+    #                 'asin(speed)',
+    #                 'atan(speed)',
+    #                 'ceil(speed)',
+    #                 'cos(speed)',
+    #                 'cos(speed)',
+    #                 'floor(speed)',
+    #                 'log(speed,2)',
+    #                 'pow(speed,2)',
+    #                 'round(speed)',
+    #                 'sin(speed)',
+    #                 'sqrt(speed)',
+    #                 'char_length(color)',
+    #                 'concat(color,color)',
+    #                 'concat_ws(" ", color,color," ")',
+    #                 'length(color)',
+    #                 'lower(color)',
+    #                 'ltrim(color)',
+    #                 'substr(color , 2)',
+    #                 'upper(color)',
+    #                 'cast(speed as double)',
+    #                 'cast(ts as bigint)',
+    #                 # 'TO_ISO8601(color)',
+    #                 # 'TO_UNIXTIMESTAMP(ts)',
+    #                 'now()',
+    #                 'timediff(ts,now)',
+    #                 'timezone()',
+    #                 'TIMETRUNCATE(ts,1s)',
+    #                 'TIMEZONE()',
+    #                 'TODAY()',
+    #                 'distinct(color)'
+    #             ]
+    #             )
+    #             ret.append(SqlQuery(  # reg table
+    #                 "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
+    #             ret.append(SqlQuery(  # super table
+    #                 "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
+    #         else:  # Aggregate query
+    #             aggExpr = Dice.choice([
+    #                 'count(*)',
+    #                 'avg(speed)',
+    #                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
+    #                 'sum(speed)',
+    #                 'stddev(speed)',
+    #                 # SELECTOR functions
+    #                 'min(speed)',
+    #                 'max(speed)',
+    #                 'first(speed)',
+    #                 'last(speed)',
+    #                 'top(speed, 50)',  # TODO: not supported?
+    #                 'bottom(speed, 50)',  # TODO: not supported?
+    #                 'apercentile(speed, 10)',  # TODO: TD-1316
+    #                 'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
+    #                 # Transformation Functions
+    #                 # 'diff(speed)', # TODO: no supported?!
+    #                 'spread(speed)',
+    #                 'elapsed(ts)',
+    #                 'mode(speed)',
+    #                 'bottom(speed,1)',
+    #                 'top(speed,1)',
+    #                 'tail(speed,1)',
+    #                 'unique(color)',
+    #                 'csum(speed)',
+    #                 'DERIVATIVE(speed,1s,1)',
+    #                 'diff(speed,1)',
+    #                 'irate(speed)',
+    #                 'mavg(speed,3)',
+    #                 'sample(speed,5)',
+    #                 'STATECOUNT(speed,"LT",1)',
+    #                 'STATEDURATION(speed,"LT",1)',
+    #                 'twa(speed)'
+
+    #             ])  # TODO: add more from 'top'
+
+    #             # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+    #             sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+    #             if Dice.throw(3) == 0:  # 1 in X chance
+    #                 partion_expr = Dice.choice(['color', 'tbname'])
+    #                 sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
+    #                 Progress.emit(Progress.QUERY_GROUP_BY)
+    #                 # Logging.info("Executing GROUP-BY query: " + sql)
+    #             ret.append(SqlQuery(sql))
+
+    #     return ret
+
+    def formatTimediff(self, expr1):
+        """
+        Formats the timedifference between two expressions.
+
+        Args:
+            expr1 (str): The first expression.
+
+        Returns:
+            str: The formatted timedifference expression.
+
+        """
+        # 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)
+        time_unit = random.choice(DataBoundary.TIME_UNIT.value)
+        expr2 = f'{expr1}+1{time_unit}'
+        return f"TIMEDIFF({expr1}, {expr2})"
+
+    def formatDiff(self, expr1):
+        """
+        Formats the difference between the given expression and a randomly chosen ignore value.
+
+        Args:
+            expr1 (str): The expression to calculate the difference for.
+
+        Returns:
+            str: The formatted difference string.
+
+        """
+        ignore_val = random.choice(DataBoundary.DIFF_IGNORE_BOUNDARY.value)
+        if ignore_val == 0:
+            return f"DIFF({expr1})"
+        else:
+            return f"DIFF({expr1}, {ignore_val})"
+
+    def formatTimeTruncate(self, expr):
+        """
+        Formats the given expression by truncating the time to a specified unit.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted expression using the TIMETRUNCATE function.
+        """
+        time_unit = random.choice(DataBoundary.TIME_UNIT.value[2:])
+        use_current_timezone = random.choice(DataBoundary.TIMEZONE_BOUNDARY.value)
+        return f'TIMETRUNCATE({expr}, 1{time_unit}, {use_current_timezone})'
+
+    def formatHistogram(self, expr):
+        """
+        Formats the histogram expression.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted histogram expression.
+
+        """
+        user_input1 = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})']
+        linear_bin  = [f'HISTOGRAM({expr}, "linear_bin", \'{{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
+        user_input2 = [f'HISTOGRAM({expr}, "user_input", \'{{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
+        funcList = user_input1 + linear_bin + user_input2
+        return random.choice(funcList)
+
+    def formatPercentile(self, expr):
+        """
+        Formats the given expression with random percentiles.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted expression with random percentiles.
+        """
+        rcnt = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        p = random.sample(range(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1]*10), rcnt)
+        return f'PERCENTILE({expr},{",".join(map(str, p))})'
+
+    def formatStatecount(self, expr):
+        """
+        Formats the state count expression.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted state count expression.
+
+        """
+        val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
+        return f'STATECOUNT({expr}, "{oper}", {val})'
+
+    def formatStateduration(self, expr):
+        """
+        Formats the stateduration expression with random values.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted stateduration expression.
+
+        """
+        val = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
+        oper = random.choice(DataBoundary.STATECOUNT_UNIT.value)
+        unit = random.choice(DataBoundary.TIME_UNIT.value)
+        return f'STATEDURATION({expr}, "{oper}", {val}, 1{unit})'
+
+    def formatConcat(self, expr, *args):
+        """
+        Formats and concatenates the given expression and arguments.
+
+        Args:
+            expr (str): The expression to be formatted and concatenated.
+            *args: Variable number of arguments to be concatenated.
+
+        Returns:
+            str: The formatted and concatenated string.
+        """
+        base = f'CONCAT("pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        argsVals = list()
+        for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
+            argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT({base}, {", ".join(argsVals)})'
+
+    def formatConcatWs(self, expr, *args):
+        """
+        Formats the given expression and arguments into a concatenated string using CONCAT_WS function.
+
+        Args:
+            expr (str): The expression to be formatted.
+            *args (str): Variable number of arguments to be concatenated.
+
+        Returns:
+            str: The formatted concatenated string.
+
+        Example:
+            >>> formatConcatWs("column1", "column2", "column3")
+            'CONCAT_WS(",", CONCAT_WS("_", "pre_", cast(column1 as nchar(10))), cast(column2 as nchar(10)), cast(column3 as nchar(10)))'
+        """
+        separator_expr = random.choice([",", ":", ";", "_", "-"])
+        base = f'CONCAT_WS("{separator_expr}", "pre_", cast({expr} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]})))'
+        argsVals = list()
+        for i in range(len(args[:DataBoundary.CONCAT_BOUNDARY.value[1]-1])):
+            argsVals.append(f'cast({args[i]} as nchar({DataBoundary.CONCAT_BOUNDARY.value[1]}))')
+        if len(argsVals) == 0:
+            return base
+        else:
+            return f'CONCAT_WS("{separator_expr}", {base}, {", ".join(argsVals)})'
+
+    def formatSubstr(self, expr):
+        """
+        Formats the given expression as a SUBSTR function with random position and length.
+
+        Args:
+            expr (str): The expression to be formatted.
+
+        Returns:
+            str: The formatted SUBSTR function.
+
+        """
+        pos = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
+        length = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
+        return f'SUBSTR({expr}, {pos}, {length})'
+
+    def formatCast(self, expr, castTypeList):
+        """
+        Formats the given expression with a random cast type from the provided list.
+
+        Args:
+            expr (str): The expression to be casted.
+            castTypeList (list): A list of cast types to choose from.
+
+        Returns:
+            str: The formatted expression with a random cast type.
+
+        """
+        return f'CAST({expr} AS {random.choice(castTypeList)})'
+
+    def formatFunc(self, func, colname, castTypeList="nchar", *args, **kwarg):
+        """
+        Format the function based on the given parameters.
+
+        Args:
+            func (str): The function name.
+            colname (str): The column name.
+            castTypeList (str, optional): The cast type list. Defaults to "nchar".
+            *args: Variable length argument list.
+            **kwarg: Arbitrary keyword arguments.
+
+        Returns:
+            str: The formatted function string.
+        """
+        if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
+                    ['AVG', 'COUNT', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG'] + \
+                    ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'UNIQUE'] + \
+                    ['CSUM', 'IRATE', 'TWA'] + \
+                    ['CHAR_LENGTH', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'UPPER', 'TO_JSON']:
+            return f"{func}({colname})"
+        elif func in ['NOW', 'TODAY', 'TIMEZONE', 'DATABASES', 'CLIENT_VERSION', 'SERVER_VERSION', 'SERVER_STATUS', 'CURRENT_USER']:
+            return f"{func}()"
+        elif func in ['TIMEDIFF']:
+            return self.formatTimediff(colname)
+        elif func in ['TIMEDIFF']:
+            return self.formatDiff(colname)
+        elif func in ['TIMETRUNCATE']:
+            return self.formatTimeTruncate(colname)
+        elif func in ['APERCENTILE']:
+            return f'{func}({colname}, {random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])}, "{random.choice(["default", "t-digest"])}")'
+        elif func in ['LEASTSQUARES']:
+            return f"{func}({colname}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])}, {random.randint(1, DataBoundary.LEASTSQUARES_BOUNDARY.value[1])})"
+        elif func in ['HISTOGRAM']:
+            return self.formatHistogram(colname)
+        elif func in ['PERCENTILE']:
+            return self.formatPercentile(colname)
+        elif func in ['ELAPSED']:
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value)})"
+        elif func in ['POW']:
+            return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
+        elif func in ['INTERP', 'DIFF', 'TO_UNIXTIMESTAMP']:
+            return f"{func}({colname}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
+        elif func in ['SAMPLE']:
+            return f"{func}({colname}, {random.choice(DataBoundary.SAMPLE_BOUNDARY.value)})"
+        elif func in ['TAIL']:
+            return f"{func}({colname}, {random.choice(DataBoundary.TAIL_BOUNDARY.value)}, {random.choice(DataBoundary.TAIL_OFFSET_BOUNDARY.value)})"
+        elif func in ['TOP', 'BOTTOM']:
+            return f"{func}({colname}, {random.choice(DataBoundary.TOP_BOUNDARY.value)})"
+        elif func in ['DERIVATIVE']:
+            return f"{func}({colname}, 1{random.choice(DataBoundary.TIME_UNIT.value[3:])}, {random.choice(DataBoundary.IGNORE_NEGATIVE_BOUNDARY.value)})"
+        elif func in ['MAVG']:
+            return f"{func}({colname}, {random.choice(DataBoundary.MAVG_BOUNDARY.value)})"
+        elif func in ['STATECOUNT']:
+            return self.formatStatecount(colname)
+        elif func in ['STATEDURATION']:
+            return self.formatStateduration(colname)
+        elif func in ['CONCAT']:
+            return self.formatConcat(colname, *args)
+        elif func in ['CONCAT_WS']:
+            return self.formatConcatWs(colname, *args)
+        elif func in ['SUBSTR']:
+            return self.formatSubstr(colname, *args)
+        elif func in ['CAST']:
+            return self.formatCast(colname, castTypeList)
+        elif func in ['TO_ISO8601']:
+            timezone = random.choice(["+00:00", "-00:00", "+08:00", "-08:00", "+12:00", "-12:00"])
+            return f'{func}({colname}, "{timezone}")'
+        elif func in ['TO_CHAR', 'TO_TIMESTAMP']:
+            return f'{func}({colname}, "{random.choice(DataBoundary.TO_CHAR_UNIT.value)}")'
+        else:
+            pass
+
+    def getShowSql(self, dbname, tbname, ctbname):
+        """
+        Returns a SQL query for showing information about a database, table, or tag.
+
+        Args:
+            dbname (str): The name of the database.
+            tbname (str): The name of the table.
+            ctbname (str): The name of the child table.
+
+        Returns:
+            str: The SQL query for showing the requested information.
+        """
+        showSql = random.choice(DataBoundary.SHOW_UNIT.value)
+        if "DISTRIBUTED" in showSql:
+            return f'{showSql} {tbname};'
+        elif "SHOW CREATE DATABASE" in showSql:
+            return f'{showSql} {dbname};'
+        elif "SHOW CREATE STABLE" in showSql:
+            return f'{showSql} {tbname};'
+        elif "SHOW CREATE TABLE" in showSql:
+            return f'{showSql} {ctbname};'
+        elif "SHOW TAGS" in showSql:
+            return f'{showSql} {ctbname};'
+        else:
+            return f'{showSql};'
+
+    def getSystableSql(self):
+        '''
+        sysdb = random.choice(DataBoundary.SYSTABLE_UNIT.value
+        self.tdSql.query(f'show {sysdb}.tables')
+        systableList = list(map(lambda x:x[0], self.tdSql.query_data))
+        systable = random.choice(systableList)
+        if systable == "ins_tables":
+            return f'select * from {systable} limit({DataBoundary.LIMIT_BOUNDARY.value})'
+        else:
+            return f'select * from {systable}'
+        '''
+        return "select * from information_schema.ins_stables;"
+
+    def getSlimitValue(self, rand=None):
+        """
+        Returns a slimit value.
+
+        Parameters:
+        - rand (bool): If True, a random slimit value will be generated. If False or None, an empty string will be returned.
+
+        Returns:
+        - str: The generated slimit value.
+
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            slimitValList = [f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}', f'SLIMIT {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}, {random.randint(1, DataBoundary.LIMIT_BOUNDARY.value)}']
+            slimitVal = random.choice(slimitValList)
+        else:
+            slimitVal = ""
+        return slimitVal
+
+    def setGroupTag(self, fm, funcList):
+        """
+        Check if there are common elements between `funcList` and `selectFuncs` in `fm`.
+
+        Args:
+            fm (dict): The dictionary containing the 'selectFuncs' key.
+            funcList (list): The list of functions to compare with 'selectFuncs'.
+
+        Returns:
+            bool: True if there are common elements, False otherwise.
+        """
+        selectFuncs = fm['selectFuncs']
+        s1 = set(funcList)
+        s2 = set(selectFuncs)
+        common_elements = s1 & s2
+        if len(common_elements) > 1:
+            return True
+        else:
+            return False
+
+    def selectFuncsFromType(self, fm, colname, column_type, doAggr, subquery=False, tsma=False):
+        """
+        Selects functions based on the given parameters.
+
+        Args:
+            fm (dict): A dictionary containing function categories as keys and lists of functions as values.
+            colname (str): The name of the column.
+            column_type (str): The type of the column.
+            doAggr (int): An integer representing the type of aggregation to perform.
+
+        Returns:
+            tuple: A tuple containing the selected functions as a comma-separated string and the group key.
+
+        """
+        if doAggr == 0:
+            categoryList = ['aggFuncs']
+        elif doAggr == 1:
+            categoryList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs'] if not tsma else ['selectFuncs']
+        elif doAggr == 2:
+            categoryList = ['VariableFuncs']
+        elif doAggr == 3:
+            categoryList = ['specialFuncs']
+        else:
+            return
+        funcList = list()
+        # print("----categoryList", categoryList)
+        # print("----fm", fm)
+
+        for category in categoryList:
+            funcList += fm[category]
+        # print("----funcList", funcList)
+        if subquery:
+            funcList = [func for func in funcList if func not in fm['streamUnsupported']]
+        if tsma:
+            funcList = [func for func in funcList if func not in fm['tsmaUnsupported']]
+        selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
+        funcStrList = list()
+        for func in selectItems:
+            # print("----func", func)
+            funcStr = self.formatFunc(func, colname, fm["castTypes"])
+            # print("----funcStr", funcStr)
+            funcStrList.append(funcStr)
+        # print("-------funcStrList:", funcStrList)
+        # print("-------funcStr:", ",".join(funcStrList))
+        # print("----selectItems", selectItems)
+
+        if "INT" in column_type:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        else:
+            groupKey = colname if self.setGroupTag(fm, funcList) else ""
+        if doAggr == 2:
+            if len(funcStrList) > 0:
+                return ",".join([random.choice(funcStrList)]), groupKey
+            else:
+                return "", groupKey
+        return ",".join(funcStrList), groupKey
+
+    def getFuncCategory(self, doAggr):
+        """
+        Returns the category of the function based on the value of doAggr.
+
+        Parameters:
+        - doAggr (int): Determines the category of the function.
+                        0 for aggregate functions, 1 for normal functions, and any other value for special functions.
+
+        Returns:
+        - str: The category of the function. Possible values are "aggFuncs", "nFuncs", or "spFuncs".
+        """
+        if doAggr == 0:
+            return "aggFuncs"
+        elif doAggr == 1:
+            return "nFuncs"
+        else:
+            return "spFuncs"
+
+    def getRandomTimeUnitStr(self, stream=False, tsma=False):
+        """
+        Generates a random time unit string.
+
+        Returns:
+            str: A string representing a random time unit.
+        """
+        if stream:
+            return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[3:])}'
+        else:
+            if tsma:
+                return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value[4:6])}'
+            else:
+                return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{random.choice(DataBoundary.TIME_UNIT.value)}'
+
+    def sepTimeStr(self, timeStr):
+        match = re.match(r"(\d+)(\D+)", timeStr)
+        return int(match.group(1)), match.group(2)
+
+    def getOffsetFromInterval(self, interval):
+        _, unit = self.sepTimeStr(interval)
+        idx = DataBoundary.TIME_UNIT.value.index(unit)
+        unit = random.choice(DataBoundary.TIME_UNIT.value[0:idx]) if idx > 0 else random.choice(DataBoundary.TIME_UNIT.value[0:idx+1])
+        return f'{random.randint(*DataBoundary.SAMPLE_BOUNDARY.value)}{unit}'
+
+
+    def getRandomWindow(self):
+        """
+        Returns a random window from the available window units.
+
+        Returns:
+            str: A random window unit.
+        """
+        return random.choice(DataBoundary.WINDOW_UNIT.value)
+
+    def getOffsetValue(self, rand=None):
+        """
+        Returns the offset value for a SQL query.
+
+        Args:
+            rand (bool, optional): If True, a random offset value will be used. If False, a time unit string will be used. Defaults to None.
+
+        Returns:
+            str: The offset value for the SQL query.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        offsetVal = f',{self.getRandomTimeUnitStr()}' if useTag else ""
+        return offsetVal
+
+    def getSlidingValue(self, rand=None):
+        """
+        Get the sliding value for the SQL query.
+
+        Parameters:
+        - rand (bool, optional): If True, use a random value for the sliding value. If False, use a predefined value. Defaults to None.
+
+        Returns:
+        - slidingVal (str): The sliding value for the SQL query.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        slidingVal = f'SLIDING({self.getRandomTimeUnitStr()})' if useTag else ""
+        return slidingVal
+
+    def getOrderByValue(self, col, rand=None):
+        """
+        Returns the ORDER BY clause for a given column.
+
+        Args:
+            col (str): The name of the column to order by.
+            rand (bool, optional): If True, a random order type will be used. Defaults to None.
+
+        Returns:
+            str: The ORDER BY clause for the given column.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        orderType = random.choice(["ASC", "DESC", ""]) if useTag else ""
+        orderVal = f'ORDER BY {col} {orderType}' if useTag else ""
+        return orderVal
+
+    def getFillValue(self, rand=None):
+        """
+        Returns a fill value for SQL queries.
+
+        Parameters:
+        - rand (bool, optional): If True, a random fill value will be used. If False, an empty string will be returned. Defaults to None.
+
+        Returns:`
+        - str: The fill value for SQL queries.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        fillVal = f'FILL({random.choice(DataBoundary.FILL_UNIT.value)})' if useTag else ""
+        return fillVal
+
+    def getTimeRange(self, tbname, tsCol):
+        # self.tdSql.query(f"SELECT first({tsCol}), last({tsCol}) FROM {tbname} tail({tsCol}, 100, 50);")
+        # res = self.tdSql.query_data
+        res = [('2024-08-26 14:00:00.000',), ('2024-08-26 18:00:00.000',)]
+        return [res[0][0], res[1][0]]
+
+    def getTimeRangeFilter(self, tbname, tsCol, rand=None, doAggr=0):
+        """
+        Returns a time range filter based on the given table name and timestamp column.
+
+        Parameters:
+        - tbname (str): The name of the table.
+        - tsCol (str): The name of the timestamp column.
+        - rand (bool, optional): If True, a random time range filter will be generated. 
+                                    If False, an empty string will be returned. 
+                                    If None, a random choice will be made between generating a time range filter or returning an empty string. 
+                                    Default is None.
+
+        Returns:
+        - timeRangeFilter (str): The generated time range filter.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        if useTag:
+            start_time, end_time = self.getTimeRange(tbname, tsCol)
+            timeRangeFilter = random.choice([f'WHERE {tsCol} BETWEEN "{start_time}" AND "{end_time}"', f'where {tsCol} > "{start_time}" AND {tsCol} < "{end_time}"'])
+            if doAggr != 0:
+                timeRangeFilter = random.choice([timeRangeFilter, "", "", "", ""])
+        else:
+            timeRangeFilter = ""
+        return timeRangeFilter
+
+    def getPartitionValue(self, col, rand=None):
+        """
+        Returns the partition value based on the given column.
+
+        Args:
+            col (str): The column to partition by.
+            rand (bool, optional): If True, a random partition value will be used. Defaults to None.
+
+        Returns:
+            str: The partition value.
+
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionVal = f'PARTITION BY {col}' if useTag else ""
+        return partitionVal
+
+    def getPartitionObj(self, rand=None):
+        """
+        Returns a partition object based on a random choice.
+
+        Args:
+            rand (bool, optional): If True, always uses a random choice. If False, does not use a random choice. Defaults to None.
+
+        Returns:
+            str: The partition object. If `useTag` is True, returns a string in the format 'PARTITION BY {random_choice}'. If `useTag` is False, returns an empty string.
+        """
+        useTag = random.choice([True, False]) if rand is None else True
+        partitionObj = f'PARTITION BY {random.choice(DataBoundary.ALL_TYPE_UNIT.value)}' if useTag else ""
+        return partitionObj
+
+    def getEventWindowCondition(self, colDict):
+        """
+        Generates a random event window condition based on the column dictionary provided.
+
+        Args:
+            colDict (dict): A dictionary containing column names as keys and column types as values.
+
+        Returns:
+            str: A randomly generated event window condition.
+
+        """
+        conditionList = list()
+        lteList = ["<", "<="]
+        gteList = [">", ">="]
+        enqList = ["=", "!=", "<>"]
+        nullList = ["is null", "is not null"]
+        inList = ["in", "not in"]
+        betweenList = ["between", "not between"]
+        likeList = ["like", "not like"]
+        matchList = ["match", "nmatch"]
+        tinyintRangeList = DataBoundary.TINYINT_BOUNDARY.value
+        intHalfBf = random.randint(tinyintRangeList[0], round((tinyintRangeList[1]+tinyintRangeList[0])/2))
+        intHalfAf = random.randint(round((tinyintRangeList[1]+tinyintRangeList[0])/2), tinyintRangeList[1])
+        for columnName, columnType in colDict.items():
+            if columnType in ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', ]:
+                startTriggerCondition = f'{columnName} {inList[0]} {tuple(random.randint(0, 100) for _ in range(10))} or {columnName} {betweenList[0]} {intHalfBf} and {intHalfAf}'
+                endTriggerCondition = f'{columnName} {inList[1]} {tuple(random.randint(0, 100) for _ in range(10))} and {columnName} {betweenList[1]} {intHalfBf} and {intHalfAf}'
+            elif columnType in ['FLOAT', 'DOUBLE']:
+                startTriggerCondition = f'{columnName} {random.choice(lteList)} {intHalfBf}'
+                endTriggerCondition = f'{columnName} {random.choice(gteList)} {intHalfAf}'
+            elif columnType in ['BINARY', 'VARCHAR', 'NCHAR']:
+                startTriggerCondition = f'{columnName} {likeList[0]} "%a%" or {columnName} {matchList[1]} ".*a.*"'
+                endTriggerCondition = f'{columnName} {likeList[1]} "_a_" and {columnName} {matchList[0]} ".*a.*"'
+            else:
+                startTriggerCondition = f'{columnName} {random.choice(enqList)} {intHalfBf} or {columnName} {nullList[0]}'
+                endTriggerCondition = f'{columnName} {nullList[1]} and {columnName} {random.choice(enqList[1:])} {intHalfAf}'
+            conditionList.append(f'EVENT_WINDOW start with {startTriggerCondition} end with {endTriggerCondition}')
+        return random.choice(conditionList)
+
+    def getWindowStr(self, window, colDict, tsCol="ts", stateUnit="1", countUnit="2", stream=False, tsma=False):
+        """
+        Returns a string representation of the window based on the given parameters.
+
+        Parameters:
+        - window (str): The type of window. Possible values are "INTERVAL", "SESSION", "STATE_WINDOW", "COUNT_WINDOW", and "EVENT_WINDOW".
+        - colDict (dict): A dictionary containing column names and their corresponding values.
+        - tsCol (str): The name of the timestamp column. Default is "ts".
+        - stateUnit (str): The unit for the state window. Default is "1".
+        - countUnit (str): The unit for the count window. Default is "2".
+
+        Returns:
+        - str: A string representation of the window.
+
+        """
+        if window == "INTERVAL":
+            interval = self.getRandomTimeUnitStr(stream=stream, tsma=tsma)
+            offset = f',{self.getOffsetFromInterval(interval)}' if not tsma else ""
+            return f"{window}({interval}{offset})"
+        elif window == "SESSION":
+            return f"{window}({tsCol}, {self.getRandomTimeUnitStr()})"
+        elif window == "STATE_WINDOW":
+            return f"{window}({stateUnit})"
+        elif window == "COUNT_WINDOW":
+            return f"{window}({countUnit})"
+        elif window == "EVENT_WINDOW":
+            return self.getEventWindowCondition(colDict)
+        else:
+            return ""
+
+    def generateRandomSql(self, colDict, tbname):
+        """
+        Generates a random SQL query based on the given column dictionary and table name.
+
+        Args:
+            colDict (dict): A dictionary containing column names as keys and column types as values.
+            tbname (str): The name of the table.
+
+        Returns:
+            str: The generated SQL query.
+
+        Raises:
+            None
+        """
+        selectPartList = []
+        groupKeyList = []
+        colTypes = [member.name for member in FunctionMap]
+        # print("-----colDict", colDict)
+        # print("-----colTypes", colTypes)
+        doAggr = random.choice([0, 1, 2, 3, 4, 5])
+        if doAggr == 4:
+            return self.getShowSql("test", "stb", "ctb1")
+        if doAggr == 5:
+            return self.getSystableSql()
+        tsCol = "ts"
+        for column_name, column_type in colDict.items():
+            if column_type == "TIMESTAMP":
+                tsCol = column_name
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+                    # print("-----selectStrs", selectStrs)
+                    if len(selectStrs) > 0:
+                        selectPartList.append(selectStrs)
+                    # print("-----selectPartList", selectPartList)
+                    if len(groupKey) > 0:
+                        groupKeyList.append(f'`{groupKey}`')
+        if doAggr == 2:
+            selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
+        if len(groupKeyList) > 0:
+            groupKeyStr = ",".join(groupKeyList)
+            return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} GROUP BY {groupKeyStr} {self.getOrderByValue(groupKeyStr)} {self.getSlimitValue()};"
+        else:
+            groupKeyStr = "tbname"
+        partitionGroupPart = random.choice(selectPartList) if len(selectPartList) > 0 else groupKeyStr
+        partitionGroupPartStr = self.formatSelectPartStr(partitionGroupPart)
+        return f"SELECT {', '.join(selectPartList)} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol)} {self.getPartitionValue(groupKeyStr)} {self.getWindowStr(self.getRandomWindow(), colDict)} {self.getSlidingValue()} {self.getFillValue()} {self.getOrderByValue(partitionGroupPartStr)} {self.getSlimitValue()};"
+
+    def remove_duplicates(self, selectPartStr):
+        parts = selectPartStr.split(',')
+        seen_now = seen_today = seen_timezone = False
+        result = []
+        for part in parts:
+            part_stripped = part.strip()
+            if part_stripped == "NOW()":
+                if not seen_now:
+                    seen_now = True
+                    result.append(part)
+            elif part_stripped == "TODAY()":
+                if not seen_today:
+                    seen_today = True
+                    result.append(part)
+            elif part_stripped == "TIMEZONE()":
+                if not seen_timezone:
+                    seen_timezone = True
+                    result.append(part)
+            else:
+                result.append(part)
+        return ', '.join(result)
+
+    # def generateRandomSubQuery(self, colDict, tbname, subtable=False, doAggr=0):
+    #     selectPartList = []
+    #     groupKeyList = []
+    #     # colTypes = [member.name for member in FunctionMap]
+    #     doAggr = random.choice([0, 1, 2, 3])
+    #     tsCol = "ts"
+    #     for column_name, column_type in colDict.items():
+    #         if column_type == "TIMESTAMP":
+    #             tsCol = column_name
+    #         for fm in FunctionMap:
+    #             if column_type in fm.value['types']:
+    #                 selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
+    #                 if len(selectStrs) > 0:
+    #                     selectPartList.append(selectStrs)
+    #                 if len(groupKey) > 0:
+    #                     groupKeyList.append(groupKey)
+
+    #     if doAggr == 2:
+    #         selectPartList = [random.choice(selectPartList)] if len(selectPartList) > 0 else ["count(*)"]
+    #     if doAggr == 1:
+    #         selectPartList = [tsCol] + selectPartList
+    #     selectPartStr = ', '.join(selectPartList)
+    #     selectPartStr = self.remove_duplicates(selectPartStr)
+    #     if len(groupKeyList) > 0:
+    #         groupKeyStr = ",".join(groupKeyList)
+    #         partitionVal = self.getPartitionValue(groupKeyStr)
+    #         if subtable:
+    #             partitionVal = f'{partitionVal},tbname' if len(partitionVal) > 0 else "partition by tbname"
+    #         return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {partitionVal} GROUP BY {groupKeyStr} {self.getSlimitValue()};"
+    #     else:
+    #         groupKeyStr = "tbname"
+    #         partitionVal = "partition by tbname" if subtable else ""
+    #     windowStr = self.getWindowStr(self.getRandomWindow(), colDict, stream=True)
+    #     if ("COUNT_WINDOW" in windowStr or "STATE_WINDOW" in windowStr or "EVENT_WINDOW" in windowStr) and "partition" not in partitionVal:
+    #         windowStr = f"partition by tbname {windowStr}"
+    #     # randomSelectPart = f'`{random.choice(selectPartList)}`' if len(selectPartList) > 0 else groupKeyStr
+    #     return f"SELECT {selectPartStr} FROM {self._dbName}.{tbname} {self.getTimeRangeFilter(tbname, tsCol, doAggr=doAggr)} {partitionVal} {windowStr};"
+
+
+    def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
+        '''
+        Generate queries to test/exercise this super table
+
+        Args:
+            dbc (DbConn): The database connection object.
+            selectItems: The select items for the SQL query.
+
+        Returns:
+            List[SqlQuery]: A list of generated SQL queries.
+        '''
         ret = []  # type: List[SqlQuery]
 
         for rTbName in self.getRegTables(dbc):  # regular tables
-
             filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
                 None
             ])
-
-            # Run the query against the regular table first
-            doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
-            if not doAggr:  # don't do aggregate query, just simple one
-                commonExpr = Dice.choice([
-                    '*',
-                    'abs(speed)',
-                    'acos(speed)',
-                    'asin(speed)',
-                    'atan(speed)',
-                    'ceil(speed)',
-                    'cos(speed)',
-                    'cos(speed)',
-                    'floor(speed)',
-                    'log(speed,2)',
-                    'pow(speed,2)',
-                    'round(speed)',
-                    'sin(speed)',
-                    'sqrt(speed)',
-                    'char_length(color)',
-                    'concat(color,color)',
-                    'concat_ws(" ", color,color," ")',
-                    'length(color)',
-                    'lower(color)',
-                    'ltrim(color)',
-                    'substr(color , 2)',
-                    'upper(color)',
-                    'cast(speed as double)',
-                    'cast(ts as bigint)',
-                    # 'TO_ISO8601(color)',
-                    # 'TO_UNIXTIMESTAMP(ts)',
-                    'now()',
-                    'timediff(ts,now)',
-                    'timezone()',
-                    'TIMETRUNCATE(ts,1s)',
-                    'TIMEZONE()',
-                    'TODAY()',
-                    'distinct(color)'
-                ]
-                )
-                ret.append(SqlQuery(  # reg table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
-                ret.append(SqlQuery(  # super table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
-            else:  # Aggregate query
-                aggExpr = Dice.choice([
-                    'count(*)',
-                    'avg(speed)',
-                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-                    'sum(speed)',
-                    'stddev(speed)',
-                    # SELECTOR functions
-                    'min(speed)',
-                    'max(speed)',
-                    'first(speed)',
-                    'last(speed)',
-                    'top(speed, 50)',  # TODO: not supported?
-                    'bottom(speed, 50)',  # TODO: not supported?
-                    'apercentile(speed, 10)',  # TODO: TD-1316
-                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-                    # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)'
-
-                ])  # TODO: add more from 'top'
-
-                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
-                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname'])
-                    sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
-                    Progress.emit(Progress.QUERY_GROUP_BY)
-                    # Logging.info("Executing GROUP-BY query: " + sql)
-                ret.append(SqlQuery(sql))
+            sql = self.generateRandomSql(selectItems, rTbName)
+            ret.append(SqlQuery(sql))
 
         return ret
 
-
 class TaskReadData(StateTransitionTask):
+    maxSelectItems = 5
     @classmethod
     def getEndState(cls):
         return None  # meaning doesn't affect state
@@ -2387,8 +3761,16 @@ class TaskReadData(StateTransitionTask):
 
         dbc = wt.getDbConn()
         sTable = self._db.getFixedSuperTable()
+        tags = sTable._getTags(dbc)
+        cols = sTable._getCols(dbc)
+        # if not tags or not cols:
+        #     return "no table exists"
+        tagCols = {**tags, **cols}
+        selectCnt = random.randint(1, len(tagCols))
+        selectKeys = random.sample(list(tagCols.keys()), selectCnt)
+        selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
 
-        for q in sTable.generateQueries(dbc):  # regular tables            
+        for q in sTable.generateQueries_n(dbc, selectItems):  # regular tables
             try:
                 sql = q.getSql()
                 # if 'GROUP BY' in sql:
@@ -2397,7 +3779,8 @@ class TaskReadData(StateTransitionTask):
             except taos.error.ProgrammingError as err:
                 errno2 = Helper.convertErrno(err.errno)
                 Logging.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
-                raise
+                self.logError(f"func TaskReadData error: {sql}")
+                raise CrashGenError(f"func TaskReadData error: {err}")
 
 
 class SqlQuery:
@@ -2452,9 +3835,9 @@ class TaskDropSuperTable(StateTransitionTask):
                     else:
                         print("f", end="", flush=True)
 
-        # Drop the super table itself
-        tblName = self._db.getFixedSuperTableName()
-        self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
+        # # Drop the super table itself
+        # tblName = self._db.getFixedSuperTableName()
+        # self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
 
 
 class TaskAlterTags(StateTransitionTask):
@@ -2483,7 +3866,6 @@ class TaskAlterTags(StateTransitionTask):
         else:  # dice == 3
             sTable.changeTag(dbc, "extraTag", "newTag")
             # sql = "alter table db.{} change tag extraTag newTag".format(tblName)
-
 
 class TaskRestartService(StateTransitionTask):
     _isRunning = False
@@ -2528,6 +3910,7 @@ class TaskAddData(StateTransitionTask):
     # We use these two files to record operations to DB, useful for power-off tests
     fAddLogReady = None  # type: Optional[io.TextIOWrapper]
     fAddLogDone = None  # type: Optional[io.TextIOWrapper]
+    smlSupportTypeList = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', "DOUBLE", "VARCHAR", "NCHAR", "BOOL"]
 
     @classmethod
     def prepToRecordOps(cls):
@@ -2547,6 +3930,9 @@ class TaskAddData(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         return state.canAddData()
+
+    # def __init__(self, db: Database, dbc, regTableName):
+    #     self.cols = self._getCols(db, dbc, regTableName)
 
     def _lockTableIfNeeded(self, fullTableName, extraMsg=''):
         if Config.getConfig().verify_data:
@@ -2584,8 +3970,251 @@ class TaskAddData(StateTransitionTask):
         try:
             dbc.execute(sql)
         finally:
-            # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
+
+    def _addDataInBatch_n(self, db, dbc, regTableName, te: TaskExecutor):
+        """
+        Adds data in batch to the specified table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DatabaseConnection): The database connection object.
+            regTableName (str): The name of the regular table.
+            te (TaskExecutor): The task executor object.
+
+        Returns:
+            None
+        """
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+
+        fullTableName = db.getName() + '.' + regTableName
+        self._lockTableIfNeeded(fullTableName, 'batch')
+        sql = "INSERT INTO {} VALUES ".format(fullTableName)
+        for j in range(numRecords):  # number of records per table
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
+            # nextInt = db.getNextInt()
+            # nextTick = db.getNextTick()
+            # nextColor = db.getNextColor()
+            sql += "({})".format(colStrs)
+
+        # Logging.info("Adding data in batch: {}".format(sql))
+        try:
+            dbc.execute(sql)
+        except Exception as e:
+            self.logError(f"func _addDataInBatch_n error: {sql}")
+            raise CrashGenError(f"func _addDataInBatch_n error {e}")
+        finally:
+            self._unlockTableIfNeeded(fullTableName)
+
+    def _checkStableExists(self, dbc, table):
+        """
+        Check if a table exists in the stable list of a database.
+
+        Args:
+            dbc (DatabaseConnection): The database connection object.
+            table (str): The name of the table to check.
+
+        Returns:
+            bool: True if the table exists in the stable list, False otherwise.
+        """
+        dbc.query("show {}.stables".format(self._dbName))
+        stCols = dbc.getQueryResult()
+        tables = [row[0] for row in stCols]
+        return table in tables
+
+    def _getCols(self, db: Database, dbc, regTableName):
+        """
+        Get the columns of a table in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            regTableName (str): The name of the table.
+
+        Returns:
+            dict: A dictionary containing the columns of the table, where the keys are the column names and the values are the column types.
+        """
+        # if self._checkStableExists(dbc, regTableName):
+        dbc.query("DESCRIBE {}.{}".format(db.getName(), regTableName))
+        stCols = dbc.getQueryResult()
+        ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
+        return ret
+        # else:
+        #     return False
+
+    def getMeta(self, db: Database, dbc: DbConn, customStable=None):
+        """
+        Retrieves metadata information from the specified database and table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+            customStable (str, optional): The name of the table. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing two dictionaries. The first dictionary contains column names as keys and their corresponding data types as values. The second dictionary contains tag names as keys and their corresponding data types as values.
+        """
+        stableName = self._getStableName(db, customStable)
+        dbc.query("DESCRIBE {}.{}".format(db.getName(), stableName))
+        sts = dbc.getQueryResult()
+        cols = {row[0]: row[1] for row in sts if row[3] != 'TAG'}
+        tags = {row[0]: row[1] for row in sts if row[3] == 'TAG'}
+        return cols, tags
+
+    def _getVals(self, db: Database, dbc: DbConn, tagNameList, customStable=None):
+        """
+        Retrieves random values from the specified database and table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+            tagNameList (list): A list of tag names to select from.
+            customStable (str, optional): The name of the stable table. Defaults to None.
+
+        Returns:
+            object: A randomly selected row from the specified table.
+        """
+        stableName = self._getStableName(db, customStable)
+        selectedTagCols = ",".join(tagNameList)
+        # if self._checkStableExists(dbc, stableName):
+        dbc.query(f'select {selectedTagCols} from {db.getName()}.{stableName}')
+        sts = dbc.getQueryResult()
+        return random.choice(sts)
+        # else:
+        #     return False
+
+    def _getStableName(self, db: Database, customStable=None):
+        """
+        Get the stable name from the database.
+
+        Args:
+            db (Database): The database object.
+            customStable (str, optional): Custom stable name. Defaults to None.
+
+        Returns:
+            str: The stable name.
+        """
+        sTable = db.getFixedSuperTable().getName() if customStable is None else customStable
+        return sTable
+
+    def _getRandomCols(self, db: Database, dbc: DbConn):
+        """
+        Randomly selects a specified number of columns from a database table.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - A string representing the randomly selected columns separated by commas.
+                - A dictionary representing the selected columns and their corresponding data types.
+        Raises:
+            None
+
+        """
+        cols = self.getMeta(db, dbc)[0]
+        # if not cols:
+        #     return "No table exists"
+        n = random.randint(1, len(cols))
+        timestampKey = next((key for key, value in cols.items() if value == 'TIMESTAMP'), None)
+        if timestampKey:
+            otherKeys = [key for key in cols if key != timestampKey]
+            selected_keys = random.sample(otherKeys, n-1)
+            random_keys = [timestampKey] + selected_keys
+            selectedTagCols = {timestampKey: cols[timestampKey]}
+            selectedTagCols.update({key: cols[key] for key in selected_keys})
+            return ",".join(random_keys), selectedTagCols
+        else:
+            return "No TIMESTAMP type key found in the dictionary."
+
+    def _getRandomTags(self, db: Database, dbc: DbConn):
+        """
+        Get random tags from the database.
+
+        Args:
+            db (Database): The database object.
+            dbc (DbConn): The database connection object.
+
+        Returns:
+            tuple: A tuple containing a string of random tags separated by commas, and a dictionary of the selected tags.
+        """
+        tags = self.getMeta(db, dbc)[1]
+        # if not tags:
+        #     return "No table exists"
+        n = random.randint(1, len(tags))
+        random_keys = random.sample(list(tags.keys()), n)
+        return ",".join(random_keys), {key: tags[key] for key in random_keys}
+
+    def _getTagColStrForSql(self, db: Database, dbc, customTagCols=None, default="cols"):
+        """
+        Get the tag column string for SQL query.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            customTagCols (dict, optional): Custom tag columns. Defaults to None.
+            default (str, optional): Default value for meta index. Defaults to "cols".
+
+        Returns:
+            tuple: A tuple containing the tag column string and the tag column values.
+        """
+        meta_idx = 0 if default == "cols" else 1
+        tagCols = self.getMeta(db, dbc)[meta_idx] if not customTagCols else customTagCols
+        # if not tagCols:
+        #     return "No table exists"
+        # self.cols = self._getCols(db, dbc, regTableName)
+        # print("-----tagCols:",tagCols)
+        tagColStrs = []
+        record_str_idx_lst = list()
+        start_idx = 0
+        for tagColName in tagCols:
+            tagColType = tagCols[tagColName]
+            if tagColType == 'TIMESTAMP':
+                nextTick = db.getNextTick()
+                tagColStrs.append(nextTick)
+                record_str_idx_lst.append(start_idx)
+            elif tagColType == 'BINARY':
+                tagColStrs.append("'Beijing-Shanghai-LosAngeles'")
+                record_str_idx_lst.append(start_idx)
+            elif tagColType == 'VARCHAR' or tagColType == 'VARBINARY' or tagColType == 'NCHAR':
+                tagColStrs.append(TDCom.get_long_name(16))
+                record_str_idx_lst.append(start_idx)
+            elif tagColType == 'GEOMETRY':
+                tagColStrs.append(random.choice(DataBoundary.GEOMETRY_BOUNDARY.value))
+                record_str_idx_lst.append(start_idx)
+            elif tagColType == 'TINYINT':
+                tagColStrs.append(random.randint(DataBoundary.TINYINT_BOUNDARY.value[0], DataBoundary.TINYINT_BOUNDARY.value[1]))
+            elif tagColType == 'SMALLINT':
+                tagColStrs.append(random.randint(DataBoundary.SMALLINT_BOUNDARY.value[0], DataBoundary.SMALLINT_BOUNDARY.value[1]))
+            elif tagColType == 'INT':
+                tagColStrs.append(random.randint(DataBoundary.INT_BOUNDARY.value[0], DataBoundary.INT_BOUNDARY.value[1]))
+            elif tagColType == 'BIGINT':
+                tagColStrs.append(random.randint(DataBoundary.BIGINT_BOUNDARY.value[0], DataBoundary.BIGINT_BOUNDARY.value[1]))
+            elif tagColType == 'TINYINT UNSIGNED':
+                tagColStrs.append(random.randint(DataBoundary.UTINYINT_BOUNDARY.value[0], DataBoundary.UTINYINT_BOUNDARY.value[1]))
+            elif tagColType == 'SMALLINT UNSIGNED':
+                tagColStrs.append(random.randint(DataBoundary.USMALLINT_BOUNDARY.value[0], DataBoundary.USMALLINT_BOUNDARY.value[1]))
+            elif tagColType == 'INT UNSIGNED':
+                tagColStrs.append(random.randint(DataBoundary.UINT_BOUNDARY.value[0], DataBoundary.UINT_BOUNDARY.value[1]))
+            elif tagColType == 'BIGINT UNSIGNED':
+                tagColStrs.append(random.randint(DataBoundary.UBIGINT_BOUNDARY.value[0], DataBoundary.UBIGINT_BOUNDARY.value[1]))
+            elif tagColType == 'FLOAT':
+                tagColStrs.append(random.uniform(DataBoundary.FLOAT_BOUNDARY.value[0], DataBoundary.FLOAT_BOUNDARY.value[1]))
+            elif tagColType == 'DOUBLE':
+                getcontext().prec = 50
+                low = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[0])
+                high = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[1])
+                random_decimal = low + (high - low) * Decimal(random.random())
+                tagColStrs.append(float(random_decimal))
+            elif tagColType == 'BOOL':
+                tagColStrs.append(random.choice(DataBoundary.BOOL_BOUNDARY.value))
+            else:
+                raise RuntimeError("Unexpected col type: {}".format(tagColType))
+            start_idx += 1
+        tagColStrs_to_string_list = list(map(lambda x:str(x), tagColStrs))
+        trans_tagColStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagColStrs_to_string_list)))
+        return ", ".join(trans_tagColStrs_to_string_list), tagColStrs
 
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
@@ -2615,7 +4244,6 @@ class TaskAddData(StateTransitionTask):
                     nextTick, intToWrite, nextColor)
                 # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
-                # Logging.info("Data added: {}".format(sql))
                 intWrote = intToWrite
 
                 # Quick hack, attach an update statement here. TODO: create an "update" task
@@ -2633,7 +4261,7 @@ class TaskAddData(StateTransitionTask):
 
             except:  # Any exception at all
                 self._unlockTableIfNeeded(fullTableName)
-                raise
+                raise CrashGenError("func _addData error")
 
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
@@ -2661,7 +4289,7 @@ class TaskAddData(StateTransitionTask):
                         pass
                     else:
                         # Re-throw otherwise
-                        raise
+                        raise CrashGenError("func _addData error")
                 finally:
                     self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
             # Done with read-back verification, unlock the table now
@@ -2677,6 +4305,462 @@ class TaskAddData(StateTransitionTask):
                 self.fAddLogDone.write("Wrote {} to {}\n".format(intWrote, regTableName))
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
+
+    def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+        """
+        Adds data to the specified table in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+            regTableName (str): The name of the table to add data to.
+            te (TaskExecutor): The task executor object.
+
+        Raises:
+            CrashGenError: If an unexpected error occurs during the data addition process.
+
+        Returns:
+            None
+        """
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+        for j in range(numRecords):  # number of records per table
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
+            intToWrite = db.getNextInt()
+            nextTick = db.getNextTick()
+            nextColor = db.getNextColor()
+            if Config.getConfig().record_ops:
+                self.prepToRecordOps()
+                if self.fAddLogReady is None:
+                    raise CrashGenError("Unexpected empty fAddLogReady")
+                self.fAddLogReady.write("Ready to write {} to {}\n".format(intToWrite, regTableName))
+                self.fAddLogReady.flush()
+                os.fsync(self.fAddLogReady.fileno())
+
+            # TODO: too ugly trying to lock the table reliably, refactor...
+            fullTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
+
+            try:
+                # sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format(  # removed: tags ('{}', {})
+                #     fullTableName,
+                #     # ds.getFixedSuperTableName(),
+                #     # ds.getNextBinary(), ds.getNextFloat(),
+                #     nextTick, intToWrite, nextColor)
+                sql = "INSERT INTO {} VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullTableName,
+                    # ds.getFixedSuperTableName(),
+                    # ds.getNextBinary(), ds.getNextFloat(),
+                    colStrs)
+                dbc.execute(sql)
+                intWrote = intToWrite
+
+                # Quick hack, attach an update statement here. TODO: create an "update" task
+                if (not Config.getConfig().use_shadow_db) and Dice.throw(
+                        5) == 0:  # 1 in N chance, plus not using shaddow DB
+                    intToUpdate = db.getNextInt()  # Updated， but should not succeed
+                    nextColor = db.getNextColor()
+                    sql = "INSERt INTO {} VALUES ({});".format(  # "INSERt" means "update" here
+                        fullTableName,
+                        colStrs)
+                    # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
+                    #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
+                    dbc.execute(sql)
+                    intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
+
+            except Exception as e:  # Any exception at all
+                self.logError(f"func _addData_n error: {sql}")
+                self._unlockTableIfNeeded(fullTableName)
+                raise CrashGenError(f"func _addData_n error: {e}")
+
+            # Now read it back and verify, we might encounter an error if table is dropped
+            if Config.getConfig().verify_data:  # only if command line asks for it
+                try:
+                    readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts='{}'".
+                                               format(db.getName(), regTableName, nextTick))
+                    if readBack != intWrote:
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data, wrote: {}, read: {}"
+                            .format(intWrote, readBack), 0x999)
+                except taos.error.ProgrammingError as err:
+                    errno = Helper.convertErrno(err.errno)
+                    if errno == CrashGenError.INVALID_EMPTY_RESULT:  # empty result
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data for tick: {}, wrote: {}, read: EMPTY"
+                            .format(nextTick, intWrote),
+                            errno)
+                    elif errno == CrashGenError.INVALID_MULTIPLE_RESULT:  # multiple results
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data for tick: {}, wrote: {}, read: MULTIPLE RESULTS"
+                            .format(nextTick, intWrote),
+                            errno)
+                    elif errno in [0x218, 0x362]:  # table doesn't exist
+                        # do nothing
+                        pass
+                    else:
+                        # Re-throw otherwise
+                        raise CrashGenError("func _addData error")
+                finally:
+                    self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
+            # Done with read-back verification, unlock the table now
+            else:
+                self._unlockTableIfNeeded(fullTableName)
+
+                # Successfully wrote the data into the DB, let's record it somehow
+            te.recordDataMark(intWrote)
+
+            if Config.getConfig().record_ops:
+                if self.fAddLogDone is None:
+                    raise CrashGenError("Unexpected empty fAddLogDone")
+                self.fAddLogDone.write("Wrote {} to {}\n".format(intWrote, regTableName))
+                self.fAddLogDone.flush()
+                os.fsync(self.fAddLogDone.fileno())
+
+    def _addDataByAutoCreateTable_n(self, db: Database, dbc):
+        """
+        Adds data to the database by automatically creating tables.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Raises:
+            CrashGenError: If an error occurs while adding data.
+
+        Returns:
+            None
+        """
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+        for j in range(numRecords):  # number of records per table
+            colNames, colValues = self._getRandomCols(db, dbc)
+            tagNames, tagValues = self._getRandomTags(db, dbc)
+            colStrs = self._getTagColStrForSql(db, dbc, colValues)[0]
+            tagStrs = self._getTagColStrForSql(db, dbc, tagValues)[0]
+            regTableName = self.getRegTableName(j)  # "db.reg_table_{}".format(i
+            fullStableName = db.getName() + '.' + self._getStableName(db)
+            fullRegTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullRegTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
+
+            try:
+                sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullRegTableName,
+                    fullStableName,
+                    tagNames,
+                    tagStrs,
+                    colNames,
+                    colStrs)
+                dbc.execute(sql)
+            except Exception as e:  # Any exception at all
+                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
+                self._unlockTableIfNeeded(fullRegTableName)
+                raise CrashGenError(f"func _addDataByAutoCreateTable_n error: {e}")
+
+    def _addDataByMultiTable_n(self, db: Database, dbc):
+        """
+        Adds data to multiple tables in the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Returns:
+            None
+
+        Raises:
+            CrashGenError: If an exception occurs while adding data.
+        """
+        if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
+            return
+        #self.tdSql.execute(f'insert into {dbname}.tb3 using {dbname}.stb3 tags (31, 32) values (now, 31, 32) {dbname}.tb4 using {dbname}.stb4 tags (41, 42) values (now, 41, 42)')
+        # insert into tb1 values (now, 11, 12) tb2 values (now, 21, 22);
+        res = dbc.getQueryResult()
+        regTables = list(map(lambda x:x[0], res[0:self.SMALL_NUMBER_OF_RECORDS]))
+        sql = "INSERT INTO"
+        for i in range(len(regTables)):
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
+            regTableName = regTables[i]  # "db.reg_table_{}".format(i
+            fullRegTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullRegTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
+            # TODO multi stb insert
+            sql += " {} VALUES ({})".format(
+                fullRegTableName,
+                colStrs)
+        try:
+            # Logging.info("Adding data: {}".format(sql))
+            dbc.execute(sql)
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataByMultiTable_n error: {sql}")
+            self._unlockTableIfNeeded(fullRegTableName)
+            raise CrashGenError(f"func _addDataByMultiTable_n error: {e}")
+
+    def _getStmtBindLines(self, db: Database, dbc):
+        """
+        Retrieves statement and bind lines from the database.
+
+        Args:
+            db (Database): The database object.
+            dbc: The database connection object.
+
+        Returns:
+            tuple: A tuple containing the lines, cols, and tags.
+                - lines: A list of tuples representing the statement and bind lines.
+                - cols: The columns of the database table.
+                - tags: The tags of the database table.
+        """
+        if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
+            return
+        res = dbc.getQueryResult()
+        lines = list()
+        regTables = list(map(lambda x:f'{x[0]}_stmt', res[0:self.SMALL_NUMBER_OF_RECORDS]))
+        cols = self.getMeta(db, dbc)[0]
+        tags = self.getMeta(db, dbc)[1]
+        colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
+        tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
+        for regTable in regTables:
+            combine_list = [regTable] + colStrs + tagStrs
+            lines.append(tuple(combine_list))
+        return lines, cols, tags
+
+    def _transTs(self, ts, precision):
+        """
+        Convert a timestamp to the specified precision.
+
+        Args:
+            ts (datetime.datetime): The timestamp to convert.
+            precision (str): The desired precision of the converted timestamp. Valid values are "ms", "us", and "ns".
+
+        Returns:
+            int: The converted timestamp.
+
+        """
+        if precision == "ms":
+            return int(ts.timestamp() * 1000)
+        elif precision == "us":
+            return int(ts.timestamp() * 1000000)
+        elif precision == "ns":
+            return int(ts.timestamp() * 1000000000)
+
+    def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict, precision):
+        """
+        Binds rows of data to a TaosStmt object row by row.
+
+        Args:
+            stmt (taos.TaosStmt): The TaosStmt object to bind the data to.
+            lines (list): The list of rows containing the data to bind.
+            tag_dict (dict): A dictionary mapping tag names to their corresponding types.
+            col_dict (dict): A dictionary mapping column names to their corresponding types.
+
+        Returns:
+            taos.TaosStmt: The TaosStmt object with the data bound.
+
+        """
+        tb_name = None
+        for row in lines:
+            if tb_name != row[0]:
+                tb_name = row[0]
+                # Dynamic tag binding based on tag_types list
+                tags = taos.new_bind_params(len(tag_dict))  # Dynamically set the count of tags
+                for i, tag_name in enumerate(tag_dict):
+                    bind_type = tag_dict[tag_name].lower()
+                    if "unsigned" in tag_dict[tag_name].lower():
+                        bind_type = bind_type.replace(" unsigned", "_unsigned")
+                    if bind_type == "varbinary" or bind_type == "geometry":
+                        getattr(tags[i], bind_type)((row[len(col_dict) + i + 1]).encode('utf-8'))  # Dynamically call the appropriate binding method
+                    else:
+                        getattr(tags[i], bind_type)(row[len(col_dict) + i + 1])  # Dynamically call the appropriate binding method
+                stmt.set_tbname_tags(tb_name, tags)
+
+            # Dynamic value binding based on value_types list
+            values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
+            for j, col_name in enumerate(col_dict):
+                bind_type = col_dict[col_name].lower()
+                if "unsigned" in col_dict[col_name].lower():
+                    bind_type = bind_type.replace("unsigned", "_unsigned")
+                if j == 0:
+                    getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
+                else:
+                    if bind_type == "varbinary" or bind_type == "geometry":
+                        getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
+                    else:
+                        getattr(values[j], bind_type)(row[1 + j])  # Dynamically call the appropriate binding method
+            stmt.bind_param(values)
+        return stmt
+
+    def _addDataBySTMT(self, db: Database, dbc):
+        """
+        Add data to the database using prepared statements.
+
+        Args:
+            db (Database): The database object.
+            dbc: The dbc object.
+
+        Returns:
+            None
+        """
+        lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
+        # TODO replace dbc
+        conn = taos.connect(database=db.getName())
+        dbc.query(f'select `precision` from information_schema.ins_databases where name = "{db.getName()}"')
+        res = dbc.getQueryResult()
+        precision = res[0][0]
+        stbname = db.getFixedSuperTable().getName()
+        try:
+            # Dynamically create the SQL statement based on the number of tags and values
+            tag_placeholders = ', '.join(['?' for _ in tag_dict])
+            value_placeholders = ', '.join(['?' for _ in col_dict])
+            sql = f"INSERT INTO ? USING {stbname} TAGS({tag_placeholders}) VALUES({value_placeholders})"
+
+            stmt = conn.statement(sql)
+            self.bind_row_by_row(stmt, lines, tag_dict, col_dict, precision)
+            stmt.execute()
+            stmt.close()
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataBySTMT error: {e}")
+            raise CrashGenError(f"func _addDataBySTMT error: {e}")
+        finally:
+            conn.close()
+
+    def _format_sml(self, data, rowType="tag"):
+        """
+        Formats the given data into a string representation of SML (Simple Markup Language).
+
+        Args:
+            data (dict): A dictionary containing the data to be formatted.
+
+        Returns:
+            str: The formatted SML string.
+
+        """
+        namePrefix = "t" if rowType == "tag" else "c"
+        result = []
+        type_mapping = {
+            "TINYINT": "i8",
+            "SMALLINT": "i16",
+            "INT": "i32",
+            "BIGINT": "i64",
+            "TINYINT UNSIGNED": "u8",
+            "SMALLINT UNSIGNED": "u16",
+            "INT UNSIGNED": "u32",
+            "BIGINT UNSIGNED": "u64",
+            "VARCHAR": '""',
+            "BINARY": '""',
+            "NCHAR": 'L""',
+            "BOOL": ""
+        }
+
+        for key, value in data.items():
+            if key in type_mapping:
+                if key in ["BINARY", "VARCHAR", "NCHAR"]:
+                    formatted_value = f'{value}{type_mapping[key]}'
+                    if key == "NCHAR":
+                        formatted_value = f'L"{value}"'
+                    else:
+                        formatted_value = f'"{value}"'
+                else:
+                    formatted_value = f'{value}{type_mapping[key]}'
+                result.append(f"{namePrefix}{len(result)}={formatted_value}")
+        return ','.join(result)
+
+    def _transSmlVal(self, ):
+        pass
+
+    def _transSmlTsType(self, precision):
+        """
+        Translates the precision string to the corresponding TDSmlTimestampType value.
+
+        Args:
+            precision (str): The precision string ("ms", "us", or "ns").
+
+        Returns:
+            int: The corresponding TDSmlTimestampType value.
+
+        """
+        if precision == "ms":
+            return TDSmlTimestampType.MILLI_SECOND.value
+        elif precision == "us":
+            return TDSmlTimestampType.MICRO_SECOND.value
+        elif precision == "ns":
+            return TDSmlTimestampType.NANO_SECOND.value
+
+    def _addDataByInfluxdbLine(self, db: Database, dbc):
+        """
+        Add data to InfluxDB using InfluxDB line protocol.
+
+        Args:
+            db (Database): The InfluxDB database.
+            dbc: The InfluxDB client.
+
+        Raises:
+            CrashGenError: If there is an error adding data to InfluxDB.
+
+        Returns:
+            None
+        """
+        dbc.query('show {}.stables like "influxdb_%"'.format(db.getName()))
+        res = dbc.getQueryResult()
+        newCreateStable = f'influxdb_{TDCom.get_long_name(8)}'
+        stbList = list(map(lambda x: x[0], res)) + [newCreateStable] if len(res) > 0 else [newCreateStable]
+        stbname = random.choice(stbList)
+        # for stbname in stbList:
+        dataDictList = list()
+        tagDataDictList = list()
+        dbc.query(f'select `precision` from information_schema.ins_databases where name = "{db.getName()}"')
+        res = dbc.getQueryResult()
+        precision = res[0][0]
+        ts = self._transTs(db.getNextTick(), precision)
+        if stbname == newCreateStable:
+            for i in range(2):
+                sample_cnt = random.randint(1, len(self.smlSupportTypeList))
+                typeList = random.sample(self.smlSupportTypeList, sample_cnt)
+                elm = "tag" if i == 0 else "col"
+                nameTypeDict = {f'{typeList[i]}_{elm}': typeList[i] for i in range(sample_cnt)}
+                valList = self._getTagColStrForSql(db, dbc, nameTypeDict)[1]
+                dataDict = dict(zip(typeList, valList))
+                dataDictList.append(dataDict)
+            tagStrs = self._format_sml(dataDictList[0], rowType="tag")
+            colStrs = self._format_sml(dataDictList[1], rowType="col")
+        else:
+            cols, tags = self.getMeta(db, dbc, customStable=stbname)
+            # if not tags or not cols:
+            #     return "No table exists"
+            tagNameList = list(tags.keys())
+            tagTypeList = list(tags.values())
+            randomTagValList = self._getTagColStrForSql(db, dbc, tags)[1]
+            randomTagDataDict = dict(zip(tagTypeList, randomTagValList))
+            tagDataDictList.append(randomTagDataDict)
+
+            existCtbTagValList = self._getVals(db, dbc, tagNameList, stbname)
+            existCtbDataDict = dict(zip(tagTypeList, existCtbTagValList))
+            tagDataDictList.append(existCtbDataDict)
+            tagStrs = self._format_sml(random.choice(tagDataDictList), rowType="tag")
+
+            colTypeList = list(cols.values())
+            randomColValList = self._getTagColStrForSql(db, dbc, cols)[1]
+            randomcolDataDict = dict(zip(colTypeList, randomColValList))
+            colStrs = self._format_sml(randomcolDataDict, rowType="col")
+
+            # # TODO add/reduce tag and col
+            # if Dice.throw(4) == 0:
+            #     # add tag
+            #     pass
+            # elif Dice.throw(4) == 1:
+            #     # reduce tag
+            #     pass
+            # elif Dice.throw(4) == 2:
+            #     # add col
+            #     pass
+            # elif Dice.throw(4) == 3:
+            #     # reduce col
+            #     pass
+        try:
+            lines = f'{stbname},{tagStrs} {colStrs} {ts}'
+            ts_type = self._transSmlTsType(precision)
+            dbc.influxdbLineInsert(line=[lines], ts_type=ts_type, dbname=db.getName())
+        except Exception as e:  # Any exception at all
+            self.logError(f"func _addDataByInfluxdbLine error: {lines}")
+            raise CrashGenError(f"func _addDataByInfluxdbLine error: {e}")
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
@@ -2695,18 +4779,28 @@ class TaskAddData(StateTransitionTask):
 
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
-            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
+            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            if not sTable.ensureSuperTable(self, wt.getDbConn()): # Ensure the super table exists
+                return
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
-            if Dice.throw(1) == 0:  # 1 in 2 chance
-                self._addData(db, dbc, regTableName, te)
+            if Dice.throw(6) == 0:  # 1 in 2 chance
+                self._addData_n(db, dbc, regTableName, te)
+            elif Dice.throw(6) == 1:
+                self._addDataInBatch_n(db, dbc, regTableName, te)
+            elif Dice.throw(6) == 2:
+                self._addDataByAutoCreateTable_n(db, dbc)
+            elif Dice.throw(6) == 3:
+                self._addDataByMultiTable_n(db, dbc)
+            elif Dice.throw(6) == 4:
+                self._addDataBySTMT(db, dbc)
+            elif Dice.throw(6) == 5:
+                self._addDataByInfluxdbLine(db, dbc)
             else:
-                self._addDataInBatch(db, dbc, regTableName, te)
-
-            self.activeTable.discard(i)  # not raising an error, unlike remove
+                self.activeTable.discard(i)  # not raising an error, unlike remove
 
 
 class TaskDeleteData(StateTransitionTask):
@@ -2786,7 +4880,6 @@ class TaskDeleteData(StateTransitionTask):
                     # print(sql)
                     # Logging.info("Adding data: {}".format(sql))
                     dbc.execute(sql)
-                    # Logging.info("Data added: {}".format(sql))
                     intWrote = intToWrite
 
                     # Quick hack, attach an update statement here. TODO: create an "update" task
@@ -2804,7 +4897,7 @@ class TaskDeleteData(StateTransitionTask):
 
                 except:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise
+                    raise CrashGenError("func _deleteData error")
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -2827,7 +4920,7 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise
+                            raise CrashGenError("func _deleteData error")
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
@@ -2854,7 +4947,6 @@ class TaskDeleteData(StateTransitionTask):
                         fullTableName)
                     # Logging.info("Adding data: {}".format(sql))
                     dbc.execute(sql)
-                    # Logging.info("Data added: {}".format(sql))
 
                     # Quick hack, attach an update statement here. TODO: create an "update" task
                     if (not Config.getConfig().use_shadow_db) and Dice.throw(
@@ -2865,7 +4957,7 @@ class TaskDeleteData(StateTransitionTask):
 
                 except:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise
+                    raise CrashGenError("func _deleteData error")
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -2888,7 +4980,7 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise
+                            raise CrashGenError("func _deleteData error")
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
@@ -2917,10 +5009,10 @@ class TaskDeleteData(StateTransitionTask):
 
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
-            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
+            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
             self._deleteData(db, dbc, regTableName, te)

@@ -43,7 +43,7 @@ class MyLoggingAdapter(logging.LoggerAdapter):
 
 class Logging:
     logger = None # type: Optional[MyLoggingAdapter]
-
+    cfgPath = None
     @classmethod
     def _get_datetime(cls):
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
@@ -56,13 +56,20 @@ class Logging:
     def clsInit(cls, debugMode: bool):
         if cls.logger:
             return
-        
+
         # Logging Stuff
         # global misc.logger
         _logger = logging.getLogger('CrashGen')  # real logger
         _logger.addFilter(LoggingFilter())
+
+        # Console handler
         ch = logging.StreamHandler(sys.stdout) # Ref: https://stackoverflow.com/questions/14058453/making-python-loggers-output-all-messages-to-stdout-in-addition-to-log-file
         _logger.addHandler(ch)
+        # File handler
+        logFile = "/tmp/crash_gen.log"
+        # logFile = os.path.join(os.path.dirname(cls.cfgPath), "crash_gen.log")
+        fh = logging.FileHandler(logFile)
+        _logger.addHandler(fh)
 
         # Logging adapter, to be used as a logger
         # print("setting logger variable")
