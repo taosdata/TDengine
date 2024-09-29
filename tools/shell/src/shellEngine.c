@@ -1332,7 +1332,6 @@ _exit:
 
 static int32_t shellStartDaemon(int argc, char *argv[]) {
   int32_t    code = 0, lino = 0;
-  int64_t    cost = 0;
   SExecArgs *pArgs = NULL;
   int64_t    startMs = taosGetTimestampMs(), endMs = startMs;
 

@@ -214,8 +214,9 @@ static SConv  *gConv[2] = {NULL, NULL};
 static int32_t convUsed[2] = {0, 0};
 static int32_t gConvMaxNum[2] = {0, 0};
 static int8_t  convInited = 0;
-
+#endif
 int32_t taosConvInit(void) {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   int32_t code = 0, lino = 0;
   int8_t  old;
   int32_t nLoops = 0;
@@ -270,9 +271,10 @@ _exit:
   if (code) {
     uError("failed to init taosConvInit at line %d since %s", lino, tstrerror(code));
   }
+#endif
   return 0;
 }
-#endif
+
 
 void taosConvDestroy() {
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
