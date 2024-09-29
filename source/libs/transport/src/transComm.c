@@ -184,7 +184,7 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
       }
     }
   } else {
-    tError("failed to reset buffer, total:%d, len:%d, reason:%s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
+    tError("failed to reset buffer, total:%d, len:%d since %s", p->total, p->len, tstrerror(TSDB_CODE_INVALID_MSG));
     return TSDB_CODE_INVALID_MSG;
   }
   return 0;
@@ -281,7 +281,7 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
     async->data = item;
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
-      tError("failed to init async, reason:%s", uv_err_name(err));
+      tError("failed to init async since %s", uv_err_name(err));
       code = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     }
@@ -342,7 +342,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
 
   int ret = uv_async_send(async);
   if (ret != 0) {
-    tError("failed to send async,reason:%s", uv_err_name(ret));
+    tError("failed to send async since %s", uv_err_name(ret));
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
   return 0;
@@ -389,7 +389,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
 
     int32_t code = taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     if (code != 0) {
-      tError("failed to put val to hash, reason:%s", tstrerror(code));
+      tError("failed to put val to hash since %s", tstrerror(code));
     }
     iter = taosHashIterate(src->args, iter);
   }
@@ -821,7 +821,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
 
   int32_t err = uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (err != 0) {
-    tError("failed to convert ip to string, reason:%s", uv_strerror(err));
+    tError("failed to convert ip to string since %s", uv_strerror(err));
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
 

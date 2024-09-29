@@ -690,8 +690,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn %p failed to send, seqNum:%" PRId64 ", qid:%" PRId64 ", reason:%s", transLabel(conn->pInst),
-              conn, smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
+      tGDebug("%s conn %p failed to send, seqNum:%" PRId64 ", qid:%" PRId64 " since %s", transLabel(conn->pInst), conn,
+              smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
       destroySmsg(smsg);
     }
 
@@ -705,7 +705,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("success to dispatch conn to work thread");
   } else {
-    tError("fail to dispatch conn to work thread, reason:%s", uv_strerror(status));
+    tError("fail to dispatch conn to work thread since %s", uv_strerror(status));
   }
   if (!uv_is_closing((uv_handle_t*)req->data)) {
     uv_close((uv_handle_t*)req->data, uvFreeCb);
@@ -844,7 +844,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
 
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
   if (ret != 0) {
-    tError("conn %p failed to write data, reason:%s", pConn, uv_err_name(ret));
+    tError("conn %p failed to write data since %s", pConn, uv_err_name(ret));
     pConn->broken = true;
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue* head = QUEUE_HEAD(&pWreq->node);
@@ -1063,7 +1063,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       tError("read error %s", uv_err_name(nread));
     }
     // TODO(log other failure reason)
-    tWarn("failed to create connect:%p, reason: %s", q, uv_err_name(nread));
+    tWarn("failed to create connect:%p since %s", q, uv_err_name(nread));
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
     return;
@@ -1504,7 +1504,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     code = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
+    tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
     goto End;
   }
   char pipeName[PATH_MAX];
