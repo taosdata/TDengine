@@ -2110,7 +2110,7 @@ _err:
 }
 int32_t initCb(void* thrd, SCliReq* pReq, STransMsg* pResp) {
   SCliThrd* pThrd = thrd;
-  if (pReq->ctx == NULL) {
+  if (pReq->ctx == NULL || pReq->ctx->epSet == NULL) {
     return 0;
   }
   return cliMayCvtFqdnToIp(pReq->ctx->epSet, pThrd->pCvtAddr);
@@ -2699,7 +2699,7 @@ void cliMayResetRespCode(SCliReq* pReq, STransMsg* pResp) {
   }
 
   // check whole vnodes is offline on this vgroup
-  if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps || pCtx->retryStep > 0) {
+  if (((pCtx->epSet != NULL) && pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) || pCtx->retryStep > 0) {
     if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       pResp->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
     } else if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
