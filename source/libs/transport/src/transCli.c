@@ -1332,7 +1332,14 @@ int32_t cliBatchSend(SCliConn* pConn) {
   }
   transRefCliHandle(pConn);
   uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
+  if (req == NULL) {
+    tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(terrno));
+    transRefCliHandle(pConn);
+    return terrno;
+  }
+
   tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size, totalLen);
+
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
@@ -1340,6 +1347,7 @@ int32_t cliBatchSend(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
+
   return code;
 }
 
