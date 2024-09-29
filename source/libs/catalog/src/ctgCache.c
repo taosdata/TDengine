@@ -1583,7 +1583,7 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   SCtgTSMACache      *pCtgCache = NULL;
   (void)tNameGetFullDbName(pName, dbFName);
   
-  CTG_ERR_JRET(ctgGetDBCache(pCtg, dbFName, &pDbCache));
+  CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &pDbCache));
   if (NULL == pDbCache || !pDbCache->tsmaCache) {
     goto _return;
   }
@@ -1608,11 +1608,14 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
     code = createDropAllTbTsmaCtgCacheOp(pCtg, pCache, syncOp, &pOp);
   }
   CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
+  pCtgCache = NULL;
+  ctgReleaseDBCache(pCtg, pDbCache);
+  pDbCache = NULL;
 
   CTG_ERR_JRET(code);
   
   CTG_ERR_JRET(ctgEnqueue(pCtg, pOp));
-  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
   
   return TSDB_CODE_SUCCESS;
 
@@ -1620,6 +1623,9 @@ _return:
 
   if (pCtgCache) {
     taosHashRelease(pDbCache->tsmaCache, pCtgCache);
+  }
+  if (pDbCache) {
+    ctgReleaseDBCache(pCtg, pDbCache);
   }
   if (pOp) {
     taosMemoryFree(pOp->data);
@@ -2997,6 +3003,7 @@ int32_t ctgOpDropTbTSMA(SCtgCacheOperation *operation) {
     
     taosArrayDestroyP(pCtgCache->pTsmas, tFreeAndClearTableTSMAInfo);
     pCtgCache->pTsmas = NULL;
+    pCtgCache->retryFetch = true;
     
     ctgDebug("all tsmas for table dropped: %s.%s", msg->dbFName, msg->tbName);
     code = taosHashRemove(dbCache->tsmaCache, msg->tbName, TSDB_TABLE_NAME_LEN);
@@ -3975,28 +3982,40 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
 
     // get tsma cache
     pCache = taosHashAcquire(dbCache->tsmaCache, tsmaSourceTbName.tname, strlen(tsmaSourceTbName.tname));
-    if (!pCache || !pCache->pTsmas || pCache->pTsmas->size == 0) {
+    if (!pCache) {
       if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
         ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(terrno);
       }
-      
+      continue;
+    }
+    CTG_LOCK(CTG_READ, &pCache->tsmaLock);
+    if ((!pCache->pTsmas || pCache->pTsmas->size == 0) && !pCache->retryFetch) {
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(terrno);
+      }
+      CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
+      taosHashRelease(dbCache->tsmaCache, pCache);
       continue;
     }
 
-    CTG_LOCK(CTG_READ, &pCache->tsmaLock);
-    if (hasOutOfDateTSMACache(pCache->pTsmas)) {
+    if (pCache->retryFetch || hasOutOfDateTSMACache(pCache->pTsmas)) {
       CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
-      taosHashRelease(dbCache->tsmaCache, pCache);
       
       ctgDebug("tsma for tb: %s.%s not in cache", tsmaSourceTbName.tname, dbFName);
       
       CTG_ERR_JRET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TB_TSMA, &tsmaSourceTbName));
       if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        taosHashRelease(dbCache->tsmaCache, pCache);
         CTG_ERR_JRET(terrno);
       }
       
       CTG_CACHE_NHIT_INC(CTG_CI_TBL_TSMA, 1);
+      CTG_LOCK(CTG_WRITE, &pCache->tsmaLock);
+      pCache->retryFetch = false;
+      CTG_UNLOCK(CTG_WRITE, &pCache->tsmaLock);
+      taosHashRelease(dbCache->tsmaCache, pCache);
       continue;
     }
 

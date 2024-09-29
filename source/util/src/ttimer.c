@@ -510,7 +510,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     }
   }
 
-  if (timer->refCount == 1) {
+  if (timer->refCount != 1) {
     uError("timer refCount=%d not expected 1", timer->refCount);
   }
   memset(timer, 0, sizeof(*timer));

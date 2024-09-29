@@ -874,9 +874,9 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
     length = strlen(sql);
   }
 
-  pStmt->sql.sqlStr = strndup(sql, length);
+  pStmt->sql.sqlStr = taosStrndup(sql, length);
   if (!pStmt->sql.sqlStr) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
