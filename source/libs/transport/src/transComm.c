@@ -667,7 +667,13 @@ void transPrintEpSet(SEpSet* pEpSet) {
   len += snprintf(buf + len, sizeof(buf) - len, "}");
   tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
-bool transRepEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
+bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
+  if (a == NULL && b == NULL) {
+    return true;
+  } else if (a == NULL || b == NULL) {
+    return false;
+  }
+
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
     return false;
   }

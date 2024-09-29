@@ -1592,7 +1592,7 @@ FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAd
 FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, SReqCtx* pCtx) {
   if (code != 0) return false;
 
-  return transRepEpsetIsEqual(pCtx->epSet, pCtx->origEpSet) ? false : true;
+  return transReqEpsetIsEqual(pCtx->epSet, pCtx->origEpSet) ? false : true;
 }
 
 FORCE_INLINE int32_t cliBuildExceptResp(SCliThrd* pThrd, SCliReq* pReq, STransMsg* pResp) {

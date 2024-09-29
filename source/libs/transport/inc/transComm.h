@@ -446,7 +446,7 @@ void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
-bool transRepEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
+bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
 
 bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b);
 /*
