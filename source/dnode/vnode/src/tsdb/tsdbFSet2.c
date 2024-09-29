@@ -71,6 +71,7 @@ static int32_t tsdbSttLvlInitRef(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lv
     }
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj1);
     if (code) {
+      tsdbTFileObjUnref(fobj1);
       tsdbSttLvlClear(lvl);
       return code;
     }
