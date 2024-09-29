@@ -944,7 +944,6 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
   if (pReqEpSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  taosMemoryFree(*pReqEpSet);
 
   int32_t    size = sizeof(SReqEpSet) + sizeof(SEp) * pEpset->numOfEps;
   SReqEpSet* pReq = (SReqEpSet*)taosMemoryCalloc(1, size);
@@ -952,6 +951,8 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
+
+  taosMemoryFree(*pReqEpSet);
   *pReqEpSet = pReq;
   return TSDB_CODE_SUCCESS;
 }

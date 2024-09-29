@@ -2481,7 +2481,9 @@ FORCE_INLINE bool cliTryUpdateEpset(SCliReq* pReq, STransMsg* pResp) {
 
   pResp->info.hasEpSet = 1;
 
-  transCreateReqEpsetFromUserEpset(&epset, &ctx->epSet);
+  if (transCreateReqEpsetFromUserEpset(&epset, &ctx->epSet) != 0) {
+    return false;
+  }
   return true;
 }
 
@@ -2510,7 +2512,9 @@ bool cliResetEpset(SReqCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
           transPrintEpSet((SEpSet*)pCtx->epSet);
           transPrintEpSet(&epSet);
 
-          transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet);
+          if (transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet) != 0) {
+            tDebug("failed to create req epset from user epset");
+          }
           noDelay = false;
         } else {
           if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
@@ -2537,7 +2541,9 @@ bool cliResetEpset(SReqCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         tDebug("epset not equal, retry new epset2");
         transPrintEpSet((SEpSet*)pCtx->epSet);
         transPrintEpSet(&epSet);
-        transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet);
+        if (transCreateReqEpsetFromUserEpset(&epSet, &pCtx->epSet) != 0) {
+          tError("failed to create req epset from user epset");
+        }
         noDelay = false;
       } else {
         if (pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
@@ -2721,7 +2727,9 @@ int32_t cliNotifyImplCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
           pSyncMsg->hasEpSet = 1;
 
           SEpSet epset = {0};
-          transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset);
+          if (transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset) != 0) {
+            tError("failed to create user epset from req epset");
+          }
           epsetAssign(&pSyncMsg->epSet, &epset);
         }
         TAOS_UNUSED(tsem2_post(pSyncMsg->pSem));
@@ -2734,14 +2742,18 @@ int32_t cliNotifyImplCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tGTrace("%s conn %p handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pResp->info.hasEpSet == 1) {
       SEpSet epset = {0};
-      transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset);
+      if (transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset) != 0) {
+        tError("failed to create user epset from req epset");
+      }
       pInst->cfp(pInst->parent, pResp, &epset);
     } else {
       if (!cliIsEpsetUpdated(pResp->code, pCtx)) {
         pInst->cfp(pInst->parent, pResp, NULL);
       } else {
         SEpSet epset = {0};
-        transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset);
+        if (transCreateUserEpsetFromReqEpset(pCtx->epSet, &epset) != 0) {
+          tError("failed to create user epset from req epset");
+        }
         pInst->cfp(pInst->parent, pResp, &epset);
       }
     }
