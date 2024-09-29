@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "osSleep.h"
 #define _DEFAULT_SOURCE
 #include "mndTrans.h"
 #include "mndDb.h"
@@ -1637,6 +1638,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     pTrans->code = code;
     bool continueExec = true;
     if (code != 0 && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+      taosMsleep(100);
       continueExec = true;
     } else {
       continueExec = false;
