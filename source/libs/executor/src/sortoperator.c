@@ -213,8 +213,10 @@ static int32_t nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pIn
   STupleHandle* retTuple = pInfo->pGroupIdCalc->pSavedTuple;
   if (!retTuple) {
     code = tsortNextTuple(pHandle, &retTuple);
-    qError("failed to get next tuple, code:%s", tstrerror(code));
-    return code;
+    if (code) {
+      qError("failed to get next tuple, code:%s", tstrerror(code));
+      return code;
+    }
   }
 
   if (retTuple) {
