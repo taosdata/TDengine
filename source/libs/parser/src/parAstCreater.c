@@ -28,12 +28,12 @@
     }                      \
   } while (0)
 
-#define CHECK_OUT_OF_MEM(p)                    \
-  do {                                         \
-    if (NULL == (p)) {                         \
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
-      goto _err;                               \
-    }                                          \
+#define CHECK_OUT_OF_MEM(p)   \
+  do {                        \
+    if (NULL == (p)) {        \
+      pCxt->errCode = terrno; \
+      goto _err;              \
+    }                         \
   } while (0)
 
 #define CHECK_PARSER_STATUS(pCxt)             \
