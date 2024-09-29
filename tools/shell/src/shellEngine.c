@@ -22,9 +22,12 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
-extern void dmCleanup();
-extern int  dmMain(int argc, char const *argv[]);
+#ifndef TD_ACORE
+extern int  dmStartDaemon(int argc, char const *argv[]);
+extern void dmStopDaemon();
 
+SDaemonObj daemonObj = {0};
+#endif
 typedef struct {
   const char *sql;
   bool        vertical;
@@ -1296,14 +1299,108 @@ void *shellThreadLoop(void *arg) {
   return NULL;
 }
 
+#ifndef TD_ACORE
+typedef struct {
+  int32_t argc;
+  char  **argv;
+} SExecArgs;
+
+static void *dmStartDaemonFunc(void *param) {
+  int32_t    code = 0;
+  SExecArgs *pArgs = (SExecArgs *)param;
+  int32_t    argc = pArgs->argc;
+  char     **argv = pArgs->argv;
+
+  if (argc < 1) {
+    code = TSDB_CODE_INVALID_PARA;
+    printf("failed to start taosd since Invalid parameter, argc: %d\r\n", argc);
+    goto _exit;
+  }
+
+  code = dmStartDaemon(argc, (const char **)argv);
+  if (code != 0) {
+    printf("failed to start taosd since %s\r\n", tstrerror(code));
+    goto _exit;
+  }
+
+_exit:
+  if (code != 0) {
+    atomic_store_32(&daemonObj.stat, code);
+  }
+  return NULL;
+}
+
+static int32_t shellStartDaemon(int argc, char *argv[]) {
+  int32_t    code = 0, lino = 0;
+  int64_t    cost = 0;
+  SExecArgs *pArgs = NULL;
+  int64_t    startMs = taosGetTimestampMs(), endMs = startMs;
+
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+  pArgs = (SExecArgs *)taosMemoryCalloc(1, sizeof(SExecArgs));
+  if (pArgs == NULL) {
+    code = terrno;
+    TAOS_CHECK_EXIT(code);
+  }
+  pArgs->argc = argc;
+  pArgs->argv = argv;
+
+  tsLogEmbedded = 1;
+
+  TAOS_CHECK_EXIT(taosThreadCreate(&daemonObj.pid, &thAttr, dmStartDaemonFunc, pArgs));
+
+  while (true) {
+    if (atomic_load_64(&tsDndStarted)) {
+      atomic_store_32(&daemonObj.stat, 1);
+      break;
+    }
+    int32_t daemonstat = atomic_load_32(&daemonObj.stat);
+    if (daemonstat < 0) {
+      code = daemonstat;
+      TAOS_CHECK_EXIT(code);
+    }
+
+    if (daemonstat > 1) {
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_EXIT(code);
+    }
+    taosMsleep(100);
+  }
+
+_exit:
+  endMs = taosGetTimestampMs();
+  (void)taosThreadAttrDestroy(&thAttr);
+  taosMemoryFreeClear(pArgs);
+  if (code) {
+    printf("\r\n The daemon start failed at line %d since %s, cost %" PRIi64 " ms\r\n", lino, tstrerror(code),
+           endMs - startMs);
+  } else {
+    printf("\r\n The daemon started successfully, cost %" PRIi64 " ms\r\n", endMs - startMs);
+  }
+  tsLogEmbedded = 0;
+  return code;
+}
+
+static void shellStopDaemon() {
+  tsLogEmbedded = 1;
+  dmStopDaemon();
+  if (taosCheckPthreadValid(daemonObj.pid)) {
+    (void)taosThreadJoin(daemonObj.pid, NULL);
+    taosThreadClear(&daemonObj.pid);
+  }
+}
+#endif
+
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0, lino = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
 #ifndef TD_ACORE
-  if ((code = dmMain(argc, (char const **)argv)) != 0) {
-    printf("failed to start dmMain since %s\r\n", tstrerror(code));
+  if ((code = shellStartDaemon(argc, argv)) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _exit_half);
   }
 #endif
@@ -1423,12 +1520,12 @@ int32_t shellExecute(int argc, char *argv[]) {
 
 _exit_half:
 #ifndef TD_ACORE
-  dmCleanup();
+  shellStopDaemon();
 #endif
   TAOS_RETURN(code);
 _exit:
 #ifndef TD_ACORE
-  dmCleanup();
+  shellStopDaemon();
 #endif
   shellCleanupHistory();
   taos_kill_query(shell.conn);

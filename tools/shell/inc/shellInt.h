@@ -111,6 +111,13 @@ typedef struct {
 #endif
 } SShellObj;
 
+#ifndef TD_ACORE
+typedef struct {
+  TdThread pid;
+  int32_t  stat;  // < 0: start failed, 0: init(not start), 1: start successfully
+} SDaemonObj;
+#endif
+
 typedef struct {
   char    *buffer;
   char    *command;

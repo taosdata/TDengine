@@ -1211,11 +1211,12 @@ typedef struct UsingRegex {
 typedef UsingRegex* HashRegexPtr;
 
 typedef struct RegexCache {
-  SHashObj      *regexHash;
-  void          *regexCacheTmr;
-  void          *timer;
-  SRWLatch      mutex;
-  bool          exit;
+  SHashObj *regexHash;
+  void     *regexCacheTmr;
+  void     *timer;
+  SRWLatch  mutex;
+  bool      exit;
+  int8_t    inited;
 } RegexCache;
 static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
@@ -1260,9 +1261,10 @@ void regexCacheFree(void *ppUsingRegex) {
 }
 
 int32_t InitRegexCache() {
-  #ifdef WINDOWS
-    return 0;
-  #endif
+#ifdef WINDOWS
+  return 0;
+#endif
+  if (atomic_val_compare_exchange_8(&sRegexCache.inited, 0, 1) != 0) return TSDB_CODE_SUCCESS;
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
     uError("failed to create RegexCache");

@@ -958,13 +958,14 @@ void taos_init_imp(void) {
 #else
   (void)snprintf(logDirName, 64, "taoslog");
 #endif
-  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, tsAcoreOS ? LOG_MODE_BOTH : LOG_MODE_TAOSC) !=
+      0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
     tscInitRes = -1;
     return;
   }
 
-  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, tsAcoreOS ? 0 : 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
   ENV_ERR_RET(taosConvInit(), "failed to init conv");

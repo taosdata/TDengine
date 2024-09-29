@@ -99,12 +99,16 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
-  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
-        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  if (sigInfo) {
+    dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+          taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  }
 #endif
 
   dmStop();
 }
+
+void dmStopDaemon() { dmStopDnode(SIGTERM, NULL, NULL); }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGTERM);
@@ -335,7 +339,7 @@ static int32_t dmCheckS3() {
 
 static int32_t dmInitLog() {
   return taosCreateLog(CUS_PROMPT "dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
-                       0);
+                       LOG_MODE_TAOSD);
 }
 
 static void taosCleanupArgs() {
@@ -343,7 +347,7 @@ static void taosCleanupArgs() {
 }
 
 #ifndef TD_ACORE
-int dmMain(int argc, char const *argv[]) {
+int dmStartDaemon(int argc, char const *argv[]) {
 #else
 int main(int argc, char const *argv[]) {
 #endif
