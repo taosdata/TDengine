@@ -177,12 +177,12 @@ target_link_libraries(
     PUBLIC tqCommon
 )
 
-if(${TD_LINUX})
+#if(${TD_LINUX})
 target_link_libraries(
     vnode
     PUBLIC tos
 )
-endif(${TD_LINUX})
+#endif(${TD_LINUX})
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
