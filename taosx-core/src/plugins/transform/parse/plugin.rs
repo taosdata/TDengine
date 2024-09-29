@@ -1,6 +1,5 @@
 extern crate dlopen2;
 
-use std::alloc::Layout;
 use std::collections::HashMap;
 use std::fs;
 use std::os::raw::c_char;
