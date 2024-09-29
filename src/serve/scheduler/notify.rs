@@ -33,7 +33,7 @@ pub async fn notify_by_job_id(
     lush_table_cache: &Arc<RwLock<HashMap<i64, Arc<TableTagCache>>>>,
     task_breakpoint_db: &Arc<RwLock<HashMap<i64, BreakpointDb>>>,
 ) -> Option<Result<()>> {
-    let task_id = { tasks.read().await.get_by_job_id(&job_id).map(|j| j.task_id) }?;
+    let task_id = { tasks.read().await.get_by_job_id(job_id).map(|j| j.task_id) }?;
 
     match job_state {
         JobNotification::Stop => {
@@ -50,7 +50,7 @@ pub async fn notify_by_job_id(
             info!("Done task {:?}", task_id);
             let tasks = tasks.clone();
             let global = global.clone();
-            let job_id = job_id.clone();
+            let job_id = *job_id;
             tokio::task::spawn(async move {
                 let mut tasks = tasks.write().await;
                 let to_remove = {

@@ -20,10 +20,7 @@ impl RecordBatchExt for RecordBatch {
         let columns = self
             .columns()
             .iter()
-            .map(|column| {
-                let array = take(column, indices, None);
-                array.into()
-            })
+            .map(|column| take(column, indices, None))
             .collect::<Result<Vec<_>, _>>()?;
 
         RecordBatch::try_new(self.schema().clone(), columns)

@@ -72,7 +72,7 @@ impl RecordMessage {
     pub fn clone_column_by_name(&self, col_name: &str) -> anyhow::Result<ArrayRef> {
         self.record
             .column_by_name(col_name)
-            .map(|c| c.clone())
+            .cloned()
             .ok_or(anyhow::anyhow!(
                 "column: {} not exist in record message",
                 col_name

@@ -108,7 +108,7 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
         LevelFilter::Debug => LevelFilter::Trace,
         LevelFilter::Trace => LevelFilter::Trace,
     };
-    return level_upgrade(level, num - 1);
+    level_upgrade(level, num - 1)
 }
 
 #[derive(Debug)]
@@ -291,9 +291,7 @@ pub enum ArgsError {
 
 #[inline]
 fn get_effective_config_path(args: &ArgsParser) -> PathBuf {
-    args.config
-        .clone()
-        .unwrap_or_else(|| get_default_config_path())
+    args.config.clone().unwrap_or_else(get_default_config_path)
 }
 
 #[cfg(windows)]
@@ -312,10 +310,10 @@ fn get_default_config_path() -> PathBuf {
 }
 
 fn get_env_log_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_LOGS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_LOGS_HOME) {
         return dir;
     }
-    if let Some(dir) = std::env::var(ENV_TAOSX_LOGS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_LOGS_HOME) {
         return dir;
     }
 
@@ -327,7 +325,7 @@ fn get_env_log_dir() -> String {
 }
 
 fn get_env_data_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_TAOSX_DATA_DIR).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_DATA_DIR) {
         return dir;
     }
 
@@ -339,10 +337,10 @@ fn get_env_data_dir() -> String {
 }
 
 fn get_env_plugin_dir() -> String {
-    if let Some(dir) = std::env::var(ENV_PLUGINS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_PLUGINS_HOME) {
         return dir;
     }
-    if let Some(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME).ok() {
+    if let Ok(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME) {
         return dir;
     }
 
@@ -414,7 +412,7 @@ impl Args {
             .or(log_level)
             .unwrap_or(LevelFilter::Info);
 
-        if let Some(_) = &args.verbose.as_ref() {
+        if args.verbose.as_ref().is_some() {
             let matches = ArgsParser::command().get_matches();
             let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
             level_filter = level_upgrade(level_filter, level_num);
@@ -598,7 +596,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
 
 fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64 {
     if monitor_config.is_none() {
-        return 30;
+        30
     } else {
         let monitor_config = monitor_config.unwrap();
         if let Some(interval) = monitor_config.get("interval") {
@@ -606,19 +604,19 @@ fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64
                 return interval;
             }
         }
-        return 30;
+        30
     }
 }
 
 fn get_monitor_enabled(monitor_config: Option<&HashMap<String, String>>) -> bool {
     if monitor_config.is_none() {
-        return false;
+        false
     } else {
         let taosx_config = monitor_config.unwrap();
         if taosx_config.get("fqdn").is_some() {
             return true;
         }
-        return false;
+        false
     }
 }
 
@@ -726,11 +724,8 @@ fn export_metrics(
         let mut export_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
             let mut metrics_events = MetricsEvents::new();
-            loop {
-                match metrics_rx.try_recv() {
-                    Ok(event) => metrics_events.push(event),
-                    Err(_) => break,
-                }
+            while let Ok(event) = metrics_rx.try_recv() {
+                metrics_events.push(event);
             }
             if !metrics_events.is_empty() {
                 tracing::debug!("Export metric events, total: {}", metrics_events.len());
@@ -773,20 +768,16 @@ fn print_effictive_config(log_keep_days: i64, args: &Args) {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
-    set_env_plugins_home_dir(
-        args.plugins_home
-            .clone()
-            .unwrap_or_else(|| get_env_plugin_dir()),
-    );
-    set_env_data_dir(args.data_dir.clone().unwrap_or_else(|| get_env_data_dir()));
+    set_env_plugins_home_dir(args.plugins_home.clone().unwrap_or_else(get_env_plugin_dir));
+    set_env_data_dir(args.data_dir.clone().unwrap_or_else(get_env_data_dir));
     set_env_log_home_dir(
         args.log
             .as_ref()
             .and_then(|opts| opts.path.clone())
             .and_then(|p| p.to_str().map(ToString::to_string))
-            .unwrap_or_else(|| get_env_log_dir()),
+            .unwrap_or_else(get_env_log_dir),
     );
-    set_env_log_keep_days(args.log_keep_days.clone());
+    set_env_log_keep_days(args.log_keep_days);
 
     let mut log_path = get_log_dir("");
     log_path.push(LOG_FILE);
@@ -838,9 +829,9 @@ fn main() -> anyhow::Result<()> {
         *INSTANCE_ID.get().unwrap(),
     )
     .compress(compress.unwrap().to_bool()?)
-    .reserved_disk_size(&reserved_disk_size.as_ref().unwrap())
+    .reserved_disk_size(reserved_disk_size.as_ref().unwrap())
     .rotation_count(rotation_count.unwrap())
-    .rotation_size(&rotation_size.as_ref().unwrap())
+    .rotation_size(rotation_size.as_ref().unwrap())
     .build()
     .unwrap();
 

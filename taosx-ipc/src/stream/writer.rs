@@ -191,7 +191,7 @@ impl FromStr for IpcDataType {
             "json" => Ok(Self::Json),
             s => {
                 let items: Vec<_> = s.split_terminator(['(', ')']).collect();
-                match (items.get(0), items.get(1)) {
+                match (items.first(), items.get(1)) {
                     (Some(t), Some(l)) => match *t {
                         "binary" | "varchar" => Ok(Self::VarChar(l.parse().unwrap())),
                         "nchar" => Ok(Self::NChar(l.parse().unwrap())),
@@ -296,7 +296,7 @@ impl Display for IpcDataType {
     }
 }
 
-const CURRENT_MESSAGE_SCHEMA_VERSION: &'static str = "1.0";
+const CURRENT_MESSAGE_SCHEMA_VERSION: &str = "1.0";
 
 #[repr(u8)]
 pub enum LushMessageType {
@@ -379,10 +379,10 @@ impl<'a> From<&'a HashMap<String, String>> for IpcMetadata {
             .unwrap();
         let init = value
             .get("init")
-            .map(Clone::clone)
+            .cloned()
             .map(|s| serde_json::from_str(&s).unwrap());
         // let ack = value.get("ack").expect("ack not found in metadata");
-        let preset = value.get("preset").map(Clone::clone);
+        let preset = value.get("preset").cloned();
         Self {
             version,
             stream,
@@ -586,7 +586,7 @@ impl LushMessageInit {
             .filter(|f| f.name != __TABLE_NAME__)
             .map(|f| format!("`{}` {}", f.name, f.r#type.sql_repr()))
             .join(",");
-        if self.tags.len() > 0 {
+        if !self.tags.is_empty() {
             let tags = self
                 .tags
                 .iter()
@@ -701,6 +701,12 @@ impl<'a> LushInsertBuilder<'a> {
         Ok(batch)
     }
 }
+impl Default for LushMessageBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LushMessageBuilder {
     pub fn new() -> Self {
         Self {

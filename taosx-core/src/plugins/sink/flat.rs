@@ -2120,7 +2120,7 @@ mod tests {
         }
 
         fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
-            if slice.len() == 0 {
+            if slice.is_empty() {
                 return vec![];
             }
             if let Some(sql) = valid_sql_or_none(slice) {

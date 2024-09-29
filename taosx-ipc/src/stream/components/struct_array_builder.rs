@@ -347,22 +347,22 @@ impl StructArrayBuilder {
                         .builder
                         .field_builder::<TimestampMicrosecondBuilder>(idx)
                         .unwrap()
-                        .append_values(*v, &is_valid),
+                        .append_values(v, &is_valid),
                     TimeUnit::Second => self
                         .builder
                         .field_builder::<TimestampSecondBuilder>(idx)
                         .unwrap()
-                        .append_values(*v, &is_valid),
+                        .append_values(v, &is_valid),
                     TimeUnit::Millisecond => self
                         .builder
                         .field_builder::<TimestampMillisecondBuilder>(idx)
                         .unwrap()
-                        .append_values(*v, &is_valid),
+                        .append_values(v, &is_valid),
                     TimeUnit::Nanosecond => self
                         .builder
                         .field_builder::<TimestampNanosecondBuilder>(idx)
                         .unwrap()
-                        .append_values(*v, &is_valid),
+                        .append_values(v, &is_valid),
                 }
             }
             ArrowDataType::Binary => {

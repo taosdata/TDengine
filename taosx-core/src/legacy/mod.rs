@@ -3928,7 +3928,7 @@ mod tests {
         .await?;
 
         let name = "nTb1";
-        let types = vec![
+        let types = [
             "TINYINT",
             "SMALLINT",
             "INT",

@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         Field::new("status", ArrowDataType::Int32, false),
     ];
     // let opc_columns = Fields::from_iter(&opc_columns);
-    let fields = Fields::from((&opc_columns).clone());
+    let fields = Fields::from(opc_columns.clone());
     let _record = DataType::Struct(fields);
     let schema = Schema::new(opc_columns).with_metadata(metadata);
 

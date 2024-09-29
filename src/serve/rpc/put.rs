@@ -350,21 +350,22 @@ async fn spawn_stream_writer(
         "pi" | "pibackfill" => {
             let task_lush_table_cache_lock = controller.scheduler.lush_table_cache.clone();
             let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
-            let lush_table_cache = if task_lush_table_cache.contains_key(&task_id) {
-                tracing::info!("Got existing lush_table_cache");
-                Some(task_lush_table_cache.get(&task_id).unwrap().clone())
-            } else {
+            let lush_table_cache = if let std::collections::hash_map::Entry::Vacant(e) =
+                task_lush_table_cache.entry(task_id)
+            {
                 tracing::info!("Create new lush_table_cache");
                 let table_tag_cache = Arc::new(TableTagCache::new());
-                task_lush_table_cache.insert(task_id, table_tag_cache.clone());
+                e.insert(table_tag_cache.clone());
                 Some(table_tag_cache)
+            } else {
+                tracing::info!("Got existing lush_table_cache");
+                Some(task_lush_table_cache.get(&task_id).unwrap().clone())
             };
             let task_breakpoint_db_lock = controller.scheduler.task_breakpoint_db.clone();
             let mut task_breakpoint_db = task_breakpoint_db_lock.write().await;
-            let breakpoint_db = if task_breakpoint_db.contains_key(&task_id) {
-                tracing::info!("Got existing breakpoint_db");
-                Some(task_breakpoint_db.get(&task_id).unwrap().clone())
-            } else {
+            let breakpoint_db = if let std::collections::hash_map::Entry::Vacant(e) =
+                task_breakpoint_db.entry(task_id)
+            {
                 tracing::info!("Create new breakpoint_db");
                 let task_id_str = task_id.to_string();
                 let breakpoint_db = BreakpointDb::new_with_task(task_id_str.as_str()).await;
@@ -373,8 +374,11 @@ async fn spawn_stream_writer(
                     return Err(err);
                 }
                 let breakpoint_db = breakpoint_db.unwrap();
-                task_breakpoint_db.insert(task_id, breakpoint_db.clone());
+                e.insert(breakpoint_db.clone());
                 Some(breakpoint_db)
+            } else {
+                tracing::info!("Got existing breakpoint_db");
+                Some(task_breakpoint_db.get(&task_id).unwrap().clone())
             };
             (lush_table_cache, breakpoint_db)
         }
@@ -421,10 +425,8 @@ async fn spawn_stream_writer(
                 if license.is_expired_second() {
                     anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
                 }
-            } else {
-                if license.is_expired_day() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                }
+            } else if license.is_expired_day() {
+                anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
             }
         }
         None
@@ -735,14 +737,14 @@ impl PutStream {
                                     err
                                 );
 
-                                return None;
+                                None
                             } else {
-                                return Some(PutResult { app_metadata })
+                                Some(PutResult { app_metadata })
                             }
                         }
                         payload => {
                             tracing::warn!(payload = ?payload, metadata = ?app_metadata, "Invalid IPC message");
-                            return Some(PutResult { app_metadata })
+                            Some(PutResult { app_metadata })
                         }
                     }
                 }.in_current_span()
@@ -889,7 +891,7 @@ unsafe impl Send for PutStream {}
 
 fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
     if app_metadata[0] == 0 {
-        return MessageMetadata::ref_from(&app_metadata)
+        return MessageMetadata::ref_from(app_metadata)
             .map(|m| m.qid())
             .unwrap_or_default();
     }

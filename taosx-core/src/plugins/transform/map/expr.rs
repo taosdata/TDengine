@@ -109,8 +109,8 @@ mod tests {
         assert_eq!(*field.data_type(), DataType::Boolean);
         assert_eq!(value.len(), 3);
         let arr = value.as_any().downcast_ref::<BooleanArray>().unwrap();
-        assert_eq!(arr.value(0), false);
-        assert_eq!(arr.value(1), false);
-        assert_eq!(arr.value(2), false);
+        assert!(arr.value(0));
+        assert!(arr.value(1));
+        assert!(arr.value(2));
     }
 }

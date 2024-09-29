@@ -102,50 +102,48 @@ fn handle_flat_message<R: Read, W: Write>(
         ),
     );
     let mut records_count = 0;
-    for record in ipc_reader {
-        if let Ok(record) = record {
-            let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-            })
-            .unwrap();
-            // let record = record.as_any().downcast_ref::<FlatMessage>().unwrap();
-            // dbg!(record);
-            for message in record.records() {
-                let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
-                    message.record(),
-                    taos::Precision::Millisecond,
-                );
-                let mut stmt = Stmt::init(&taos)?;
-                // process ts, topic, qos, payload
-                let schema = message.schema();
-                let topic_index = schema.index_of("topic").unwrap();
-                let ts_index = schema.index_of("ts").unwrap();
-                let payload_index = schema.index_of("payload").unwrap();
-                let topic_cv = cv_vec.remove(topic_index);
-                dbg!(&cv_vec);
-                for i in 0..topic_cv.len() {
-                    let id = topic_cv.get(i).unwrap().into_value().to_string().unwrap();
-                    let (table, field, _) = map.get(&id).unwrap();
-                    let sql = if ts_index > payload_index {
-                        format!("insert into {table} ({field}, ts) values (?, ?)")
-                    } else {
-                        format!("insert into {table} (ts, {field}) values (?, ?)")
-                    };
-                    stmt.prepare(&sql).unwrap();
-                    let new_cv_vec = cv_vec
-                        .iter()
-                        .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
-                        .collect_vec();
-                    info!(sql);
-                    dbg!(&new_cv_vec);
-                    stmt.bind(&new_cv_vec.as_slice()).unwrap();
-                    stmt.add_batch().unwrap();
-                    let n = stmt.execute().unwrap();
-                    records_count += n;
-                }
+    for record in ipc_reader.flatten() {
+        let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+        })
+        .unwrap();
+        // let record = record.as_any().downcast_ref::<FlatMessage>().unwrap();
+        // dbg!(record);
+        for message in record.records() {
+            let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
+                message.record(),
+                taos::Precision::Millisecond,
+            );
+            let mut stmt = Stmt::init(&taos)?;
+            // process ts, topic, qos, payload
+            let schema = message.schema();
+            let topic_index = schema.index_of("topic").unwrap();
+            let ts_index = schema.index_of("ts").unwrap();
+            let payload_index = schema.index_of("payload").unwrap();
+            let topic_cv = cv_vec.remove(topic_index);
+            dbg!(&cv_vec);
+            for i in 0..topic_cv.len() {
+                let id = topic_cv.get(i).unwrap().into_value().to_string().unwrap();
+                let (table, field, _) = map.get(&id).unwrap();
+                let sql = if ts_index > payload_index {
+                    format!("insert into {table} ({field}, ts) values (?, ?)")
+                } else {
+                    format!("insert into {table} (ts, {field}) values (?, ?)")
+                };
+                stmt.prepare(&sql).unwrap();
+                let new_cv_vec = cv_vec
+                    .iter()
+                    .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
+                    .collect_vec();
+                info!(sql);
+                dbg!(&new_cv_vec);
+                stmt.bind(new_cv_vec.as_slice()).unwrap();
+                stmt.add_batch().unwrap();
+                let n = stmt.execute().unwrap();
+                records_count += n;
             }
-            ipc_ack_writer.write_ok().unwrap();
         }
+        ipc_ack_writer.write_ok().unwrap();
     }
     println!("finished, totally {records_count} rows");
     Ok(())
@@ -165,7 +163,7 @@ fn handle_lush_message<R: Read, W: Write>(
     let columns = ipc_reader
         .columns()
         .into_iter()
-        .map(|s| format!("{s}"))
+        .map(|s| s.to_string())
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
@@ -232,20 +230,20 @@ fn handle_lush_message<R: Read, W: Write>(
                                                 temp_column_value_pair
                                                     .0
                                                     .push_str(columns[index].as_str());
-                                                temp_column_value_pair.0.push_str(",");
+                                                temp_column_value_pair.0.push(',');
                                                 temp_column_value_pair.1.push('\'');
                                                 temp_column_value_pair.1.push_str(
                                                     v.into_value().to_string().unwrap().as_str(),
                                                 );
                                                 temp_column_value_pair.1.push('\'');
-                                                temp_column_value_pair.1.push_str(",");
+                                                temp_column_value_pair.1.push(',');
                                             } else {
                                                 println!("column view {} is null", columns[index]);
                                             }
                                         } else {
                                             println!("column view {} is null", columns[index]);
                                         }
-                                        i = i + 1;
+                                        i += 1;
                                     }
                                 }
                                 column_value_pairs.into_iter().for_each(|(mut c, mut v)| {
@@ -608,7 +606,7 @@ fn handle_point_message<R: Read, W: Write>(
                                 } else if errstr.contains("[0x2653]") {
                                     // column length not enough
                                     runtime.block_on(async {
-                                        let desc = taos::taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
+                                        let desc = taos::taos_query::Queryable::describe(&taos, stable_name.as_str()).unwrap();
                                         desc.into_iter().for_each(|column_meta| {
                                             let column_type;
                                             let length;
@@ -652,7 +650,7 @@ fn handle_point_message<R: Read, W: Write>(
 
 #[inline]
 fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    &column_config
+    column_config
         .column_alias
         .as_ref()
         .unwrap_or(&column_config.column_name)
@@ -664,7 +662,7 @@ fn listen_unix_socket() {
     if path.exists() {
         std::fs::remove_file(path).unwrap();
     }
-    let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+    let listener = std::os::unix::net::UnixListener::bind(path).unwrap();
     info!("listen on socket address: {}", path.display());
     loop {
         match listener.accept() {

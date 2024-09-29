@@ -448,7 +448,7 @@ mod tests {
         );
 
         let json = r#"[{"name": "a", "cast": "timestamp"}, "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![
@@ -460,7 +460,7 @@ mod tests {
         );
 
         let json = r#"[{"name": "a", "alias": "c", "cast": "timestamp"}, "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![
@@ -474,7 +474,7 @@ mod tests {
         );
 
         let json = r#"["a=c", "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![
@@ -484,7 +484,7 @@ mod tests {
         );
 
         let json = r#"["a=c::timestamp", "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![
@@ -498,18 +498,18 @@ mod tests {
         );
 
         let json = r#""a|b""#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(select, Select::pattern("a|b".parse().unwrap()));
 
         let json = r#"{ "exclude": ["a", "b"]}"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(select, Select::exclude(&["a", "b"]));
     }
 
     #[test]
     fn message_select() {
         let json = r#"["a=c", "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
 
         let b: ArrayRef = Arc::new(StringArray::from(vec![
             r#"{"a1": "a1", "b1": 1}"#,

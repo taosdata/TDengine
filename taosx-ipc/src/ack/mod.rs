@@ -371,7 +371,7 @@ mod tests {
         assert_eq!(builder.ack, AckType::Lush);
 
         let schema = Schema::new(fields.clone()).with_metadata(
-            vec![("ack", "code")]
+            [("ack", "code")]
                 .iter()
                 .map(|(a, b)| (a.to_string(), b.to_string()))
                 .collect(),
@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(builder.ack, AckType::Code);
 
         let schema = Schema::new(fields.clone()).with_metadata(
-            vec![("ack", "lush")]
+            [("ack", "lush")]
                 .iter()
                 .map(|(a, b)| (a.to_string(), b.to_string()))
                 .collect(),
@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(builder.ack, AckType::Lush);
 
         let schema = Schema::new(fields.clone()).with_metadata(
-            vec![("ack", "none")]
+            [("ack", "none")]
                 .iter()
                 .map(|(a, b)| (a.to_string(), b.to_string()))
                 .collect(),
@@ -398,7 +398,7 @@ mod tests {
         assert_eq!(builder.ack, AckType::None);
 
         let schema = Schema::new(fields.clone()).with_metadata(
-            vec![("ack", "unknown")]
+            [("ack", "unknown")]
                 .iter()
                 .map(|(a, b)| (a.to_string(), b.to_string()))
                 .collect(),

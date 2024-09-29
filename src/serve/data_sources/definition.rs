@@ -207,13 +207,7 @@ pub enum HintType {
 impl HintType {
     pub fn parse_value(&mut self, v: &str) -> bool {
         match self {
-            HintType::Constant { value } => {
-                if value == v {
-                    true
-                } else {
-                    false
-                }
-            }
+            HintType::Constant { value } => value == v,
             HintType::Integer {
                 value, min, max, ..
             } => {
@@ -229,54 +223,54 @@ impl HintType {
                         }
                     }
                     value.replace(v);
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
             HintType::Str { value, choices, .. } => {
-                if choices.len() > 0 {
+                if !choices.is_empty() {
                     if choices.contains(&v.to_string()) {
                         value.replace(v.to_string());
-                        return true;
+                        true
                     } else {
-                        return false;
+                        false
                     }
                 } else {
                     value.replace(v.to_string());
-                    return true;
+                    true
                 }
             }
             HintType::Time { value, .. } => {
                 if let Ok(time) = chrono::DateTime::parse_from_rfc3339(v) {
                     value.replace(time.to_rfc3339());
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
             HintType::Duration { value, .. } => {
                 if let Ok(duration) = parse_duration::parse(v) {
                     value.replace(format!("{:?}", duration));
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
             HintType::File { value, .. } => {
                 if let Ok(path) = PathBuf::from_str(v) {
                     value.replace(path);
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
             HintType::Bool { value, .. } => {
                 if let Ok(b) = v.parse() {
                     value.replace(b);
-                    return true;
+                    true
                 } else {
-                    return false;
+                    false
                 }
             }
         }
@@ -514,31 +508,23 @@ impl DataSourceDefinition {
     pub fn compute(&mut self) {
         for group in self.groups.as_mut_slice() {
             // TD-25111
-            match (&group.short_description, &group.description) {
-                (None, Some(desc)) => {
-                    group.short_description = desc
-                        .split_terminator("\n")
-                        .into_iter()
-                        .next()
-                        .map(ToString::to_string)
-                        .map(|s| s.replace("<br>", ""));
-                }
-                _ => (),
+            if let (None, Some(desc)) = (&group.short_description, &group.description) {
+                group.short_description = desc
+                    .split_terminator("\n")
+                    .next()
+                    .map(ToString::to_string)
+                    .map(|s| s.replace("<br>", ""));
             }
             if group.collapsible {
                 group.collapsed.replace(false);
             }
             for param in &mut group.params {
-                match (&param.short_description, &param.description) {
-                    (None, Some(desc)) => {
-                        param.short_description = desc
-                            .split_terminator("\n")
-                            .into_iter()
-                            .next()
-                            .map(ToString::to_string)
-                            .map(|s| s.replace("<br>", ""));
-                    }
-                    _ => (),
+                if let (None, Some(desc)) = (&param.short_description, &param.description) {
+                    param.short_description = desc
+                        .split_terminator("\n")
+                        .next()
+                        .map(ToString::to_string)
+                        .map(|s| s.replace("<br>", ""));
                 }
             }
         }
@@ -560,119 +546,120 @@ impl DataSourceDefinition {
         }
 
         match self.r#type {
-            DataSourceType::Uri => match self.options.as_mut() {
-                Some(options) => match options {
-                    DataSourceOptions::Path { path: _ } => {
-                        panic!("mixed path and uri type of DSN");
-                    }
-                    DataSourceOptions::Uri {
-                        host,
-                        port,
-                        subject,
-                    } => {
-                        if let Some(addr) = dsn.addresses.first() {
-                            if let Some(value) = addr.host.as_ref() {
-                                host.value.replace(value.to_string());
+            DataSourceType::Uri => {
+                if let Some(options) = self.options.as_mut() {
+                    match options {
+                        DataSourceOptions::Path { path: _ } => {
+                            panic!("mixed path and uri type of DSN");
+                        }
+                        DataSourceOptions::Uri {
+                            host,
+                            port,
+                            subject,
+                        } => {
+                            if let Some(addr) = dsn.addresses.first() {
+                                if let Some(value) = addr.host.as_ref() {
+                                    host.value.replace(value.to_string());
+                                }
+                                if let Some(value) = addr.port.as_ref() {
+                                    port.value.replace(value.to_string());
+                                }
                             }
-                            if let Some(value) = addr.port.as_ref() {
-                                port.value.replace(value.to_string());
+                            if let Some(value) = dsn.subject.as_ref() {
+                                subject.value.replace(value.to_string());
                             }
                         }
-                        if let Some(value) = dsn.subject.as_ref() {
-                            subject.value.replace(value.to_string());
-                        }
-                    }
-                    DataSourceOptions::Endpoint {
-                        endpoint,
-                        username,
-                        password,
-                        security_mode,
-                        security_policy,
-                        certificate,
-                        private_key,
-                        connect_timeout,
-                    } => {
-                        match dsn.driver.as_str() {
-                            "tmq" | "sync" => {
-                                let mut dsn = dsn.clone();
-                                dsn.driver = "tmq".to_string();
-                                for group in self.groups.as_mut_slice() {
-                                    for param in &mut group.params {
+                        DataSourceOptions::Endpoint {
+                            endpoint,
+                            username,
+                            password,
+                            security_mode,
+                            security_policy,
+                            certificate,
+                            private_key,
+                            connect_timeout,
+                        } => {
+                            match dsn.driver.as_str() {
+                                "tmq" | "sync" => {
+                                    let mut dsn = dsn.clone();
+                                    dsn.driver = "tmq".to_string();
+                                    for group in self.groups.as_mut_slice() {
+                                        for param in &mut group.params {
+                                            dsn.remove(&param.name);
+                                        }
+                                    }
+
+                                    for param in &mut self.params {
                                         dsn.remove(&param.name);
                                     }
+                                    endpoint.value.replace(dsn.to_string());
                                 }
-
-                                for param in &mut self.params {
-                                    dsn.remove(&param.name);
+                                _ => {
+                                    let mut endpoint_str = String::new();
+                                    if let Some(scheme) = dsn.protocol.as_deref() {
+                                        endpoint_str.push_str(scheme);
+                                        endpoint_str.push_str("://");
+                                    }
+                                    if let Some(addr) = dsn.addresses.first() {
+                                        endpoint_str.push_str(addr.to_string().as_str());
+                                    }
+                                    if let Some(value) = dsn.subject.as_ref() {
+                                        endpoint_str.push('/');
+                                        endpoint_str.push_str(value.as_str());
+                                    }
+                                    if dsn.driver == "opcua" {
+                                        if let Some(value) = dsn.remove("security_mode") {
+                                            security_mode
+                                                .get_or_insert(Default::default())
+                                                .value
+                                                .replace(value.to_string());
+                                        }
+                                        if let Some(value) = dsn.remove("security_policy") {
+                                            security_policy
+                                                .get_or_insert(Default::default())
+                                                .value
+                                                .replace(value.to_string());
+                                        }
+                                        if let Some(value) = dsn.remove("certificate") {
+                                            certificate
+                                                .get_or_insert(Default::default())
+                                                .value
+                                                .replace(value.to_string());
+                                        }
+                                        if let Some(value) = dsn.remove("private_key") {
+                                            private_key
+                                                .get_or_insert(Default::default())
+                                                .value
+                                                .replace(value.to_string());
+                                        }
+                                        if let Some(value) = dsn.remove("connect_timeout") {
+                                            connect_timeout
+                                                .get_or_insert(Default::default())
+                                                .value
+                                                .replace(value.to_string());
+                                        }
+                                    }
+                                    endpoint.value.replace(endpoint_str);
                                 }
-                                endpoint.value.replace(dsn.to_string());
                             }
-                            _ => {
-                                let mut endpoint_str = String::new();
-                                if let Some(scheme) = dsn.protocol.as_deref() {
-                                    endpoint_str.push_str(scheme);
-                                    endpoint_str.push_str("://");
-                                }
-                                if let Some(addr) = dsn.addresses.first() {
-                                    endpoint_str.push_str(addr.to_string().as_str());
-                                }
-                                if let Some(value) = dsn.subject.as_ref() {
-                                    endpoint_str.push_str("/");
-                                    endpoint_str.push_str(value.as_str());
-                                }
-                                if dsn.driver == "opcua" {
-                                    if let Some(value) = dsn.remove("security_mode") {
-                                        security_mode
-                                            .get_or_insert(Default::default())
-                                            .value
-                                            .replace(value.to_string());
-                                    }
-                                    if let Some(value) = dsn.remove("security_policy") {
-                                        security_policy
-                                            .get_or_insert(Default::default())
-                                            .value
-                                            .replace(value.to_string());
-                                    }
-                                    if let Some(value) = dsn.remove("certificate") {
-                                        certificate
-                                            .get_or_insert(Default::default())
-                                            .value
-                                            .replace(value.to_string());
-                                    }
-                                    if let Some(value) = dsn.remove("private_key") {
-                                        private_key
-                                            .get_or_insert(Default::default())
-                                            .value
-                                            .replace(value.to_string());
-                                    }
-                                    if let Some(value) = dsn.remove("connect_timeout") {
-                                        connect_timeout
-                                            .get_or_insert(Default::default())
-                                            .value
-                                            .replace(value.to_string());
-                                    }
-                                }
-                                endpoint.value.replace(endpoint_str);
-                            }
-                        }
 
-                        // user/pass
-                        if let Some(value) = username_value.as_deref() {
-                            username
-                                .get_or_insert(Default::default())
-                                .value
-                                .replace(value.to_string());
-                        }
-                        if let Some(value) = password_value.as_deref() {
-                            password
-                                .get_or_insert(Default::default())
-                                .value
-                                .replace(value.to_string());
+                            // user/pass
+                            if let Some(value) = username_value.as_deref() {
+                                username
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = password_value.as_deref() {
+                                password
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
                         }
                     }
-                },
-                None => (),
-            },
+                }
+            }
             DataSourceType::Path => {
                 if let Some(value) = dsn.path.as_ref() {
                     match self.options.as_mut() {
@@ -774,11 +761,10 @@ impl DataSourceDefinition {
                 if let Some(target) = dataset_param.target.as_mut() {
                     if let Some(value) = dsn.remove(&target.name) {
                         if !value.is_empty() {
-                            if target.multiple == true {
+                            if target.multiple {
                                 target.value = Some(serde_json::Value::Array(
                                     value
                                         .split(",")
-                                        .into_iter()
                                         .map(|v| serde_json::Value::String(v.to_string()))
                                         .collect(),
                                 ));
@@ -810,29 +796,17 @@ impl DataSourceDefinition {
 
         for group in self.groups.as_mut_slice() {
             // TD-25111
-            match (&group.short_description, &group.description) {
-                (None, Some(desc)) => {
-                    group.short_description = desc
-                        .split_terminator("\n")
-                        .into_iter()
-                        .next()
-                        .map(ToString::to_string);
-                }
-                _ => (),
+            if let (None, Some(desc)) = (&group.short_description, &group.description) {
+                group.short_description =
+                    desc.split_terminator("\n").next().map(ToString::to_string);
             }
             if group.collapsible {
                 group.collapsed.replace(false);
             }
             for param in &mut group.params {
-                match (&param.short_description, &param.description) {
-                    (None, Some(desc)) => {
-                        param.short_description = desc
-                            .split_terminator("\n")
-                            .into_iter()
-                            .next()
-                            .map(ToString::to_string);
-                    }
-                    _ => (),
+                if let (None, Some(desc)) = (&param.short_description, &param.description) {
+                    param.short_description =
+                        desc.split_terminator("\n").next().map(ToString::to_string);
                 }
                 if let Some(v) = dsn.remove(&param.name) {
                     if group.collapsible {
@@ -877,31 +851,17 @@ impl DataSourceDefinition {
         }
 
         if let Some(group) = &mut self.advanced {
-            match (&group.short_description, &group.description) {
-                (None, Some(desc)) => {
-                    group.short_description = desc
-                        .split_terminator("\n")
-                        .into_iter()
-                        .next()
-                        .map(ToString::to_string);
-                }
-                _ => (),
+            if let (None, Some(desc)) = (&group.short_description, &group.description) {
+                group.short_description =
+                    desc.split_terminator("\n").next().map(ToString::to_string);
             }
-            if group.collapsible {
-                if group.collapsed.is_none() {
-                    group.collapsed.replace(false);
-                }
+            if group.collapsible && group.collapsed.is_none() {
+                group.collapsed.replace(false);
             }
             for param in &mut group.params {
-                match (&param.short_description, &param.description) {
-                    (None, Some(desc)) => {
-                        param.short_description = desc
-                            .split_terminator("\n")
-                            .into_iter()
-                            .next()
-                            .map(ToString::to_string);
-                    }
-                    _ => (),
+                if let (None, Some(desc)) = (&param.short_description, &param.description) {
+                    param.short_description =
+                        desc.split_terminator("\n").next().map(ToString::to_string);
                 }
                 if let Some(v) = dsn.remove(&param.name) {
                     if group.collapsible {
@@ -975,7 +935,7 @@ fn test() {
     println!("{}", &toml);
 
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let new = def.clone().values_from(dsn);
     dbg!(def, new);
 }
@@ -990,7 +950,7 @@ fn influxdb() {
     println!("{}", &toml);
 
     let dsn = "influxdb://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
 }
@@ -1005,7 +965,7 @@ fn test_mqtt() {
     println!("{}", &toml);
 
     let dsn = "mqtt://localhost:123/opcua/server1?ca=abc&cert=abc&abc";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     // let tmq = &mut def[0];
     let ds = def.values_from(dsn);
     assert_eq!(ds.groups[0].collapsed, Some(true));
@@ -1024,7 +984,7 @@ fn test_csv() {
     println!("{}", &toml);
 
     let dsn = "csv:abc.csv?quote=\"";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     // let tmq = &mut def[0];
     let ds = def.values_from(dsn);
     // assert_eq!(ds.groups[0].collapsed, Some(true));
@@ -1043,7 +1003,7 @@ fn test_kafka() {
     println!("{}", &toml);
 
     let dsn = "kafka://a.k/?topics=a,b";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     // let tmq = &mut def[0];
     let _ds = def.values_from(dsn);
 }
@@ -1058,7 +1018,7 @@ fn test_legacy() {
     println!("{}", &toml);
 
     let dsn = "taos:///test?libraryPath=a.so";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     // let tmq = &mut def[0];
     let ds = def.values_from(dsn);
     dbg!(ds);
@@ -1080,7 +1040,7 @@ fn test_pi() {
     let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
 
     let dsn = "pi://PI?MaxBackfillRangeDays=1&point_file=*&system_configuration=PI Data Archive Only&batch_size=1000&batch_timeout=1";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let def = def.values_from(dsn);
     dbg!(&def);
     assert_eq!(
@@ -1096,7 +1056,7 @@ fn test_opc_ua() {
     // dbg!(&def);
 
     let dsn = "opcua://localhost:53530/OPCUA/SimulationServer?connect_timeout=10&security_mode=Sign&security_policy=Basic128Rsa15&connect_timeout=20";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let def = def.values_from(dsn);
     dbg!(&def);
 
@@ -1154,13 +1114,13 @@ fn test_pi_backfill() {
     println!("{}", &toml);
 
     let dsn = "pibackfill://PIserver?BackfillStartTime=auto";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let tmq = &mut def;
     let new = tmq.clone().values_from(dsn);
     dbg!(&tmq, &new);
     assert_eq!(new.groups[0].params[0].value, Some("auto".to_string()));
     let dsn = "pibackfill://PIserver?BackfillStartTime=2023-01-01T00:00:00Z";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let dsn = Dsn::from_str(dsn).unwrap();
     let tmq = &mut def;
     let new = tmq.clone().values_from(dsn);
     dbg!(&tmq, &new);
@@ -1179,7 +1139,7 @@ fn test_pi_backfill() {
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
-    let _dsn = Dsn::from_str(&dsn).unwrap();
+    let _dsn = Dsn::from_str(dsn).unwrap();
 }
 
 #[test]

@@ -84,8 +84,8 @@ mod tests {
             "data_source": "kafka"
         }"#;
         let v: DataSourceValidation = serde_json::from_str(data).unwrap();
-        assert_eq!(true, v.valid);
-        assert_eq!(true, v.support);
+        assert!(v.valid);
+        assert!(v.support);
         assert_eq!("kafka", v.data_source);
         assert_eq!(None, v.version);
         assert_eq!(None, v.message);

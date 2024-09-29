@@ -47,7 +47,7 @@ impl Failed<()> {
     pub fn from_error(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            message: format!("{}", err.to_string()),
+            message: format!("{}", err),
             data: (),
         }
     }
@@ -532,11 +532,11 @@ async fn batch_operation(
 ) -> Vec<TaskBatchResponse> {
     let mut set = tokio::task::JoinSet::new();
     for id in ids.iter() {
-        let id_clone = id.clone();
+        let id_clone = *id;
         let task_store_clone = task_store.clone();
         set.spawn(async move {
             match operation {
-                TaskBatchOperation::Start => match task_store_clone.start(id_clone.clone()).await {
+                TaskBatchOperation::Start => match task_store_clone.start(id_clone).await {
                     Ok(Some(_)) => TaskBatchResponse {
                         id: Some(id_clone),
                         error: None,
@@ -550,7 +550,7 @@ async fn batch_operation(
                         error: Some(format!("{:?}", err)),
                     },
                 },
-                TaskBatchOperation::Stop => match task_store_clone.stop(id_clone.clone()).await {
+                TaskBatchOperation::Stop => match task_store_clone.stop(id_clone).await {
                     Ok(Some(_)) => TaskBatchResponse {
                         id: Some(id_clone),
                         error: None,
@@ -564,22 +564,20 @@ async fn batch_operation(
                         error: Some(format!("{:?}", err)),
                     },
                 },
-                TaskBatchOperation::Delete => {
-                    match task_store_clone.delete(id_clone.clone()).await {
-                        Ok(Some(_)) => TaskBatchResponse {
-                            id: Some(id_clone),
-                            error: None,
-                        },
-                        Ok(None) => TaskBatchResponse {
-                            id: Some(id_clone),
-                            error: Some(format!("Task {id_clone} not found")),
-                        },
-                        Err(err) => TaskBatchResponse {
-                            id: Some(id_clone),
-                            error: Some(format!("{:?}", err)),
-                        },
-                    }
-                }
+                TaskBatchOperation::Delete => match task_store_clone.delete(id_clone).await {
+                    Ok(Some(_)) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: None,
+                    },
+                    Ok(None) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("Task {id_clone} not found")),
+                    },
+                    Err(err) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        error: Some(format!("{:?}", err)),
+                    },
+                },
             }
         });
     }
@@ -868,9 +866,9 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.file_type,
         filemeta_request.has_header,
         filemeta_request.skip.unwrap_or(0),
-        filemeta_request.delimiter.unwrap_or(String::new()),
-        filemeta_request.quote.unwrap_or(String::new()),
-        filemeta_request.comment.unwrap_or(String::new()),
+        filemeta_request.delimiter.unwrap_or_default(),
+        filemeta_request.quote.unwrap_or_default(),
+        filemeta_request.comment.unwrap_or_default(),
         filemeta_request.sample.unwrap_or(5),
     );
 
@@ -889,7 +887,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         [quote] if *quote == delimiter => Some(Err(anyhow!(
             "CSV quote should not be the same as delimiter"
         ))),
-        [quote] => Some(Ok(quote.clone())),
+        [quote] => Some(Ok(*quote)),
         _ => Some(Err(anyhow!("CSV quote should be a single character"))),
     }
     .transpose()?;
@@ -900,7 +898,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         [comment] if *comment == delimiter => Some(Err(anyhow!(
             "CSV comment should not be the same as delimiter"
         ))),
-        [comment] => Some(Ok(comment.clone())),
+        [comment] => Some(Ok(*comment)),
         _ => Some(Err(anyhow!("CSV comment should be a single character"))),
     }
     .transpose()?;
@@ -911,7 +909,6 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         "csv" => {
             let filepath_or_filedir = filepath_or_filedir
                 .split(",")
-                .into_iter()
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
             let csv_header = taosx_core::csv_header(

@@ -44,6 +44,12 @@ impl MetricEvent {
 pub struct MetricsEvents(Vec<MetricEvent>);
 static BINCODE_CONFIG: config::Configuration = config::standard();
 
+impl Default for MetricsEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsEvents {
     pub fn new() -> MetricsEvents {
         let vec = Vec::new();
@@ -70,7 +76,7 @@ impl MetricsEvents {
     }
 
     pub fn to_vec_u8(&self) -> Vec<u8> {
-        bincode::encode_to_vec(&self, BINCODE_CONFIG).unwrap()
+        bincode::encode_to_vec(self, BINCODE_CONFIG).unwrap()
     }
 
     pub fn len(&self) -> usize {

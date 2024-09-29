@@ -21,8 +21,8 @@ pub fn init_repeat_interval(dur: Duration) {
 pub fn repeat_interval() -> Duration {
     DEFAULT_REPEAT_INTERVAL
         .get()
-        .map(Clone::clone)
-        .unwrap_or_else(|| DEFAULT_REPEAT_INTERVAL_FALLBACK)
+        .copied()
+        .unwrap_or(DEFAULT_REPEAT_INTERVAL_FALLBACK)
 }
 
 /// How to resume a task.
@@ -155,7 +155,7 @@ impl FromStr for ErrorRate {
             .map_err(|err| ParseErrorRateError::InvalidCount(err, s.to_string()))?;
         let duration = parse_duration::parse(duration)
             .map_err(|err| ParseErrorRateError::InvalidDuration(err, s.to_string()))?;
-        Ok(ErrorRate(count, duration.into()))
+        Ok(ErrorRate(count, duration))
     }
 }
 
@@ -303,25 +303,22 @@ impl StopCondition {
 
     /// Tick the stop condition.
     pub fn tick(&self) {
-        match self {
-            StopCondition::Repeated(atomic) => {
-                let _ = atomic.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
-                    if v > 0 {
-                        Some(v - 1)
-                    } else {
-                        None
-                    }
-                });
-            }
-            _ => (),
+        if let StopCondition::Repeated(atomic) = self {
+            let _ = atomic.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
+                if v > 0 {
+                    Some(v - 1)
+                } else {
+                    None
+                }
+            });
         }
     }
 
     pub(crate) fn should_stop_with(&self, result: &anyhow::Result<()>) -> bool {
         if result.is_err() {
-            return self.should_stop_with_error();
+            self.should_stop_with_error()
         } else {
-            return self.should_stop_with_ok();
+            self.should_stop_with_ok()
         }
     }
 }
@@ -367,7 +364,7 @@ impl Strategy {
 
     pub fn stop_condition(&self) -> StopCondition {
         // Never stop for cron job.
-        if let Some(_) = self.schedule.as_deref() {
+        if self.schedule.as_deref().is_some() {
             return StopCondition::Never;
         }
         match self.resume {
@@ -386,7 +383,7 @@ impl FromStr for Strategy {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(trigger) = serde_json::from_str::<Strategy>(s) {
-            return Ok(trigger);
+            Ok(trigger)
         } else {
             debug_assert!(s.starts_with("schedule:"));
             return Ok(Strategy {

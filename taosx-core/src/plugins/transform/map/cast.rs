@@ -205,14 +205,11 @@ mod tests {
             .unwrap();
         assert_eq!(field.name(), "n4");
         assert_eq!(*field.data_type(), DataType::Boolean);
-        assert_eq!(
-            value
-                .as_any()
-                .downcast_ref::<BooleanArray>()
-                .unwrap()
-                .value(0),
-            true
-        );
+        assert!(value
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap()
+            .value(0));
 
         // default timestamp
         let builder: CastValueBuilder =

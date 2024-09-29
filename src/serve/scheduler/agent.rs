@@ -177,13 +177,16 @@ impl AgentWorker {
                                             tracing::info!("Agent connected: {}", agent_id);
                                             {
                                                 let mut states = agent_states_cloned.write().await;
-                                                if states.contains_key(&agent_id) {
+                                                if let std::collections::hash_map::Entry::Vacant(
+                                                    e,
+                                                ) = states.entry(agent_id)
+                                                {
+                                                    e.insert(AgentState::Connected);
+                                                } else {
                                                     states
                                                         .get_mut(&agent_id)
                                                         .unwrap()
                                                         .clone_from(&AgentState::Connected);
-                                                } else {
-                                                    states.insert(agent_id, AgentState::Connected);
                                                 }
                                             }
                                             let mut agent_tasks =
@@ -237,13 +240,16 @@ impl AgentWorker {
                                             tracing::info!("Agent closed: {}", agent_id);
                                             {
                                                 let mut states = agent_states_cloned.write().await;
-                                                if states.contains_key(&agent_id) {
+                                                if let std::collections::hash_map::Entry::Vacant(
+                                                    e,
+                                                ) = states.entry(agent_id)
+                                                {
+                                                    e.insert(AgentState::Closed);
+                                                } else {
                                                     states
                                                         .get_mut(&agent_id)
                                                         .unwrap()
                                                         .clone_from(&AgentState::Closed);
-                                                } else {
-                                                    states.insert(agent_id, AgentState::Closed);
                                                 }
                                             }
                                             let mut agent_tasks =

@@ -98,14 +98,11 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Boolean);
         assert_eq!(value.len(), 3);
-        assert_eq!(
-            value
-                .as_any()
-                .downcast_ref::<BooleanArray>()
-                .unwrap()
-                .value(0),
-            true
-        );
+        assert!(value
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap()
+            .value(0));
     }
 
     #[test]

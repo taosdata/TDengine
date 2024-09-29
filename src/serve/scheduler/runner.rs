@@ -94,10 +94,8 @@ async fn task_opts_init(
                     if license.is_expired_second() {
                         anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
                     }
-                } else {
-                    if license.is_expired_day() {
-                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                    }
+                } else if license.is_expired_day() {
+                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
                 }
             }
         }
@@ -657,7 +655,7 @@ impl TaskState {
             let (stop_sender, stop_waiter) = tokio::sync::oneshot::channel();
             let task = AgentTask {
                 agent_id: via,
-                task_id: task_id,
+                task_id,
                 agent_state: agent_state.clone(),
                 sender,
                 stop_sender: Arc::new(stop_sender),
@@ -740,7 +738,7 @@ impl MultiIndexTaskJobMap {
     pub async fn try_stop(&mut self, task: i64) -> Result<(), StopError> {
         let task_job = self
             .get_by_task_id(&task)
-            .ok_or_else(|| StopError::NotFound(task))?;
+            .ok_or(StopError::NotFound(task))?;
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
 
@@ -770,7 +768,7 @@ impl TaskJob {
         let task_id = task.task.id;
         Self {
             task_id,
-            job_id: job_id,
+            job_id,
             task,
             global: global_state,
         }
@@ -1185,7 +1183,7 @@ impl TaskJob {
                                         }
                                     },
                                     "ipc-started" => {
-                                        ipc_in_progress = ipc_in_progress + 1;
+                                        ipc_in_progress += 1;
                                         tracing::info!(
                                             "Start ingesting data with worker {}",
                                             ipc_in_progress
@@ -1212,7 +1210,7 @@ impl TaskJob {
                                             ),
                                         ));
                                         if ipc_in_progress >= 1 {
-                                            ipc_in_progress = ipc_in_progress - 1;
+                                            ipc_in_progress -= 1;
                                         }
                                         if ipc_in_progress > 0 {
                                             continue;
@@ -1582,7 +1580,7 @@ impl TaskJob {
                                     opts.task.id,
                                     format!("{err:#}"),
                                 ));
-                                opts.state.write().await.fail(&err);
+                                opts.state.write().await.fail(err);
                             } else {
                                 global.send_task_activity(TaskActivity::interrupted(
                                     opts.task.id,

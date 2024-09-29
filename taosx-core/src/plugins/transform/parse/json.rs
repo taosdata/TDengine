@@ -946,8 +946,7 @@ mod tests {
     use super::*;
 
     fn parse_json(json_str: &str) -> Result<serde_json::Value, serde_json::Error> {
-        let json = serde_json::from_str::<serde_json::Value>(&json_str);
-        json
+        serde_json::from_str::<serde_json::Value>(&json_str)
     }
 
     fn build_schema_by_json(json: serde_json::Value) -> Result<Schema, arrow::error::ArrowError> {
@@ -958,8 +957,7 @@ mod tests {
             }
             _ => unreachable!(),
         }
-        let schema = arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter());
-        schema
+        arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())
     }
 
     #[test]
@@ -996,7 +994,7 @@ mod tests {
     fn json_extract() {
         let extract = Json {
             // select: None,
-            json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
+            json: Some(serde_json::from_str(r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
             keep: false,
             depth: Some(0),
         };
@@ -1285,7 +1283,7 @@ mod tests {
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
         let v = extract.parse_array(&field, &array);
-        assert!(!v.is_err());
+        assert!(v.is_ok());
 
         let (records, indices) = v.unwrap();
         assert_eq!(records.num_rows(), 3);
