@@ -1293,7 +1293,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(code, &lino, _end);
   }
 
-  // memset(&pConn->regArg, 0, sizeof(pConn->regArg));
   pConn->broken = false;
   pConn->status = ConnNormal;
 
@@ -1320,7 +1319,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   pConn->refId = exh->refId;
 
   QUEUE_INIT(&exh->q);
-  transRefSrvHandle(pConn);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pInst), exh, pConn, pConn->refId);
 
   pConn->pQTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -1337,8 +1335,11 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
 
-  pConn->bufSize = BUFFER_LIMIT;
-  pConn->buf = taosMemoryCalloc(1, sizeof(uv_buf_t));
+  pConn->bufSize = pInst->shareConnLimit;
+  pConn->buf = taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
+  if (pConn->buf == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+  }
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
   if (code != 0) {
@@ -1351,6 +1352,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   pConn->pInst = pThrd->pInst;
   pConn->hostThrd = pThrd;
 
+  transRefSrvHandle(pConn);
   return pConn;
 _end:
   if (pConn) {

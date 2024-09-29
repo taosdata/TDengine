@@ -404,7 +404,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = 16;
   rpcInit.shareConn = 1;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
@@ -454,7 +454,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = 32;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
 
@@ -503,7 +503,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = 64;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
 
@@ -560,6 +560,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.shareConnLimit = 16;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);

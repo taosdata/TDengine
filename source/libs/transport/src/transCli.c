@@ -48,7 +48,7 @@ typedef struct {
   queue          wq;
   queue          listq;
   int32_t        wLen;
-  int32_t        batchSize;  //
+  int32_t        shareConnLimit;  //
   int32_t        batch;
   SCliBatchList* pList;
 } SCliBatch;
@@ -961,6 +961,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   int32_t code = 0;
   int32_t lino = 0;
 
+  STrans*   pInst = pThrd->pInst;
   SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   if (conn == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _failed);
@@ -971,6 +972,9 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   conn->dstAddr = taosStrdup(addr);
   conn->ipStr = taosStrdup(ip);
   conn->port = port;
+  if (conn->dstAddr == NULL || conn->ipStr == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _failed);
+  }
 
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
@@ -1006,8 +1010,8 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
     TAOS_CHECK_GOTO(code, NULL, _failed);
   }
 
-  conn->bufSize = BUFFER_LIMIT;
-  conn->buf = (uv_buf_t*)taosMemoryCalloc(1, BUFFER_LIMIT * sizeof(uv_buf_t));
+  conn->bufSize = pInst->shareConnLimit;
+  conn->buf = (uv_buf_t*)taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
   if (conn->buf == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _failed);
   }
@@ -1870,7 +1874,7 @@ static void cliBuildBatch(SCliReq* pReq, queue* h, SCliThrd* pThrd) {
       return;
     }
 
-    pBatchList->batchLenLimit = pInst->batchSize;
+    pBatchList->batchLenLimit = pInst->shareConnLimit;
 
     SCliBatch* pBatch = NULL;
     code = createBatch(&pBatch, pBatchList, pReq);
@@ -1895,9 +1899,9 @@ static void cliBuildBatch(SCliReq* pReq, queue* h, SCliThrd* pThrd) {
     } else {
       queue*     hdr = QUEUE_TAIL(&((*ppBatchList)->wq));
       SCliBatch* pBatch = QUEUE_DATA(hdr, SCliBatch, listq);
-      if ((pBatch->batchSize + pReq->msg.contLen) < (*ppBatchList)->batchLenLimit) {
+      if ((pBatch->shareConnLimit + pReq->msg.contLen) < (*ppBatchList)->batchLenLimit) {
         QUEUE_PUSH(&pBatch->wq, h);
-        pBatch->batchSize += pReq->msg.contLen;
+        pBatch->shareConnLimit += pReq->msg.contLen;
         pBatch->wLen += 1;
       } else {
         SCliBatch* tBatch = NULL;
@@ -1962,7 +1966,7 @@ static int32_t createBatch(SCliBatch** ppBatch, SCliBatchList* pList, SCliReq* p
 
   QUEUE_PUSH(&pBatch->wq, &pReq->q);
   pBatch->wLen += 1;
-  pBatch->batchSize = pReq->msg.contLen;
+  pBatch->shareConnLimit = pReq->msg.contLen;
   pBatch->pList = pList;
 
   QUEUE_PUSH(&pList->wq, &pBatch->listq);
@@ -3332,12 +3336,12 @@ static int32_t getOrCreateHeap(SHashObj* pConnHeapCache, char* key, SHeap** pHea
   return code;
 }
 
-static FORCE_INLINE int8_t shouldSWitchToOtherConn(int32_t reqNum, int32_t sentNum, int32_t stateNum) {
+static FORCE_INLINE int8_t shouldSWitchToOtherConn(STrans* pInst, int32_t reqNum, int32_t sentNum, int32_t stateNum) {
   int32_t total = reqNum + sentNum;
-  if (stateNum >= STATE_BUFFER_LIMIT) {
+  if (stateNum >= pInst->shareConnLimit) {
     return 1;
   }
-  if (total >= BUFFER_LIMIT) {
+  if (total >= pInst->shareConnLimit) {
     return 1;
   }
 
@@ -3353,11 +3357,13 @@ static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
 static FORCE_INLINE void logConnMissHit(SCliConn* pConn) {
   // queue set;
   // QUEUE_INIT(&set);
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
   pConn->heapMissHit++;
   tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
          transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
-         BUFFER_LIMIT);
-  // if (transQueueSize(&pConn->reqsSentOut) >= BUFFER_LIMIT) {
+         pInst->shareConnLimit);
+  // if (transQueueSize(&pConn->reqsSentOut) >= pInst->shareConnLimit) {
   //   transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
   // }
 }
@@ -3376,11 +3382,12 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   } else {
     tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
-    int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
-    int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
-    int32_t stateNum = taosHashGetSize(pConn->pQTable);
-
-    if (shouldSWitchToOtherConn(reqsNum, reqsSentOut, stateNum)) {
+    int32_t   reqsNum = transQueueSize(&pConn->reqsToSend);
+    int32_t   reqsSentOut = transQueueSize(&pConn->reqsSentOut);
+    int32_t   stateNum = taosHashGetSize(pConn->pQTable);
+    SCliThrd* pThrd = pConn->hostThrd;
+    STrans*   pInst = pThrd->pInst;
+    if (shouldSWitchToOtherConn(pInst, reqsNum, reqsSentOut, stateNum)) {
       logConnMissHit(pConn);
       return NULL;
     }
