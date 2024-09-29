@@ -1776,7 +1776,7 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
       } else if (code == 0) {
         code = addConnToHeapCache(pThrd->connHeapCache, pConn);
         if (code != 0) {
-          tWarn("%s conn %p failed to added to heap cache since %s", pInst->label, tstrerror(code));
+          tWarn("%s conn %p failed to added to heap cache since %s", pInst->label, pConn, tstrerror(code));
         }
       } else {
         // TAOS_CHECK_GOTO(code, &lino, _exception);
