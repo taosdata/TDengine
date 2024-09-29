@@ -1478,7 +1478,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
 #ifdef WEBSOCKET
-  if (!shell.args.restful && !shell.args.cloud) {g
+  if (!shell.args.restful && !shell.args.cloud) {
 #endif
     char *buf = taosMemoryMalloc(512);
     bool  community = shellGetGrantInfo(buf);
