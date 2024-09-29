@@ -89,11 +89,13 @@ static void doStartScanWal(void* param, void* tmrId) {
           pTq->pVnode->restored);
 
   int32_t code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
-  taosMemoryFree(pParam);
 
   if (code) {
     tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
   }
+
+  taosReleaseRef(streamMetaId, pParam->metaId);
+  taosMemoryFree(pParam);
 }
 
 int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
