@@ -42,10 +42,17 @@ else()
     target_link_libraries(shell PUBLIC taos ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif ()
 
-target_link_libraries(
-    shell
-    PRIVATE os common transport geometry util dnode taosd
-)
+if(${TD_ACORE})
+    target_link_libraries(
+        shell
+        PRIVATE os common transport geometry util taosd
+    )
+else()
+    target_link_libraries(
+        shell
+        PRIVATE os common transport geometry util
+    )
+endif()
 
 target_include_directories(
     shell
