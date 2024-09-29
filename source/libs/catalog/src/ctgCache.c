@@ -906,7 +906,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
-    CTG_RET(TSDB_CODE_CTG_EXIT);
+    CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
 
   gCtgMgmt.queue.tail->next = node;
@@ -924,7 +924,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   code = tsem_post(&gCtgMgmt.queue.reqSem);
   if (TSDB_CODE_SUCCESS != code) {
     qError("tsem_post failed, code:%x", code);
-    CTG_RET(code);
+    CTG_ERR_JRET(code);
   }
 
   if (syncOp) {
@@ -935,9 +935,14 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
+    tsem_destroy(&operation->rspSem);
     taosMemoryFree(operation);
   }
 
+_return:
+  if (syncOp) {
+    tsem_destroy(&operation->rspSem);
+  }
   return code;
 }
 
