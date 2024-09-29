@@ -737,7 +737,7 @@ _end:
 
   if (NULL != pVal) {
     insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     if (insertRet != TAOS_LRU_STATUS_OK) {
       qWarn("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
     }
