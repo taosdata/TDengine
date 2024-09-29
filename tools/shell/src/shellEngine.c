@@ -1462,7 +1462,7 @@ int32_t shellExecute(int argc, char *argv[]) {
 
     shellWriteHistory();
     shellCleanupHistory();
-    TAOS_CHECK_GOTO(code, &lino, _exit_half);
+    goto _exit_half;
   }
 
   if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
@@ -1478,7 +1478,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
 #ifdef WEBSOCKET
-  if (!shell.args.restful && !shell.args.cloud) {
+  if (!shell.args.restful && !shell.args.cloud) {g
 #endif
     char *buf = taosMemoryMalloc(512);
     bool  community = shellGetGrantInfo(buf);
