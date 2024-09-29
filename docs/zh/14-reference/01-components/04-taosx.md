@@ -250,15 +250,15 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
-- `log.path`：日志文件存放的目录
+- `log.path`：日志文件存放的目录。
 - `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
 - `log.compress`：日志文件滚动后的文件是否进行压缩。
-- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除
-- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件
+- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
+- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
 - `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
-- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除
+- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
 - `log.watching`：是否对日志文件中 `log.loggers` 配置内容的变更进行监听并尝试重载。
-- `log.loggers`：指定模块的日志输出级别，格式为 `"modname" = "level"`，同时适配 tracing 库语法，可以根据 `modname[span{field=value}]=level`，其中 `level` 为日志级别
+- `log.loggers`：指定模块的日志输出级别，格式为 `"modname" = "level"`，同时适配 tracing 库语法，可以根据 `modname[span{field=value}]=level`，其中 `level` 为日志级别。
 
 如下所示：
 

@@ -14,13 +14,13 @@ sidebar_label: taosX-Agent
 - `compression`: 非必填，可配置为 `ture` 或 `false`, 默认为 `false`。配置为`true`, 则开启 `Agent` 和 `taosX` 通信数据压缩。
 - `log_level`: 非必填，日志级别，默认为 `info`, 同 `taosX` 一样，支持 `error`，`warn`，`info`，`debug`，`trace` 五级。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：非必填，日志保存天数，默认为 `30` 天。已弃用，请使用 `log.keepDays` 代替。
-- `log.path`：日志文件存放的目录
+- `log.path`：日志文件存放的目录。
 - `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
 - `log.compress`：日志文件滚动后的文件是否进行压缩。
-- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除
-- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件
+- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
+- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
 - `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
-- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除
+- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
 
 如下所示：
 
