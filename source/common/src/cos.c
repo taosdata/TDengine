@@ -1967,6 +1967,8 @@ long s3Size(const char *object_name) {
 #else
 
 int32_t s3Init() { return 0; }
+void    s3End() {}
+int32_t s3CheckCfg() { return 0; }
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) { return 0; }
