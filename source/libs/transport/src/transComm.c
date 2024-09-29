@@ -951,7 +951,7 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
   if (pReq == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  memcpy((char*)pReqEpSet, (char*)pEpset, size);
+  memcpy((char*)pReq, (char*)pEpset, size);
   *pReqEpSet = pReq;
   return TSDB_CODE_SUCCESS;
 }

@@ -136,12 +136,6 @@ typedef struct SCvtAddr {
   bool cvt;
 } SCvtAddr;
 
-typedef struct {
-  int32_t inUse;
-  int32_t numOfEps;
-  SEp     eps[];
-} SReqEpSet;
-
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
 int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
 

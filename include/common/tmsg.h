@@ -971,6 +971,12 @@ typedef struct SEpSet {
   SEp    eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
+typedef struct {
+  int8_t inUse;
+  int8_t numOfEps;
+  SEp    eps[];
+} SReqEpSet;
+
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
 int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
@@ -2822,8 +2828,8 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL      300000
-#define DEFAULT_SESSION_TIMEOUT        12000
+#define DEFAULT_MAX_POLL_INTERVAL 300000
+#define DEFAULT_SESSION_TIMEOUT   12000
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
