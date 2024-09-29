@@ -75,6 +75,34 @@ bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
   return false;
 }
 
+void qScanSql(const char* pStr, size_t length, uint8_t *is_insert, size_t *questions) {
+  *is_insert = 0;
+  *questions = 0;
+
+  if (NULL == pStr) return;
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_INSERT == t.type || TK_IMPORT == t.type) {
+    *is_insert = 1;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_NK_QUESTION == t.type) {
+      *questions += 1;
+      continue;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+}
+
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 

@@ -2592,12 +2592,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
+TAOS_RES* taosQueryImplWithConnId(int64_t connId, const char* sql, bool validateOnly, int8_t source) {
   tscDebug("taos_query start with sql:%s", sql);
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
@@ -2607,7 +2602,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   tsem_init(&param->sem, 0, 0);
 
-  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
+  taosAsyncQueryImpl(connId, sql, syncQueryFn, param, validateOnly, source);
   tsem_wait(&param->sem);
 
   SRequestObj* pRequest = NULL;
@@ -2621,6 +2616,15 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   tscDebug("taos_query end with sql:%s", sql);
 
   return pRequest;
+}
+
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  return taosQueryImplWithConnId(*(int64_t*)taos, sql, validateOnly, source);
 }
 
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid) {

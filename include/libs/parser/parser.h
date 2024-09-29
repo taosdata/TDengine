@@ -102,6 +102,11 @@ typedef struct SParseContext {
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 
+// NOTE: for the purpose to determine, by simply token scanning,
+//       if the sql statement `seems` `insert` or not
+//       and how many possible question-marks or parameter-placeholders are there
+void qScanSql(const char* pStr, size_t length, uint8_t *is_insert, size_t *questions);
+
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
