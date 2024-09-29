@@ -105,11 +105,11 @@ IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     IF (${CMAKE_BUILD_TYPE} MATCHES "Release")
       MESSAGE("${Green} will build Release version! ${ColourReset}")
-      SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+      SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD /fsanitize=address")
 
     ELSE ()
       MESSAGE("${Green} will build Debug version! ${ColourReset}")
-      SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+      SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd /fsanitize=address")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
