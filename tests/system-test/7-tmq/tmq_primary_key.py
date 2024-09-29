@@ -85,7 +85,7 @@ class TDTestCase:
         time.sleep(4)  # wait for heart beat
 
         tdSql.query(f'show subscriptions;')
-        sub = tdSql.getData(0, 4);
+        sub = tdSql.getData(0, 6);
         print(sub)
         if not sub.startswith("tsdb"):
             tdLog.exit(f"show subscriptions error")
@@ -196,7 +196,7 @@ class TDTestCase:
 
         time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
-        sub = tdSql.getData(0, 4);
+        sub = tdSql.getData(0, 6);
         print(sub)
         if not sub.startswith("tsdb"):
             tdLog.exit(f"show subscriptions error")
@@ -306,7 +306,7 @@ class TDTestCase:
 
         time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
-        sub = tdSql.getData(0, 4);
+        sub = tdSql.getData(0, 6);
         print(sub)
         if not sub.startswith("tsdb"):
             tdLog.exit(f"show subscriptions error")
@@ -416,7 +416,7 @@ class TDTestCase:
 
         time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
-        sub = tdSql.getData(0, 4);
+        sub = tdSql.getData(0, 6);
         print(sub)
         if not sub.startswith("tsdb"):
             tdLog.exit(f"show subscriptions error")
@@ -517,7 +517,7 @@ class TDTestCase:
             consumer.close()
 
         tdSql.query(f'show subscriptions;')
-        sub = tdSql.getData(0, 4);
+        sub = tdSql.getData(0, 6);
         print(sub)
         if not sub.startswith("tsdb"):
             tdLog.exit(f"show subscriptions error")
