@@ -1,3 +1,5 @@
+#if defined(USE_S3)
+
 #include "td_block_blob_client.hpp"
 
 #include <azure/core/platform.hpp>
@@ -619,3 +621,5 @@ return response;
 }  // namespace Blobs
 }  // namespace Storage
 }  // namespace Azure
+
+#endif

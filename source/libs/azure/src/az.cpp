@@ -21,6 +21,8 @@
 #include "taoserror.h"
 #include "tglobal.h"
 
+#if defined(USE_S3)
+
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 #include "td_block_blob_client.hpp"
@@ -33,8 +35,6 @@ extern char tsS3Hostname[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeySecret[][TSDB_FQDN_LEN];
 extern char tsS3BucketName[TSDB_FQDN_LEN];
-
-#if defined(USE_S3)
 
 int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 

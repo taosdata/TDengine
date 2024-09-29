@@ -1,3 +1,4 @@
+#if defined(USE_S3)
 #include "avro_parser.hpp"
 
 #include <azure/core/azure_assert.hpp>
@@ -526,3 +527,5 @@ size_t AvroStreamParser::OnRead(uint8_t* buffer, size_t count, Azure::Core::Cont
 }  // namespace Blobs
 }  // namespace Storage
 }  // namespace Azure
+
+#endif
