@@ -2936,7 +2936,7 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
   *pCliMsg = pCliReq;
   return code;
 _exception:
-  if (pCtx == NULL) {
+  if (pCtx != NULL) {
     taosMemoryFree(pCtx->epSet);
     taosMemoryFree(pCtx->origEpSet);
     taosMemoryFree(pCtx);
@@ -2979,6 +2979,9 @@ _exception:
   transFreeMsg(pReq->pCont);
   pReq->pCont = NULL;
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  if (code != 0) {
+    tError("failed to send request since %s", tstrerror(code));
+  }
   return code;
 }
 int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
@@ -3025,6 +3028,8 @@ _exception:
   transFreeMsg(pReq->pCont);
   pReq->pCont = NULL;
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+
+  tError("failed to send request since %s", tstrerror(code));
   return code;
 }
 

@@ -957,8 +957,14 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
-
+  // clear previous
   taosMemoryFree(*pReqEpSet);
+
+  if (transValidReqEpset(pReq) != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pReq);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   *pReqEpSet = pReq;
   return TSDB_CODE_SUCCESS;
 }
@@ -968,5 +974,15 @@ int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEp
     return TSDB_CODE_INVALID_PARA;
   }
   memcpy((char*)pEpSet, (char*)pReqEpSet, sizeof(SReqEpSet) + sizeof(SEp) * pReqEpSet->numOfEps);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
+  if (pReqEpSet == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pReqEpSet->numOfEps == 0 || pReqEpSet->numOfEps > TSDB_MAX_EP_NUM || pReqEpSet->inUse >= TSDB_MAX_EP_NUM) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   return TSDB_CODE_SUCCESS;
 }

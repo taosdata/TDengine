@@ -186,6 +186,8 @@ typedef struct {
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
 int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
 
+int32_t transValidReqEpset(SReqEpSet* pReqEpSet);
+
 typedef struct {
   SReqEpSet* epSet;  // ip list provided by app
   SReqEpSet* origEpSet;
