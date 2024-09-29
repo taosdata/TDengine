@@ -1568,7 +1568,7 @@ static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq) {
 }
 
 FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAddr) {
-  if (pCvtAddr == NULL) {
+  if (pEpSet == NULL || pCvtAddr == NULL) {
     return 0;
   }
   if (pCvtAddr->cvt == false) {
@@ -1578,6 +1578,7 @@ FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAd
       return TSDB_CODE_RPC_FQDN_ERROR;
     }
   }
+
   if (pEpSet->numOfEps == 1 && strncmp(pEpSet->eps[0].fqdn, pCvtAddr->fqdn, TSDB_FQDN_LEN) == 0) {
     memset(pEpSet->eps[0].fqdn, 0, TSDB_FQDN_LEN);
     memcpy(pEpSet->eps[0].fqdn, pCvtAddr->ip, TSDB_FQDN_LEN);
