@@ -109,7 +109,7 @@ class TdeInstance():
             if not os.path.isdir(cfgDir):
                 raise CrashGenError("Invalid config dir: {}".format(cfgDir))
             # else: good path
-        else: 
+        else:
             os.makedirs(cfgDir, exist_ok=True) # like "mkdir -p"
         # Now we have a good cfg dir
         cfgValues = {
@@ -170,7 +170,7 @@ rpcMaxTime 101
         else:
             # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
             return ["exec " + self.getExecFile(), '-c', self.getCfgDir()] # used in subproce.Popen()
-    
+
     def _getDnodes(self, dbc):
         dbc.query("select * from information_schema.ins_dnodes")
         cols = dbc.getQueryResult() #  id,end_point,vnodes,cores,status,role,create_time,offline reason
@@ -359,24 +359,24 @@ class TdeSubProcess:
         # process still alive, let's interrupt it
         self._stopForSure(self._popen, self.STOP_SIGNAL) # success if no exception
 
-        # sub process should end, then IPC queue should end, causing IO thread to end  
+        # sub process should end, then IPC queue should end, causing IO thread to end
         self._smThread.stop() # stop for sure too
 
         self.setStatus(Status.STATUS_STOPPED)
 
     @classmethod
     def _stopForSure(cls, proc: Popen, sig: int):
-        ''' 
+        '''
         Stop a process and all sub processes with a signal, and SIGKILL if necessary
         '''
         def doKillTdService(proc: Popen, sig: int):
             Logging.info("Killing sub-sub process {} with signal {}".format(proc.pid, sig))
             proc.send_signal(sig)
-            try:            
+            try:
                 retCode = proc.wait(20)
                 if (- retCode) == signal.SIGSEGV: # Crashed
                     Logging.warning("Process {} CRASHED, please check CORE file!".format(proc.pid))
-                elif (- retCode) == sig : 
+                elif (- retCode) == sig :
                     Logging.info("TD service terminated with expected return code {}".format(sig))
                 else:
                     Logging.warning("TD service terminated, EXPECTING ret code {}, got {}".format(sig, -retCode))
