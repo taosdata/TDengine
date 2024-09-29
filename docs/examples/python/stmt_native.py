@@ -57,6 +57,7 @@ try:
 
 except Exception as err:
     print(f"Failed to insert to table meters using stmt, ErrMessage:{err}") 
+    raise err
 finally:
     if stmt:
         stmt.close()

@@ -427,7 +427,9 @@ void cleanDir(const char* pPath, const char* id) {
 
   if (taosIsDir(pPath)) {
     taosRemoveDir(pPath);
-    TAOS_UNUSED(taosMkDir(pPath));
+    if (taosMkDir(pPath) != 0) {
+      stError("%s failed to create dir:%s", id, pPath);
+    }
     stInfo("%s clear dir:%s, succ", id, pPath);
   }
 }
@@ -833,8 +835,12 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   pHandle->list = tdListNew(sizeof(SCfComparator));
   TSDB_CHECK_NULL(pHandle->list, code, lino, _EXIT, terrno);
 
-  TAOS_UNUSED(taosThreadMutexInit(&pHandle->mutex, NULL));
-  TAOS_UNUSED(taosThreadMutexInit(&pHandle->cfMutex, NULL));
+  code = taosThreadMutexInit(&pHandle->mutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
+  code = taosThreadMutexInit(&pHandle->cfMutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
@@ -1172,106 +1178,6 @@ _exception:
   return code;
 }
 
-#ifdef BUILD_NO_CALL
-static int32_t chkpIdComp(const void* a, const void* b) {
-  int64_t x = *(int64_t*)a;
-  int64_t y = *(int64_t*)b;
-  return x < y ? -1 : 1;
-}
-
-int32_t streamBackendLoadCheckpointInfo(void* arg) {
-  SStreamMeta* pMeta = arg;
-  int32_t      code = 0;
-  SArray*      suffix = NULL;
-
-  int32_t len = strlen(pMeta->path) + 30;
-  char*   chkpPath = taosMemoryCalloc(1, len);
-  sprintf(chkpPath, "%s%s%s", pMeta->path, TD_DIRSEP, "checkpoints");
-
-  if (!taosDirExist(chkpPath)) {
-    // no checkpoint, nothing to load
-    taosMemoryFree(chkpPath);
-    return 0;
-  }
-
-  TdDirPtr pDir = taosOpenDir(chkpPath);
-  if (pDir == NULL) {
-    taosMemoryFree(chkpPath);
-    return 0;
-  }
-
-  TdDirEntryPtr de = NULL;
-  suffix = taosArrayInit(4, sizeof(int64_t));
-
-  while ((de = taosReadDir(pDir)) != NULL) {
-    if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
-
-    if (taosDirEntryIsDir(de)) {
-      char    checkpointPrefix[32] = {0};
-      int64_t checkpointId = 0;
-
-      int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64 "", &checkpointId);
-      if (ret == 1) {
-        taosArrayPush(suffix, &checkpointId);
-      }
-    } else {
-      continue;
-    }
-  }
-  taosArraySort(suffix, chkpIdComp);
-  // free previous chkpSaved
-  taosArrayClear(pMeta->chkpSaved);
-  for (int i = 0; i < taosArrayGetSize(suffix); i++) {
-    int64_t id = *(int64_t*)taosArrayGet(suffix, i);
-    taosArrayPush(pMeta->chkpSaved, &id);
-  }
-
-  taosArrayDestroy(suffix);
-  taosCloseDir(&pDir);
-  taosMemoryFree(chkpPath);
-  return 0;
-}
-#endif
-
-#ifdef BUILD_NO_CALL
-int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*** ppHandle, SArray* refs) {
-  return 0;
-  // SArray* pHandle = taosArrayInit(16, POINTER_BYTES);
-  // void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
-  // while (pIter) {
-  //   int64_t id = *(int64_t*)pIter;
-
-  //   SBackendCfWrapper* wrapper = taosAcquireRef(streamBackendCfWrapperId, id);
-  //   if (wrapper == NULL) {
-  //     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
-  //     continue;
-  //   }
-
-  //   taosThreadRwlockRdlock(&wrapper->rwLock);
-  //   for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
-  //     if (wrapper->pHandle[i]) {
-  //       rocksdb_column_family_handle_t* p = wrapper->pHandle[i];
-  //       taosArrayPush(pHandle, &p);
-  //     }
-  //   }
-  //   taosThreadRwlockUnlock(&wrapper->rwLock);
-
-  //   taosArrayPush(refs, &id);
-  // }
-
-  // int32_t nCf = taosArrayGetSize(pHandle);
-
-  // rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
-  // for (int i = 0; i < nCf; i++) {
-  //   ppCf[i] = taosArrayGetP(pHandle, i);
-  // }
-  // taosArrayDestroy(pHandle);
-
-  // *ppHandle = ppCf;
-  // return nCf;
-}
-#endif
-
 int chkpIdComp(const void* a, const void* b) {
   int64_t x = *(int64_t*)a;
   int64_t y = *(int64_t*)b;
@@ -1282,6 +1188,9 @@ int chkpIdComp(const void* a, const void* b) {
 int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
   int32_t code = 0;
   char*   pChkpDir = taosMemoryCalloc(1, 256);
+  if (pChkpDir == NULL) {
+    return terrno;
+  }
 
   sprintf(pChkpDir, "%s%s%s", pBackend->path, TD_DIRSEP, "checkpoints");
   if (!taosIsDir(pChkpDir)) {
@@ -2370,8 +2279,14 @@ int32_t taskDbOpenCfs(STaskDbWrapper* pTask, char* path, char** pCfNames, int32_
   int32_t code = -1;
   char*   err = NULL;
 
-  rocksdb_options_t**              cfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
+  rocksdb_options_t** cfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
+  if (cfOpts == NULL) {
+    return terrno;
+  }
   rocksdb_column_family_handle_t** cfHandle = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
+  if (cfHandle == NULL) {
+    return terrno;
+  }
 
   for (int i = 0; i < nCf; i++) {
     int32_t idx = getCfIdx(pCfNames[i]);
@@ -2455,6 +2370,14 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   pTaskDb->pCfParams = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam));
   pTaskDb->pCfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
   pTaskDb->pCompares = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t*));
+  if (pTaskDb->pCf == NULL || pTaskDb->pCfParams == NULL || pTaskDb->pCfOpts == NULL || pTaskDb->pCompares == NULL) {
+    stError("failed to alloc memory for cf");
+    taosMemoryFreeClear(pTaskDb->pCf);
+    taosMemoryFreeClear(pTaskDb->pCfParams);
+    taosMemoryFreeClear(pTaskDb->pCfOpts);
+    taosMemoryFreeClear(pTaskDb->pCompares);
+    return;
+  }
 
   for (int i = 0; i < nCf; i++) {
     rocksdb_options_t*                   opt = rocksdb_options_create_copy(pTaskDb->dbOpt);
@@ -2583,7 +2506,9 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
   pTaskDb->idstr = key ? taosStrdup(key) : NULL;
   pTaskDb->path = statePath ? taosStrdup(statePath) : NULL;
 
-  TAOS_UNUSED(taosThreadMutexInit(&pTaskDb->mutex, NULL));
+  code = taosThreadMutexInit(&pTaskDb->mutex, NULL);
+  TSDB_CHECK_CODE(code, lino, _EXIT);
+
   taskDbInitChkpOpt(pTaskDb);
   taskDbInitOpt(pTaskDb);
 
@@ -3732,6 +3657,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
+  if (pCur->iter == NULL) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
 
   char             buf[128] = {0};
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
@@ -3753,6 +3682,11 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   SStateSessionKey curKey = {0};
   TAOS_UNUSED(stateSessionKeyDecode(&curKey, (char*)iKey));
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) >= 0) return pCur;
+
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
 
   rocksdb_iter_prev(pCur->iter);
   if (!rocksdb_iter_valid(pCur->iter)) {
@@ -4158,7 +4092,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
 
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
-      memcpy(tmp, *pVal, valSize);
+      memcpy(tmp, *pVal, *pVLen);
       taosMemoryFreeClear(*pVal);
       goto _end;
     }
@@ -4174,7 +4108,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
   code = streamStateSessionGetKVByCur_rocksdb(pCur, key, pVal, pVLen);
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
-      memcpy(tmp, *pVal, valSize);
+      memcpy(tmp, *pVal, *pVLen);
       goto _end;
     }
   }

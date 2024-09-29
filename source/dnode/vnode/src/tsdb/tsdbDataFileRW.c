@@ -1362,7 +1362,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
   };
   for (int i = 0; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
     STombRecord record;
-    TAOS_UNUSED(tTombBlockGet(tombBlock, i, &record));
+    TAOS_CHECK_RETURN(tTombBlockGet(tombBlock, i, &record));
 
     if (i == 0) {
       tombBlk.minTbid.suid = record.suid;
@@ -1519,7 +1519,7 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
   while (writer->ctx->hasOldTomb) {
     for (; writer->ctx->tombBlockIdx < TOMB_BLOCK_SIZE(writer->ctx->tombBlock); writer->ctx->tombBlockIdx++) {
       STombRecord record1[1];
-      TAOS_UNUSED(tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1));
+      TAOS_CHECK_GOTO(tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1), &lino, _exit);
 
       int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {

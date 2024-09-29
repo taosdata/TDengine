@@ -259,7 +259,9 @@ _OVER:
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    (void)taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    if (taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep) != 0) {
+      dError("failed to get fqdn and port from ep:%s", tsFirst);
+    }
     if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) {
       return terrno;
     }
@@ -370,11 +372,19 @@ int32_t dmGetDnodeSize(SDnodeData *pData) {
 }
 
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
-  (void)taosThreadRwlockWrlock(&pData->lock);
+  if (taosThreadRwlockWrlock(&pData->lock) != 0) {
+    dError("failed to lock dnode lock");
+  }
+
   dDebug("new dnode list get from mnode, dnodeVer:%" PRId64, pData->dnodeVer);
   dmResetEps(pData, eps);
-  (void)dmWriteEps(pData);
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  if (dmWriteEps(pData) != 0) {
+    dError("failed to write dnode file");
+  }
+
+  if (taosThreadRwlockUnlock(&pData->lock) != 0) {
+    dError("failed to unlock dnode lock");
+  }
 }
 
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
@@ -590,7 +600,9 @@ void dmRemoveDnodePairs(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   dInfo("dnode file:%s is rename to bak file", file);
-  (void)taosRenameFile(file, bak);
+  if (taosRenameFile(file, bak) != 0) {
+    dError("failed to rename dnode file:%s to bak file:%s since %s", file, bak, tstrerror(terrno));
+  }
 }
 
 static int32_t dmReadDnodePairs(SDnodeData *pData) {

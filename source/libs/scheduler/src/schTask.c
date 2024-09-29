@@ -366,9 +366,11 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
     if (SCH_IS_DATA_BIND_TASK(pTask)) {
       if (pEpSet) {
         pCtx->roundTotal = pEpSet->numOfEps;
-      } else {
+      } else if (pTask->candidateAddrs && taosArrayGetSize(pTask->candidateAddrs) > 0) {
         SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
         pCtx->roundTotal = pAddr->epSet.numOfEps;
+      } else {
+        pCtx->roundTotal = SCH_DEFAULT_RETRY_TOTAL_ROUND;
       }
     } else {
       pCtx->roundTotal = 1;
