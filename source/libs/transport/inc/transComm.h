@@ -136,35 +136,13 @@ typedef struct SCvtAddr {
   bool cvt;
 } SCvtAddr;
 
-int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
-int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
+#pragma pack(push, 1)
 
 typedef struct {
-  SReqEpSet* epSet;  // ip list provided by app
-  SReqEpSet* origEpSet;
-  void*      ahandle;  // handle provided by app
-  tmsg_t     msgType;  // message type
-
-  STransCtx      userCtx;   //
-  STransMsg*     pRsp;      // for synchronous API
-  tsem_t*        pSem;      // for synchronous API
-  STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
-  int64_t        syncMsgRef;
-  SCvtAddr*      pCvtAddr;
-
-  int64_t retryInitTimestamp;
-  int64_t retryNextInterval;
-  int64_t retryMaxTimeout;
-  int32_t retryMinInterval;
-  int32_t retryMaxInterval;
-  int32_t retryStepFactor;
-  int32_t retryStep;
-  int32_t retryCode;
-  int8_t  retryInit;
-  int8_t  epsetRetryCnt;
-} SReqCtx;
-
-#pragma pack(push, 1)
+  int8_t inUse;
+  int8_t numOfEps;
+  SEp    eps[];
+} SReqEpSet;
 
 #define TRANS_VER 2
 typedef struct {
@@ -205,6 +183,33 @@ typedef struct {
 
 #pragma pack(pop)
 
+int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
+int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
+
+typedef struct {
+  SReqEpSet* epSet;  // ip list provided by app
+  SReqEpSet* origEpSet;
+  void*      ahandle;  // handle provided by app
+  tmsg_t     msgType;  // message type
+
+  STransCtx      userCtx;   //
+  STransMsg*     pRsp;      // for synchronous API
+  tsem_t*        pSem;      // for synchronous API
+  STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
+  int64_t        syncMsgRef;
+  SCvtAddr*      pCvtAddr;
+
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  int64_t retryMaxTimeout;
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int32_t retryStep;
+  int32_t retryCode;
+  int8_t  retryInit;
+  int8_t  epsetRetryCnt;
+} SReqCtx;
 typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 

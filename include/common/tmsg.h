@@ -971,11 +971,6 @@ typedef struct SEpSet {
   SEp    eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
-typedef struct {
-  int8_t inUse;
-  int8_t numOfEps;
-  SEp    eps[];
-} SReqEpSet;
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
