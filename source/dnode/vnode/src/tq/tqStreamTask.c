@@ -99,7 +99,8 @@ static void doStartScanWal(void* param, void* tmrId) {
 
   code = taosReleaseRef(streamMetaId, pParam->metaId);
   if (code) {
-    tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64, vgId, pParam->metaId, tstrerror(code));
+    tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
+            tstrerror(code));
   }
 
   taosMemoryFree(pParam);
