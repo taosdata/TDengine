@@ -31,7 +31,12 @@ typedef struct ColumnValidation {
   bool ignoreSlotId;
   bool validateFromDownstream;
   bool ignoreOthers;
+  bool ignoreDataBlockId;
 } ColumnValidation;
+
+typedef struct TargetValidation {
+  ENodeType forceExprType; // no force Expr type if 0
+} TargetValidation;
 
 typedef struct NodeValidationCtx {
   int32_t             code;
@@ -42,23 +47,30 @@ typedef struct NodeValidationCtx {
   ValidationType      validateType;
 } NodeValidationCtx;
 
-void setColumnValidation(NodeValidationCtx* pCtx, bool ignoreSlotId, bool validateFromDownstream) {
+bool setValidateCol_IgnoreSlotId(NodeValidationCtx* pCtx, bool ignoreSlotId) {
+  bool ret = pCtx->validateCol.ignoreSlotId;
   pCtx->validateCol.ignoreSlotId = ignoreSlotId;
-  pCtx->validateCol.validateFromDownstream = validateFromDownstream;
+  return ret;
 }
 
-void setValidateCol_IgnoreSlotId(NodeValidationCtx* pCtx, bool ignoreSlotId) {
-  pCtx->validateCol.ignoreSlotId = ignoreSlotId;
-}
-
-void setValidateCol_ValidateFromDownstream(NodeValidationCtx* pCtx, bool validateFromDownstream) {
+bool setValidateCol_ValidateFromDownstream(NodeValidationCtx* pCtx, bool validateFromDownstream) {
+  bool ret = pCtx->validateCol.validateFromDownstream;
   if (LIST_LENGTH(pCtx->pNode->pChildren) > 0) {
     pCtx->validateCol.validateFromDownstream = validateFromDownstream;
   }
+  return ret;
 }
 
-void setValidateCol_IgnoreOthers(NodeValidationCtx* pCtx, bool ignoreOthers) {
+bool setValidateCol_IgnoreOthers(NodeValidationCtx* pCtx, bool ignoreOthers) {
+  bool ret = pCtx->validateCol.ignoreOthers;
   pCtx->validateCol.ignoreOthers = ignoreOthers;
+  return ret;
+}
+
+bool setValidateCol_IgnoreDataBlockId(NodeValidationCtx* pCtx, bool ignoreDataBlockId) {
+  bool ret = pCtx->validateCol.ignoreDataBlockId;
+  pCtx->validateCol.ignoreDataBlockId = ignoreDataBlockId;
+  return ret;
 }
 
 static SDataBlockDescNode* getDownstreamOutputDesc(SPhysiNode* pNode) {
@@ -149,6 +161,8 @@ static int32_t validateSlotId(int32_t slotId, SDataBlockDescNode* pOutputDesc, c
 }
 
 static int32_t validateColDataBlockId(SColumnNode* pCol, NodeValidationCtx* pCtx) {
+  if (pCtx->validateCol.ignoreDataBlockId) return pCtx->code;
+
   int16_t dataBlockId;
   if (pCtx->validateCol.validateFromDownstream) {
     if (!pCtx->pDownstreamOutputDesc) {
@@ -250,6 +264,66 @@ static int32_t tryGetOutputDesc(SPhysiNode* pNode, NodeValidationCtx* pCtx) {
 }
 
 static int32_t validateNode(SNode* pNode, NodeValidationCtx* pCtx) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      return validateColumn((SColumnNode*)pNode, pCtx);
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+      break;
+    case QUERY_NODE_FUNCTION:
+      return validateFunction((SFunctionNode*)pNode, pCtx);
+    case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_JOIN_TABLE:
+    case QUERY_NODE_GROUPING_SET:
+    case QUERY_NODE_ORDER_BY_EXPR:
+    case QUERY_NODE_LIMIT:
+    case QUERY_NODE_STATE_WINDOW:
+    case QUERY_NODE_SESSION_WINDOW:
+    case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_NODE_LIST:
+    case QUERY_NODE_FILL:
+    case QUERY_NODE_RAW_EXPR:
+    case QUERY_NODE_TARGET:
+    case QUERY_NODE_DATABLOCK_DESC:
+    case QUERY_NODE_SLOT_DESC:
+    case QUERY_NODE_COLUMN_DEF:
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+    case QUERY_NODE_DATABASE_OPTIONS:
+    case QUERY_NODE_TABLE_OPTIONS:
+    case QUERY_NODE_INDEX_OPTIONS:
+    case QUERY_NODE_EXPLAIN_OPTIONS:
+    case QUERY_NODE_STREAM_OPTIONS:
+    case QUERY_NODE_LEFT_VALUE:
+    case QUERY_NODE_COLUMN_REF:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_EVENT_WINDOW:
+    case QUERY_NODE_HINT:
+    case QUERY_NODE_VIEW:
+    case QUERY_NODE_WINDOW_OFFSET:
+    case QUERY_NODE_COUNT_WINDOW:
+    case QUERY_NODE_COLUMN_OPTIONS:
+    case QUERY_NODE_TSMA_OPTIONS:
+      break;
+    default:
+      qLogWarn();
+      pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+      break;
+  }
+  return pCtx->code;
+}
+
+static int32_t validateNodes(SNodeList* pNodes, NodeValidationCtx* pCtx) {
+  SNode* pNode;
+  FOREACH(pNode, pNodes) {
+    pCtx->code = validateNode(pNode, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
+      return pCtx->code;
+    }
+  }
   return pCtx->code;
 }
 
@@ -280,8 +354,7 @@ static int32_t validateTargetNode(STargetNode* pTarget, NodeValidationCtx* pCtx)
     } else if (nodeType(pTarget->pExpr) == QUERY_NODE_VALUE) {
       return pCtx->code;
     } else {
-      qLogWarn();
-      return TSDB_CODE_PLAN_VALIDATION_ERR;
+      return validateNode((SNode*)pTarget->pExpr, pCtx);
     }
   } else {
     qLogWarn();
@@ -399,14 +472,14 @@ static int32_t validateScanPhysiNode(SScanPhysiNode* pNode, NodeValidationCtx* p
     return code;
   }
   SNode* pTmp = NULL;
-  setValidateCol_IgnoreSlotId(pCtx, true);
+  bool oldVal = setValidateCol_IgnoreSlotId(pCtx, true);
   code = validateTargetNodes(pNode->pScanCols, pCtx);
   if (TSDB_CODE_SUCCESS != code) {
     qLogWarn();
     return code;
   }
   code = validateTargetNodes(pNode->pScanPseudoCols, pCtx);
-  setValidateCol_IgnoreSlotId(pCtx, false);
+  (void)setValidateCol_IgnoreSlotId(pCtx, oldVal);
   if (TSDB_CODE_SUCCESS != code) {
     qLogWarn();
     return code;
@@ -433,9 +506,9 @@ int32_t doValidateTableScanPhysiNode(STableScanPhysiNode* pNode) {
   // SNodeList*     pGroupTags;
   // TODO check all types of all nodes
   // TODO why we should ignore slotId check for pGroupTags
-  setValidateCol_IgnoreSlotId(&ctx, true);
+  bool oldVal = setValidateCol_IgnoreSlotId(&ctx, true);
   ctx.code = walkAndValidateColumnNodes(pNode->pGroupTags, ctx.pNode, &ctx);
-  setValidateCol_IgnoreSlotId(&ctx, false);
+  (void)setValidateCol_IgnoreSlotId(&ctx, oldVal);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
@@ -463,7 +536,10 @@ int32_t doValidateLastRowScanPhysiNode(SLastRowScanPhysiNode* pNode) {
     qLogWarn();
     return ctx.code;
   }
+  // the targets of LastRowScan is copied from ScanLogicalNode, there is no slotId info in it.
+  // only colId is used
   ctx.code = walkAndValidateColumnNodes(pNode->pTargets, ctx.pNode, &ctx);
+
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
@@ -527,17 +603,17 @@ int32_t doValidateBlockDistScanPhysiNode(SBlockDistScanPhysiNode* pNode) {
 
 int32_t doValidateProjectPhysiNode(SProjectPhysiNode* pNode) {
   NodeValidationCtx ctx = {.code = TSDB_CODE_SUCCESS, .pNode = &pNode->node};
-  setValidateCol_ValidateFromDownstream(&ctx, true);
+  bool oldVal = setValidateCol_ValidateFromDownstream(&ctx, true);
   ctx.code = validateBasePhysiNode(&pNode->node, &ctx);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
   }
   SNode* pC = NULL;
-  setValidateCol_IgnoreOthers(&ctx, true);
+  bool oldValIgnoreOthers = setValidateCol_IgnoreOthers(&ctx, true);
   ctx.code = validateTargetNodes(pNode->pProjections, &ctx);
-  setValidateCol_IgnoreOthers(&ctx, false);
-  setValidateCol_ValidateFromDownstream(&ctx, false);
+  (void)setValidateCol_IgnoreOthers(&ctx, oldValIgnoreOthers);
+  (void)setValidateCol_ValidateFromDownstream(&ctx, oldVal);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
     return ctx.code;
