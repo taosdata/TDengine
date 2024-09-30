@@ -1143,11 +1143,11 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
             varDataSetLen(tmp, tagVal.nData);
             memcpy(tmp + VARSTR_HEADER_SIZE, tagVal.pData, tagVal.nData);
             code = colDataSetVal(pColInfo, i, tmp, false);
-            QUERY_CHECK_CODE(code, lino, _end);
 #if TAG_FILTER_DEBUG
             qDebug("tagfilter varch:%s", tmp + 2);
 #endif
             taosMemoryFree(tmp);
+            QUERY_CHECK_CODE(code, lino, _end);
           } else {
             code = colDataSetVal(pColInfo, i, (const char*)&tagVal.i64, false);
             QUERY_CHECK_CODE(code, lino, _end);

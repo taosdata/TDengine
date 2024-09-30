@@ -364,7 +364,7 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     }
 
     pRspHead->vgId = htonl(req.upstreamNodeId);
-    if(pRspHead->vgId == 0) {
+    if (pRspHead->vgId == 0) {
       tqError("vgId:%d invalid dispatch msg from upstream to task:0x%x", pMeta->vgId, req.taskId);
       return TSDB_CODE_INVALID_MSG;
     }
@@ -461,7 +461,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   if (code != TSDB_CODE_SUCCESS) {  // return error not send rsp manually
     tqError("s-task:0x%x vgId:%d failed to process retrieve request from 0x%x, code:%s", req.dstTaskId, req.dstNodeId,
             req.srcTaskId, tstrerror(code));
-  } else {   // send rsp manually only on success.
+  } else {  // send rsp manually only on success.
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamTaskSendRetrieveRsp(&req, &rsp);
   }
@@ -516,7 +516,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   }
 
   tDecoderClear(&decoder);
-  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(qid:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d", rsp.upstreamTaskId,
+  tqDebug("tq task:0x%x (vgId:%d) recv check rsp(QID:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d", rsp.upstreamTaskId,
           rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
   if (!isLeader) {
@@ -1273,7 +1273,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   streamMutexLock(&pTask->lock);
   if (pTask->chkInfo.checkpointId < req.checkpointId) {
-    tqFatal("s-task:%s vgId:%d invalid consensus-checkpointId:%" PRId64 ", greater than existed checkpointId:%"PRId64,
+    tqFatal("s-task:%s vgId:%d invalid consensus-checkpointId:%" PRId64 ", greater than existed checkpointId:%" PRId64,
             pTask->id.idStr, vgId, req.checkpointId, pTask->chkInfo.checkpointId);
 
     streamMutexUnlock(&pTask->lock);
