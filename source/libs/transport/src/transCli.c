@@ -637,7 +637,7 @@ void cliHandleResp(SCliConn* conn) {
   } else {
     code = cliHandleState_mayUpdateStateTime(conn, pReq);
     if (code != 0) {
-      tDebug("%s conn %p failed to update state time qid:" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
+      tDebug("%s conn %p failed to update state time qid:%" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
              tstrerror(code));
     }
   }
@@ -1157,8 +1157,8 @@ static void notifyAndDestroyReq(SCliConn* pConn, SCliReq* pReq, int32_t code) {
 
   // handle noresp and inter manage msg
   if (pCtx == NULL || REQUEST_NO_RESP(&pReq->msg)) {
-    tDebug("%s conn %p destroy msg directly since %s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pReq->msg.msgType),
-           tstrerror(resp.code));
+    tDebug("%s conn %p destroy %s msg directly since %s", CONN_GET_INST_LABEL(pConn), pConn,
+           TMSG_INFO(pReq->msg.msgType), tstrerror(resp.code));
     destroyReq(pReq);
     return;
   }
@@ -3544,7 +3544,8 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
     if (((*st - pCtx->st) / 1000000) > pInst->readTimeout) {
       code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
       if (code != 0) {
-        tError("%s conn %p failed to remove state qid:" PRId64 " since %s", tstrerror(code));
+        tError("%s conn %p failed to remove state qid:%" PRId64 " since %s", CONN_GET_INST_LABEL(pConn), pConn, *qid,
+               tstrerror(code));
       }
 
       transReleaseExHandle(transGetRefMgt(), *qid);
@@ -3552,7 +3553,8 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
 
       if (taosArrayPush(pQIdBuf, qid) == NULL) {
         code = terrno;
-        tError("%s conn %p failed to add qid:" PRId64 " since %s", tstrerror(code));
+        tError("%s conn %p failed to add qid:%" PRId64 " since %s", CONN_GET_INST_LABEL(pConn), pConn, *qid,
+               tstrerror(code));
         break;
       }
     }
@@ -3568,7 +3570,8 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
     transCtxCleanup(p);
     code = taosHashRemove(pConn->pQTable, qid, sizeof(*qid));
     if (code != 0) {
-      tError("%s conn %p failed to drop ctx of qid:" PRId64 " since %s", tstrerror(code));
+      tError("%s conn %p failed to drop ctx of qid:%" PRId64 " since %s", CONN_GET_INST_LABEL(pConn), pConn, *qid,
+             tstrerror(code));
     }
   }
 
