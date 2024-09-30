@@ -1229,11 +1229,13 @@ static void destroyStateWindowOperatorInfo(void* param) {
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);
-  if (pInfo->pOperator) {
+
+  if (pInfo->pOperator != NULL) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
                       &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
     pInfo->pOperator = NULL;
   }
+
   cleanupExprSupp(&pInfo->scalarSup);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupAggSup(&pInfo->aggSup);
@@ -1251,13 +1253,17 @@ void destroyIntervalOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
+
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
+
   cleanupBasicInfo(&pInfo->binfo);
-  if (pInfo->pOperator) {
+
+  if (pInfo->pOperator != NULL) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
                       &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
     pInfo->pOperator = NULL;
   }
+
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
@@ -1265,6 +1271,7 @@ void destroyIntervalOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pInterpCols);
   pInfo->pInterpCols = NULL;
+
   taosArrayDestroyEx(pInfo->pPrevValues, freeItem);
   pInfo->pPrevValues = NULL;
 
@@ -1358,6 +1365,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     code = terrno;
+    lino = __LINE__;
     goto _error;
   }
 
@@ -1465,8 +1473,10 @@ _error:
   if (pInfo != NULL) {
     destroyIntervalOperatorInfo(pInfo);
   }
+
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
+  qError("error happens at %s %d, code:%s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -1754,11 +1764,13 @@ void destroySWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  if (pInfo->pOperator) {
+
+  if (pInfo->pOperator != NULL) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
                       &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
     pInfo->pOperator = NULL;
   }
+
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
 
