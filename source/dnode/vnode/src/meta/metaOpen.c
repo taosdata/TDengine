@@ -39,6 +39,100 @@ static void metaDestroyLock(SMeta *pMeta) { (void)taosThreadRwlockDestroy(&pMeta
 
 static void metaCleanup(SMeta **ppMeta);
 
+static void doScan(SMeta *pMeta) {
+  TBC    *cursor = NULL;
+  int32_t code;
+
+  // open file to write
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
+  TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (fp == NULL) {
+    metaError("failed to open file:%s, reason:%s", path, tstrerror(terrno));
+    return;
+  }
+
+  code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
+  if (code) {
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
+    metaError("failed to open table.db cursor, reason:%s", tstrerror(terrno));
+    return;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
+    tdbTbcClose(cursor);
+    metaError("failed to move to first, reason:%s", tstrerror(terrno));
+    return;
+  }
+
+  for (;;) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    // decode entry
+    SDecoder   dc = {0};
+    SMetaEntry me = {0};
+
+    tDecoderInit(&dc, (uint8_t *)pVal, vLen);
+
+    if (metaDecodeEntry(&dc, &me) < 0) {
+      tDecoderClear(&dc);
+      break;
+    }
+
+    // skip deleted entry
+    if (tdbTbGet(pMeta->pUidIdx, &me.uid, sizeof(me.uid), NULL, NULL) == 0) {
+      // print entry
+      char buf[1024] = {0};
+      if (me.type == TSDB_SUPER_TABLE) {
+        snprintf(buf, sizeof(buf) - 1, "type: super table, version:%" PRId64 " uid: %" PRId64 " name: %s\n", me.version,
+                 me.uid, me.name);
+
+      } else if (me.type == TSDB_CHILD_TABLE) {
+        snprintf(buf, sizeof(buf) - 1,
+                 "type: child table, version:%" PRId64 " uid: %" PRId64 " name: %s suid:%" PRId64 "\n", me.version,
+                 me.uid, me.name, me.ctbEntry.suid);
+      } else {
+        snprintf(buf, sizeof(buf) - 1, "type: normal table, version:%" PRId64 " uid: %" PRId64 " name: %s\n",
+                 me.version, me.uid, me.name);
+      }
+
+      if (taosWriteFile(fp, buf, strlen(buf)) < 0) {
+        metaError("failed to write file:%s, reason:%s", path, tstrerror(terrno));
+        tDecoderClear(&dc);
+        break;
+      }
+    }
+
+    tDecoderClear(&dc);
+
+    if (tdbTbcMoveToNext(cursor) < 0) {
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+  // close file
+  if (taosFsyncFile(fp) < 0) {
+    metaError("failed to fsync file:%s, reason:%s", path, tstrerror(terrno));
+  }
+  if (taosCloseFile(&fp) < 0) {
+    metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+  }
+}
+
 int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
@@ -133,6 +227,11 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 
   code = metaInitTbFilterCache(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+#if 0
+  // Do NOT remove this code, it is used to do debug stuff
+  doScan(pMeta);
+#endif
 
 _exit:
   if (code) {

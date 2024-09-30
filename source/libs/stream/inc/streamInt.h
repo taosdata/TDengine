@@ -164,7 +164,6 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
-extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();

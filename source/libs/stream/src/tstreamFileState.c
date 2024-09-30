@@ -445,7 +445,9 @@ _end:
 }
 
 int32_t clearRowBuff(SStreamFileState* pFileState) {
-  clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
+  if (pFileState->deleteMark != INT64_MAX) {
+    clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
+  }
   if (isListEmpty(pFileState->freeBuffs)) {
     return flushRowBuff(pFileState);
   }

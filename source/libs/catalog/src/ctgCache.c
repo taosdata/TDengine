@@ -1608,12 +1608,14 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
     code = createDropAllTbTsmaCtgCacheOp(pCtg, pCache, syncOp, &pOp);
   }
   CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
+  pCtgCache = NULL;
+  ctgReleaseDBCache(pCtg, pDbCache);
+  pDbCache = NULL;
 
   CTG_ERR_JRET(code);
   
   CTG_ERR_JRET(ctgEnqueue(pCtg, pOp));
-  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
-  ctgReleaseDBCache(pCtg, pDbCache);
   
   return TSDB_CODE_SUCCESS;
 

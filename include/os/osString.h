@@ -51,7 +51,12 @@ typedef enum { M2C = 0, C2M } ConvType;
 #define strtod      STR_TO_LD_FUNC_TAOS_FORBID
 #define strtold     STR_TO_D_FUNC_TAOS_FORBID
 #define strtof      STR_TO_F_FUNC_TAOS_FORBID
+
+#ifdef strndup
+#undef strndup
+#endif
 #define strndup     STR_TO_F_FUNC_TAOS_FORBID
+
 #endif
 
 #define tstrncpy(dst, src, size)   \
