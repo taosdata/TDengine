@@ -15,3 +15,4 @@ try:
 
 except Exception as err:
     print(f"Failed to query data from power.meters, sql: {sql}, ErrMessage:{err}")
+    raise err

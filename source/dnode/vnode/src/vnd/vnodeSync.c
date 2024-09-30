@@ -73,7 +73,7 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (rsp.pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    if (tSerializeSEpSet(rsp.pCont, contLen, &newEpSet) != 0) {
+    if (tSerializeSEpSet(rsp.pCont, contLen, &newEpSet) < 0) {
       vError("vgId:%d, failed to serialize ep set", pVnode->config.vgId);
     }
     rsp.contLen = contLen;

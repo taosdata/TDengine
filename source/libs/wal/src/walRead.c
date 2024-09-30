@@ -313,8 +313,8 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   if (pRead->pWal->cfg.encryptAlgorithm == 1) {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
-  int64_t code = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
-  if (code < 0) {
+  int64_t ret = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
+  if (ret < 0) {
     TAOS_RETURN(terrno);
   }
 

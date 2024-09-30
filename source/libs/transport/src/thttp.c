@@ -266,14 +266,21 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
   msg->server = taosStrdup(server);
   msg->uri = taosStrdup(uri);
   msg->cont = taosMemoryMalloc(contLen);
-  if (qid != NULL)
-    msg->qid = taosStrdup(qid);
-  else
-    msg->qid = NULL;
   if (msg->server == NULL || msg->uri == NULL || msg->cont == NULL) {
     httpDestroyMsg(msg);
     *httpMsg = NULL;
     return terrno;
+  }
+
+  if (qid != NULL) {
+    msg->qid = taosStrdup(qid);
+    if (msg->qid == NULL) {
+      httpDestroyMsg(msg);
+      *httpMsg = NULL;
+      return terrno;
+    }
+  } else {
+    msg->qid = NULL;
   }
 
   memcpy(msg->cont, pCont, contLen);
@@ -670,7 +677,7 @@ static void httpHandleReq(SHttpMsg* msg) {
     tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reson:%s",
            cli->addr, cli->port, chanId, cli->seq, uv_strerror(ret));
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
-    destroyHttpClient(cli);
+    uv_close((uv_handle_t*)&cli->tcp, httpDestroyClientCb);
   }
   TAOS_UNUSED(taosReleaseRef(httpRefMgt, chanId));
   return;

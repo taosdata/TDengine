@@ -77,10 +77,13 @@ CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
 
 FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
   FstString* str = (FstString*)taosMemoryMalloc(sizeof(FstString));
+  if (str == NULL) {
+    return (FstSlice){.str = NULL, .start = 0, .end = 0};
+  }
   str->ref = 1;
   str->len = len;
   str->data = taosMemoryMalloc(len * sizeof(uint8_t));
-  if (str == NULL || str->data == NULL) {
+  if (str->data == NULL) {
     taosMemoryFree(str);
     return (FstSlice){.str = NULL, .start = 0, .end = 0};
   }
@@ -107,9 +110,16 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   uint8_t* data = fstSliceData(s, &slen);
 
   uint8_t* buf = taosMemoryMalloc(sizeof(uint8_t) * tlen);
+  if (buf == NULL) {
+    return (FstSlice){.str = NULL, .start = 0, .end = 0};
+  }
   memcpy(buf, data + start, tlen);
 
   FstString* str = taosMemoryMalloc(sizeof(FstString));
+  if (str == NULL) {
+    taosMemoryFree(buf);
+    return (FstSlice){.str = NULL, .start = 0, .end = 0};
+  }
   str->data = buf;
   str->len = tlen;
   str->ref = 1;
