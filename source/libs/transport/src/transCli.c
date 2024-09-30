@@ -3558,7 +3558,7 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
         break;
       }
     }
-    taosHashIterate(pConn->pQTable, pIter);
+    pIter = taosHashIterate(pConn->pQTable, pIter);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pQIdBuf); i++) {
