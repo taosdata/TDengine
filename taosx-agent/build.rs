@@ -33,8 +33,8 @@ fn shadow_build() {
         let service_template = manifest_dir.join("src").join("systemd.service");
         let service = std::fs::read_to_string(&service_template)
             .expect(&format!("{}", service_template.display()))
-            .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
-            .replace(DEFAULT_CUS_NAME, &cus_name);
+            .replace(DEFAULT_CUS_PROMPT, cus_prompt)
+            .replace(DEFAULT_CUS_NAME, cus_name);
         if !target_dir.exists() {
             std::fs::create_dir_all(&target_dir).unwrap();
         }

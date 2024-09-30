@@ -122,7 +122,7 @@ pub fn spawn_rest_service(
     })
     .bind(&format!("127.0.0.1:{port}"))?
     .run();
-    let _ = runtime.block_on(async move {
+    runtime.block_on(async move {
         tokio::select! {
             _ = server => {
                 tracing::info!("Server stopped");

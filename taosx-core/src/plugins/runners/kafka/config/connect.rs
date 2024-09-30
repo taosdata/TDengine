@@ -52,7 +52,7 @@ impl KafkaConnectConfig {
             bootstrap_servers.push(format!(
                 "{}:{}",
                 address.host.clone().unwrap(),
-                address.port.clone().unwrap()
+                address.port.unwrap()
             ));
         }
         Ok(bootstrap_servers)
@@ -75,7 +75,7 @@ impl KafkaConnectConfig {
     fn parse_ssl_ca(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         let ca = dsn.get("ca");
         if ca.is_none() || ca.unwrap().is_empty() {
-            return Ok(None);
+            Ok(None)
         } else {
             let ca = ca.unwrap();
             if ca.starts_with('@') {
@@ -91,7 +91,7 @@ impl KafkaConnectConfig {
     fn parse_ssl_cert(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         let cert = dsn.get("cert");
         if cert.is_none() || cert.unwrap().is_empty() {
-            return Ok(None);
+            Ok(None)
         } else {
             let cert = cert.unwrap();
             if cert.starts_with('@') {
@@ -110,7 +110,7 @@ impl KafkaConnectConfig {
     fn parse_ssl_cert_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         let cert_key = dsn.get("cert_key");
         if cert_key.is_none() || cert_key.unwrap().is_empty() {
-            return Ok(None);
+            Ok(None)
         } else {
             let cert_key = cert_key.unwrap();
             if cert_key.starts_with('@') {
@@ -145,7 +145,7 @@ impl KafkaConnectConfig {
     fn parse_sasl_kerberos_keytab(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         let sasl_kerberos_keytab = dsn.get("sasl_kerberos_keytab");
         if sasl_kerberos_keytab.is_none() || sasl_kerberos_keytab.unwrap().is_empty() {
-            return Ok(None);
+            Ok(None)
         } else {
             let sasl_kerberos_keytab = sasl_kerberos_keytab.unwrap();
             if sasl_kerberos_keytab.starts_with('@') {
@@ -198,15 +198,15 @@ mod tests {
     fn test_parse_use_ssl() {
         let dsn = Dsn::from_str("kafka://?ca=file").unwrap();
         let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(true, use_ssl);
+        assert!(use_ssl);
 
         let dsn = Dsn::from_str("kafka://").unwrap();
         let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(false, use_ssl);
+        assert!(!use_ssl);
 
         let dsn = Dsn::from_str("kafka://?ca=").unwrap();
         let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(false, use_ssl);
+        assert!(!use_ssl);
     }
 
     #[test]
@@ -234,14 +234,14 @@ mod tests {
     fn test_parse_use_sasl() {
         let dsn = Dsn::from_str("kafka://?sasl_mechanism=PLAIN").unwrap();
         let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
-        assert_eq!(true, use_sasl);
+        assert!(use_sasl);
 
         let dsn = Dsn::from_str("kafka://").unwrap();
         let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
-        assert_eq!(false, use_sasl);
+        assert!(!use_sasl);
 
         let dsn = Dsn::from_str("kafka://?sasl_mechanism=").unwrap();
         let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
-        assert_eq!(false, use_sasl);
+        assert!(!use_sasl);
     }
 }

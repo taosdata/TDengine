@@ -120,7 +120,7 @@ impl Parse for Json {
                 continue;
             }
             let s = string.value(i);
-            let value = serde_json::from_str::<serde_json::Value>(&s);
+            let value = serde_json::from_str::<serde_json::Value>(s);
             let value = match value {
                 Ok(v) => v,
                 Err(e) => {
@@ -153,7 +153,7 @@ impl Parse for Json {
                 }
             }
         }
-        if json_data.len() == 0 {
+        if json_data.is_empty() {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
 
@@ -182,7 +182,7 @@ impl Parse for Json {
                 }
 
                 let str = string.value(i);
-                let value = serde_json::from_str::<serde_json::Value>(&str);
+                let value = serde_json::from_str::<serde_json::Value>(str);
 
                 match value {
                     Ok(JsonValue::Array(array)) => array
@@ -238,7 +238,7 @@ impl Parse for Json {
             let dt = f.data_type();
             let name = f.metadata().get("query").unwrap_or(f.name());
 
-            let path = serde_json_path::JsonPath::parse(&name).ok();
+            let path = serde_json_path::JsonPath::parse(name).ok();
             let getter = |v| {
                 path.as_ref()
                     .and_then(|path| path.query(v).first())
@@ -551,7 +551,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u8)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -566,7 +566,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u16)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -581,7 +581,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u32)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -596,7 +596,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .or_else(|| v.as_f64().map(|v| v as _))
                                                 .or_else(|| v.as_i64().map(|v| v as _))
@@ -610,7 +610,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i8)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -625,7 +625,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i16)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -640,7 +640,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i32)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -655,7 +655,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .or_else(|| v.as_f64().map(|v| v as _))
                                                 .or_else(|| v.as_u64().map(|v| v as _))
@@ -671,7 +671,7 @@ impl Parse for Json {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_str()
                                                 .map(|s| s.as_bytes())
                                                 .map(Cow::Borrowed)
@@ -688,7 +688,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_f64()
                                                 .map(|f| f as f32)
                                                 .or_else(|| v.as_i64().map(|v| v as _))
@@ -703,7 +703,7 @@ impl Parse for Json {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_f64()
                                                 .or_else(|| v.as_i64().map(|v| v as _))
                                                 .or_else(|| v.as_u64().map(|v| v as _))
@@ -721,7 +721,7 @@ impl Parse for Json {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_bool()
                                                 .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                                         })
@@ -742,7 +742,7 @@ impl Parse for Json {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_str().map(Cow::Borrowed).or_else(|| {
                                                 serde_json::to_string(v).map(Cow::Owned).ok()
                                             })
@@ -779,15 +779,9 @@ impl Parse for Json {
                     let values = json_values
                         .iter()
                         .map(|(_n, v)| {
-                            if let Some(value) = v.as_ref().and_then(getter) {
-                                if value.is_null() {
-                                    None
-                                } else {
-                                    Some(value)
-                                }
-                            } else {
-                                None
-                            }
+                            v.as_ref()
+                                .and_then(getter)
+                                .filter(|&value| !value.is_null())
                         })
                         .collect_vec();
 
@@ -946,7 +940,7 @@ mod tests {
     use super::*;
 
     fn parse_json(json_str: &str) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::from_str::<serde_json::Value>(&json_str)
+        serde_json::from_str::<serde_json::Value>(json_str)
     }
 
     fn build_schema_by_json(json: serde_json::Value) -> Result<Schema, arrow::error::ArrowError> {

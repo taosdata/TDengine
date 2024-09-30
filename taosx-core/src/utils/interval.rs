@@ -41,10 +41,10 @@ mod tests {
     #[tokio::test]
     async fn test_interval_limit() {
         let interval_limit = IntervalLimit::new(Duration::from_secs(5));
-        assert_eq!(interval_limit.ticked(), false);
+        assert!(!interval_limit.ticked());
         tokio::time::sleep(Duration::from_secs(3)).await;
-        assert_eq!(interval_limit.ticked(), false);
+        assert!(!interval_limit.ticked());
         tokio::time::sleep(Duration::from_secs(3)).await;
-        assert_eq!(interval_limit.ticked(), true);
+        assert!(interval_limit.ticked());
     }
 }

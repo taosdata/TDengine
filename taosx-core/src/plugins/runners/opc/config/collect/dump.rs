@@ -61,8 +61,7 @@ impl DumpConfig {
     }
 
     fn parse_enable(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("enable")
             .or(dsn.params.get("keep_raw_data"))
             .map(|v| {
@@ -70,7 +69,7 @@ impl DumpConfig {
                     anyhow::anyhow!("parse enable failed, cause: {}", err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 }
 
@@ -87,7 +86,7 @@ mod tests {
 
         let dsn = Dsn::from_str("opc://?enable=false").unwrap();
         let config = DumpConfig::from_dsn(&dsn, None).unwrap().unwrap();
-        assert_eq!(false, config.enable);
+        assert!(!config.enable);
         assert_eq!(None, config.path);
         assert_eq!(None, config.keep);
 
@@ -119,7 +118,7 @@ mod tests {
 
         let dsn = Dsn::from_str("opc://?enable=true&path=abc&keep=123").unwrap();
         let config = DumpConfig::from_dsn(&dsn, None).unwrap().unwrap();
-        assert_eq!(true, config.enable);
+        assert!(config.enable);
         assert_eq!("abc", config.path.unwrap());
         assert_eq!(123, config.keep.unwrap());
     }

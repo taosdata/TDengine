@@ -27,9 +27,9 @@ pub mod oracle;
 pub mod pi;
 pub mod postgres;
 
-pub const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
-pub const ENV_TAOSX_PLUGINS_HOME: &'static str = "TAOSX_PLUGINS_HOME";
-const ENV_PLUGINS_HOME_DEFAULT: &'static str = {
+pub const ENV_PLUGINS_HOME: &str = "PLUGINS_HOME";
+pub const ENV_TAOSX_PLUGINS_HOME: &str = "TAOSX_PLUGINS_HOME";
+const ENV_PLUGINS_HOME_DEFAULT: &str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
             "C:\\TDengine\\plugins"
@@ -122,8 +122,8 @@ pub(crate) fn get_plugin_dir(plugin: &str) -> PathBuf {
     get_plugins_home_dir().join(plugin)
 }
 
-pub const ENV_TAOSX_DATA_DIR: &'static str = "TAOSX_DATA_DIR";
-const ENV_TAOSX_DATA_DIR_DEFAULT: &'static str = {
+pub const ENV_TAOSX_DATA_DIR: &str = "TAOSX_DATA_DIR";
+const ENV_TAOSX_DATA_DIR_DEFAULT: &str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
             "C:\\TDengine\\data\\taosx"
@@ -152,7 +152,7 @@ pub fn set_env_data_dir(config: String) {
 pub fn get_data_dir() -> PathBuf {
     Path::new(
         std::env::var(ENV_TAOSX_DATA_DIR)
-            .map(|s| Cow::Owned(s))
+            .map(Cow::Owned)
             .unwrap_or(Cow::Borrowed(ENV_TAOSX_DATA_DIR_DEFAULT))
             .as_ref(),
     )
@@ -164,8 +164,8 @@ pub fn get_file_upload_home_dir() -> PathBuf {
     get_data_dir().join("files")
 }
 
-pub const ENV_LOGS_HOME: &'static str = "LOGS_HOME";
-pub const ENV_TAOSX_LOGS_HOME: &'static str = "TAOSX_LOGS_HOME";
+pub const ENV_LOGS_HOME: &str = "LOGS_HOME";
+pub const ENV_TAOSX_LOGS_HOME: &str = "TAOSX_LOGS_HOME";
 
 pub fn set_env_log_home_dir(config: String) {
     std::env::set_var(ENV_LOGS_HOME, config);
@@ -181,7 +181,7 @@ pub fn get_log_dir(plugin: &str) -> PathBuf {
     get_logs_home_dir().join(plugin)
 }
 
-const ENV_TAOSX_LOGS_KEEP_DAYS: &'static str = "TAOSX_LOGS_KEEP_DAYS";
+const ENV_TAOSX_LOGS_KEEP_DAYS: &str = "TAOSX_LOGS_KEEP_DAYS";
 
 pub fn set_env_log_keep_days(config: Option<i64>) {
     if let Some(log_keep_days) = config {
@@ -228,7 +228,7 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
 
 pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
     FileRotate::new(
-        &log_path,
+        log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
             FileLimit::Age(chrono::Duration::days(log_keep_days)),
@@ -260,7 +260,7 @@ pub fn get_string_from_param_or_file(
         let mut result = String::new();
         for config_str in config {
             if line_break && !result.is_empty() {
-                result.push_str("\n");
+                result.push('\n');
             }
             if append_line.is_some() && !result.is_empty() {
                 result.push_str(append_line.unwrap());
@@ -286,7 +286,7 @@ pub fn get_string_from_param_or_file(
                         .filter_map(|r| r.as_ref().ok())
                         .for_each(|v| {
                             if line_break && !result.is_empty() {
-                                result.push_str("\n");
+                                result.push('\n');
                             }
                             if append_line.is_some() && !result.is_empty() {
                                 result.push_str(append_line.unwrap());
@@ -394,13 +394,13 @@ pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec
                     .map(|s| s.replace(",", "::")),
             );
         }
-        if node_config.len() == 0 {
+        if node_config.is_empty() {
             tracing::warn!("node config is empty");
             // return Err(format!("node config set but is empty: {nodes}"));
         }
         return Ok(node_config);
     }
-    return Err("Nodes not set".to_string());
+    Err("Nodes not set".to_string())
 }
 
 #[cfg(test)]
@@ -429,7 +429,7 @@ mod tests {
         set_tcp_keepalive(&stream).unwrap();
 
         let sock_ref = socket2::SockRef::from(&stream);
-        assert_eq!(true, sock_ref.keepalive().unwrap());
+        assert!(sock_ref.keepalive().unwrap());
         #[cfg(not(target_os = "windows"))]
         {
             assert_eq!(10, sock_ref.keepalive_time().unwrap().as_secs());

@@ -238,6 +238,6 @@ mod tests {
             to_arrow_data_type("BIT".to_string()).unwrap(),
             DataType::UInt8
         );
-        assert_eq!(to_arrow_data_type("UNKNOWN".to_string()).is_err(), true);
+        assert!(to_arrow_data_type("UNKNOWN".to_string()).is_err());
     }
 }

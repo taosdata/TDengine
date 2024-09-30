@@ -58,7 +58,7 @@ impl OracleQuery {
                         format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
                         &[],
                     )?;
-                    let _ = conn.commit()?;
+                    conn.commit()?;
                     return Ok(conn);
                 }
                 Err(err) => {
@@ -83,12 +83,12 @@ impl OracleQuery {
         let mut col_map = LinkedHashMap::new();
         let mut rows = Vec::new();
         match result {
-            Ok(mut rs) => {
+            Ok(rs) => {
                 let cols = rs.column_info();
                 for col in cols {
                     col_map.insert(col.name().to_string(), col.oracle_type().clone());
                 }
-                while let Some(row) = rs.next() {
+                for row in rs {
                     match row {
                         Ok(row) => {
                             rows.push(row);
@@ -120,7 +120,7 @@ impl OracleQuery {
             format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
             &[],
         )?;
-        let _ = conn.commit()?;
+        conn.commit()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -147,12 +147,12 @@ impl OracleQuery {
         let mut col_map = LinkedHashMap::new();
         let mut rows = Vec::new();
         match result {
-            Ok(mut rs) => {
+            Ok(rs) => {
                 let cols = rs.column_info();
                 for col in cols {
                     col_map.insert(col.name().to_string(), col.oracle_type().clone());
                 }
-                while let Some(row) = rs.next() {
+                for row in rs {
                     match row {
                         Ok(row) => {
                             rows.push(row);
@@ -179,12 +179,12 @@ impl OracleQuery {
         let mut col_map = LinkedHashMap::new();
         let mut rows = Vec::new();
         match result {
-            Ok(mut rs) => {
+            Ok(rs) => {
                 let cols = rs.column_info();
                 for col in cols {
                     col_map.insert(col.name().to_string(), col.oracle_type().clone());
                 }
-                while let Some(row) = rs.next() {
+                for row in rs {
                     match row {
                         Ok(row) => {
                             rows.push(row);
@@ -214,12 +214,12 @@ impl OracleQuery {
         let mut col_map = LinkedHashMap::new();
         let mut rows = Vec::new();
         match result {
-            Ok(mut rs) => {
+            Ok(rs) => {
                 let cols = rs.column_info();
                 for col in cols {
                     col_map.insert(col.name().to_string(), col.oracle_type().clone());
                 }
-                while let Some(row) = rs.next() {
+                for row in rs {
                     match row {
                         Ok(row) => {
                             if rows.len() >= top_n as usize {
@@ -266,7 +266,7 @@ mod tests {
     }
 
     fn test_insert_data(len: usize) {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -277,7 +277,7 @@ mod tests {
                 let conn = query.get_conn().unwrap();
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
-                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                    let _ = conn.execute(sql_insert_data.as_str(), &[]);
                 }
                 let _ = conn.commit();
             }
@@ -288,7 +288,7 @@ mod tests {
     }
 
     fn test_clear_data() {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -320,8 +320,8 @@ mod tests {
     #[test]
     fn test_select_distinct_values() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(7);
+        test_create_table();
+        test_insert_data(7);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -333,14 +333,14 @@ mod tests {
         dbg!(&col_map);
         dbg!(&rows);
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]
     fn test_select_for_schema() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(1);
+        test_create_table();
+        test_insert_data(1);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -364,14 +364,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]
     fn test_select_all() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(7);
+        test_create_table();
+        test_insert_data(7);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -396,14 +396,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]
     fn test_select_all_and_to_record_batches() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(7);
+        test_create_table();
+        test_insert_data(7);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -428,14 +428,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]
     fn test_top_n() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(3);
+        test_create_table();
+        test_insert_data(3);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -460,14 +460,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]
     fn test_top_n_with_tz() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_insert_data(3);
+        test_create_table();
+        test_insert_data(3);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();

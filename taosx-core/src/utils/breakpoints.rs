@@ -176,7 +176,7 @@ pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>
     let db = sled::open(&breakpoint_db_path)
         .map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     let export_file = breakpoint_db_path.with_extension("csv");
-    let mut file = std::fs::File::create(&export_file)?;
+    let mut file = std::fs::File::create(export_file)?;
     for item in db.iter() {
         let (key, value) = item?;
         file.write(&key)?;
@@ -206,7 +206,7 @@ pub fn export_breakpoints_to_compressed_csv(task_id: &str) -> anyhow::Result<Opt
     }
     let compressed_data = encoder.finish()?;
     let export_file = breakpoint_db_path.with_extension("csv.gz");
-    let mut file = std::fs::File::create(&export_file)?;
+    let mut file = std::fs::File::create(export_file)?;
     file.write(&compressed_data)?;
     let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv.gz";
     Ok(Some(relative_path))
@@ -281,7 +281,7 @@ mod tests {
         breakpoints_clear(task_id).unwrap();
 
         let path = breakpoints_db_dir(task_id);
-        assert_eq!(path.exists(), false);
+        assert!(!path.exists());
 
         let result = breakpoints_get(task_id, sub_task).unwrap();
         assert_eq!(result, None);

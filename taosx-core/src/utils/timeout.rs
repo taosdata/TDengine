@@ -47,25 +47,17 @@ impl Timeout {
             }
             TimeoutType::ValidateDataSource(dsn) => {
                 let ds = dsn.driver;
-                TIMEOUT
-                    .validate_ds
-                    .get(&ds)
-                    .map(|t| t.clone())
-                    .unwrap_or_else(|| {
-                        let timeout = DEFAULT_TIMEOUT.read().unwrap();
-                        *timeout
-                    })
+                TIMEOUT.validate_ds.get(&ds).copied().unwrap_or_else(|| {
+                    let timeout = DEFAULT_TIMEOUT.read().unwrap();
+                    *timeout
+                })
             }
             TimeoutType::GetSample(dsn) => {
                 let ds = dsn.driver;
-                TIMEOUT
-                    .get_sample
-                    .get(&ds)
-                    .map(|s| s.clone())
-                    .unwrap_or_else(|| {
-                        let timeout = DEFAULT_TIMEOUT.read().unwrap();
-                        *timeout
-                    })
+                TIMEOUT.get_sample.get(&ds).copied().unwrap_or_else(|| {
+                    let timeout = DEFAULT_TIMEOUT.read().unwrap();
+                    *timeout
+                })
             }
         }
     }

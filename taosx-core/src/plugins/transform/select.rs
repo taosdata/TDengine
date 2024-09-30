@@ -174,7 +174,7 @@ impl PartialEq for Select {
 
 pub fn query(fields: &Fields, path: &str) -> Option<(usize, FieldRef)> {
     if path.starts_with('$') {
-        let _ = serde_json_path::JsonPath::from_str(&path).ok()?;
+        let _ = serde_json_path::JsonPath::from_str(path).ok()?;
         // match json_path
         let path = path.trim_start_matches('$').trim_start_matches('.');
         if let Some((name, path)) = path.split_once('.') {
@@ -388,7 +388,7 @@ impl Select {
                 // dbg!(&field);
                 let metadata = field.metadata();
                 let name = &metadata["name"];
-                let column = batch.column_by_name(&name).unwrap();
+                let column = batch.column_by_name(name).unwrap();
                 // let dt0 = column.data_type();
                 let dt = field.data_type();
 
@@ -396,7 +396,7 @@ impl Select {
             })
             .try_collect()?;
 
-        Ok(RecordBatch::try_new(schema_ref, columns)?)
+        RecordBatch::try_new(schema_ref, columns)
     }
 }
 
@@ -434,14 +434,14 @@ mod tests {
     #[test]
     fn json() {
         let json = r#"["a", "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![IncludeItem::new("a"), IncludeItem::new("b")]))
         );
 
         let json = r#"[{"name": "a"}, "b"]"#;
-        let select: Select = serde_json::from_str(&json).unwrap();
+        let select: Select = serde_json::from_str(json).unwrap();
         assert_eq!(
             select,
             Select::Include(Include(vec![IncludeItem::new("a"), IncludeItem::new("b")]))

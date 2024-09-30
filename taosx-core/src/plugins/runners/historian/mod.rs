@@ -34,22 +34,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             AVEVA_HISTORIAN_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let client = HistorianQuery::try_new(c).await;
             match client {
                 Err(err) => DataSourceValidation::invalid(
                     AVEVA_HISTORIAN_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(_cli) => DataSourceValidation::valid(AVEVA_HISTORIAN_ID.to_string(), None),
             }
@@ -87,7 +79,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         .into_row_stream();
     while let Some(row) = rows.try_next().await? {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
-        for (idx, col) in row.columns().into_iter().enumerate() {
+        for (idx, col) in row.columns().iter().enumerate() {
             let col_name = col.name();
             let col_type = col.column_type();
             let col_val = to_json_value(&row, idx, col_type).map_err(|err| {
@@ -197,7 +189,7 @@ pub async fn historian_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -297,11 +289,7 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
             .keep_raw_data_dir
             .clone()
             .unwrap_or(std::env::var(crate::runners::ENV_TAOSX_DATA_DIR).unwrap()),
-        config
-            .advanced_options
-            .keep_raw_data_days
-            .clone()
-            .unwrap_or(30),
+        config.advanced_options.keep_raw_data_days.unwrap_or(30),
         logger_rx,
     );
     logger.start();
@@ -340,8 +328,8 @@ mod tests {
     async fn test_is_valid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!(
             "invalid dsn: historian://localhost, cause: username is required",
@@ -350,8 +338,8 @@ mod tests {
 
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
     }
@@ -361,8 +349,8 @@ mod tests {
     async fn test_valid() {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!(None, res.version);
     }

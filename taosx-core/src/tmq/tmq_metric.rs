@@ -192,9 +192,9 @@ impl TaskMetrics for TmqMetrics {
     }
 }
 
-impl Into<CoreMetrics> for TmqMetrics {
-    fn into(self) -> CoreMetrics {
-        CoreMetrics::TMQ(self)
+impl From<TmqMetrics> for CoreMetrics {
+    fn from(val: TmqMetrics) -> Self {
+        CoreMetrics::TMQ(val)
     }
 }
 

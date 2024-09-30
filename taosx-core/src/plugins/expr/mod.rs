@@ -24,7 +24,6 @@ impl BooleanExpr {
             .unwrap()
             .values()
             .iter()
-            .map(|v| v)
             .collect())
     }
 
@@ -295,11 +294,10 @@ impl Expr {
 pub fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
     debug_assert!(values
         .iter()
-        .map(|v| if v.is_unit() { None } else { Some(v.type_id()) })
-        .flatten()
+        .filter_map(|v| if v.is_unit() { None } else { Some(v.type_id()) })
         .all_equal());
 
-    if values.len() == 0 {
+    if values.is_empty() {
         return None;
     }
 

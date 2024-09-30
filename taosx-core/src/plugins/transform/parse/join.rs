@@ -36,15 +36,14 @@ impl Parse for Join {
             .downcast_ref::<ListArray>()
             .unwrap()
             .iter()
-            .map(|value| match value {
-                Some(value) => Some(
+            .map(|value| {
+                value.map(|value| {
                     value
                         .taos_values()
                         .iter()
                         .map(|item| item.to_string().unwrap_or("".to_string()))
-                        .join(&self.join),
-                ),
-                None => None,
+                        .join(&self.join)
+                })
             })
             .collect();
         // new array

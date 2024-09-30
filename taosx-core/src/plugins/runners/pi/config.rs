@@ -347,7 +347,7 @@ impl PiConfig {
                 .transpose()?;
         }
         if let Some(mwl) = max_wait_len {
-            if mwl < 1 || mwl > 10000 {
+            if !(1..=10000).contains(&mwl) {
                 return Err(anyhow!("MaxWaitLen should be in range 1..10000"));
             }
         }
@@ -375,7 +375,7 @@ impl PiConfig {
                 .transpose()?;
         }
         if let Some(ui) = update_interval {
-            if ui < 100 || ui > 60000 {
+            if !(100..=60000).contains(&ui) {
                 return Err(anyhow!("UpdateInterval should be in range 100..60000 ms"));
             }
         }

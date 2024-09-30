@@ -109,18 +109,15 @@ impl TaskConfig {
     }
 
     fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params
-            .get("taskId")
-            .map(|s| {
-                s.parse::<i64>()
-                    .map(Some)
-                    .map_err(|err| {
-                        tracing::warn!("failed to parse taskId: {}, use None", s);
-                        err
-                    })
-                    .unwrap_or(None)
-            })
-            .flatten()
+        dsn.params.get("taskId").and_then(|s| {
+            s.parse::<i64>()
+                .map(Some)
+                .map_err(|err| {
+                    tracing::warn!("failed to parse taskId: {}, use None", s);
+                    err
+                })
+                .unwrap_or(None)
+        })
     }
 
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {

@@ -46,7 +46,7 @@ impl ExtractRule<'_> {
             }
             ExtractRule::ByCaptureLocations(n) => {
                 let fields = (0..*n)
-                    .map(|i| Field::new(&format!("{}{}", name, i), DataType::Utf8, true))
+                    .map(|i| Field::new(format!("{}{}", name, i), DataType::Utf8, true))
                     .collect_vec();
                 Schema::new(fields)
             }
@@ -56,14 +56,9 @@ impl ExtractRule<'_> {
 }
 impl Regex {
     fn extract_rule(&self) -> ExtractRule {
-        let names = self
-            .regex
-            .capture_names()
-            .flatten()
-            .map(|s| s)
-            .collect_vec();
+        let names = self.regex.capture_names().flatten().collect_vec();
         dbg!(&names);
-        if names.len() > 0 {
+        if !names.is_empty() {
             // TODO: extract by capture names
             return ExtractRule::ByCaptureNames(names);
         }
@@ -161,7 +156,7 @@ impl Parse for Regex {
                         captures_groups.push(None)
                     } else {
                         let value = string_array.value(row_index);
-                        let caps = self.regex.captures(&value).ok_or_else(|| RegexError {
+                        let caps = self.regex.captures(value).ok_or_else(|| RegexError {
                             info: format!("Regex pattern {:?} has no capture groups", self.regex),
                             item: value.to_string(),
                             regex: self.regex.to_string(),
@@ -293,7 +288,7 @@ impl Parse for Regex {
                 let names = (0..caps)
                     .map(|i| Field::new(format!("{}{}", field.name(), i), DataType::Utf8, true))
                     .collect_vec();
-                let mut arrays = std::iter::repeat_with(|| StringBuilder::new())
+                let mut arrays = std::iter::repeat_with(StringBuilder::new)
                     .take(caps)
                     .collect_vec();
                 for row_index in 0..num_rows {
@@ -303,7 +298,7 @@ impl Parse for Regex {
                         }
                     } else {
                         let value = string_array.value(row_index);
-                        match self.regex.captures(&value) {
+                        match self.regex.captures(value) {
                             Some(caps) => {
                                 for i in 0..caps.len() {
                                     let array = arrays.get_mut(i).unwrap();
@@ -343,7 +338,7 @@ impl Parse for Regex {
                         array.append_null();
                     } else {
                         let value = string_array.value(row_index);
-                        match self.regex.captures(&value) {
+                        match self.regex.captures(value) {
                             Some(caps) => {
                                 if let Some(cap) = caps.get(0) {
                                     array.append_value(cap.as_str());
@@ -378,7 +373,7 @@ mod tests {
     fn regex_test() {
         let re = Regex {
             regex: regex::Regex::new(r"'(?P<title>[^']+)'\s+\((?P<year>\d{4})\)").unwrap(),
-            select: Some(serde_json::from_str(&r#"["title::nchar(100)", "year::i32"]"#).unwrap()),
+            select: Some(serde_json::from_str(r#"["title::nchar(100)", "year::i32"]"#).unwrap()),
             keep: false,
         };
         let field = Field::new("a", DataType::Utf8, false);

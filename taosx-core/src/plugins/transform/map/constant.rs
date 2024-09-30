@@ -16,7 +16,8 @@ pub struct ConstantValueBuilder {
 impl ValueBuilder for ConstantValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let len = record.num_rows();
-        let v = match &self.value {
+
+        match &self.value {
             JsonValue::Null => Ok(Arc::new(StringArray::new_null(len)) as ArrayRef),
             JsonValue::Bool(value) => {
                 Ok(Arc::new(BooleanArray::from(vec![*value; len])) as ArrayRef)
@@ -39,20 +40,19 @@ impl ValueBuilder for ConstantValueBuilder {
             JsonValue::Array(array) => {
                 // TODO: support array to arrow array.
                 let value = serde_json::to_string(array).map_err(|err| {
-                    let err_msg = format!("failed to serialize object, cause: {}", err.to_string());
+                    let err_msg = format!("failed to serialize object, cause: {}", err);
                     ValueBuilderError::ConstantError(err_msg)
                 })?;
                 Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
             }
             JsonValue::Object(value) => {
                 let value = serde_json::to_string(value).map_err(|err| {
-                    let err_msg = format!("failed to serialize object, cause: {}", err.to_string());
+                    let err_msg = format!("failed to serialize object, cause: {}", err);
                     ValueBuilderError::ConstantError(err_msg)
                 })?;
                 Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
             }
-        };
-        v
+        }
     }
 }
 

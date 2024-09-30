@@ -167,7 +167,7 @@ impl BatchCounter {
         let new_range = self.counter.fetch_batch_id(self.step).await?;
         *range = new_range;
         self.current.store(range.start, Ordering::SeqCst);
-        return Ok(range.start);
+        Ok(range.start)
     }
 }
 

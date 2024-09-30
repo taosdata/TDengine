@@ -29,7 +29,7 @@ impl ValueBuilder for CastValueBuilder {
                         let mut array = Vec::new();
                         if let Some(value) = value {
                             value.iter().for_each(|v| {
-                                if v.is_some_and(|v| v.len() > 0) {
+                                if v.is_some_and(|v| !v.is_empty()) {
                                     array.push(v);
                                 } else if let Some(default) = &self.default {
                                     array.push(Some(default));
@@ -45,7 +45,7 @@ impl ValueBuilder for CastValueBuilder {
                         let mut array = Vec::new();
                         if let Some(value) = value {
                             value.iter().for_each(|v| {
-                                if v.is_some_and(|v| v.len() > 0) {
+                                if v.is_some_and(|v| !v.is_empty()) {
                                     array.push(v.and_then(|v| std::str::from_utf8(v).ok()));
                                 } else if let Some(default) = &self.default {
                                     array.push(Some(default.as_str()));

@@ -29,21 +29,21 @@ impl ValueBuilder for SumValueBuilder {
         for (idx, field) in sum_iter.enumerate() {
             if idx > 0 {
                 sum_expr.push_str(".add_or_set(");
-                sum_expr.push_str(&field);
-                sum_expr.push_str(")");
+                sum_expr.push_str(field);
+                sum_expr.push(')');
             } else {
-                sum_expr.push_str(&format!("{}", field));
+                sum_expr.push_str(&field.to_string());
             }
         }
 
         let expr = Expr::try_new(sum_expr, false).map_err(|err| {
-            let err_msg = format!("failed to build sum expression, cause: {}", err.to_string());
-            return ValueBuilderError::SumError(err_msg);
+            let err_msg = format!("failed to build sum expression, cause: {}", err);
+            ValueBuilderError::SumError(err_msg)
         })?;
 
         let values = expr.eval(record, None).map_err(|err| {
-            let err_msg = format!("failed to calculate sum, cause: {}", err.to_string());
-            return ValueBuilderError::SumError(err_msg);
+            let err_msg = format!("failed to calculate sum, cause: {}", err);
+            ValueBuilderError::SumError(err_msg)
         })?;
 
         Ok(values)

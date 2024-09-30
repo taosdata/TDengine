@@ -49,7 +49,7 @@ impl HistorianQuery {
     pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
 
-        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+        if !tags.is_empty() && tags.len() == 1 && tags.first().unwrap() == "*" {
             sql = "select * from Runtime.dbo.Live where TagName not like 'Sys%'".to_string();
         } else {
             sql = format!(
@@ -68,12 +68,10 @@ impl HistorianQuery {
         begin: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> anyhow::Result<QueryStream> {
-        let sql;
-
         let begin: DateTime<Local> = DateTime::from(begin);
         let end: DateTime<Local> = DateTime::from(end);
 
-        sql = format!(
+        let sql = format!(
             "select * from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
             tags.iter().map(|t| {
                 format!("'{}'", t)
@@ -152,7 +150,7 @@ fn get_tags_with_condition_sql(top: Option<usize>, tag_conditions: Vec<String>) 
         .iter()
         .chunk_by(|t| t.contains('*'))
         .into_iter()
-        .map(|(contain_wildcard, group)| {
+        .flat_map(|(contain_wildcard, group)| {
             if contain_wildcard {
                 group
                     .map(|t| {
@@ -162,18 +160,17 @@ fn get_tags_with_condition_sql(top: Option<usize>, tag_conditions: Vec<String>) 
                     })
                     .collect::<Vec<String>>()
             } else {
-                let tags = group.map(|t| t.clone()).join("','");
+                let tags = group.cloned().join("','");
                 vec![format!("TagName in ('{}')", tags)]
             }
         })
-        .flatten()
         .collect::<Vec<String>>()
         .join(" or ");
 
     if !conditions.is_empty() {
         tags_query.push_str(" and (");
         tags_query.push_str(conditions.as_str());
-        tags_query.push_str(")");
+        tags_query.push(')');
     }
 
     tags_query
@@ -188,8 +185,7 @@ fn top_n_sql(
 ) -> String {
     let mut sql = format!(
         "select top {} * from {} where wwRetrievalMode = 'full'",
-        top_n,
-        table.to_string(),
+        top_n, table,
     );
 
     if tags.is_empty() {

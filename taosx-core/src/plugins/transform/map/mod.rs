@@ -42,7 +42,7 @@ impl TransformExt for Map {
                 let (field, array) =
                     value
                         .builder
-                        .build_field(&name.as_str(), records, value.r#as.clone())?;
+                        .build_field(name.as_str(), records, value.r#as.clone())?;
                 Ok::<_, ValueBuilderError>((field, array))
             })
             .collect::<Result<Vec<_>, _>>()?

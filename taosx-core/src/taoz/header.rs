@@ -140,7 +140,7 @@ impl Inlinable for Header {
             api_version,
             server_version,
             created,
-            database: if database.len() > 0 {
+            database: if !database.is_empty() {
                 Some(database)
             } else {
                 None
@@ -159,9 +159,9 @@ impl Inlinable for Header {
         l += wtr.write_inlined_str::<1>(self.server_version.as_ref().unwrap())?;
         l += wtr.write_i64_le(self.created.timestamp_millis())?;
         if let Some(database) = &self.database {
-            l += wtr.write_inlined_str::<1>(&database)?;
+            l += wtr.write_inlined_str::<1>(database)?;
         } else {
-            wtr.write_inlined_str::<1>(&"")?;
+            wtr.write_inlined_str::<1>("")?;
         }
         Ok(l)
     }
@@ -196,7 +196,7 @@ impl taos::AsyncInlinable for Header {
             api_version,
             server_version,
             created,
-            database: if database.len() > 0 {
+            database: if !database.is_empty() {
                 Some(database)
             } else {
                 None
@@ -223,9 +223,9 @@ impl taos::AsyncInlinable for Header {
         wtr.write_i64(self.created.timestamp_millis()).await?;
         l += std::mem::size_of::<i64>();
         if let Some(database) = &self.database {
-            l += wtr.write_inlined_str::<1>(&database).await?;
+            l += wtr.write_inlined_str::<1>(database).await?;
         } else {
-            wtr.write_inlined_str::<1>(&"").await?;
+            wtr.write_inlined_str::<1>("").await?;
         }
         Ok(l)
     }

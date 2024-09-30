@@ -636,7 +636,7 @@ async fn consume_lush_record(
                     continue;
                 }
                 let tags = tags.as_ref().unwrap();
-                let mut query_tags_sql = format!("SELECT distinct tbname,");
+                let mut query_tags_sql = "SELECT distinct tbname,".to_string();
                 for (tagname, _) in tags {
                     query_tags_sql.push_str(format!("`{tagname}`,").as_str());
                 }
@@ -681,7 +681,7 @@ async fn consume_lush_record(
                             // table not exists
                             let table_sql = table.to_sql(None);
                             if table_sql.is_some() {
-                                let stable_name = table.stable_name().clone().unwrap();
+                                let stable_name = table.stable_name().unwrap();
                                 let table_sql = table_sql.unwrap();
                                 let sql_vec = create_sql_map.get_mut(stable_name);
                                 let mut insert_done = false;
@@ -748,7 +748,7 @@ async fn consume_lush_record(
                             tracing::warn!(sql = sql.0, error = err_str, "create table error");
                             if err_str.contains("0x2653") {
                                 // column or tag length not enough
-                                let desc = taos.describe(&stable_name.as_str()).await?;
+                                let desc = taos.describe(stable_name.as_str()).await?;
                                 let fields = message_modify
                                     .tags
                                     .iter()
@@ -853,7 +853,7 @@ async fn consume_lush_record(
                             {
                                 Ok(num) => {
                                     tracing::trace!("exec sql successfully");
-                                    count = count + num;
+                                    count += num;
                                     metrics.add_inserted_sqls(1);
                                     metrics.add_written_rows(num as u64);
                                     metrics.add_written_points((num * cols) as u64);
@@ -1078,7 +1078,7 @@ async fn consume_lush_record_with_transform(
             let _ = lush::assert_create_table(
                 pool,
                 &mut taos,
-                &super_table_sql,
+                super_table_sql,
                 true,
                 metrics_arc.ipc(),
             )
@@ -1292,9 +1292,7 @@ async fn handle_transform(
     let generated_ts_transform_map = to_record_transform_map(&generated_ts_config);
     // 将生成的 transform_map 添加到原始的 transform_map 中
     for (point_id, transform) in generated_ts_transform_map {
-        if !ts_transform.contains_key(&point_id) {
-            ts_transform.insert(point_id, transform);
-        }
+        ts_transform.entry(point_id).or_insert(transform);
     }
     let transformed_ts_col = transform_by_name(message.record(), "ts", ts_transform)?;
 
@@ -1308,9 +1306,7 @@ async fn handle_transform(
     let generated_rts_transform_map = to_record_transform_map(&generated_rts_config);
     // 将生成的 transform_map 添加到原始的 transform_map 中
     for (point_id, transform) in generated_rts_transform_map {
-        if !rts_transform.contains_key(&point_id) {
-            rts_transform.insert(point_id, transform);
-        }
+        rts_transform.entry(point_id).or_insert(transform);
     }
     let transformed_received_col = transform_by_name(message.record(), "received", rts_transform)?;
 
@@ -1323,9 +1319,7 @@ async fn handle_transform(
     let generated_value_transform = to_record_transform_map(&generated_value_config);
     // 将生成的 transform_map 添加到原始的 transform_map 中
     for (point_id, transform) in generated_value_transform {
-        if !value_transform.contains_key(&point_id) {
-            value_transform.insert(point_id, transform);
-        }
+        value_transform.entry(point_id).or_insert(transform);
     }
 
     let transformed_value_col = transform_by_name(message.record(), "value", value_transform)?;
@@ -1758,15 +1752,13 @@ fn get_transform_exprssion_by_id(
     id: &str,
     map: &HashMap<String, RecordTransform>,
 ) -> Option<(String, String)> {
-    map.get(id)
-        .map(
-            |transform| match (&transform.column_name, &transform.transform_expression) {
-                (Some(name), Some(expr)) => Some((name.clone(), expr.clone())),
-                (Some(name), None) => Some((name.clone(), name.clone())),
-                _ => None,
-            },
-        )
-        .flatten()
+    map.get(id).and_then(|transform| {
+        match (&transform.column_name, &transform.transform_expression) {
+            (Some(name), Some(expr)) => Some((name.clone(), expr.clone())),
+            (Some(name), None) => Some((name.clone(), name.clone())),
+            _ => None,
+        }
+    })
 }
 
 #[cfg(test)]
@@ -2106,10 +2098,10 @@ async fn consume_point_record(
             ))?;
 
             // tbname
-            let child_table_name = format!("{}", point_config.code);
+            let child_table_name = point_config.code.to_string();
 
             // point_insertion
-            let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
+            let point_insertion = PointInsertion::from_table_config(table_config, &value_raw_type);
 
             let mut value_column_name = "value";
             let mut value_column_length = 0;
@@ -2229,21 +2221,19 @@ async fn consume_point_record(
                     );
                     child_table_create_sql_map.insert(stable_name.clone(), map);
                 }
+            } else if child_table_create_sql_map.contains_key(&stable_name) {
+                let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
+                map.insert(
+                    child_table_name.clone(),
+                    format!("({}) TAGS ({})", tag_names, tag_values),
+                );
             } else {
-                if child_table_create_sql_map.contains_key(&stable_name) {
-                    let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
-                    map.insert(
-                        child_table_name.clone(),
-                        format!("({}) TAGS ({})", tag_names, tag_values),
-                    );
-                } else {
-                    let mut map = HashMap::new();
-                    map.insert(
-                        child_table_name.clone(),
-                        format!("({}) TAGS ({})", tag_names, tag_values),
-                    );
-                    child_table_create_sql_map.insert(stable_name.clone(), map);
-                }
+                let mut map = HashMap::new();
+                map.insert(
+                    child_table_name.clone(),
+                    format!("({}) TAGS ({})", tag_names, tag_values),
+                );
+                child_table_create_sql_map.insert(stable_name.clone(), map);
             }
 
             let sql_vec = stable_insert_map.get_mut(&stable_name);
@@ -2525,7 +2515,7 @@ async fn consume_point_record(
                                             let code: i32 = err.code().into();
                                             let _err_str = err.to_string();
                                             match code {
-                                                0x0E001 | 0x0E002 | 0x0E003 => {
+                                                0x0E001..=0x0E003 => {
                                                     taos.replace(pool.get().await?);
                                                     break_err = Err(err);
                                                     retry += 1;
@@ -2574,7 +2564,7 @@ async fn consume_point_record(
                                                         "create table sql encounter 0x032C"
                                                     );
                                                 }
-                                                0x0E001 | 0x0E002 | 0x0E003 => {
+                                                0x0E001..=0x0E003 => {
                                                     taos.replace(pool.get().await?);
                                                     break_err = Err(err);
                                                     continue 'outer;
@@ -2650,7 +2640,7 @@ async fn consume_point_record(
                                 let desc = taos
                                     .as_ref()
                                     .unwrap()
-                                    .describe(&stable_name.as_str())
+                                    .describe(stable_name.as_str())
                                     .await?;
                                 let mut tags_for_diff = Vec::new();
                                 tags_for_diff.push((
@@ -2750,7 +2740,7 @@ async fn consume_point_record(
 
 #[inline]
 fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    &column_config.alias.as_ref().unwrap_or(&column_config.name)
+    column_config.alias.as_ref().unwrap_or(&column_config.name)
 }
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
@@ -2805,7 +2795,7 @@ async fn consume_flat_record(
             crate::plugins::transform::Message::Tables(_) => todo!(),
             crate::plugins::transform::Message::ChildTables(_) => todo!(),
             crate::plugins::transform::Message::Records(mut message) => {
-                if message.len() == 0 {
+                if message.is_empty() {
                     continue;
                 }
                 if unsafe { crate::global::DRY_RUN } {
@@ -2883,7 +2873,7 @@ async fn consume_flat_record(
                             );
                             metrics.add_drained_rows(filtered as _);
 
-                            if message.len() == 0 {
+                            if message.is_empty() {
                                 continue;
                             }
                             let factor = message
@@ -2948,7 +2938,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let columns = ipc_reader
         .columns()
         .into_iter()
-        .map(|s| format!("{s}"))
+        .map(|s| s.to_string())
         .collect_vec();
 
     let mut count = 0;
@@ -2981,7 +2971,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 pool,
                 record,
                 &mut count,
-                &metrics_arc,
+                metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
                 breakpoint_db.as_ref().unwrap().clone(),
@@ -3012,7 +3002,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 ),
             });
 
-            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+            if notifier
+                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                .is_err()
+            {
                 bail!("write batch error: {err:#}");
             }
         } else {
@@ -3292,7 +3285,7 @@ pub fn generate_alter_sql_diff_desc(
                     match ty {
                         IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
                             if original_ty.to_string() != new_def_ty.to_string()
-                                || len.clone() as usize > c.length()
+                                || *len as usize > c.length()
                             {
                                 should_alter = true;
                             }
@@ -3580,7 +3573,7 @@ pub async fn handle_lush_message_init(
                 qid.add_sub_batch_id();
                 info!("create sql: {sql}");
                 let res: Result<usize, taos::Error> = taos
-                    .exec_with_req_id(&sql, qid.get())
+                    .exec_with_req_id(sql, qid.get())
                     .in_current_span()
                     .await;
                 if let Err(err) = res {
@@ -3757,7 +3750,7 @@ impl IpcStreamWorker {
                     .parser
                     .columns()
                     .into_iter()
-                    .map(|s| format!("{s}"))
+                    .map(|s| s.to_string())
                     .collect_vec();
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
@@ -4083,9 +4076,9 @@ pub async fn listen_tcp_socket(
                     let opc_model_config = opc_model_config.clone();
                     let lush_model_config = lush_model_config.clone();
                     let parser = parser.clone();
-                    let connector = connector.clone();
+                    let connector = connector;
                     let transferred = transferred.clone();
-                    let task_id = task_id.clone();
+                    let task_id = task_id;
                     let notifier = notifier.clone();
                     let notify = notified.clone();
                     let batch_counter = batch_counter.clone();

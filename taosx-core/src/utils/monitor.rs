@@ -60,7 +60,7 @@ pub fn update_sub_connector_process_metrics(
     loop {
         match CHANNEL.1.try_recv() {
             Ok(sub_info) => {
-                let sub_process_id = Pid::from_u32(sub_info.sub_pid as u32);
+                let sub_process_id = Pid::from_u32(sub_info.sub_pid);
                 let task_id = sub_info.task_id.to_string();
                 let ds_name = sub_info.datasource_name.clone();
                 let sub_process = sys.process(sub_process_id);

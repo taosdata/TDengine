@@ -69,27 +69,25 @@ impl CollectConfig {
     }
 
     fn parse_interval(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("interval")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("invalid interval: {}, cause: {}", v, err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 
     fn parse_limit(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("limit")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("invalid limit: {}, cause: {}", v, err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 }
 

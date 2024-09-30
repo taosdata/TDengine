@@ -128,7 +128,7 @@ impl Parse for Cast {
                                     }
                                 })
                         } else {
-                            let tz = chrono_tz::Tz::from_str(&tz).expect("Invalid tz");
+                            let tz = chrono_tz::Tz::from_str(tz).expect("Invalid tz");
                             parse_str_without_tz(s, with, &tz)
                                 .ok()
                                 .map(|ts| match unit {
@@ -207,7 +207,7 @@ impl Parse for Cast {
 fn parse_str_without_tz(s: &str, fmt: &str, tz: &Tz) -> ParseResult<DateTime<Tz>> {
     let mut parsed = format::Parsed::new();
     chrono::format::parse(&mut parsed, s, format::strftime::StrftimeItems::new(fmt))?;
-    parsed.to_datetime_with_timezone(&tz)
+    parsed.to_datetime_with_timezone(tz)
 }
 
 #[cfg(test)]

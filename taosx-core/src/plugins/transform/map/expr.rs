@@ -17,7 +17,7 @@ impl ExprValueBuilder {
 impl ValueBuilder for ExprValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let values = self.0.eval(record, None).map_err(|err| {
-            let err_msg = format!("failed to eval expression, cause: {}", err.to_string());
+            let err_msg = format!("failed to eval expression, cause: {}", err);
             ValueBuilderError::ExprError(err_msg)
         })?;
 

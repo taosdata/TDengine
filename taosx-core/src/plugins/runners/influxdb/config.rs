@@ -24,7 +24,7 @@ impl InfluxdbConfig {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
         // the datasource config
-        let connect = ConnectionConfig::from_dsn(&dsn)?;
+        let connect = ConnectionConfig::from_dsn(dsn)?;
         // the addr for connector to agent
         let taosx_host = String::from("127.0.0.1");
         let taosx_port = ipc;
@@ -34,10 +34,10 @@ impl InfluxdbConfig {
         };
 
         // the task config
-        let task = TaskConfig::from_dsn(&dsn)?;
+        let task = TaskConfig::from_dsn(dsn)?;
 
         // the performance config
-        let performance = PerformanceConfig::from_dsn(&dsn)?;
+        let performance = PerformanceConfig::from_dsn(dsn)?;
 
         Ok(Self {
             influx: connect,
@@ -138,7 +138,7 @@ impl ConnectionConfig {
         let port = dsn
             .addresses
             .first()
-            .and_then(|addr| addr.port.clone())
+            .and_then(|addr| addr.port)
             .ok_or_else(|| anyhow::anyhow!("port is required"))?;
 
         let protocol = dsn.protocol.as_deref().unwrap_or("http");

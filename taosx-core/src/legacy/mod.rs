@@ -323,7 +323,7 @@ async fn split_table_into_time_range_chunks(
         sql: impl AsRef<str>,
     ) -> Result<chrono::DateTime<Utc>, taos::Error> {
         let sql = sql.as_ref();
-        let mut set = taos.query(&sql).await?;
+        let mut set = taos.query(sql).await?;
         let mut records = set.to_records().await?;
         if let Some(Value::Timestamp(ts)) = records.pop().and_then(|mut v| v.pop()) {
             Ok(Utc.from_local_datetime(&ts.to_naive_datetime()).unwrap())
@@ -416,21 +416,14 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 .context("Get source connection error")?;
             if code == 0x2603 || code == 0x0618 {
                 if let Some(stable) = stable {
-                    sync_super_table_schema(
-                        &from,
-                        stable,
-                        &to,
-                        remap.as_ref(),
-                        target_opts,
-                        actions,
-                    )
-                    .in_current_span()
-                    .await?;
+                    sync_super_table_schema(from, stable, to, remap.as_ref(), target_opts, actions)
+                        .in_current_span()
+                        .await?;
                     sync_super_table_schema_with_subs(
-                        &from,
+                        from,
                         stable,
                         &[table.as_str()],
-                        &to,
+                        to,
                         remap.as_ref(),
                         target_opts,
                         true,
@@ -650,7 +643,7 @@ async fn sync_single_table_partial(
     let new_table_name = if actions.is_empty() {
         table.clone()
     } else {
-        Arc::new(transform_tbname_with_actions(&table, actions, false)?.to_string())
+        Arc::new(transform_tbname_with_actions(table, actions, false)?.to_string())
     };
 
     let concurrent_limit = target_opts.concurrent_limit.get();
@@ -940,8 +933,8 @@ pub async fn sync_super_table_schema(
     let target_desc = to.describe(&target_name).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
-    let desc_first = desc.get(0).context("Error data: empty fields")?;
-    let target_desc_first = target_desc.get(0);
+    let desc_first = desc.first().context("Error data: empty fields")?;
+    let target_desc_first = target_desc.first();
     // check if the first field is timestamp
     if desc_first.ty() == Ty::Timestamp {
         if let Some(target_desc_first) = target_desc_first {
@@ -976,26 +969,24 @@ pub async fn sync_super_table_schema(
                     r.sql_repr(),
                     l.sql_repr()
                 );
-            } else {
-                if r.length() < l.length() {
-                    let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
-                    if let Err(err) = to
-                        .exec(transform_sql_with_remap(
-                            format!(
-                                "ALTER TABLE `{}` MODIFY {} {}",
-                                target_name,
-                                c_or_t,
-                                l.sql_repr(),
-                            ),
-                            remap,
-                        ))
-                        .await
-                    {
-                        warn!(
-                            "Modify column {} of table {target_name} error: {err:#}",
-                            l.field()
-                        );
-                    }
+            } else if r.length() < l.length() {
+                let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
+                if let Err(err) = to
+                    .exec(transform_sql_with_remap(
+                        format!(
+                            "ALTER TABLE `{}` MODIFY {} {}",
+                            target_name,
+                            c_or_t,
+                            l.sql_repr(),
+                        ),
+                        remap,
+                    ))
+                    .await
+                {
+                    warn!(
+                        "Modify column {} of table {target_name} error: {err:#}",
+                        l.field()
+                    );
                 }
             }
         } else {
@@ -1136,7 +1127,7 @@ pub async fn sync_super_table_schema_with_subs(
             let r = res_to.get(n).unwrap();
 
             for (tag, l, _r) in l
-                .into_iter()
+                .iter()
                 .zip(r)
                 .zip(&tag_name_vec)
                 .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
@@ -1165,7 +1156,7 @@ pub async fn sync_super_table_schema_with_subs(
     let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
     let mut tables = 0;
     let mut batch = 0;
-    let mut sql = format!("CREATE TABLE");
+    let mut sql = "CREATE TABLE".to_string();
     let new_stable_name = transform_tbname_with_actions(name, actions, true)?;
     for (child, row) in non_exists {
         let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
@@ -1189,10 +1180,10 @@ pub async fn sync_super_table_schema_with_subs(
             }
 
             tracing::debug!("Already created {} tables, {} in batch", tables, batch);
-            sql = format!("CREATE TABLE");
+            sql = "CREATE TABLE".to_string();
             batch = 0;
         }
-        sql.extend(e.chars());
+        sql.push_str(&e);
     }
     if tables > 0 {
         tracing::debug!("Create child tables with sql: {sql}");
@@ -1276,7 +1267,7 @@ fn transform_sql_with_actions(
                         &format!("`{}`", action.apply(table_name)?),
                     );
                     sql.clear();
-                    sql.extend(new.chars());
+                    sql.push_str(&new);
                 }
                 Action::RenameSuperTable(action) => {
                     let new = sql.replace(
@@ -1284,7 +1275,7 @@ fn transform_sql_with_actions(
                         &format!("`{}`", action.apply(table_name)?),
                     );
                     sql.clear();
-                    sql.extend(new.chars());
+                    sql.push_str(&new);
                 }
                 // Action::RenameReplaceWithRegex(action) => {
                 //     let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
@@ -1674,7 +1665,7 @@ async fn sync_specified_tables_with_workers(
         Option<(Arc<String>, TimeRange)>,
         oneshot::Receiver<anyhow::Result<()>>,
     )>();
-    let task_id = task_id.clone().map(|s| Arc::new(s));
+    let task_id = task_id.clone().map(Arc::new);
     let task_id_cloned = task_id.clone();
     let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
@@ -1757,7 +1748,7 @@ async fn sync_specified_tables_with_workers(
                 const MAX_RETRIES: usize = 5;
                 let mut retries = MAX_RETRIES;
                 loop {
-                    match breakpoints.get(&table).await.and_then(|bp| {
+                    match breakpoints.get(table).await.and_then(|bp| {
                         bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
                             .transpose()
                     }) {
@@ -1793,15 +1784,11 @@ async fn sync_specified_tables_with_workers(
                 }
             }
 
-            let chunks = split_table_into_time_range_chunks(&from, &table, &opts).await?;
+            let chunks = split_table_into_time_range_chunks(&from, table, &opts).await?;
             for chunk in chunks {
                 let (sender, reader) = oneshot::channel();
                 scheduler
-                    .send(Todo::Sparse(
-                        item.table.clone(),
-                        chunk.clone(),
-                        Some(sender),
-                    ))
+                    .send(Todo::Sparse(item.table.clone(), chunk, Some(sender)))
                     .await?;
                 tx.send_async((Some((item.table.clone(), chunk)), reader))
                     .await?;
@@ -1962,7 +1949,7 @@ impl SourceOpts {
                 tables.extend(buf.lines().filter_map(|l| l.ok()));
             }
 
-            if tables.len() > 0 {
+            if !tables.is_empty() {
                 opts.tables = Some(tables);
             }
         }
@@ -2013,7 +2000,7 @@ impl SourceOpts {
                 use std::io::prelude::*;
                 tables.extend(buf.lines().filter_map(|l| l.ok()));
             }
-            if tables.len() > 0 {
+            if !tables.is_empty() {
                 opts.stables = Some(tables);
             }
         }
@@ -2185,17 +2172,17 @@ impl TargetOpts {
         if let Some(value) = to_dsn.remove("max-sql-length") {
             opts.max_sql_length.replace(value.parse()?);
         }
-        if let Some(_) = to_dsn.remove("force-stmt") {
+        if to_dsn.remove("force-stmt").is_some() {
             opts.force_stmt = true;
         }
 
         let mut fails_to = to_dsn.remove("fails-to");
-        if fails_to == None {
+        if fails_to.is_none() {
             fails_to = source_opts.fails_to.clone();
         }
         if let Some(value) = fails_to {
             let value = Path::new(&value);
-            let file = std::fs::File::create(&value)?;
+            let file = std::fs::File::create(value)?;
 
             opts.fails_to
                 .replace(Arc::new(tokio::sync::Mutex::new(file)));
@@ -2340,6 +2327,12 @@ impl LegacyTableItem {
         self.stable.is_none()
     }
 }
+impl Default for LegacyTodo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LegacyTodo {
     pub fn tables_todo(&self) -> usize {
         self.tables.len()
@@ -2393,7 +2386,7 @@ pub async fn update_todo_list(
 
         // Get or update the stables list.
 
-        let stables: Vec<_> = futures::stream::iter(stables.into_iter())
+        let stables: Vec<_> = futures::stream::iter(stables.iter())
             .then(|s| {
                 todo.stables
                     .read_async(s, Clone::clone)
@@ -2536,6 +2529,7 @@ pub async fn update_todo_list(
             tables: tables_from_vec(table_items).await,
         })
     } else {
+        #[allow(clippy::collapsible_else_if)]
         if version.starts_with('2') {
             let mut res = taos
                 .query("SHOW STABLES")
@@ -2740,7 +2734,7 @@ pub async fn update_todo_list(
             if opts.shuffle {
                 tables.shuffle(&mut rand::thread_rng());
             }
-            if tables.len() > 0 {
+            if !tables.is_empty() {
                 tracing::info!("Try to synchronize {} tables in {} tables", tables.len(), 0);
             }
             Ok(LegacyTodo {
@@ -2804,7 +2798,7 @@ async fn realtime(
                 futures.push(todo_sender.send_async(Todo::Data(
                     table.stable.clone(),
                     table.table.clone(),
-                    time_range.clone(),
+                    time_range,
                     None,
                 )));
             })
@@ -2850,16 +2844,12 @@ async fn realtime(
                     mtlf,
                 } = item;
                 if *mtlf {
-                    futures.push(scheduler.send(Todo::Sparse(
-                        table.clone(),
-                        time_range.clone(),
-                        None,
-                    )));
+                    futures.push(scheduler.send(Todo::Sparse(table.clone(), time_range, None)));
                 } else {
                     futures.push(scheduler.send(Todo::Data(
                         stable.clone(),
                         table.clone(),
-                        time_range.clone(),
+                        time_range,
                         None,
                     )));
                 }
@@ -2979,7 +2969,7 @@ async fn legacy_to_taos_impl(
                         if i > 2 {
                             // ignore create database `dbname`
                             option_str.push_str(s);
-                            option_str.push_str(" ");
+                            option_str.push(' ');
                         }
                     }
                     let ultimate_database_option =
@@ -3106,7 +3096,7 @@ async fn legacy_to_taos_impl(
 
     let breakpoints = if let Some(id) = task_id.as_deref() {
         Some(
-            BreakpointDb::new_with_task(&id)
+            BreakpointDb::new_with_task(id)
                 .await
                 .context("create breakpoint db failed")?, // TODO: handle error
         )
@@ -3198,7 +3188,7 @@ async fn legacy_to_taos_impl(
         if !schema_synced {
             tracing::info!("synchronize schemas");
             let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
-            let _ = tokio::select! {
+            tokio::select! {
                 _ = future => {}
                 _ = cancel.cancelled() => {
                     tracing::debug!("Schema task queue cancelled");
@@ -3276,7 +3266,7 @@ async fn legacy_to_taos_impl(
                             sync_specified_tables_with_workers(
                                 &schema_polling_scheduler,
                                 &schema_polling_pool,
-                                schema_polling_source_opts.query.clone(),
+                                schema_polling_source_opts.query,
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
@@ -3319,7 +3309,7 @@ async fn legacy_to_taos_impl(
             source_opts.workers as _,
             &task_id,
         );
-        let _ = tokio::select! {
+        tokio::select! {
             _ = future => {}
             _ = cancel.cancelled() => {
                 tracing::debug!("Scheduler task queue cancelled");
@@ -3328,7 +3318,7 @@ async fn legacy_to_taos_impl(
 
         schema_polling_task
     } else {
-        let schema_polling_task = tokio::spawn(async move {
+        tokio::spawn(async move {
             let handle = async move {
                 let mut interval =
                     tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
@@ -3371,7 +3361,7 @@ async fn legacy_to_taos_impl(
                         sync_specified_tables_with_workers(
                             &schema_polling_scheduler,
                             &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
+                            schema_polling_source_opts.query,
                             &updates,
                             schema_polling_target_opts.clone(),
                             schema_polling_source_opts.workers as _,
@@ -3397,8 +3387,7 @@ async fn legacy_to_taos_impl(
                 }
             }
             anyhow::Ok(())
-        }.in_current_span());
-        schema_polling_task
+        }.in_current_span())
     };
 
     if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
@@ -3498,25 +3487,25 @@ fn database_options_2to3(options: &str) -> Option<String> {
                 && !options_3.contains(&vec[index])
             // 是一个值
             {
-                if "CACHE".eq_ignore_ascii_case(&vec[index - 1]) {
+                if "CACHE".eq_ignore_ascii_case(vec[index - 1]) {
                     let cache_result = String::from(vec[index]).parse::<u32>();
                     if cache_result.is_ok() {
                         cache = cache_result.unwrap();
                     }
                 }
-                if "BLOCKS".eq_ignore_ascii_case(&vec[index - 1]) {
+                if "BLOCKS".eq_ignore_ascii_case(vec[index - 1]) {
                     let blocks_result = String::from(vec[index]).parse::<u32>();
                     if blocks_result.is_ok() {
                         blocks = blocks_result.unwrap();
                     }
                 }
-                result.push_str(&process_option2to3_pair(&vec[index - 1], &vec[index]));
+                result.push_str(&process_option2to3_pair(vec[index - 1], vec[index]));
             } else {
                 index -= 1;
-                result.push_str(&process_option2to3_pair(&vec[index], ""));
+                result.push_str(&process_option2to3_pair(vec[index], ""));
             }
         } else {
-            result.push_str(&process_option2to3_pair(&vec[index], ""));
+            result.push_str(&process_option2to3_pair(vec[index], ""));
         }
         index += 1;
     }
@@ -3578,10 +3567,10 @@ fn process_option2to3_pair(option: &str, option_value: &str) -> String {
 
 fn same_option(option: &str, option_value: &str) -> String {
     let mut same_option = String::new();
-    same_option.push_str(" ");
+    same_option.push(' ');
     same_option.push_str(option);
     if !option_value.is_empty() {
-        same_option.push_str(" ");
+        same_option.push(' ');
     }
     same_option.push_str(option_value);
     same_option
@@ -3643,13 +3632,13 @@ fn database_options_3to2(options: &str) -> Option<String> {
                 && !options_3.contains(&vec[index])
             // 是一个值
             {
-                result.push_str(&process_option_pair(&vec[index - 1], &vec[index]));
+                result.push_str(&process_option_pair(vec[index - 1], vec[index]));
             } else {
                 index -= 1;
-                result.push_str(&process_option_pair(&vec[index], ""));
+                result.push_str(&process_option_pair(vec[index], ""));
             }
         } else {
-            result.push_str(&process_option_pair(&vec[index], ""));
+            result.push_str(&process_option_pair(vec[index], ""));
         }
 
         index += 1;
@@ -3681,8 +3670,8 @@ fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
         "KEEP" => {
             let mut new_option = String::from(" KEEP ");
             let value_array: Vec<&str> = option_value.split(",").collect();
-            if value_array.get(0).is_some() {
-                new_option.push_str(&process_unit_value(value_array.get(0).unwrap()));
+            if value_array.first().is_some() {
+                new_option.push_str(&process_unit_value(value_array.first().unwrap()));
             }
             new_option
         }
@@ -3702,10 +3691,10 @@ fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
         "CACHEMODEL" => {
             let mut new_option = String::from(" CACHELAST ");
             match option_value {
-                "'none'" => new_option.push_str("0"),
-                "'last_row'" => new_option.push_str("1"),
-                "'last_value'" => new_option.push_str("2"),
-                "'both'" => new_option.push_str("3"),
+                "'none'" => new_option.push('0'),
+                "'last_row'" => new_option.push('1'),
+                "'last_value'" => new_option.push('2'),
+                "'both'" => new_option.push('3'),
                 _ => new_option.push_str(""),
             }
             new_option
@@ -3743,7 +3732,7 @@ fn process_unit_value(option_value: &str) -> String {
             days.to_string()
         }
         "h" => {
-            let hours: u32 = (&option_value[0..option_len - 1])
+            let hours: u32 = option_value[0..option_len - 1]
                 .parse()
                 .expect("need a number");
             let days = hours / 24;
@@ -3830,7 +3819,7 @@ mod tests {
         .await?;
 
         let stable = "sTb1";
-        let types = vec![
+        let types = [
             "TINYINT",
             "SMALLINT",
             "INT",
@@ -3950,7 +3939,7 @@ mod tests {
             let column_type = types[i % types.len()];
             create_table_sql.push_str(format!(", {} {}", column_name, column_type).as_str());
         }
-        create_table_sql.push_str(")");
+        create_table_sql.push(')');
 
         std::fs::write("tests/large_normal_table.sql", create_table_sql.as_bytes())?;
 
@@ -4020,7 +4009,7 @@ mod tests {
             let vec: Vec<&str> = database_create_sql.split(' ').collect();
             let mut index = 0;
             while index < vec.len() {
-                if "PRECISION".eq_ignore_ascii_case(&vec[index]) {
+                if "PRECISION".eq_ignore_ascii_case(vec[index]) {
                     index += 1;
                     return Some(String::from(vec[index]));
                 }
@@ -4122,10 +4111,10 @@ mod tests {
                 format!("drop database if exists `{db1}`"),
                 format!("create database `{db1}`"),
                 format!("use {db1}"),
-                format!("create table `nTb1` (ts timestamp, v1 int)"),
-                format!("insert into `nTb1` values(now, 1)"),
-                format!("create table `>♑1` (ts timestamp, v1 int)"),
-                format!("insert into `>♑1` values(now, 1)"),
+                "create table `nTb1` (ts timestamp, v1 int)".to_string(),
+                "insert into `nTb1` values(now, 1)".to_string(),
+                "create table `>♑1` (ts timestamp, v1 int)".to_string(),
+                "insert into `>♑1` values(now, 1)".to_string(),
             ])
             .await?;
         taos2

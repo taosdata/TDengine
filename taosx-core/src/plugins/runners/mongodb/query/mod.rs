@@ -216,7 +216,7 @@ impl MongoDBQuery {
                         None => break,
                     }
                 }
-                if documents.len() > 0 {
+                if !documents.is_empty() {
                     send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
                 }
                 Ok(amount)

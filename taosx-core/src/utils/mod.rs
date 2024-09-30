@@ -118,12 +118,10 @@ pub fn get_string_content_from_param_value(
     let mut index = 0;
     let len = if read_first {
         1
+    } else if files.len() > str_contents.len() {
+        files.len()
     } else {
-        if files.len() > str_contents.len() {
-            files.len()
-        } else {
-            str_contents.len()
-        }
+        str_contents.len()
     };
     for file in files {
         if index >= len {
@@ -168,7 +166,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
-    let file = files.get(0);
+    let file = files.first();
     if file.is_none() {
         None
     } else {
@@ -271,11 +269,11 @@ async fn test_clear_database() -> anyhow::Result<()> {
         format!("drop database if exists {db}"),
         format!("create database {db}"),
         format!("use {db}"),
-        format!("create stable stb1 (ts timestamp, v int) tags(t1 int)"),
-        format!("create table ctb1 using stb1 tags(1)"),
-        format!("create table ctb2 using stb1 tags(2)"),
-        format!("create table ntb1 (ts timestamp, v int)"),
-        format!("create table ntb2 (ts timestamp, v int)"),
+        "create stable stb1 (ts timestamp, v int) tags(t1 int)".to_string(),
+        "create table ctb1 using stb1 tags(1)".to_string(),
+        "create table ctb2 using stb1 tags(2)".to_string(),
+        "create table ntb1 (ts timestamp, v int)".to_string(),
+        "create table ntb2 (ts timestamp, v int)".to_string(),
     ])
     .await?;
 

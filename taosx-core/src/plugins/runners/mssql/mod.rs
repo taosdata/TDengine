@@ -34,22 +34,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             MSSQL_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = MssqlQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     MSSQL_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(_cli) => DataSourceValidation::valid(MSSQL_ID.to_string(), None),
             }
@@ -109,11 +101,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     for row in rows {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
         for (col_cidx, col) in row.into_iter().enumerate() {
-            let (col_name, _) = col_map
-                .iter()
-                .nth(col_cidx)
-                .map(|(key, value)| (key, value))
-                .unwrap();
+            let (col_name, _) = col_map.iter().nth(col_cidx).unwrap();
             let col_val = generate_json_value(col, config.task.time_zone.clone())?;
             sample_map.insert(col_name.clone(), col_val);
         }
@@ -190,7 +178,7 @@ pub async fn mssql_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -312,7 +300,7 @@ fn generate_json_value(
                 // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually 1/300 seconds)
                 let secs = (days as u32 - 25567) * 24 * 60 * 60 + secs / 300;
                 // convert to datetime with timezone
-                let datetime = DateTime::from_timestamp(secs as i64, 0 as u32).unwrap();
+                let datetime = DateTime::from_timestamp(secs as i64, 0_u32).unwrap();
 
                 Ok(json!(format!("{:?}", datetime)))
             }
@@ -325,7 +313,7 @@ fn generate_json_value(
                 // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually minutes)
                 let secs = (days as i64 - 25567) * 24 * 60 * 60 + (secs as i64) * 60;
                 // convert to datetime with timezone
-                let datetime = DateTime::from_timestamp(secs, 0 as u32).unwrap();
+                let datetime = DateTime::from_timestamp(secs, 0_u32).unwrap();
 
                 Ok(json!(format!("{:?}", datetime)))
             }
@@ -493,8 +481,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mssql", res.data_source);
         assert_eq!(
             "failed to connect to dsn: mssql://test:123456@192.168.1.66:1432/master?encryption=On&trust_cert=true, cause: failed to connect to mssql, cause: Connection refused (os error 111)",
@@ -506,8 +494,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mssql", res.data_source);
     }
 
@@ -523,7 +511,7 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
         let _ = test_clear_data().await;
     }

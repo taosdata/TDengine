@@ -100,7 +100,7 @@ impl MssqlQuery {
                 match columns {
                     Ok(Some(columns)) => {
                         for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                            col_map.insert(column.name().to_string(), column.column_type());
                         }
                     }
                     Ok(None) => {
@@ -152,7 +152,7 @@ impl MssqlQuery {
                 match columns {
                     Ok(Some(columns)) => {
                         for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                            col_map.insert(column.name().to_string(), column.column_type());
                         }
                     }
                     Ok(None) => {
@@ -187,7 +187,7 @@ impl MssqlQuery {
                 match columns {
                     Ok(Some(columns)) => {
                         for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                            col_map.insert(column.name().to_string(), column.column_type());
                         }
                     }
                     Ok(None) => {
@@ -235,7 +235,7 @@ impl MssqlQuery {
                 match columns {
                     Ok(Some(columns)) => {
                         for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                            col_map.insert(column.name().to_string(), column.column_type());
                         }
                     }
                     Ok(None) => {
@@ -285,7 +285,7 @@ impl MssqlQuery {
                 match columns {
                     Ok(Some(columns)) => {
                         for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                            col_map.insert(column.name().to_string(), column.column_type());
                         }
                     }
                     Ok(None) => {
