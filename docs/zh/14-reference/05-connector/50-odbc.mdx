@@ -7,10 +7,10 @@ TDengine ODBC 是为 TDengine 实现的 ODBC 驱动程序，支持 Windows 系�
 
 TDengine ODBC 提供基于 WebSocket（推荐）和 原生连接两种方式连接 TDengine 数据库，使用时可以为 TDengine 数据源设置不同的连接方式。访问云服务时必须使用 WebSocket 连接方式。
 
-TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 Websocket 连接方式。  
+TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。  
 **注意：**
 - 驱动管理器：确保使用与应用程序架构匹配的 ODBC 驱动管理器。32 位应用程序需要使用 32 位 ODBC 驱动管理器，64 位应用程序需要使用 64 位 ODBC 驱动管理器。
-- 数据源名称（DSN）：32 位和 64 位 ODBC 驱动管理器都可以看到所有 DSN，因此需要在 DSN 名称上去区分。
+- 数据源名称（DSN）：32 位和 64 位 ODBC 驱动管理器都可以看到所有 DSN，用户 DSN 标签页下的 DSN 如果名字相同会共用，因此需要在 DSN 名称上去区分。
 
 想更多了解 TDengine 时序时序数据库的使用，可访问 [TDengine官方文档](https://docs.taosdata.com/intro/)。
 
