@@ -27,17 +27,17 @@ TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业�
 
 ### 数据源连接类型与区别
 
-TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 Native 连接，其区别如下：
+TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 Native 连接，其区别如下：
 
-1. 访问云服务仅支持使用 Websocket 连接方式。
+1. 访问云服务仅支持使用 WebSocket 连接方式。
 
 2. 32 位应用程序仅支持使用 WebSocket 连接方式。
 
-3. Websocket 连接的兼容性更好，一般不需要随着 TDengine 数据库服务端升级而升级客户端的库。
+3. WebSocket 连接的兼容性更好，一般不需要随着 TDengine 数据库服务端升级而升级客户端的库。
 
 4. Native 连接通常性能更好一点，但是必须与 TDengine 数据库服务端的版本保持一致。
 
-5. 对于一般用户，建议使用 **Websocket** 连接方式，性能与 Native 差别不大，兼容性更好。
+5. 对于一般用户，建议使用 **WebSocket** 连接方式，性能与 Native 差别不大，兼容性更好。
 
 ### WebSocket 连接
 
@@ -49,11 +49,11 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
 
 4. 点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息 
 
-    ![ODBC websocket connection config](./assets/odbc-ws-config-zh.webp)
+    ![ODBC WebSocket connection config](./assets/odbc-ws-config-zh.webp)
 
     4.1 【DSN】:Data Source Name 必填，为新添加的 ODBC 数据源命名
 
-    4.2【连接类型】 : 必选，选择连接类型，这里选择 【Websocket】
+    4.2【连接类型】 : 必选，选择连接类型，这里选择 【WebSocket】
 
     4.3【URL】必填，ODBC 数据源 URL，示例: `http://localhost:6041`， 云服务的 url 示例: `https://gw.cloud.taosdata.com?token=your_token`
 
