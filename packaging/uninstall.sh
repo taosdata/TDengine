@@ -13,6 +13,7 @@ EXPLORER_CONFIG_NAME="explorer"
 AGENT_CONFIG_NAME="agent"
 LOG_DIR="/var/log/${PREFIX}"
 DATA_DIR="/var/lib/${PREFIX}"
+AGENT_DATA_DIR_NAME="${xName}agent"
 csudo=""
 COMMAND_ARGS=$@
 
@@ -169,7 +170,9 @@ remove_taosx() {
     ${csudo}rm -rf ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml*
     echo "${explorerName} is removed successfully!"
 
+    remove_custom_data_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     remove_custom_log_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
+    ${csudo}rm -rf ${DATA_DIR}/${AGENT_DATA_DIR_NAME}
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml*
@@ -242,7 +245,9 @@ remove_taos_agent() {
         return
     fi
 
+    remove_custom_data_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     remove_custom_log_dir ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
+    ${csudo}rm -rf ${DATA_DIR}/${AGENT_DATA_DIR_NAME}
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
     ${csudo}rm -rf ${LOG_DIR}/${TAOSX_AGENT_LOG_NAME}
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
