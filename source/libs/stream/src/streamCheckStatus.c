@@ -108,7 +108,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
             pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
     code = streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId,
-                             &pTask->outputInfo.fixedDispatcher.epSet);
+                              &pTask->outputInfo.fixedDispatcher.epSet);
 
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     streamTaskStartMonitorCheckRsp(pTask);
@@ -171,14 +171,14 @@ void streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SS
           streamTaskCheckStatus(pTask, pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->stage, &pRsp->oldStage);
 
       SStreamTaskState pState = streamTaskGetStatus(pTask);
-      stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(qid:0x%" PRIx64
+      stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(QID:0x%" PRIx64
               ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, pState.name, pRsp->oldStage, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId,
               pRsp->status);
       streamMetaReleaseTask(pMeta, pTask);
     } else {
       pRsp->status = TASK_DOWNSTREAM_NOT_READY;
-      stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(qid:0x%" PRIx64
+      stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(QID:0x%" PRIx64
               ") from task:0x%x (vgId:%d), rsp check_status %d",
               pReq->streamId, taskId, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId, pRsp->status);
     }
@@ -259,7 +259,8 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
 
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   if (buf == NULL) {
-    stError("s-task:0x%x vgId:%d failed prepare msg, %s at line:%d code:%s", taskId, pMeta->vgId, __func__, __LINE__, tstrerror(code));
+    stError("s-task:0x%x vgId:%d failed prepare msg, %s at line:%d code:%s", taskId, pMeta->vgId, __func__, __LINE__,
+            tstrerror(code));
     return terrno;
   }
 
@@ -332,7 +333,7 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void processDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-  int32_t code = streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
+  int32_t          code = streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
   if (code) {
     stError("s-task:%s failed to set event succ, code:%s", pTask->id.idStr, tstrerror(code));
   }
@@ -354,7 +355,7 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
-    if (code != 0) { // todo: handle error
+    if (code != 0) {  // todo: handle error
       stError("s-task:%s failed to handle halt event, code:%s", pTask->id.idStr, tstrerror(code));
     }
   }
@@ -373,8 +374,9 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
 
 int32_t addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
   int32_t vgId = pTask->pMeta->vgId;
-  int32_t code = 0;;
-  bool    existed = false;
+  int32_t code = 0;
+  ;
+  bool existed = false;
 
   streamMutexLock(&pTask->lock);
 
