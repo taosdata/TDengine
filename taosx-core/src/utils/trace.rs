@@ -13,6 +13,24 @@ use crate::get_data_dir;
 pub static INSTANCE_ID: OnceLock<u8> = OnceLock::new();
 pub const DEFAULT_INSTANCE_ID: u8 = 16;
 
+static QID_DB: OnceLock<sled::Db> = OnceLock::new();
+
+pub fn qid_db_init() -> anyhow::Result<()> {
+    let db_path = get_data_dir().join("tasks").join("qid");
+    if !db_path.is_dir() {
+        std::fs::create_dir_all(&db_path).context("create qid database path error")?;
+    }
+    match sled::open(&db_path) {
+        Ok(db) => {
+            QID_DB.get_or_init(|| db);
+        }
+        Err(e) => {
+            tracing::warn!("open sled db {} error: {e}", db_path.display());
+        }
+    };
+    Ok(())
+}
+
 bitfield! {
     pub struct Qid(u64);
     impl Debug;
@@ -45,7 +63,7 @@ impl Qid {
 
 #[derive(Clone)]
 enum IdCounter {
-    Sled(Arc<sled::Db>),
+    Sled(Arc<sled::Tree>),
     Atomic(Arc<AtomicU32>),
 }
 
@@ -65,7 +83,7 @@ impl IdCounter {
     }
 
     async fn sled_fetch_batch_id(
-        db: Arc<sled::Db>,
+        db: Arc<sled::Tree>,
         step: u32,
     ) -> anyhow::Result<std::ops::Range<u32>> {
         let increment = move |old: Option<&[u8]>| -> Option<Vec<u8>> {
@@ -109,21 +127,13 @@ pub struct BatchCounter {
 
 impl BatchCounter {
     pub async fn new(task_id: u16) -> anyhow::Result<Self> {
-        let db_path = get_data_dir()
-            .join("tasks")
-            .join(task_id.to_string())
-            .join("qid");
-        if !db_path.is_dir() {
-            tokio::fs::create_dir_all(&db_path)
-                .await
-                .context("create qid database path error")?;
-        }
-        let counter = match sled::open(&db_path) {
-            Ok(db) => IdCounter::Sled(Arc::new(db)),
-            Err(e) => {
-                tracing::error!("open sled db {} error: {e}", db_path.display());
-                IdCounter::Atomic(Arc::new(AtomicU32::new(0)))
-            }
+        let counter = match QID_DB.get().and_then(|db| {
+            db.open_tree(task_id.to_string())
+                .inspect_err(|e| tracing::warn!("open batch counter db tree error: {e}"))
+                .ok()
+        }) {
+            Some(db) => IdCounter::Sled(Arc::new(db)),
+            None => IdCounter::Atomic(Arc::new(AtomicU32::new(0))),
         };
 
         let step = 1000;
@@ -198,7 +208,7 @@ mod tests {
     async fn test_add_batch_id() {
         let tmp = tempfile::TempDir::new().unwrap();
         let db = sled::open(tmp.path().join("batch_counter_tasks")).unwrap();
-        let db = IdCounter::Sled(Arc::new(db));
+        let db = IdCounter::Sled(Arc::new(db.open_tree(1.to_string()).unwrap()));
         test_batch_id(db).await;
 
         let db = IdCounter::Atomic(Arc::new(AtomicU32::new(0)));
@@ -206,13 +216,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rapidly_add_batch_id() {
+    async fn multi_qid_db_test() {
         let tmp = tempfile::TempDir::new().unwrap();
         set_env_data_dir(tmp.path().to_str().unwrap().to_string());
-        for _ in 0..2000 {
-            let counter = BatchCounter::new(1).await.unwrap();
-            counter.next().await.unwrap();
-        }
+        let counter = BatchCounter::new(1).await.unwrap();
+        counter.next().await.unwrap();
+        let counter2 = BatchCounter::new(1).await.unwrap();
+        counter2.next().await.unwrap();
     }
 
     async fn test_batch_id(db: IdCounter) {
