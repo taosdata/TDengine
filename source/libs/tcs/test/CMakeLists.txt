@@ -8,7 +8,7 @@ target_include_directories(tosTest
 )
 
 target_link_libraries(tosTest
-    tos
+    tcs
     gtest_main
 )
 enable_testing()
