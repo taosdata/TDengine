@@ -873,8 +873,10 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    taosMemoryFree(operation);
+    tsem_destroy(&operation->rspSem);
+    taosMemoryFreeClear(operation);
   }
+  return TSDB_CODE_SUCCESS;
 _return:
   if (syncOp) {
     tsem_destroy(&operation->rspSem);
