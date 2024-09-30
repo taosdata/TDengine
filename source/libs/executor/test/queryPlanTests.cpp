@@ -766,19 +766,22 @@ void qptMakeOperatorNode(SNode** ppNode) {
 
 void qptMakeColumnNode(SNode** ppNode) {
   SColumnNode* pCol = NULL;
-  if (qptCtx.param.correctExpected) {
+  nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  SSlotDescNode* pSlot = NULL;
+
+  if (QPT_CORRECT_HIGH_PROB() && qptCtx.makeCtx.pInputDataBlockDesc && qptCtx.makeCtx.pInputDataBlockDesc->pSlots) {
     SNodeList* pColList = qptCtx.makeCtx.pInputDataBlockDesc->pSlots;
     int32_t colIdx = taosRand() % pColList->length;
     SNode* pNode = nodesListGetNode(pColList, colIdx);
-    assert(nodeType(pNode) == QUERY_NODE_SLOT_DESC);
-    
-    SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
-    nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-    pCol->node.resType = pSlot->dataType;
-    pCol->dataBlockId = qptCtx.makeCtx.pInputDataBlockDesc->dataBlockId;
-    pCol->slotId = pSlot->slotId;
-  } else {
-    nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (pNode && nodeType(pNode) == QUERY_NODE_SLOT_DESC) {
+      pSlot = (SSlotDescNode*)pNode;
+      pCol->node.resType = pSlot->dataType;
+      pCol->dataBlockId = qptCtx.makeCtx.pInputDataBlockDesc->dataBlockId;
+      pCol->slotId = pSlot->slotId;
+    }
+  } 
+
+  if (NULL == pSlot) {
     qptGetRandValue(&pCol->node.resType.type, &pCol->node.resType.bytes, NULL);
     pCol->dataBlockId = taosRand();
     pCol->slotId = taosRand();
@@ -1132,7 +1135,7 @@ SPhysiNode* qptCreatePhysiNode(int32_t nodeType) {
 void qptPostCreatePhysiNode(SPhysiNode* pPhysiNode) {
   pPhysiNode->outputTsOrder = qptGetCurrTsOrder();
 
-  if (taosRand() % 2) {
+  if (QPT_RAND_BOOL_V) {
     pPhysiNode->pConditions = qptMakeConditionNode(false);
   }
   
@@ -1302,6 +1305,34 @@ SNode* qptCreateTagScanPhysiNode(int32_t nodeType) {
   return (SNode*)pPhysiNode;
 }
 
+void qptMakeExprList(SNodeList** ppList) {
+  int32_t exprNum = taosRand() % QPT_MAX_COLUMN_NUM + (QPT_CORRECT_HIGH_PROB() ? 1 : 0);
+  for (int32_t i = 0; i < exprNum; ++i) {
+    SNode* pNode = NULL;
+    qptResetMakeNodeCtx(qptCtx.buildCtx.pChild ? qptCtx.buildCtx.pChild->pOutputDataBlockDesc : NULL, false);
+    qptMakeExprNode(&pNode);
+    qptNodesListMakeStrictAppend(ppList, pNode);
+  }
+}
+
+SNode* qptCreateProjectPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SProjectPhysiNode* pProject = (SProjectPhysiNode*)pPhysiNode;
+
+  pProject->mergeDataBlock = QPT_RAND_BOOL_V;
+  pProject->ignoreGroupId = QPT_RAND_BOOL_V;
+  pProject->inputIgnoreGroup = QPT_RAND_BOOL_V;
+
+  qptMakeExprList(&pProject->pProjections);
+
+  qptAddDataBlockSlots(pProject->pProjections, pProject->node.pOutputDataBlockDesc);
+
+  qptPostCreatePhysiNode(pPhysiNode);
+
+  return (SNode*)pPhysiNode;
+}
+
 
 SNode* qptCreateSortMergeJoinPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
@@ -1387,6 +1418,7 @@ SNode* qptCreatePhysicalPlanNode(int32_t nodeType) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return (SNode*)qptCreateProjectPhysiNode(nodeType);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return (SNode*)qptCreateSortMergeJoinPhysiNode(nodeType);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
