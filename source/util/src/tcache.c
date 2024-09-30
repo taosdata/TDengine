@@ -173,7 +173,7 @@ TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
   (void)taosThreadOnce(&cacheThreadInit, doInitRefreshThread);
 
   (void)taosThreadMutexLock(&guard);
-  if (taosArrayPush(pCacheArrayList, &pCacheObj) != 0) {
+  if (taosArrayPush(pCacheArrayList, &pCacheObj) == NULL) {
     uError("failed to add cache object into array, reason:%s", strerror(errno));
     (void)taosThreadMutexUnlock(&guard);
     return cacheRefreshWorker;
@@ -380,6 +380,14 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     return NULL;
   }
 
+  pCacheObj->name = taosStrdup(cacheName);
+  if (pCacheObj->name == NULL) {
+    taosMemoryFreeClear(pCacheObj->pEntryList);
+    taosMemoryFree(pCacheObj);
+    uError("failed to allocate memory, reason:%s", terrstr());
+    return NULL;
+  }
+
   // set free cache node callback function
   pCacheObj->hashFp = taosGetDefaultHashFunction(keyType);
   pCacheObj->freeFp = fn;
@@ -389,14 +397,14 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
 
   if (__trashcan_lock_init(pCacheObj) != 0) {
     taosMemoryFreeClear(pCacheObj->pEntryList);
+    taosMemoryFreeClear(pCacheObj->name);
     taosMemoryFree(pCacheObj);
 
     uError("failed to init lock, reason:%s", strerror(errno));
     return NULL;
   }
 
-  pCacheObj->name = taosStrdup(cacheName);
-  (void)doRegisterCacheObj(pCacheObj);
+  TdThread refreshWorker = doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
 
@@ -746,8 +754,13 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheNode *pNode) {
     return;
   }
 
-  __trashcan_wr_lock(pCacheObj);
   STrashElem *pElem = taosMemoryCalloc(1, sizeof(STrashElem));
+  if (!pElem) {
+    uError("cache:%s key:%p, %p move to trashcan failed since %s, numOfElem in trashcan:%d", pCacheObj->name,
+           pNode->key, pNode->data, terrstr(), pCacheObj->numOfElemsInTrash);
+    return;
+  }
+  __trashcan_wr_lock(pCacheObj);
   pElem->pData = pNode;
   pElem->prev = NULL;
   pElem->next = NULL;
@@ -928,9 +941,11 @@ size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj) { return pCacheObj->numO
 
 SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj) {
   SCacheIter *pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
-  pIter->pCacheObj = (SCacheObj *)pCacheObj;
-  pIter->entryIndex = -1;
-  pIter->index = -1;
+  if (pIter) {
+    pIter->pCacheObj = (SCacheObj *)pCacheObj;
+    pIter->entryIndex = -1;
+    pIter->index = -1;
+  }
   return pIter;
 }
 

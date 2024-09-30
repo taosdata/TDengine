@@ -46,7 +46,7 @@ int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   pReader->ever = ever;
   pReader->tdbTbList = taosArrayInit(4, sizeof(STablePair));
   if (pReader->tdbTbList == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _err);
+    TAOS_CHECK_GOTO(terrno, NULL, _err);
   }
 
   STablePair pair1 = {.tbl = pTq->pStreamMeta->pTaskDb, .type = SNAP_DATA_STREAM_TASK};
@@ -137,7 +137,7 @@ NextTbl:
       memcpy(pVal, tVal, tLen);
       vLen = tLen;
     }
-    (void)tdbTbcMoveToNext(pReader->pCur);
+    TAOS_UNUSED(tdbTbcMoveToNext(pReader->pCur));
     break;
   }
   if (except == 1) {
@@ -147,7 +147,7 @@ NextTbl:
       pReader->pos += 1;
       pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
       code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
-      (void)tdbTbcMoveToFirst(pReader->pCur);
+      TAOS_UNUSED(tdbTbcMoveToFirst(pReader->pCur));
 
       goto NextTbl;
     }
@@ -159,7 +159,7 @@ NextTbl:
   }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
@@ -210,7 +210,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback, i
   streamMetaWLock(pTq->pStreamMeta);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    (void)tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
+    TAOS_UNUSED(tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn));
   } else {
     code = tdbCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;

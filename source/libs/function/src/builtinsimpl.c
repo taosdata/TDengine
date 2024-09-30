@@ -480,7 +480,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
       (void)memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
@@ -489,7 +489,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       if (NULL == pIter->pPrevPk) {
         qError("out of memory when function get input row.");
         taosMemoryFree(pIter->pPrevData);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
       (void)memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
@@ -545,14 +545,14 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex), pIter->pDataCol->info.bytes);
       pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
       if (NULL == pIter->pPrevPk) {
         qError("out of memory when function get input row.");
         taosMemoryFree(pIter->pPrevData);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
 
@@ -2009,6 +2009,17 @@ int32_t percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResu
   return TSDB_CODE_SUCCESS;
 }
 
+void percentileFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || GET_RES_INFO(pCtx) == NULL || GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)) == NULL) {
+    return;
+  }
+  SPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  if (pInfo->pMemBucket != NULL) {
+    tMemBucketDestroy(&(pInfo->pMemBucket));
+    pInfo->pMemBucket = NULL;
+  }
+}
+
 int32_t percentileFunction(SqlFunctionCtx* pCtx) {
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              numOfElems = 0;
@@ -2095,7 +2106,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       numOfElems += 1;
       code = tMemBucketPut(pInfo->pMemBucket, data, 1);
       if (code != TSDB_CODE_SUCCESS) {
-        tMemBucketDestroy(pInfo->pMemBucket);
+        tMemBucketDestroy(&(pInfo->pMemBucket));
         return code;
       }
     }
@@ -2103,6 +2114,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     SET_VAL(pResInfo, numOfElems, 1);
   }
 
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2113,8 +2125,8 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t code = 0;
   double  v = 0;
 
-  tMemBucket* pMemBucket = ppInfo->pMemBucket;
-  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+  tMemBucket** pMemBucket = &ppInfo->pMemBucket;
+  if ((*pMemBucket) != NULL && (*pMemBucket)->total > 0) {  // check for null
     if (pCtx->numOfParams > 2) {
       char   buf[3200] = {0};
       // max length of double num is 317, e.g. use %.6lf to print -1.0e+308, consider the comma and bracket, 3200 is enough.
@@ -2126,7 +2138,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
         GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
-        code = getPercentile(pMemBucket, v, &ppInfo->result);
+        code = getPercentile((*pMemBucket), v, &ppInfo->result);
         if (code != TSDB_CODE_SUCCESS) {
           goto _fin_error;
         }
@@ -2158,7 +2170,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
       GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
-      code = getPercentile(pMemBucket, v, &ppInfo->result);
+      code = getPercentile((*pMemBucket), v, &ppInfo->result);
       if (code != TSDB_CODE_SUCCESS) {
         goto _fin_error;
       }
@@ -2644,7 +2656,7 @@ static int32_t prepareBuf(SqlFunctionCtx* pCtx) {
     pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
     pCtx->subsidiaries.buf = taosMemoryMalloc(pCtx->subsidiaries.rowLen);
     if (NULL == pCtx->subsidiaries.buf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -3902,8 +3914,7 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
   int32_t     code = TSDB_CODE_SUCCESS;
 
   SVariant val = {0};
-  // TODO(smj) : this func need err code
-  taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
+  TAOS_CHECK_RETURN(taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type));
 
   STopBotResItem* pItems = pRes->pItems;
 
@@ -4827,9 +4838,9 @@ int32_t histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResul
   pInfo->totalCount = 0;
   pInfo->normalized = 0;
 
-  char*  binTypeStr = strndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
+  char*  binTypeStr = taosStrndup(varDataVal(pCtx->param[1].param.pz), varDataLen(pCtx->param[1].param.pz));
   if (binTypeStr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
@@ -4837,9 +4848,9 @@ int32_t histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResul
   if (binType == UNKNOWN_BIN) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
-  char*   binDesc = strndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
+  char*   binDesc = taosStrndup(varDataVal(pCtx->param[2].param.pz), varDataLen(pCtx->param[2].param.pz));
   if (binDesc == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int64_t normalized = pCtx->param[3].param.i;
   if (normalized != 0 && normalized != 1) {
@@ -6066,9 +6077,9 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (NULL == pInfo->buf) {
     taosHashCleanup(pInfo->pHash);
     pInfo->pHash = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
-
+  pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
 

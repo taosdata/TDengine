@@ -45,7 +45,9 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
       dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
-      (void)rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
+        dError("failed to disable ip white list on dnode");
+      }
     }
     return;
   }
@@ -69,6 +71,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
@@ -90,7 +93,9 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
-      (void)dmWriteEps(pMgmt->pData);
+      if (dmWriteEps(pMgmt->pData) != 0) {
+        dError("failed to write dnode file");
+      }
       dInfo("dnode will exit since it is in the dropped state");
       (void)raise(SIGINT);
     }
@@ -146,7 +151,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0) != 0) {
+    dError("failed to parse time since %s", tstrerror(code));
+  }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
@@ -185,6 +192,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_STATUS,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
@@ -234,13 +242,16 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 1,
                     .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  (void)rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+  if (rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL) != 0) {
+    dError("failed to send notify req");
+  }
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -483,7 +494,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t len = blockEncode(pBlock, pStart, numOfCols);
-  if(len < 0) {
+  if (len < 0) {
     dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);
     rpcFreeCont(pRsp);

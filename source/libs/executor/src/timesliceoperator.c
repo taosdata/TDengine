@@ -278,7 +278,7 @@ static bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t in
 }
 
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
-                                   SSDataBlock* pSrcBlock, int32_t index, bool beforeTs, SExecTaskInfo* pTaskInfo) {
+                                   SSDataBlock* pSrcBlock, int32_t index, bool beforeTs, SExecTaskInfo* pTaskInfo, bool genAfterBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t rows = pResBlock->info.rows;
@@ -427,7 +427,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           break;
         }
 
-        if (start.key == INT64_MIN || end.key == INT64_MIN) {
+        if (start.key == INT64_MIN || end.key == INT64_MIN || genAfterBlock) {
           colDataSetNULL(pDst, rows);
           break;
         }
@@ -463,8 +463,13 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           break;
         }
 
+        if (genAfterBlock && rows == 0) {
+          hasInterp = false;
+          break;
+        }
+
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, srcSlot);
-        if (pkey->isNull == false) {
+        if (pkey->isNull == false && !genAfterBlock) {
           code = colDataSetVal(pDst, rows, pkey->pData, false);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
@@ -544,7 +549,7 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pPrevRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -579,7 +584,7 @@ static int32_t initNextRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pNextRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pNextRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -615,7 +620,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pLinearInfo = taosArrayInit(4, sizeof(SFillLinearInfo));
   if (pInfo->pLinearInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -836,7 +841,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
         int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
         if (nextTs > pSliceInfo->current) {
           while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-            if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, false, pTaskInfo) &&
+            if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, false, pTaskInfo, false) &&
                 pSliceInfo->fillType == TSDB_FILL_LINEAR) {
               break;
             } else {
@@ -864,7 +869,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
       while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
-        if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, true, pTaskInfo) &&
+        if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, true, pTaskInfo, false) &&
             pSliceInfo->fillType == TSDB_FILL_LINEAR) {
           break;
         } else {
@@ -909,13 +914,12 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
 
-  if (pSliceInfo->fillType == TSDB_FILL_NEXT || pSliceInfo->fillType == TSDB_FILL_LINEAR ||
-      pSliceInfo->pPrevGroupKey == NULL) {
+  if (pSliceInfo->pPrevGroupKey == NULL) {
     return;
   }
 
   while (pSliceInfo->current <= pSliceInfo->win.ekey) {
-    (void)genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, NULL, index, false, pOperator->pTaskInfo);
+    (void)genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, NULL, index, false, pOperator->pTaskInfo, true);
     pSliceInfo->current =
         taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
   }

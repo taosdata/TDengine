@@ -46,7 +46,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   }
   pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
   if (!pNew->aCol) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFreeClear(*pData);
     return code;
   }
@@ -166,7 +166,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     }
     if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -178,7 +178,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
       memcpy(tmp, bind[c].buffer, colLen);
@@ -219,7 +219,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
     }
@@ -237,7 +237,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     }
   }
 
-  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+  code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
                       pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
@@ -261,7 +261,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   if (dst->buffer_length < newBuflen) {
     dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
     if (NULL == dst->buffer) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -269,7 +269,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
     if (NULL == dst->length) {
       taosMemoryFreeClear(dst->buffer);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -514,7 +514,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       }
     }
     if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto end;
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -526,7 +526,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
       memcpy(tmp, bind[c].buffer, colLen);
@@ -567,7 +567,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto end;
       }
     }
@@ -585,7 +585,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     }
   }
 
-  insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+  code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
                       pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
@@ -690,12 +690,12 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
       if (!ncharBinds) {
         ncharBinds = taosArrayInit(1, sizeof(ncharBind));
         if (!ncharBinds) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           goto _return;
         }
       }
       if (!taosArrayPush(ncharBinds, &ncharBind)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _return;
       }
       pBindInfos[c].bind = taosArrayGetLast(ncharBinds);
@@ -733,7 +733,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   // if (dst->buffer_length < newBuflen) {
   dst->buffer = taosMemoryRealloc(dst->buffer, newBuflen);
   if (NULL == dst->buffer) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   //}
 
@@ -741,7 +741,7 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
     if (NULL == dst->length) {
       taosMemoryFreeClear(dst->buffer);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -951,7 +951,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
     if (pCol == NULL) {
       qError("qResetStmtColumns column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -971,7 +971,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
     if (pCol == NULL) {
       qError("qResetStmtDataBlock column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -1000,7 +1000,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
     if (NULL == pNewMeta) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
     pNewCxt->pMeta = pNewMeta;
@@ -1013,7 +1013,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     void* pNewColIdx = taosMemoryMalloc(pCxt->boundColsInfo.numOfBound * sizeof(*pCxt->boundColsInfo.pColIndex));
     if (NULL == pNewColIdx) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pNewColIdx, pCxt->boundColsInfo.pColIndex,
            pCxt->boundColsInfo.numOfBound * sizeof(*pCxt->boundColsInfo.pColIndex));
@@ -1024,7 +1024,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     SSubmitTbData* pNewTb = (SSubmitTbData*)taosMemoryMalloc(sizeof(SSubmitTbData));
     if (NULL == pNewTb) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));
@@ -1033,7 +1033,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pNewCxt->pData = pNewTb;

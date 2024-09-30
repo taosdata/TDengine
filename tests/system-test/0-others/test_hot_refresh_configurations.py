@@ -157,6 +157,12 @@ class TDTestCase:
                     "alias": "tsLogKeepDays",
                     "values": [-365000, 10, 365000],
                     "except_values": [-365001, 365001]
+                },
+                {
+                    "name": "syncLogBufferMemoryAllowed",
+                    "alias": "syncLogBufferMemoryAllowed",
+                    "values": [104857600, 1048576000, 9223372036854775807],
+                    "except_values": [-104857600, 104857599, 9223372036854775808]
                 }
             ]
         }
@@ -197,7 +203,7 @@ class TDTestCase:
                     assert str(v) == str(value)
         else:
             for v in values:
-                tdLog.debug("Set {} to {}".format(name, v))
+                tdLog.debug("Set client {} to {}".format(name, v))
                 tdSql.error(f'alter local "{name} {v}";')
 
     def svr_check(self, item, except_values=False):
@@ -235,11 +241,15 @@ class TDTestCase:
     def run(self):
 
         # reset log
-        taosdLogAbsoluteFilename = tdCom.getTaosdPath() + "/log/" + "taosdlog*"
+        taosdLogPath = tdCom.getTaosdPath() + "/log/*"
         tdSql.execute("alter all dnodes 'resetlog';")
-        r = subprocess.Popen("cat {} | grep 'reset log file'".format(taosdLogAbsoluteFilename), shell=True,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(1)
+        cmd = "egrep 'reset log file' {}".format(taosdLogPath)
+        tdLog.debug("run cmd: {}".format(cmd))
+        r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = r.communicate()
+        tdLog.debug("stdout: {}".format(stdout.decode()))
+        tdLog.debug("stderr: {}".format(stderr.decode()))
         assert ('reset log file' in stdout.decode())
 
         for key in self.configration_dic:

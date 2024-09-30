@@ -497,11 +497,9 @@ int32_t mndInitSync(SMnode *pMnode) {
     pNode->nodePort = pMgmt->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodeRole = pMgmt->nodeRoles[i];
-    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort) != true) {
-      mError("failed to open sync, tmsgUpdateDnodeInfo is false");
-    }
-    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
-          pNode->clusterId);
+    bool update = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64 ", update:%d", i, pNode->nodeFqdn, pNode->nodePort,
+          pNode->nodeId, pNode->clusterId, update);
   }
 
   int32_t code = 0;

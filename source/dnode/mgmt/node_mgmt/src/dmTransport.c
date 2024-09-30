@@ -18,11 +18,21 @@
 #include "qworker.h"
 #include "tversion.h"
 
-static inline void dmSendRsp(SRpcMsg *pMsg) { (void)rpcSendResponse(pMsg); }
+static inline void dmSendRsp(SRpcMsg *pMsg) {
+  if (rpcSendResponse(pMsg) != 0) {
+    dError("failed to send response, msg:%p", pMsg);
+  }
+}
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
+
+  if (epSet.numOfEps <= 1) {
+    pMsg->pCont = NULL;
+    pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+    return;
+  }
 
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->pCont = rpcMallocCont(contLen);
@@ -107,9 +117,14 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
   int32_t svrVer = 0;
-  (void)taosVersionStrToInt(version, &svrVer);
+  code = taosVersionStrToInt(version, &svrVer);
+  if (code != 0) {
+    dError("failed to convert version string:%s to int, code:%d", version, code);
+    goto _OVER;
+  }
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer, pRpc->info.conn.clientIp);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
+           pRpc->info.conn.clientIp);
     goto _OVER;
   }
 
@@ -246,7 +261,9 @@ _OVER:
       if (pWrapper != NULL) {
         dmSendRsp(&rsp);
       } else {
-        (void)rpcSendResponse(&rsp);
+        if (rpcSendResponse(&rsp) != 0) {
+          dError("failed to send response, msg:%p", &rsp);
+        }
       }
     }
 
@@ -303,7 +320,9 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    (void)rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    if (rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL) != 0) {
+      dError("failed to send rpc msg");
+    }
     return 0;
   }
 }
@@ -389,7 +408,9 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
 
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
+  }
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -433,11 +454,14 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
+  }
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
-    dError("failed to init dnode rpc status client since %s", tstrerror(terrno)); 
+    dError("failed to init dnode rpc status client since %s", tstrerror(terrno));
     return terrno;
   }
 
@@ -478,7 +502,9 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
+  }
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
@@ -529,7 +555,11 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
-  (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+
+  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
+    dError("failed to convert version string:%s to int", version);
+  }
+
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
     dError("failed to init dnode rpc server since:%s", tstrerror(terrno));

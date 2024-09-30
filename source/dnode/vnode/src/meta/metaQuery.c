@@ -62,7 +62,10 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
-  if (code) return code;
+  if (code) {
+    tDecoderClear(&pReader->coder);
+    return code;
+  }
   // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
@@ -393,6 +396,7 @@ _query:
   tDecoderInit(&dc, pData, nData);
   int32_t code = metaDecodeEntry(&dc, &me);
   if (code) {
+    tDecoderClear(&dc);
     goto _err;
   }
   if (me.type == TSDB_SUPER_TABLE) {
@@ -1277,7 +1281,11 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   tDecoderInit(&dc, pData, nData);
 
-  TAOS_CHECK_GOTO(metaDecodeEntry(&dc, &oStbEntry), NULL, END);
+  code = metaDecodeEntry(&dc, &oStbEntry);
+  if (code) {
+    tDecoderClear(&dc);
+    goto END;
+  }
 
   if (oStbEntry.stbEntry.schemaTag.pSchema == NULL || oStbEntry.stbEntry.schemaTag.pSchema == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, NULL, END);
@@ -1460,7 +1468,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       if (!p->pTagVal) {
         if (isLock) metaULock(pMeta);
 
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        TAOS_RETURN(terrno);
       }
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
@@ -1511,13 +1519,13 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       if (!info.pTagVal) {
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else {  // only the specified tables need to be added
@@ -1538,7 +1546,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
         if (!pTagInfo->pTagVal) {
           metaCloseCtbCursor(pCur);
           taosHashCleanup(pSepecifiedUidMap);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
       }

@@ -187,10 +187,12 @@ static void vnodeAsyncCancelAllTasks(SVAsync *async, SArray *cancelArray) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = task->cancel,
-                                                     .arg = task->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = task->cancel,
+                                             .arg = task->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel task into array");
+          };
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -430,7 +432,7 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
     if (async->workers[i].state == EVA_WORKER_STATE_ACTIVE) {
       continue;
     } else if (async->workers[i].state == EVA_WORKER_STATE_STOP) {
-      TAOS_UNUSED(taosThreadJoin(async->workers[i].thread, NULL));
+      int32_t ret = taosThreadJoin(async->workers[i].thread, NULL);
       async->workers[i].state = EVA_WORKER_STATE_UINIT;
     }
 
@@ -679,7 +681,7 @@ int32_t vnodeAChannelInit(int64_t asyncID, SVAChannelID *channelID) {
   // create channel object
   SVAChannel *channel = (SVAChannel *)taosMemoryMalloc(sizeof(SVAChannel));
   if (channel == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   channel->state = EVA_CHANNEL_STATE_OPEN;
   for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
@@ -727,7 +729,7 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   };
   SArray *cancelArray = taosArrayInit(0, sizeof(SVATaskCancelInfo));
   if (cancelArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (void)taosThreadMutexLock(&async->mutex);
@@ -748,10 +750,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = task->cancel,
-                                                     .arg = task->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = task->cancel,
+                                             .arg = task->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel info");
+          };
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -763,10 +767,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         channel->scheduled->prev->next = channel->scheduled->next;
         channel->scheduled->next->prev = channel->scheduled->prev;
         if (channel->scheduled->cancel) {
-          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                                     .cancel = channel->scheduled->cancel,
-                                                     .arg = channel->scheduled->arg,
-                                                 }));
+          if (taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                             .cancel = channel->scheduled->cancel,
+                                             .arg = channel->scheduled->arg,
+                                         }) == NULL) {
+            vError("failed to push cancel info");
+          }
         }
         vnodeAsyncTaskDone(async, channel->scheduled);
       }

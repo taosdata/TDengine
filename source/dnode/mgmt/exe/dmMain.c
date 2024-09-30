@@ -81,11 +81,21 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
-  (void)taosIgnSignal(SIGTERM);
-  (void)taosIgnSignal(SIGHUP);
-  (void)taosIgnSignal(SIGINT);
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGBREAK);
+  if (taosIgnSignal(SIGTERM) != 0) {
+    dWarn("failed to ignore signal SIGTERM");
+  }
+  if (taosIgnSignal(SIGHUP) != 0) {
+    dWarn("failed to ignore signal SIGHUP");
+  }
+  if (taosIgnSignal(SIGINT) != 0) {
+    dWarn("failed to ignore signal SIGINT");
+  }
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGBREAK) != 0) {
+    dWarn("failed to ignore signal SIGBREAK");
+  }
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
@@ -103,11 +113,19 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGBREAK);
 
 #ifndef WINDOWS
-  (void)taosIgnSignal(SIGBUS);
+  if (taosIgnSignal(SIGBUS) != 0) {
+    dWarn("failed to ignore signal SIGBUS");
+  }
 #endif
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGFPE);
-  (void)taosIgnSignal(SIGSEGV);
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGFPE) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGSEGV) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
 
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
@@ -136,24 +154,31 @@ _return:
 }
 
 static void dmSetSignalHandle() {
-  (void)taosSetSignal(SIGUSR1, dmSetDebugFlag);
-  (void)taosSetSignal(SIGUSR2, dmSetAssert);
-  (void)taosSetSignal(SIGTERM, dmStopDnode);
-  (void)taosSetSignal(SIGHUP, dmStopDnode);
-  (void)taosSetSignal(SIGINT, dmStopDnode);
-  (void)taosSetSignal(SIGBREAK, dmStopDnode);
+  if (taosSetSignal(SIGUSR1, dmSetDebugFlag) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGUSR2, dmSetAssert) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGTERM, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGHUP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGINT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
-  (void)taosSetSignal(SIGTSTP, dmStopDnode);
-  (void)taosSetSignal(SIGQUIT, dmStopDnode);
-#endif
-
-#if 0
-#ifndef WINDOWS
-  (void)taosSetSignal(SIGBUS, dmLogCrash);
-#endif
-  (void)taosSetSignal(SIGABRT, dmLogCrash);
-  (void)taosSetSignal(SIGFPE, dmLogCrash);
-  (void)taosSetSignal(SIGSEGV, dmLogCrash);
+  if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #endif
 }
 
@@ -164,6 +189,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   if (argc < 2) return 0;
 
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
+  if (global.envCmd == NULL) {
+    return terrno;
+  }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -433,7 +461,8 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.dumpSdb) {
-    mndDumpSdb();
+    int32_t code = 0;
+    TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
@@ -442,6 +471,7 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.deleteTrans) {
+    int32_t   code = 0;
     TdFilePtr pFile;
     if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
       printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
@@ -449,7 +479,7 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
 
-    mndDeleteTrans();
+    TAOS_CHECK_RETURN(mndDeleteTrans());
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

@@ -1,5 +1,6 @@
 import csv
 import os
+import platform
 
 class TDCsv:
     def __init__(self):
@@ -25,7 +26,11 @@ class TDCsv:
     @property
     def file(self):
         if self.file_name and self.file_path:
-            return os.path.join(self.file_path, self.file_name)
+            print(f"self.file_path {self.file_path}, self.file_name {self.file_name}")
+            csv_file = os.path.join(self.file_path, self.file_name)
+            if platform.system().lower() == 'windows':
+                csv_file = csv_file.replace("\\", "/")                         
+            return csv_file
         return None
     
     

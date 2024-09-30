@@ -74,7 +74,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
       taosHashInit(pTask->maxExecTimes, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   pTask->profile.execTime = taosArrayInit(pTask->maxExecTimes, sizeof(int64_t));
   if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
-    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_JRET(terrno);
   }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
@@ -366,9 +366,11 @@ int32_t schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, 
     if (SCH_IS_DATA_BIND_TASK(pTask)) {
       if (pEpSet) {
         pCtx->roundTotal = pEpSet->numOfEps;
-      } else {
+      } else if (pTask->candidateAddrs && taosArrayGetSize(pTask->candidateAddrs) > 0) {
         SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
         pCtx->roundTotal = pAddr->epSet.numOfEps;
+      } else {
+        pCtx->roundTotal = SCH_DEFAULT_RETRY_TOTAL_ROUND;
       }
     } else {
       pCtx->roundTotal = 1;
@@ -786,7 +788,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
 
       if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
-        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        SCH_ERR_RET(terrno);
       }
 
       SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, naddr->nodeId,
@@ -813,13 +815,13 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   pTask->candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
     SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   if (pTask->plan->execNode.epSet.numOfEps > 0) {
     if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
       SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", errno);
-      SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCH_ERR_RET(terrno);
     }
 
     SCH_TASK_DLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
@@ -1304,7 +1306,7 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     SSchTimerParam *param = taosMemoryMalloc(sizeof(SSchTimerParam));
     if (NULL == param) {
       SCH_TASK_ELOG("taosMemoryMalloc %d failed", (int)sizeof(SSchTimerParam));
-      SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCH_ERR_RET(terrno);
     }
 
     param->rId = pJob->refId;

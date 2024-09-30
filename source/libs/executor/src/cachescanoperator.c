@@ -347,11 +347,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes, pRes->info.rows,
                                     pTaskInfo, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        (*ppRes) = NULL;
-        return code;
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       pRes->info.id.groupId = tableListGetTableGroupId(pTableList, pRes->info.id.uid);
       pInfo->indexOfBufferedRes += 1;
@@ -414,11 +410,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
             pInfo->pRes->info.id.uid = *(tb_uid_t*)pUid;
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
                                           pInfo->pRes->info.rows, pTaskInfo, NULL);
-            if (code != TSDB_CODE_SUCCESS) {
-              pTaskInfo->code = code;
-              (*ppRes) = NULL;
-              return code;
-            }
+            QUERY_CHECK_CODE(code, lino, _end);
           }
         }
 

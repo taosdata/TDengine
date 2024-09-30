@@ -32,7 +32,7 @@ int32_t syncRespMgrCreate(void *data, int64_t ttl, SSyncRespMgr **ppObj) {
       taosHashInit(sizeof(uint64_t), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pObj->pRespHash == NULL) {
     taosMemoryFree(pObj);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pObj->ttl = ttl;
@@ -110,7 +110,9 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *p
     *pInfo = pStub->rpcMsg.info;
     sNTrace(pObj->data, "get-and-del message handle:%p, type:%s seq:%" PRIu64, pStub->rpcMsg.info.handle,
             TMSG_INFO(pStub->rpcMsg.msgType), seq);
-    (void)taosHashRemove(pObj->pRespHash, &seq, sizeof(uint64_t));
+    if (taosHashRemove(pObj->pRespHash, &seq, sizeof(uint64_t)) != 0) {
+      sError("failed to remove seq:%" PRIu64, seq);
+    }
 
     (void)taosThreadMutexUnlock(&pObj->mutex);
     return 1;  // get one object
@@ -130,7 +132,7 @@ static int32_t syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   SArray *delIndexArray = taosArrayInit(4, sizeof(uint64_t));
   if (delIndexArray == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   sDebug("vgId:%d, resp manager begin clean by ttl", pNode->vgId);
@@ -165,7 +167,9 @@ static int32_t syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
       SRpcMsg rpcMsg = {.info = pStub->rpcMsg.info, .code = TSDB_CODE_SYN_TIMEOUT};
       sInfo("vgId:%d, message handle:%p expired, type:%s ahandle:%p", pNode->vgId, rpcMsg.info.handle,
             TMSG_INFO(pStub->rpcMsg.msgType), rpcMsg.info.ahandle);
-      (void)rpcSendResponse(&rpcMsg);
+      if (rpcSendResponse(&rpcMsg) != 0) {
+        sError("vgId:%d, failed to send response, handle:%p", pNode->vgId, rpcMsg.info.handle);
+      }
     }
 
     pStub = taosHashIterate(pObj->pRespHash, pStub);
@@ -176,7 +180,9 @@ static int32_t syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   for (int32_t i = 0; i < arraySize; ++i) {
     uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
-    (void)taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
+    if (taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t)) != 0) {
+      sError("vgId:%d, failed to remove seq:%" PRIu64, pNode->vgId, *pSeqNum);
+    }
     sDebug("vgId:%d, resp manager clean by ttl, seq:%" PRId64, pNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
@@ -191,7 +197,10 @@ void syncRespCleanRsp(SSyncRespMgr *pObj) {
   sTrace("vgId:%d, clean all resp", pNode->vgId);
 
   (void)taosThreadMutexLock(&pObj->mutex);
-  (void)syncRespCleanByTTL(pObj, -1, true);
+  int32_t code = 0;
+  if ((code = syncRespCleanByTTL(pObj, -1, true)) != 0) {
+    sError("vgId:%d, failed to clean all resp since %s", pNode->vgId, tstrerror(code));
+  }
   (void)taosThreadMutexUnlock(&pObj->mutex);
 }
 
@@ -200,6 +209,9 @@ void syncRespClean(SSyncRespMgr *pObj) {
   sTrace("vgId:%d, clean resp by ttl", pNode->vgId);
 
   (void)taosThreadMutexLock(&pObj->mutex);
-  (void)syncRespCleanByTTL(pObj, pObj->ttl, false);
+  int32_t code = 0;
+  if ((code = syncRespCleanByTTL(pObj, pObj->ttl, false)) != 0) {
+    sError("vgId:%d, failed to clean resp by ttl since %s", pNode->vgId, tstrerror(code));
+  }
   (void)taosThreadMutexUnlock(&pObj->mutex);
 }

@@ -183,7 +183,7 @@ int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **b
     if (reader->headFooter->brinBlkPtr->size > 0) {
       data = taosMemoryMalloc(reader->headFooter->brinBlkPtr->size);
       if (data == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
@@ -557,7 +557,7 @@ int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **t
 
     if (reader->tombFooter->tombBlkPtr->size > 0) {
       if ((data = taosMemoryMalloc(reader->tombFooter->tombBlkPtr->size)) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
@@ -1362,7 +1362,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
   };
   for (int i = 0; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
     STombRecord record;
-    TAOS_UNUSED(tTombBlockGet(tombBlock, i, &record));
+    TAOS_CHECK_RETURN(tTombBlockGet(tombBlock, i, &record));
 
     if (i == 0) {
       tombBlk.minTbid.suid = record.suid;
@@ -1519,7 +1519,7 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
   while (writer->ctx->hasOldTomb) {
     for (; writer->ctx->tombBlockIdx < TOMB_BLOCK_SIZE(writer->ctx->tombBlock); writer->ctx->tombBlockIdx++) {
       STombRecord record1[1];
-      TAOS_UNUSED(tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1));
+      TAOS_CHECK_GOTO(tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1), &lino, _exit);
 
       int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {

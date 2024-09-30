@@ -330,6 +330,7 @@ int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
