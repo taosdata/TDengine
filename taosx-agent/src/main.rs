@@ -437,7 +437,7 @@ impl Args {
             }
         }
 
-        INSTANCE_ID.get_or_init(|| instance_id.unwrap_or(64));
+        INSTANCE_ID.get_or_init(|| instance_id.unwrap_or(48));
 
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
