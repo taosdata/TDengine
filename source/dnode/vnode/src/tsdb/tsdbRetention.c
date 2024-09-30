@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tos.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
 #include "vnd.h"
@@ -490,7 +490,7 @@ static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", cn);
     int64_t c_offset = chunksize * (cn - fobj->f->lcn);
 
-    TAOS_CHECK_GOTO(tos.PutObjectFromFileOffset(fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
+    TAOS_CHECK_GOTO(tcsPutObjectFromFileOffset(fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
   }
 
   // copy last chunk
@@ -589,7 +589,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
     snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - object_name_prefix), "%d.data", cn);
     int64_t c_offset = chunksize * (cn - 1);
 
-    TAOS_CHECK_GOTO(tos.PutObjectFromFileOffset(fobj->fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
+    TAOS_CHECK_GOTO(tcsPutObjectFromFileOffset(fobj->fname, object_name_prefix, c_offset, chunksize), &lino, _exit);
   }
 
   // copy last chunk
