@@ -628,8 +628,8 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
        cell = cell->pNext) {
     pWhenThen = (SWhenThenNode *)node;
 
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
     SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
@@ -646,6 +646,10 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
 
       goto _return;
     }
+    sclFreeParam(pWhen);
+    sclFreeParam(pThen);
+    taosMemoryFreeClear(pWhen);
+    taosMemoryFreeClear(pThen);
   }
 
   if (pElse) {
@@ -672,8 +676,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }
