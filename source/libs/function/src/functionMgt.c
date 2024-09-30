@@ -408,7 +408,7 @@ static int32_t createColumnByFunc(const SFunctionNode* pFunc, SColumnNode** ppCo
   if (NULL == *ppCol) {
     return code;
   }
-  (void)strcpy((*ppCol)->colName, pFunc->node.aliasName);
+  (void)strncpy((*ppCol)->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
   (*ppCol)->node.resType = pFunc->node.resType;
   return TSDB_CODE_SUCCESS;
 }
@@ -475,7 +475,7 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    (void)strcpy(pFunc->node.aliasName, pPartialFunc->node.aliasName);
+    (void)strncpy(pFunc->node.aliasName, pPartialFunc->node.aliasName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -504,7 +504,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
     if (fmIsSameInOutType(pSrcFunc->funcId)) {
       pFunc->node.resType = pSrcFunc->node.resType;
     }
-    (void)strcpy(pFunc->node.aliasName, pSrcFunc->node.aliasName);
+    (void)strncpy(pFunc->node.aliasName, pSrcFunc->node.aliasName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -558,8 +558,8 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
       nodesDestroyList(pParams);
       return code;
     }
-    (void)strcpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName);
-    (void)strcpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias);
+    (void)strncpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+    (void)strncpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -605,8 +605,8 @@ static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pSta
       nodesDestroyList(pParams);
       return code;
     }
-    (void)strcpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName);
-    (void)strcpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias);
+    (void)strncpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+    (void)strncpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }
