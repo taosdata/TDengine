@@ -45,7 +45,7 @@
 
 namespace {
 
-#define QPT_MAX_LOOP          1000
+#define QPT_MAX_LOOP          100000000
 #define QPT_MAX_SUBPLAN_LEVEL 1000
 #define QPT_MAX_WHEN_THEN_NUM 10
 #define QPT_MAX_NODE_LEVEL    5
@@ -54,6 +54,8 @@ namespace {
 #define QPT_MAX_LOGIC_PARAM   5
 #define QPT_MAX_NODE_LIST_NUM 5
 #define QPT_DEFAULT_VNODE_NUM 5
+#define QPT_MAX_COLUMN_NUM    8192
+
 
 int32_t QPT_PHYSIC_NODE_LIST[] = {
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
@@ -110,6 +112,11 @@ int32_t QPT_PHYSIC_NODE_LIST[] = {
 #define QPT_RAND_BOOL_V ((taosRand() % 2) ? true : false)
 #define QPT_RAND_ORDER_V (QPT_RAND_BOOL_V ? ORDER_ASC : ORDER_DESC)
 #define QPT_RAND_INT_V (taosRand() * (QPT_RAND_BOOL_V ? 1 : -1))
+#define QPT_LOW_PROB() ((taosRand() % 11) == 0)
+#define QPT_MID_PROB() ((taosRand() % 11) <= 4)
+#define QPT_HIGH_PROB() ((taosRand() % 11) <= 7)
+
+#define QPT_CORRECT_HIGH_PROB() (qptCtx.param.correctExpected || QPT_HIGH_PROB())
 
 typedef struct {
   ENodeType type;
@@ -208,7 +215,7 @@ SQPTCtrl qptCtrl = {1, 0, 0, 0, 0};
 bool qptErrorRerun = false;
 bool qptInRerun = false;
 
-void qptMakeExprNode(SNode** ppNode);
+SNode* qptMakeExprNode(SNode** ppNode);
 
 
 void qptPrintBeginInfo(char* caseName) {
@@ -304,22 +311,22 @@ EOrder qptGetCurrTsOrder() {
   return qptCtx.param.correctExpected ? qptCtx.buildCtx.currTsOrder : QPT_RAND_ORDER_V;
 }
 
-void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
-  int32_t typeMax = TSDB_DATA_TYPE_MAX
+void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
+  int32_t typeMax = TSDB_DATA_TYPE_MAX;
   if (!qptCtx.param.correctExpected) {
     typeMax++;
   }
   
-  *pType = taosRand() % TSDB_DATA_TYPE_MAX;
+  *pType = taosRand() % typeMax;
   switch (*pType) {
     case TSDB_DATA_TYPE_NULL:
-      *pLen = 0;
+      *pLen = qptCtx.param.correctExpected ? 0 : taosRand();
       if (ppVal) {
         *ppVal = NULL;
       }
       break;
     case TSDB_DATA_TYPE_BOOL:
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -327,7 +334,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_TINYINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -335,7 +342,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_SMALLINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -343,7 +350,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_INT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -352,7 +359,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       break;
     case TSDB_DATA_TYPE_BIGINT: 
     case TSDB_DATA_TYPE_TIMESTAMP: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -360,7 +367,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_FLOAT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -368,7 +375,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -406,7 +413,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -414,7 +421,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_USMALLINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -422,7 +429,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_UINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -430,7 +437,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     case TSDB_DATA_TYPE_UBIGINT: 
-      *pLen = tDataTypes[*pType].bytes;
+      *pLen = qptCtx.param.correctExpected ? tDataTypes[*pType].bytes : taosRand();
       if (ppVal) {
         *ppVal = taosMemoryMalloc(tDataTypes[*pType].bytes);
         assert(*ppVal);
@@ -438,7 +445,7 @@ void qptGetRandValue(int32_t* pType, int32_t* pLen, void** ppVal) {
       }
       break;
     default:
-      *pLen = taosRand();
+      *pLen = taosRand() % QPT_MAX_STRING_LEN;
       if (ppVal) {
         *ppVal = taosMemoryCalloc(1, *pLen);
         assert(*ppVal);
@@ -497,6 +504,51 @@ void qptGetRandRealTableType(int8_t* tableType) {
 }
 
 
+
+void qptNodesCalloc(int32_t num, int32_t size, void** pOut) {
+  void* p = taosMemoryCalloc(num, size);
+  assert(p);
+  *(char*)p = 0;
+  *pOut = (char*)p + 1;
+}
+
+int32_t qptNodesListAppend(SNodeList* pList, SNode* pNode) {
+  SListCell* p = NULL;
+  qptNodesCalloc(1, sizeof(SListCell), (void**)&p);
+
+  p->pNode = pNode;
+  if (NULL == pList->pHead) {
+    pList->pHead = p;
+  }
+  if (NULL != pList->pTail) {
+    pList->pTail->pNext = p;
+  }
+  p->pPrev = pList->pTail;
+  pList->pTail = p;
+  ++(pList->length);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qptNodesListStrictAppend(SNodeList* pList, SNode* pNode) {
+  int32_t code = qptNodesListAppend(pList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+  }
+  return code;
+}
+
+int32_t qptNodesListMakeStrictAppend(SNodeList** pList, SNode* pNode) {
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (NULL == *pList) {
+      return code;
+    }
+  }
+  return qptNodesListStrictAppend(*pList, pNode);
+}
+
+
 SNode* qptMakeLimitNode() {
   if (QPT_RAND_BOOL_V) {
     return NULL;
@@ -534,7 +586,7 @@ SNode* qptMakeColumnNodeFromTable(int32_t colIdx, EColumnType colType, SScanPhys
   assert(0 == nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
   assert(pCol);
 
-  if (qptCtx.param.correctExpected) {
+  if (QPT_CORRECT_HIGH_PROB()) {
     pCol->node.resType.type = qptCtx.param.tbl.pCol[colIdx].type;
     pCol->node.resType.bytes = qptCtx.param.tbl.pCol[colIdx].len;
 
@@ -549,7 +601,7 @@ SNode* qptMakeColumnNodeFromTable(int32_t colIdx, EColumnType colType, SScanPhys
     strcpy(pCol->tableName, qptCtx.param.tbl.tblName);
     strcpy(pCol->tableAlias, qptCtx.param.tbl.tblAlias);
     strcpy(pCol->colName, qptCtx.param.tbl.pCol[colIdx].name);
-    pCol->dataBlockId = pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId;
+    pCol->dataBlockId = pScanPhysiNode->node.pOutputDataBlockDesc ? pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId : taosRand();
     pCol->slotId = colIdx;
     pCol->numOfPKs = qptCtx.param.tbl.pkNum;
     pCol->tableHasPk = qptCtx.param.tbl.pkNum > 0;
@@ -563,14 +615,31 @@ SNode* qptMakeColumnNodeFromTable(int32_t colIdx, EColumnType colType, SScanPhys
     pCol->tableType = taosRand() % TSDB_TABLE_MAX;  
     pCol->colId = QPT_RAND_BOOL_V ? taosRand() : colIdx;
     pCol->projIdx = taosRand();
-    pCol->colType = QPT_RAND_BOOL_V ? qptCtx.param.tbl.pCol[colIdx].colType :taosRand() % (COLUMN_TYPE_GROUP_KEY + 1);
+    pCol->colType = QPT_RAND_BOOL_V ? qptCtx.param.tbl.pCol[colIdx].colType : (EColumnType)(taosRand() % (COLUMN_TYPE_GROUP_KEY + 1));
     pCol->hasIndex = QPT_RAND_BOOL_V;
     pCol->isPrimTs = QPT_RAND_BOOL_V;
-    QPT_RAND_BOOL_V ? (pCol->dbName[0] = 0) : strcpy(pCol->dbName, qptCtx.param.db.dbName);
-    QPT_RAND_BOOL_V ? (pCol->tableName[0] = 0) : strcpy(pCol->tableName, qptCtx.param.tbl.tblName);
-    QPT_RAND_BOOL_V ? (pCol->tableAlias[0] = 0) : strcpy(pCol->tableAlias, qptCtx.param.tbl.tblAlias);
-    QPT_RAND_BOOL_V ? (pCol->colName[0] = 0) : strcpy(pCol->colName, qptCtx.param.tbl.pCol[colIdx].name);
-    pCol->dataBlockId = QPT_RAND_BOOL_V ? taosRand() : pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId;
+    if (QPT_RAND_BOOL_V) {
+      pCol->dbName[0] = 0;
+    } else {
+      strcpy(pCol->dbName, qptCtx.param.db.dbName);
+    }
+    if (QPT_RAND_BOOL_V) {
+      pCol->tableName[0] = 0;
+    } else {
+      strcpy(pCol->tableName, qptCtx.param.tbl.tblName);
+    }
+    if (QPT_RAND_BOOL_V) {
+      pCol->tableAlias[0] = 0;
+    } else {
+      strcpy(pCol->tableAlias, qptCtx.param.tbl.tblAlias);
+    }
+    if (QPT_RAND_BOOL_V) {
+      pCol->colName[0] = 0;
+    } else {
+      strcpy(pCol->colName, qptCtx.param.tbl.pCol[colIdx].name);
+    }
+    
+    pCol->dataBlockId = (QPT_RAND_BOOL_V && pScanPhysiNode->node.pOutputDataBlockDesc) ? pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId : taosRand();
     pCol->slotId = QPT_RAND_BOOL_V ? taosRand() : colIdx;
     pCol->numOfPKs = QPT_RAND_BOOL_V ? taosRand() : qptCtx.param.tbl.pkNum;
     pCol->tableHasPk = QPT_RAND_BOOL_V ? QPT_RAND_BOOL_V : (qptCtx.param.tbl.pkNum > 0);
@@ -589,43 +658,45 @@ void qptMakeWhenThenNode(SNode** ppNode) {
   SWhenThenNode* pWhenThen = (SWhenThenNode*)*ppNode;
 
   qptMakeExprNode(&pWhenThen->pWhen);
-  assert(pWhenThen->pWhen);
 
   qptMakeExprNode(&pWhenThen->pThen);
-  assert(pWhenThen->pThen);
 }
 
 
 void qptMakeCaseWhenNode(SNode** ppNode) {
   assert(0 == nodesMakeNode(QUERY_NODE_CASE_WHEN, ppNode));
   assert(*ppNode);
+  
   SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)*ppNode;
 
   qptCtx.makeCtx.nodeLevel++;  
 
-  qptMakeExprNode(&pCaseWhen->pCase);
-  assert(pCaseWhen->pCase);
-
-  qptMakeExprNode(&pCaseWhen->pElse);
-  assert(pCaseWhen->pElse);
-
-  int32_t whenNum = taosRand() % QPT_MAX_WHEN_THEN_NUM + 1;
+  if (QPT_RAND_BOOL_V) {
+    qptMakeExprNode(&pCaseWhen->pCase);
+  }
+  
+  if (QPT_RAND_BOOL_V) {
+    qptMakeExprNode(&pCaseWhen->pElse);
+  }
+  
+  int32_t whenNum = taosRand() % QPT_MAX_WHEN_THEN_NUM + (QPT_CORRECT_HIGH_PROB() ? 1 : 0);
   for (int32_t i = 0; i < whenNum; ++i) {
     SNode* pNode = NULL;
     qptMakeWhenThenNode(&pNode);
-    assert(0 == nodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, pNode));
+    qptNodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, pNode);
   }
 }
 
 
 void qptMakeOperatorNode(SNode** ppNode) {
-  EOperatorType opType;
-  opType = OPERATOR_ARRAY[taosRand() % (sizeof(OPERATOR_ARRAY)/sizeof(OPERATOR_ARRAY[0]))];
+  EOperatorType opType = OPERATOR_ARRAY[taosRand() % (sizeof(OPERATOR_ARRAY)/sizeof(OPERATOR_ARRAY[0]))];
   assert(0 == nodesMakeNode(QUERY_NODE_OPERATOR, ppNode));
+  
   SOperatorNode* pOp = (SOperatorNode*)*ppNode;
-  pOp->opType = opType;
+  pOp->opType = QPT_CORRECT_HIGH_PROB() ? opType : (EOperatorType)(opType + 1);
 
   qptCtx.makeCtx.nodeLevel++;  
+  
   switch (opType) {
     case OP_TYPE_ADD:
     case OP_TYPE_SUB:
@@ -649,8 +720,17 @@ void qptMakeOperatorNode(SNode** ppNode) {
     case OP_TYPE_JSON_GET_VALUE:
     case OP_TYPE_JSON_CONTAINS:
     case OP_TYPE_ASSIGN:
-      qptMakeExprNode(&pOp->pLeft);
-      qptMakeExprNode(&pOp->pRight);
+      if (QPT_CORRECT_HIGH_PROB()) {
+        qptMakeExprNode(&pOp->pLeft);
+        qptMakeExprNode(&pOp->pRight);
+      } else {
+        if (QPT_RAND_BOOL_V) {
+          qptMakeExprNode(&pOp->pLeft);
+        }
+        if (QPT_RAND_BOOL_V) {
+          qptMakeExprNode(&pOp->pRight);
+        }
+      }
       break;
 
     case OP_TYPE_IS_NULL:
@@ -662,42 +742,154 @@ void qptMakeOperatorNode(SNode** ppNode) {
     case OP_TYPE_IS_NOT_FALSE:
     case OP_TYPE_IS_NOT_UNKNOWN:
     case OP_TYPE_MINUS:
-      qptMakeExprNode(&pOp->pLeft);
+      if (QPT_CORRECT_HIGH_PROB()) {
+        qptMakeExprNode(&pOp->pLeft);
+      } else {
+        if (QPT_RAND_BOOL_V) {
+          qptMakeExprNode(&pOp->pLeft);
+        }
+        if (QPT_RAND_BOOL_V) {
+          qptMakeExprNode(&pOp->pRight);
+        }
+      }
       break;
     default:
-      assert(0);
+      if (QPT_RAND_BOOL_V) {
+        qptMakeExprNode(&pOp->pLeft);
+      }
+      if (QPT_RAND_BOOL_V) {
+        qptMakeExprNode(&pOp->pRight);
+      }
       break;
   }
 }
 
 void qptMakeColumnNode(SNode** ppNode) {
-  SNodeList* pColList = qptCtx.makeCtx.pInputDataBlockDesc->pSlots;
-  int32_t colIdx = taosRand() % pColList->length;
-  SNode* pNode = nodesListGetNode(pColList, colIdx);
-  assert(nodeType(pNode) == QUERY_NODE_SLOT_DESC);
-  SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
   SColumnNode* pCol = NULL;
-  nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-  pCol->node.resType = pSlot->dataType;
-  pCol->dataBlockId = qptCtx.makeCtx.pInputDataBlockDesc->dataBlockId;
-  pCol->slotId = pSlot->slotId;
+  if (qptCtx.param.correctExpected) {
+    SNodeList* pColList = qptCtx.makeCtx.pInputDataBlockDesc->pSlots;
+    int32_t colIdx = taosRand() % pColList->length;
+    SNode* pNode = nodesListGetNode(pColList, colIdx);
+    assert(nodeType(pNode) == QUERY_NODE_SLOT_DESC);
+    
+    SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
+    nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    pCol->node.resType = pSlot->dataType;
+    pCol->dataBlockId = qptCtx.makeCtx.pInputDataBlockDesc->dataBlockId;
+    pCol->slotId = pSlot->slotId;
+  } else {
+    nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    qptGetRandValue(&pCol->node.resType.type, &pCol->node.resType.bytes, NULL);
+    pCol->dataBlockId = taosRand();
+    pCol->slotId = taosRand();
+  }
 
   *ppNode = (SNode*)pCol;
 }
 
+void qptNodesSetValueNodeValue(SValueNode* pNode, void* value) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      taosMemoryFree(value);
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = *(bool*)value;
+      taosMemoryFree(value);
+      *(bool*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.b : QPT_RAND_BOOL_V;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = *(int8_t*)value;
+      taosMemoryFree(value);
+      *(int8_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.i : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = *(int16_t*)value;
+      taosMemoryFree(value);
+      *(int16_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.i : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = *(int32_t*)value;
+      taosMemoryFree(value);
+      *(int32_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.i : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = *(int64_t*)value;
+      taosMemoryFree(value);
+      *(int64_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.i : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = *(int64_t*)value;
+      taosMemoryFree(value);
+      *(int64_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.i : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = *(int8_t*)value;
+      taosMemoryFree(value);
+      *(int8_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.u : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = *(int16_t*)value;
+      taosMemoryFree(value);
+      *(int16_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.u : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = *(int32_t*)value;
+      taosMemoryFree(value);
+      *(int32_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.u : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = *(uint64_t*)value;
+      taosMemoryFree(value);
+      *(uint64_t*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.u : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = *(float*)value;
+      taosMemoryFree(value);
+      *(float*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.d : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = *(double*)value;
+      taosMemoryFree(value);
+      *(double*)&pNode->typeData = qptCtx.param.correctExpected ? pNode->datum.d : QPT_RAND_INT_V;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
+      if (qptCtx.param.correctExpected || QPT_MID_PROB()) {
+        pNode->datum.p = (char*)value;
+      } else {
+      }
+      taosMemoryFree(value);
+      pNode->datum.p = NULL;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      taosMemoryFree(value);
+      pNode->datum.p = NULL;
+      break;
+    default:
+      taosMemoryFree(value);
+      break;
+  }
+}
 
 
 void qptMakeValueNode(SNode** ppNode) {
   SValueNode* pVal = NULL;
   nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
 
-  int32_t valType, valBytes;
+  uint8_t valType;
+  int32_t valBytes;
   void* pValue = NULL;
   qptGetRandValue(&valType, &valBytes, &pValue);
   
   pVal->node.resType.type = valType;
   pVal->node.resType.bytes = valBytes;
-  nodesSetValueNodeValue(pVal, pValue);
+  
+  qptNodesSetValueNodeValue(pVal, pValue);
 
   *ppNode = (SNode*)pVal;
 }
@@ -706,33 +898,58 @@ void qptMakeFunctionNode(SNode** ppNode) {
   SFunctionNode* pFunc = NULL;
   nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
 
-  int32_t funcIdx = taosRand() % funcMgtBuiltinsNum;
-  strcpy(pFunc->functionName, fmGetFuncName(funcIdx));
-  fmGetFuncInfo(pFunc, NULL, 0);
-
+  if (qptCtx.param.correctExpected || QPT_HIGH_PROB()) {
+    int32_t funcIdx = taosRand() % funcMgtBuiltinsNum;
+    char* funcName = fmGetFuncName(funcIdx);
+    strcpy(pFunc->functionName, funcName);
+    taosMemoryFree(funcName);
+    fmGetFuncInfo(pFunc, NULL, 0);
+  } else {
+    int32_t funcIdx = taosRand();
+    if (QPT_RAND_BOOL_V) {
+      strcpy(pFunc->functionName, "invalidFuncName");
+    } else {
+      pFunc->functionName[0] = 0;
+    }
+    fmGetFuncInfo(pFunc, NULL, 0);
+  }
+  
   qptCtx.makeCtx.nodeLevel++;  
-  int32_t paramNum = taosRand() % QPT_MAX_FUNC_PARAM + 1;
-  for (int32_t i = 0; i < paramNum; ++i) {
-    SNode* pNode = NULL;
-    qptMakeExprNode(&pNode);
-    assert(0 == nodesListMakeStrictAppend(&pFunc->pParameterList, pNode));
+
+  if (QPT_CORRECT_HIGH_PROB()) {
+    // TODO
+  } else {
+    int32_t paramNum = taosRand() % QPT_MAX_FUNC_PARAM;
+    for (int32_t i = 0; i < paramNum; ++i) {
+      SNode* pNode = NULL;
+      qptMakeExprNode(&pNode);
+      qptNodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+    }
   }
 
   *ppNode = (SNode*)pFunc;
 }
 
+
+
+
 void qptMakeLogicCondNode(SNode** ppNode) {
   SLogicConditionNode* pLogic = NULL;
   nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
 
-  pLogic->condType = (taosRand() % 3) ? ((taosRand() % 2) ? LOGIC_COND_TYPE_AND : LOGIC_COND_TYPE_OR) : LOGIC_COND_TYPE_NOT;
-
+  if (QPT_CORRECT_HIGH_PROB()) {
+    pLogic->condType = (taosRand() % 3) ? ((taosRand() % 2) ? LOGIC_COND_TYPE_AND : LOGIC_COND_TYPE_OR) : LOGIC_COND_TYPE_NOT;
+  } else {
+    pLogic->condType = (ELogicConditionType)taosRand();
+  }
+  
   qptCtx.makeCtx.nodeLevel++;  
-  int32_t paramNum = taosRand() % QPT_MAX_LOGIC_PARAM + 1;
+  
+  int32_t paramNum = QPT_CORRECT_HIGH_PROB() ? (taosRand() % QPT_MAX_LOGIC_PARAM + 1) : (taosRand() % QPT_MAX_LOGIC_PARAM);
   for (int32_t i = 0; i < paramNum; ++i) {
     SNode* pNode = NULL;
     qptMakeExprNode(&pNode);
-    assert(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, pNode));
+    qptNodesListMakeStrictAppend(&pLogic->pParameterList, pNode);
   }
 
   *ppNode = (SNode*)pLogic;
@@ -743,11 +960,12 @@ void qptMakeNodeListNode(SNode** ppNode) {
   nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&pList);
 
   qptCtx.makeCtx.nodeLevel++;  
-  int32_t nodeNum = taosRand() % QPT_MAX_NODE_LIST_NUM + 1;
+  
+  int32_t nodeNum = QPT_CORRECT_HIGH_PROB() ? (taosRand() % QPT_MAX_NODE_LIST_NUM + 1) : (taosRand() % QPT_MAX_NODE_LIST_NUM);
   for (int32_t i = 0; i < nodeNum; ++i) {
     SNode* pNode = NULL;
     qptMakeExprNode(&pNode);
-    assert(0 == nodesListMakeStrictAppend(&pList->pNodeList, pNode));
+    qptNodesListMakeStrictAppend(&pList->pNodeList, pNode);
   }
 
   *ppNode = (SNode*)pList; 
@@ -757,6 +975,10 @@ void qptMakeTempTableNode(SNode** ppNode) {
   STempTableNode* pTemp = NULL;
   assert(0 == nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTemp));
 
+  if (QPT_CORRECT_HIGH_PROB()) {
+    // TODO
+  }
+
   *ppNode = (SNode*)pTemp;
 }
 
@@ -764,20 +986,51 @@ void qptMakeJoinTableNode(SNode** ppNode) {
   SJoinTableNode* pJoin = NULL;
   assert(0 == nodesMakeNode(QUERY_NODE_JOIN_TABLE, (SNode**)&pJoin));
 
+  if (QPT_CORRECT_HIGH_PROB()) {
+    // TODO
+  }
+
   *ppNode = (SNode*)pJoin;
 }
 
+void qptMakeRealTableNode(SNode** ppNode) {
+  SRealTableNode* pReal = NULL;
+  assert(0 == nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal));
 
-void qptMakeTableNode(SNode** ppNode) {
-  if (taosRand() % 2) {
-    qptMakeTempTableNode(ppNode);
-  } else {
-    qptMakeJoinTableNode(ppNode);
+  if (QPT_CORRECT_HIGH_PROB()) {
+    // TODO
   }
+
+  *ppNode = (SNode*)pReal;
 }
 
 
+
+void qptMakeNonRealTableNode(SNode** ppNode) {
+  if (QPT_CORRECT_HIGH_PROB()) {
+    if (QPT_RAND_BOOL_V) {
+      qptMakeTempTableNode(ppNode);
+    } else {
+      qptMakeJoinTableNode(ppNode);
+    }
+  } else {
+    qptMakeRealTableNode(ppNode);
+  }
+}
+
+void qptMakeRandNode(SNode** ppNode) {
+  nodesMakeNode((ENodeType)taosRand(), ppNode);
+}
+
 SNode* qptMakeExprNode(SNode** ppNode) {
+  if (!qptCtx.param.correctExpected && QPT_LOW_PROB()) {
+    if (ppNode) {
+      *ppNode = NULL;
+    }
+
+    return NULL;
+  }
+  
   int32_t nodeTypeMaxValue = 9;
   if (qptCtx.makeCtx.nodeLevel >= QPT_MAX_NODE_LEVEL) {
     nodeTypeMaxValue = 2;
@@ -786,6 +1039,11 @@ SNode* qptMakeExprNode(SNode** ppNode) {
   SNode* pNode = NULL;
   if (NULL == ppNode) {
     ppNode = &pNode;
+  }
+
+  if (!qptCtx.param.correctExpected && QPT_LOW_PROB()) {
+    qptMakeRandNode(ppNode);
+    return *ppNode;
   }
   
   switch (taosRand() % nodeTypeMaxValue) {
@@ -808,7 +1066,7 @@ SNode* qptMakeExprNode(SNode** ppNode) {
       qptMakeOperatorNode(ppNode);
       break;
     case 6:
-      qptMakeTableNode(ppNode);
+      qptMakeNonRealTableNode(ppNode);
       break;
     case 7:
       qptMakeCaseWhenNode(ppNode);
@@ -825,7 +1083,7 @@ SNode* qptMakeExprNode(SNode** ppNode) {
 }
 
 void qptResetMakeNodeCtx(SDataBlockDescNode* pInput, bool onlyTag) {
-  SQPTMakePlanCtx* pCtx = &qptCtx.makeCtx;
+  SQPTMakeNodeCtx* pCtx = &qptCtx.makeCtx;
 
   pCtx->nodeLevel = 1;
   pCtx->onlyTag = onlyTag;
@@ -836,11 +1094,12 @@ SNode* qptMakeConditionNode(bool onlyTag) {
   SNode* pNode = NULL;
   qptResetMakeNodeCtx(qptCtx.buildCtx.pCurr->pOutputDataBlockDesc, onlyTag);
   qptMakeExprNode(&pNode);
+  
   return pNode;
 }
 
 SNode* qptMakeDataBlockDescNode() {
-  if (QPT_RAND_BOOL_V) {
+  if (!qptCtx.param.correctExpected && QPT_LOW_PROB()) {
     return NULL;
   }
 
@@ -899,45 +1158,9 @@ void qptMarkTableInUseCols(int32_t colNum, int32_t totalColNum, SQPTCol* pCol) {
   } while (colInUse < colNum);
 }
 
-int32_t qptNodesListAppend(SNodeList* pList, SNode* pNode) {
-  SListCell* p = NULL;
-  assert(0 == nodesCalloc(1, sizeof(SListCell), (void**)&p));
-
-  p->pNode = pNode;
-  if (NULL == pList->pHead) {
-    pList->pHead = p;
-  }
-  if (NULL != pList->pTail) {
-    pList->pTail->pNext = p;
-  }
-  p->pPrev = pList->pTail;
-  pList->pTail = p;
-  ++(pList->length);
-  return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t qptNodesListStrictAppend(SNodeList* pList, SNode* pNode) {
-  int32_t code = qptNodesListAppend(pList, pNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
-  }
-  return code;
-}
-
-int32_t qptNodesListMakeStrictAppend(SNodeList** pList, SNode* pNode) {
-  if (NULL == *pList) {
-    int32_t code = nodesMakeList(pList);
-    if (NULL == *pList) {
-      return code;
-    }
-  }
-  return qptNodesListStrictAppend(*pList, pNode);
-}
-
 
 void qptCreateTableScanColsImpl(       SScanPhysiNode* pScanPhysiNode, SNodeList** ppCols, int32_t totalColNum, SQPTCol* pCol) {
-  int32_t colNum = qptCtx.param.correctExpected ? (taosRand() % totalColNum + 1) : (taosRand());
+  int32_t colNum = qptCtx.param.correctExpected ? (taosRand() % totalColNum + 1) : (taosRand() % QPT_MAX_COLUMN_NUM + 1);
   int32_t colAdded = 0;
   
   if (qptCtx.param.correctExpected) {
@@ -948,7 +1171,7 @@ void qptCreateTableScanColsImpl(       SScanPhysiNode* pScanPhysiNode, SNodeList
         continue;
       }
       
-      assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnNodeFromTable(i, pCol[i].colType, pScanPhysiNode)));
+      assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnNodeFromTable(i, pCol[0].colType, pScanPhysiNode)));
     }
 
     return;
@@ -958,7 +1181,7 @@ void qptCreateTableScanColsImpl(       SScanPhysiNode* pScanPhysiNode, SNodeList
     int32_t colIdx = taosRand();
     colIdx = (colIdx >= totalColNum) ? -1 : colIdx;
     
-    assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnNodeFromTable(colIdx, pCol[i].colType, pScanPhysiNode)));
+    assert(0 == qptNodesListMakeStrictAppend(ppCols, qptMakeColumnNodeFromTable(colIdx, pCol[0].colType, pScanPhysiNode)));
   }
 }
 
@@ -976,17 +1199,13 @@ SNode* qptMakeSlotDescNode(const char* pName, const SNode* pNode, int16_t slotId
   assert(0 == nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot));
   
   QPT_RAND_BOOL_V ? (pSlot->name[0] = 0) : snprintf(pSlot->name, sizeof(pSlot->name), "%s", pName);
-<<<<<<< Updated upstream
-  pSlot->slotId = slotId;
-  pSlot->dataType = ((SExprNode*)pNode)->resType;
-=======
   pSlot->slotId = qptCtx.param.correctExpected ? slotId : taosRand();
   if (qptCtx.param.correctExpected) {
     pSlot->dataType = ((SExprNode*)pNode)->resType;
   } else {
-
+    qptGetRandValue(&pSlot->dataType.type, &pSlot->dataType.bytes, NULL);
   }
->>>>>>> Stashed changes
+  
   pSlot->reserve = reserve;
   pSlot->output = output;
   return (SNode*)pSlot;
@@ -1004,11 +1223,19 @@ void qptMakeTargetNode(SNode* pNode, int16_t dataBlockId, int16_t slotId, SNode*
 }
 
 void qptAddDataBlockSlots(SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
+  if (NULL == pDataBlockDesc) {
+    return;
+  }
+  
   int16_t   nextSlotId = LIST_LENGTH(pDataBlockDesc->pSlots), slotId = 0;
   SNode*    pNode = NULL;
   bool output = QPT_RAND_BOOL_V;
   
   FOREACH(pNode, pList) {
+    if (NULL == pNode) {
+      continue;
+    }
+    
     SNode*      pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
     if (qptCtx.param.correctExpected || QPT_RAND_BOOL_V) {
       SNode* pDesc = qptCtx.param.correctExpected ? qptMakeSlotDescNode(NULL, pExpr, nextSlotId, output, QPT_RAND_BOOL_V) : qptMakeExprNode(NULL);
@@ -1042,15 +1269,21 @@ void qptCreateScanPhysiNodeImpl(         SScanPhysiNode* pScanPhysiNode) {
   
   qptAddDataBlockSlots(pScanPhysiNode->pScanPseudoCols, pScanPhysiNode->node.pOutputDataBlockDesc);
   
-  pScanPhysiNode->uid = qptCtx.param.tbl.uid;
-  pScanPhysiNode->suid = qptCtx.param.tbl.suid;
-  pScanPhysiNode->tableType = qptCtx.param.tbl.tblType;
+  pScanPhysiNode->uid = qptCtx.param.correctExpected ? qptCtx.param.tbl.uid : taosRand();
+  pScanPhysiNode->suid = qptCtx.param.correctExpected ? qptCtx.param.tbl.suid : taosRand();
+  pScanPhysiNode->tableType = qptCtx.param.correctExpected ? qptCtx.param.tbl.tblType : taosRand();
   pScanPhysiNode->groupOrderScan = (taosRand() % 2) ? true : false;
 
   SName tblName = {0};
   toName(1, qptCtx.param.db.dbName, qptCtx.param.tbl.tblName, &tblName);
-  memcpy(&pScanPhysiNode->tableName, &tblName, sizeof(SName));
-
+  if (qptCtx.param.correctExpected || QPT_RAND_BOOL_V) {
+    memcpy(&pScanPhysiNode->tableName, &tblName, sizeof(SName));
+  } else {
+    pScanPhysiNode->tableName.acctId = 0;
+    pScanPhysiNode->tableName.dbname[0] = 0;
+    pScanPhysiNode->tableName.tname[0] = 0;
+  }
+  
   qptCtx.buildCtx.currTsOrder = (qptCtx.param.correctExpected) ? qptCtx.buildCtx.currTsOrder : QPT_RAND_ORDER_V;
 }
 
@@ -1277,7 +1510,7 @@ void qptRunPlanTest(char* caseName) {
   qptPrintBeginInfo(caseName);
 
   qptCtx.startTsUs = taosGetTimestampUs();
-  qptCtx.result.code = createTagScanOperatorInfo(&readHandle, (STagScanPhysiNode*)pNode, NULL, NULL, NULL, NULL, &pOperator);
+  //qptCtx.result.code = createTagScanOperatorInfo(&readHandle, (STagScanPhysiNode*)pNode, NULL, NULL, NULL, NULL, &pOperator);
 
   destroyOperator(pOperator);
   nodesDestroyNode((SNode*)pNode);
@@ -1379,7 +1612,7 @@ void qptInitTestCtx(bool correctExpected, bool singleNode, int32_t nodeType, int
 
   qptCtx.param.tbl.uid = 100;
   qptCtx.param.tbl.suid = 1;
-  qptGetRandRealTableType(qptCtx.param.tbl.tblType);
+  qptGetRandRealTableType(&qptCtx.param.tbl.tblType);
   qptCtx.param.tbl.colNum = taosRand() % 4098;
   qptCtx.param.tbl.tagNum = taosRand() % 130;
   qptCtx.param.tbl.pkNum = taosRand() % 2;
