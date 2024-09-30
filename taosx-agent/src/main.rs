@@ -30,7 +30,7 @@ use taosx_core::{
     },
     utils::{
         monitor::update_sub_connector_process_metrics,
-        trace::{Qid, INSTANCE_ID},
+        trace::{self, Qid, INSTANCE_ID},
     },
 };
 use taosx_core::{
@@ -330,9 +330,9 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        "C:\\TDengine\\data\\taosx".to_string()
+        "C:\\TDengine\\data\\taosxagent".to_string()
     } else {
-        format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
+        format!("/var/lib/{0}/{0}xagent", build::CUS_PROMPT)
     }
 }
 
@@ -853,6 +853,9 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry().with(layers).init();
 
     let _span = tracing::info_span!("main").entered();
+
+    // init qid batch_id db
+    trace::qid_db_init()?;
 
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;

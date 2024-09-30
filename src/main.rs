@@ -20,6 +20,7 @@ use serve::monitor::MonitorCfg;
 use shadow_rs::shadow;
 use taoslog::layer::TaosLayer;
 use taoslog::writer::RollingFileAppender;
+use taosx_core::utils::trace;
 use taosx_core::{
     runners::{
         ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
@@ -835,6 +836,7 @@ fn main() -> Result<()> {
         let backtrace = Backtrace::capture();
         tracing::error!("panic occurred. {} {}", info, backtrace);
     }));
+
     // Initialize tracing layers
     let mut level_filter = if matches!(args.commands, Some(Commands::Replica(_))) {
         LevelFilter::Warn
@@ -905,6 +907,9 @@ fn main() -> Result<()> {
         "listen on config file {} data change",
         config_file.display()
     );
+
+    // init qid batch id db
+    trace::qid_db_init()?;
 
     let worker_threads = args.global.jobs;
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
