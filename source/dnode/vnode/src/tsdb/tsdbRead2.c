@@ -704,7 +704,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
   pReader->cost.headFileLoadTime += (et1 - st) / 1000.0;
 
-_end:
+//_end:
   //  tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
   return code;
 }
