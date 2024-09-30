@@ -826,6 +826,7 @@ void ctgDequeue(SCtgCacheOperation **op) {
 }
 
 int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
@@ -878,7 +879,7 @@ _return:
   if (syncOp) {
     TAOS_UNUSED(tsem_destroy(&operation->rspSem));
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t ctgDropDbCacheEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId) {
