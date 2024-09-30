@@ -545,6 +545,6 @@ int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey
   return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen, pWinCode);
 }
 
-int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  return createCountWinResultBuff(pState->pFileState, pKey, pVal, pVLen);
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
+  return createCountWinResultBuff(pState->pFileState, pKey, winCount, pVal, pVLen);
 }
