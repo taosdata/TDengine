@@ -285,7 +285,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 
 static FORCE_INLINE int32_t destroyAllReqs(SCliConn* SCliConn);
 
-static FORCE_INLINE bool filterAllReq(void* e, void* arg);
+static FORCE_INLINE bool filterAllReq(void* key, void* arg);
 static FORCE_INLINE bool filerBySeq(void* key, void* arg);
 static FORCE_INLINE bool filterByQid(void* key, void* arg);
 static FORCE_INLINE bool filterToDebug_timeoutMsg(void* key, void* arg);

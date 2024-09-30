@@ -441,23 +441,23 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     int64_t qId = taosHton64(pHead->qid);
     if (qId <= 0) {
       tError("conn %p recv release, but invalid qid:%" PRId64 "", pConn, qId);
-      return TSDB_CODE_RPC_NO_STATE;
-    }
-
-    void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
-    if (p == NULL) {
       code = TSDB_CODE_RPC_NO_STATE;
-      tTrace("conn %p recv release, and releady release by server qid:%" PRId64 "", pConn, qId);
     } else {
-      SSvrRegArg* arg = p;
-      (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
-      tTrace("conn %p recv release, notify server app, qid:%" PRId64 "", pConn, qId);
+      void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
+      if (p == NULL) {
+        code = TSDB_CODE_RPC_NO_STATE;
+        tTrace("conn %p recv release, and releady release by server qid:%" PRId64 "", pConn, qId);
+      } else {
+        SSvrRegArg* arg = p;
+        (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
+        tTrace("conn %p recv release, notify server app, qid:%" PRId64 "", pConn, qId);
 
-      code = taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
-      if (code != 0) {
-        tDebug("conn %p failed to remove qid:%" PRId64 "", pConn, qId);
+        code = taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
+        if (code != 0) {
+          tDebug("conn %p failed to remove qid:%" PRId64 "", pConn, qId);
+        }
+        tTrace("conn %p clear state,qid:%" PRId64 "", pConn, qId);
       }
-      tTrace("conn %p clear state,qid:%" PRId64 "", pConn, qId);
     }
 
     STransMsg tmsg = {.code = code,
@@ -468,7 +468,8 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (srvMsg == NULL) {
-      tError("conn %p recv release, but invalid qid:%" PRId64 "", pConn, qId);
+      tError("conn %p recv release, failed to send release-resp since %s", pConn, terrno);
+      taosMemoryFree(pHead);
       return terrno;
     }
     srvMsg->msg = tmsg;
@@ -479,7 +480,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
 
     uvStartSendRespImpl(srvMsg);
     taosMemoryFree(pHead);
-    return code;
+    return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
   }
   return 0;
 }
