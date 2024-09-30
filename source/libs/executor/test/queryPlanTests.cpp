@@ -976,8 +976,17 @@ SNode* qptMakeSlotDescNode(const char* pName, const SNode* pNode, int16_t slotId
   assert(0 == nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot));
   
   QPT_RAND_BOOL_V ? (pSlot->name[0] = 0) : snprintf(pSlot->name, sizeof(pSlot->name), "%s", pName);
+<<<<<<< Updated upstream
   pSlot->slotId = slotId;
   pSlot->dataType = ((SExprNode*)pNode)->resType;
+=======
+  pSlot->slotId = qptCtx.param.correctExpected ? slotId : taosRand();
+  if (qptCtx.param.correctExpected) {
+    pSlot->dataType = ((SExprNode*)pNode)->resType;
+  } else {
+
+  }
+>>>>>>> Stashed changes
   pSlot->reserve = reserve;
   pSlot->output = output;
   return (SNode*)pSlot;
