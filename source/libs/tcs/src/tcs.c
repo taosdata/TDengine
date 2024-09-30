@@ -22,6 +22,8 @@
 #include "az.h"
 #include "cos.h"
 
+extern int8_t tsS3Ablob;
+
 typedef enum {
   TOS_PROTO_NIL,
   TOS_PROTO_S3,
@@ -39,9 +41,7 @@ typedef struct {
   void (*DeleteObjectsByPrefix)(const char* prefix);
 } STcs;
 
-STcs tcs;
-
-extern int8_t tsS3Ablob;
+static STcs tcs;
 
 int32_t tcsInit() {
   int32_t code = 0;
