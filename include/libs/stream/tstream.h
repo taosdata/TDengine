@@ -70,6 +70,8 @@ typedef struct SActiveCheckpointInfo SActiveCheckpointInfo;
 #define SSTREAM_TASK_NEED_CONVERT_VER     2
 #define SSTREAM_TASK_SUBTABLE_CHANGED_VER 3
 
+extern int32_t streamMetaId;
+
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
@@ -133,11 +135,6 @@ enum {
   STREAM_QUEUE__SUCESS = 1,
   STREAM_QUEUE__FAILED,
   STREAM_QUEUE__PROCESSING,
-};
-
-enum {
-  STREAM_META_WILL_STOP = 1,
-  STREAM_META_OK_TO_STOP = 2,
 };
 
 typedef enum EStreamTaskEvent {
@@ -282,7 +279,6 @@ typedef enum {
 } EConsenChkptStatus;
 
 typedef struct SConsenChkptInfo {
-//  bool               alreadySendChkptId;
   EConsenChkptStatus status;
   int64_t            statusTs;
   int32_t            consenChkptTransId;
