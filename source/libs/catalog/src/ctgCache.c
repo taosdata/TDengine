@@ -935,13 +935,13 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    tsem_destroy(&operation->rspSem);
+    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
     taosMemoryFree(operation);
   }
 
 _return:
   if (syncOp) {
-    tsem_destroy(&operation->rspSem);
+    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
   }
   return code;
 }
