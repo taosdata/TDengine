@@ -1769,36 +1769,36 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = snprintf(str, strlen(str), "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t *)buf) ? "true" : "false");
+      n = snprintf(str, strlen(str), (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t *)buf);
+      n = snprintf(str, strlen(str), "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t *)buf);
+      n = snprintf(str, strlen(str), "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t *)buf);
+      n = snprintf(str, strlen(str), "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t *)buf);
+      n = snprintf(str, strlen(str), "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, strlen(str), "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, strlen(str), "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1817,19 +1817,19 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t *)buf);
+      n = snprintf(str, strlen(str), "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t *)buf);
+      n = snprintf(str, strlen(str), "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t *)buf);
+      n = snprintf(str, strlen(str), "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t *)buf);
+      n = snprintf(str, strlen(str), "%" PRIu64, *(uint64_t *)buf);
       break;
 
     default:
@@ -1886,8 +1886,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
-                        operatorTypeStr(unit->compare.optr));
+          len = snprintf(str, strlen(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+                         operatorTypeStr(unit->compare.optr));
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1901,15 +1901,15 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             FLT_ERR_RET(fltConverToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen));
           }
         } else {
-          (void)strcat(str, "NULL");
+          (void)strncat(str, "NULL", strlen(str));
         }
-        (void)strcat(str, "]");
+        (void)strncat(str, "]", strlen(str));
 
         if (unit->compare.optr2) {
-          (void)strcat(str, " && ");
+          (void)strncat(str, " && ", strlen(str));
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            (void)sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
-                          operatorTypeStr(unit->compare.optr2));
+            (void)snprintf(str + strlen(str), strlen(str + strlen(str)), "[%d][%d]  %s  [", refNode->dataBlockId,
+                           refNode->slotId, operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1921,9 +1921,9 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             }
             FLT_ERR_RET(fltConverToStr(str + strlen(str), type, data, tlen > 32 ? 32 : tlen, &tlen));
           } else {
-            (void)strcat(str, "NULL");
+            (void)strncat(str, "NULL", strlen(str));
           }
-          (void)strcat(str, "]");
+          (void)strncat(str, "]", strlen(str));
         }
 
         qDebug("%s", str);  // TODO
@@ -1957,19 +1957,19 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           while (r) {
             char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", strlen(str));
             } else {
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strncat(str, "(", strlen(str)) : strncat(str, "[", strlen(str));
               FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strncat(str, ")", strlen(str)) : strncat(str, "]", strlen(str));
             }
-            (void)strcat(str, " - ");
+            (void)strncat(str, " - ", strlen(str));
             if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", strlen(str));
             } else {
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strncat(str, "(", strlen(str)) : strncat(str, "[", strlen(str));
               FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strncat(str, ")", strlen(str)) : strncat(str, "]", strlen(str));
             }
             qDebug("range: %s", str);
 
