@@ -1,5 +1,4 @@
 import os
-from numpy.lib.function_base import insert
 import taos
 from taos import *
 
@@ -47,12 +46,14 @@ class StmtCommon:
 
         row1 = len(lres1)
         row2 = len(lres2)
+        if row1 != row2:
+            tdLog.exit(f"two results row count different. row1={row1} row2={row2} sql={sql2}")
+
+        if row1 == 0:
+            return
+
         col1 = len(lres1[0])
         col2 = len(lres2[0])
-
-        # check number
-        if row1 != row2:
-            tdLog.exit(f"two results row count different. row1={row1} row2={row2}")
         if col1 != col2:
             tdLog.exit(f"two results column count different. col1={col1} col2={col2}")
 
@@ -60,7 +61,6 @@ class StmtCommon:
             for j in range(col1):
                 if lres1[i][j] != lres2[i][j]:
                     tdLog.exit(f" two results data different. i={i} j={j} data1={res1[i][j]} data2={res2[i][j]}\n")
-    
 
 
     def compareLine(self, oris, rows):

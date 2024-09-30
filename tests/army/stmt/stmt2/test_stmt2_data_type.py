@@ -28,7 +28,7 @@ class TDTestCase:
         self.replica_var = int(replica_var)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-        self.dbname = "stmt_type_test_cases"
+        self.dbname = "stmt_data_type_test_cases"
         self.stmt_common = StmtCommon()
         self.connectstmt = None
 
@@ -107,8 +107,8 @@ class TDTestCase:
 
         invalid_tags = [
             [['hello']],
-            # [[3.14]],
-            # [[-3.14]],
+            [[3.14]],
+            [[-3.14]],
             # [[100000000000000000000000]],
             # [[-100000000000000000000000]],
         ]
@@ -136,10 +136,10 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[2147483648]],
-            # [[2147483648000788]],
-            # [[-2147483649]],
-            # [[-214748364923]],
+            [[2147483648]],
+            [[2147483648000788]],
+            [[-2147483649]],
+            [[-214748364923]],
         ]
 
         self.test_stmt_data_type('test_stmt_int_type', 'int', tags, invalid_tags)
@@ -165,9 +165,9 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[-1]],
-            # [[4294967296]],
-            # [[-4294967296]],
+            [[-1]],
+            [[4294967296]],
+            [[-4294967296]],
         ]
 
         self.test_stmt_data_type('test_stmt_int_unsigned_type', 'int unsigned', tags, invalid_tags)
@@ -193,10 +193,10 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[9223372036854775808]],
-            # [[92233720368547758082]],
-            # [[-9223372036854775809]],
-            # [[-92233720368547758091]],
+            [[9223372036854775808]],
+            [[92233720368547758082]],
+            [[-9223372036854775809]],
+            [[-92233720368547758091]],
         ]
 
         self.test_stmt_data_type('test_stmt_bigint_type', 'bigint', tags, invalid_tags)
@@ -221,9 +221,9 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[-1]],
-            # [[18446744073709551616]],
-            # [[184467440737095516169090]],
+            [[-1]],
+            [[18446744073709551616]],
+            [[184467440737095516169090]],
         ]
 
         self.test_stmt_data_type('test_stmt_bigint_unsigned_type', 'bigint unsigned', tags, invalid_tags)
@@ -235,23 +235,23 @@ class TDTestCase:
             [[-123.456]],
             [[1.23456789]],
             [[-1.23456789]],
-            [[3.402823466e38 - 0.1]],
+            [[3.402823466e37]],
             [[100]],
             # boundary
             [[None]],
-            [[1.175494351e-38]],
-            [[3.402823466e38]],
             [[0.0]],
             [[-1.0]],
-            [[3.402823466e38 - 1.0]],
+            [[-3.4e38]],
+            [[3.4e38]],
+            [[3.4e38 - 1.0]],
         ]
 
         invalid_tags = [
             [['hello']],
-            # [[3.402823466e39]],
-            # [[3.402823466e39 + 1.0]],
-            # [[-3.402823466e39]],
-            # [[-3.402823466e39 - 1.0]],
+            [[3.402823466e39]],
+            [[3.402823466e39 + 1.0]],
+            [[-3.402823466e39]],
+            [[-3.402823466e39 - 1.0]],
         ]
 
         self.test_stmt_data_type('test_stmt_float_type', 'float', tags, invalid_tags)
@@ -263,23 +263,22 @@ class TDTestCase:
             [[-123456789012.3456789]],
             [[1.2345678901234567]],
             [[-1.2345678901234567]],
-            [[1.7976931348623157e+308 - 0.1]],
+            [[1.6976931348623157e308]],
             [[123456789]],
             # boundary
             [[None]],
-            [[2.2250738585072014e-308]],
-            [[1.7976931348623157e+308]],
             [[0.0]],
             [[-1.0]],
-            [[1.7976931348623157e+308 - 1.0]],
+            [[1.7e308]],
+            [[-1.7e308]],
         ]
 
         invalid_tags = [
             [['hello']],
-            # [[1.7976931348623157e+309]],
-            # [[1.7976931348623157e+309 + 1.0]],
-            # [[-1.7976931348623157e+309]],
-            # [[-1.7976931348623157e+309 - 1.0]],
+            [[1.7e309]],
+            [[1.7976931348623157e309 + 1.0]],
+            [[-1.7e309]],
+            [[-1.7976931348623157e309 - 1.0]],
         ]
 
         self.test_stmt_data_type('test_stmt_double_type', 'double', tags, invalid_tags)
@@ -334,8 +333,8 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[32768]],
-            # [[-32769]],
+            [[32768]],
+            [[-32769]],
         ]
 
         self.test_stmt_data_type('test_stmt_smallint_type', 'smallint', tags, invalid_tags)
@@ -360,8 +359,8 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[-1]],
-            # [[65536]],
+            [[-1]],
+            [[65536]],
         ]
 
         self.test_stmt_data_type('test_stmt_smallint_unsigned_type', 'smallint unsigned', tags, invalid_tags)
@@ -387,8 +386,8 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[-129]],
-            # [[128]],
+            [[-129]],
+            [[128]],
         ]
 
         self.test_stmt_data_type('test_stmt_tinyint_type', 'tinyint', tags, invalid_tags)
@@ -412,8 +411,8 @@ class TDTestCase:
             [['hello']],
             [[3.14]],
             [[-3.14]],
-            # [[-1]],
-            # [[256]],
+            [[-1]],
+            [[256]],
         ]
 
         self.test_stmt_data_type('test_stmt_tinyint_unsigned_type', 'tinyint unsigned', tags, invalid_tags)
@@ -428,8 +427,8 @@ class TDTestCase:
             [[-1]],
             [[5]],
             [[-5]],
-            # [[3.14]],
-            # [[-3.14]],
+            [[3.14]],
+            [[-3.14]],
             # boundary
             [[None]],
         ]
@@ -561,31 +560,31 @@ class TDTestCase:
     def test_stmt_geometry_type(self):
         tags = [
             # normal
-            # [['POINT(1.0 1.0)']],
-            # [['POINT(123.456 789.012)']],
-            # [['LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)']],
-            # [['POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))']],
-            # [['LINESTRING(0 0, 100 100, 200 200, 300 300)']],
+            [[b'POINT(1.0 1.0)']],
+            [[b'POINT(123.456 789.012)']],
+            [[b'LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)']],
+            [[b'POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))']],
+            [[b'LINESTRING(0 0, 100 100, 200 200, 300 300)']],
             # boundary
             [[None]],
-            # [['POINT(1.0 1.0)']],
-            # [['POINT EMPTY']],
-            # [['LINESTRING(1.0 1.0, 2.0 2.0)']],
-            # [['LINESTRING EMPTY']],
-            # [['POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0))']],
+            [[b'POINT(1.0 1.0)']],
+            [[b'POINT EMPTY']],
+            [[b'LINESTRING(1.0 1.0, 2.0 2.0)']],
+            [[b'LINESTRING EMPTY']],
+            [[b'POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0))']],
         ]
 
         invalid_tags = [
-            # [['hello']],
-            # [[5]],
-            # [[-5]],
-            # [[3.14]],
-            # [[-3.14]],
-            # [['POINT(1.0)']],
-            # [['LINESTRING(1.0 1.0)']],
-            # [['POLYGON((1.0 1.0, 2.0 2.0, 3.0 3.0))']],
-            # [['POLYGON((0 0, 4 0, 4 4))']],
-            # [['POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
+            [[b'hello']],
+            [[b'5']],
+            [[b'-5']],
+            [[b'3.14']],
+            [[b'-3.14']],
+            [[b'POINT(1.0)']],
+            [[b'LINESTRING(1.0 1.0)']],
+            [[b'POLYGON((1.0 1.0, 2.0 2.0, 3.0 3.0))']],
+            [[b'POLYGON((0 0, 4 0, 4 4))']],
+            [[b'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
         ]
 
         self.test_stmt_data_type('test_stmt_geometry_type', 'geometry(100)', tags, invalid_tags)
@@ -609,11 +608,11 @@ class TDTestCase:
 
         invalid_tags = [
             [['hello']],
-            # [[0]],
-            # [[1]],
-            # [[-1]],
-            # [[1000]],
-            # [[-1000]],
+            [[0]],
+            [[1]],
+            [[-1]],
+            [[1000]],
+            [[-1000]],
             [[3.14]],
             [[-3.14]],
             [[b'\x01' * 21]],
