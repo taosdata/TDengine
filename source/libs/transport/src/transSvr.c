@@ -468,7 +468,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (srvMsg == NULL) {
-      tError("conn %p recv release, failed to send release-resp since %s", pConn, terrno);
+      tError("conn %p recv release, failed to send release-resp since %s", pConn, tstrerror(terrno));
       taosMemoryFree(pHead);
       return terrno;
     }
