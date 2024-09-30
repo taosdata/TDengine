@@ -1642,7 +1642,39 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_interval %d" % num3) 
         cur1.close()
         conn1.close() 
-   
+
+    def td_32343(self):
+        self.logger.info("\n==========================td_32343==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        conn1 = case_common[0]
+        cur1 = case_common[1]       
+        sql = 'Count the number of sqls'
+                    
+        for i in (33,):
+            func = tdFunction.func_stable_special(i)
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)    
+                cur1.execute('create table tba(ts timestamp, f1 int, f2 int, f3 int);')  
+                cur1.execute("insert into tba values('2022-09-29 15:14:30.000', 30,NULL,NULL);")  
+                cur1.execute("insert into tba values('2022-09-29 15:15:01.000', 0,0,0);")   
+                cur1.execute("insert into tba values('2022-09-29 15:15:02.000', 1,0,0);")   
+                cur1.execute("insert into tba values('2022-09-29 15:15:03.000', 5,5,0);")   
+                cur1.execute("insert into tba values('2022-09-29 15:15:04.000', NULL,NULL,NULL);")  
+                self.tdSql.query("select _irowts,interp(f1) from tba range('2022-09-29 15:15:00','2022-09-29 15:15:10') every( 1s) fill(next);")   
+                self.tdSql.checkRow(11)         
+                
+                                                                                                               
+            except Exception as e:
+                raise e                
+
+             
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num3 = sql.count('where')
+        self.logger.info("sqlnum3_interval %d" % num3) 
+        cur1.close()
+        conn1.close()    
          
     def rm_sql(self,db):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
