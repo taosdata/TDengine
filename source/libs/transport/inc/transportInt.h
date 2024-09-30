@@ -79,6 +79,7 @@ typedef struct {
   int64_t       refId;
   int8_t        shareConn;
   int8_t        startReadTimer;
+  int64_t       readTimeout;
   TdThreadMutex mutex;
 } SRpcInfo;
 

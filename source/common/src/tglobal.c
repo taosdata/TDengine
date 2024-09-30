@@ -57,6 +57,7 @@ int32_t tsShellActivityTimer = 3;  // second
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
 int32_t tsShareConnLimit = 8;
+int32_t tsReadTimeout = 128;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
@@ -616,6 +617,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 256);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "shareConnLimit", tsShareConnLimit, 1, 256, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
+  tsReadTimeout = TRANGE(tsReadTimeout, 0, 24 * 3600);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsShareConnLimit, 0, 24 * 3600, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
@@ -891,6 +895,13 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(pCfg, "shareConnLimit");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 256);
+    pItem->i32 = tsShareConnLimit;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "readTimeout");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsShareConnLimit = TRANGE(tsShareConnLimit, 64, 24 * 3600);
     pItem->i32 = tsShareConnLimit;
     pItem->stype = stype;
   }
@@ -1271,6 +1282,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "shareConnLimit");
   tsShareConnLimit = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readTimeout");
+  tsReadTimeout = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeToGetAvailableConn");
   tsTimeToGetAvailableConn = pItem->i32;

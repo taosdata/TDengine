@@ -132,6 +132,7 @@ typedef struct SRpcInit {
   int8_t  shareConn;             // 0: no share, 1. share
   int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
   int8_t  startReadTimer;
+  int64_t readTimeout;  // s
 
   void *parent;
 } SRpcInit;
@@ -151,6 +152,7 @@ typedef struct {
   SHashObj         *args;
   SRpcBrokenlinkVal brokenVal;
   void (*freeFunc)(const void *arg);
+  int64_t st;
 } SRpcCtx;
 
 int32_t rpcInit();

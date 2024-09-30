@@ -409,6 +409,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
   rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);
@@ -457,6 +458,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = 0;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);
@@ -506,6 +508,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.shareConnLimit = tsShareConnLimit * 8;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);

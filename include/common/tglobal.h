@@ -72,6 +72,7 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
+extern int32_t tsReadTimeout;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
