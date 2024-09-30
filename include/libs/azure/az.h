@@ -33,6 +33,11 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
 int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock);
 void    azDeleteObjectsByPrefix(const char *prefix);
 
+int32_t azPutObjectFromFile2(const char *file, const char *object, int8_t withcp);
+int32_t azGetObjectsByPrefix(const char *prefix, const char *path);
+int32_t azGetObjectToFile(const char *object_name, const char *fileName);
+int32_t azDeleteObjects(const char *object_name[], int nobject);
+
 #ifdef __cplusplus
 }
 #endif

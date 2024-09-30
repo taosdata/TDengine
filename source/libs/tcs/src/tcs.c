@@ -63,6 +63,11 @@ int32_t tcsInit() {
     tcs.GetObjectBlock = s3GetObjectBlock;
 
     tcs.DeleteObjectsByPrefix = s3DeleteObjectsByPrefix;
+
+    tcs.PutObjectFromFile2 = s3PutObjectFromFile2;
+    tcs.GetObjectsByPrefix = s3GetObjectsByPrefix;
+    tcs.DeleteObjects = s3DeleteObjects;
+    tcs.GetObjectToFile = s3GetObjectToFile;
   } else if (TOS_PROTO_ABLOB == proto) {
     tcs.Begin = azBegin;
     tcs.End = azEnd;
@@ -72,6 +77,11 @@ int32_t tcsInit() {
     tcs.GetObjectBlock = azGetObjectBlock;
 
     tcs.DeleteObjectsByPrefix = azDeleteObjectsByPrefix;
+
+    tcs.PutObjectFromFile2 = azPutObjectFromFile2;
+    tcs.GetObjectsByPrefix = azGetObjectsByPrefix;
+    tcs.DeleteObjects = azDeleteObjects;
+    tcs.GetObjectToFile = azGetObjectToFile;
   } else {
     code = TSDB_CODE_INVALID_PARA;
     return code;

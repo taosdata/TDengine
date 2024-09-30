@@ -209,6 +209,14 @@ void azDeleteObjectsByPrefix(const char *prefix) {
   }
 }
 
+int32_t azPutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
+
+int32_t azGetObjectsByPrefix(const char *prefix, const char *path) { return 0; }
+
+int32_t azGetObjectToFile(const char *object_name, const char *fileName) { return 0; }
+
+int32_t azDeleteObjects(const char *object_name[], int nobject) { return 0; }
+
 #else
 
 int32_t azBegin() { return TSDB_CODE_SUCCESS; }
@@ -226,5 +234,13 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 }
 
 void azDeleteObjectsByPrefix(const char *prefix) {}
+
+int32_t azPutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
+
+int32_t azGetObjectsByPrefix(const char *prefix, const char *path) { return 0; }
+
+int32_t azGetObjectToFile(const char *object_name, const char *fileName) { return 0; }
+
+int32_t azDeleteObjects(const char *object_name[], int nobject) { return 0; }
 
 #endif
