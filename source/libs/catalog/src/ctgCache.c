@@ -847,7 +847,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
-    CTG_RET(TSDB_CODE_CTG_EXIT);
+    CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
 
   gCtgMgmt.queue.tail->next = node;
@@ -874,7 +874,10 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     }
     taosMemoryFree(operation);
   }
-
+_return:
+  if (syncOp) {
+    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
