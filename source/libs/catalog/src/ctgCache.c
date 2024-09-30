@@ -877,7 +877,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   }
 _return:
   if (syncOp) {
-    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    tsem_destroy(&operation->rspSem);
   }
   return code;
 }
