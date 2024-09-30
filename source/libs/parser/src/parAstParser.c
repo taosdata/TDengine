@@ -47,6 +47,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
   void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};

@@ -204,15 +204,18 @@ int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle)
  * @brief get next tuple with group id attached, here assume that all tuples are sorted by group keys
  * @param [in, out] pBlock the output block, the group id will be saved in it
  * @retval NULL if next group tuple arrived and this new group tuple will be saved in pInfo.pSavedTuple
- * @retval NULL if no more tuples
  */
-static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock) {
-  int32_t code = 0;
+static int32_t nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock,
+                                    STupleHandle** pTupleHandle) {
+  QRY_PARAM_CHECK(pTupleHandle);
+
+  int32_t       code = 0;
   STupleHandle* retTuple = pInfo->pGroupIdCalc->pSavedTuple;
   if (!retTuple) {
     code = tsortNextTuple(pHandle, &retTuple);
     if (code) {
-      return NULL;
+      qError("failed to get next tuple, code:%s", tstrerror(code));
+      return code;
     }
   }
 
@@ -225,7 +228,8 @@ static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInf
       newGroup = tsortCompAndBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->keyBuf,
                                        &pInfo->pGroupIdCalc->lastKeysLen, retTuple);
     }
-    bool emptyBlock = pBlock->info.rows == 0;
+
+    bool emptyBlock = (pBlock->info.rows == 0);
     if (newGroup) {
       if (!emptyBlock) {
         // new group arrived, and we have already copied some tuples for cur group, save the new group tuple, return
@@ -247,17 +251,20 @@ static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInf
     }
   }
 
-  return retTuple;
+  *pTupleHandle = retTuple;
+  return code;
 }
 
 static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   blockDataCleanup(pDataBlock);
-  int32_t lino = 0;
-  int32_t code = 0;
 
-  SSDataBlock* p = NULL;
+  int32_t       lino = 0;
+  int32_t       code = 0;
+  STupleHandle* pTupleHandle = NULL;
+  SSDataBlock*  p = NULL;
+
   code = tsortGetSortedDataBlock(pHandle, &p);
   if (p == NULL || (code != 0)) {
     return code;
@@ -266,16 +273,15 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   code = blockDataEnsureCapacity(p, capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  STupleHandle* pTupleHandle;
   while (1) {
     if (pInfo->pGroupIdCalc) {
-      pTupleHandle = nextTupleWithGroupId(pHandle, pInfo, p);
+      code = nextTupleWithGroupId(pHandle, pInfo, p, &pTupleHandle);
     } else {
       code = tsortNextTuple(pHandle, &pTupleHandle);
     }
 
-    if (pTupleHandle == NULL || code != 0) {
-      lino = __LINE__;
+    TSDB_CHECK_CODE(code, lino, _error);
+    if (pTupleHandle == NULL) {
       break;
     }
 
@@ -320,7 +326,7 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   return code;
 
   _error:
-  qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
 
   blockDataDestroy(p);
   return code;
@@ -330,6 +336,9 @@ int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   blockDataCheck(*ppBlock, false);
+  if (code) {
+    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
   return code;
 }
 

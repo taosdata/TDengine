@@ -99,8 +99,8 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 }
 
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  int32_t       lino = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
@@ -168,12 +168,12 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  int32_t  tmpLen = len;
+  int32_t tmpLen = len;
   code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  int32_t  rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  char*   buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  int32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
 
 _end:
@@ -187,12 +187,12 @@ int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVa
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  int32_t  tmpLen = len;
+  int32_t tmpLen = len;
   code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  int32_t  rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  char*   buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  int32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   streamStateReleaseBuf(pState, pVal, false);
 
@@ -551,8 +551,8 @@ int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey
   return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen, pWinCode);
 }
 
-int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  return createCountWinResultBuff(pState->pFileState, pKey, pVal, pVLen);
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
+  return createCountWinResultBuff(pState->pFileState, pKey, winCount, pVal, pVLen);
 }
 
 int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen) {

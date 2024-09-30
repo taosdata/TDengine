@@ -90,7 +90,7 @@ int32_t setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t group
 
   if (isSlidingCountWindow(pAggSup)) {
     if (pBuffInfo->winBuffOp == CREATE_NEW_WINDOW) {
-      code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+      code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount,
                                                         (void**)&pCurWin->winInfo.pStatePos, &size);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -101,9 +101,11 @@ int32_t setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t group
       winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pBuffInfo->pCur, &pCurWin->winInfo.sessionWin,
                                                                  (void**)&pCurWin->winInfo.pStatePos, &size);
       if (winCode == TSDB_CODE_FAILED) {
-        code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+        code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount,
                                                           (void**)&pCurWin->winInfo.pStatePos, &size);
         QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        reuseOutputBuf(pAggSup->pState, pCurWin->winInfo.pStatePos, &pAggSup->stateStore);
       }
     } else {
       pBuffInfo->pCur = pAggSup->stateStore.streamStateCountSeekKeyPrev(pAggSup->pState, &pCurWin->winInfo.sessionWin,
@@ -111,9 +113,11 @@ int32_t setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t group
       winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pBuffInfo->pCur, &pCurWin->winInfo.sessionWin,
                                                                  (void**)&pCurWin->winInfo.pStatePos, &size);
       if (winCode == TSDB_CODE_FAILED) {
-        code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+        code = pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount,
                                                           (void**)&pCurWin->winInfo.pStatePos, &size);
         QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        reuseOutputBuf(pAggSup->pState, pCurWin->winInfo.pStatePos, &pAggSup->stateStore);
       }
     }
     if (ts < pCurWin->winInfo.sessionWin.win.ekey) {

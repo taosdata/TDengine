@@ -737,7 +737,7 @@ _end:
 
   if (NULL != pVal) {
     insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     if (insertRet != TAOS_LRU_STATUS_OK) {
       qWarn("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
     }
@@ -890,7 +890,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   } else {
     int32_t code = taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
     if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qDebug("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     }
   }
 }
@@ -1380,8 +1380,7 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       code = tableListGetSize(pInfo->base.pTableListInfo, &numOfTables);
       if (code != TSDB_CODE_SUCCESS) {
         taosRUnLockLatch(&pTaskInfo->lock);
-        lino = __LINE__;
-        goto _end;
+        TSDB_CHECK_CODE(code, lino, _end);
       }
 
       if (pInfo->currentTable >= numOfTables) {
@@ -1393,11 +1392,11 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
       if (!tmp) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         taosRUnLockLatch(&pTaskInfo->lock);
         (*ppRes) = NULL;
-        return terrno;
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
+
       tInfo = *tmp;
       taosRUnLockLatch(&pTaskInfo->lock);
 
@@ -1412,11 +1411,12 @@ static int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   } else {  // scan table group by group sequentially
     code = groupSeqTableScan(pOperator, ppRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -4492,13 +4492,13 @@ _error:
   return code;
 }
 
-static int32_t doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes, int32_t count, SMetaReader* mr,
-                                 SStorageAPI* pAPI) {
+static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SMetaReader* mr, SStorageAPI* pAPI) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STagScanInfo*  pInfo = pOperator->info;
   SExprInfo*     pExprInfo = &pOperator->exprSupp.pExprInfo[0];
+  int32_t        count = pRes->info.rows;
 
   STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
   if (!item) {
@@ -4558,6 +4558,8 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
+  } else {
+    pRes->info.rows++;
   }
 
   return code;
@@ -4913,25 +4915,22 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
     return code;
   }
 
-  int32_t     count = 0;
   SMetaReader mr = {0};
   pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pRes->info.rows = 0;
 
-  while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
-    code = doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
+  while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
+    code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
     if (code != TSDB_CODE_OUT_OF_MEMORY) {
       // ignore other error
       code = TSDB_CODE_SUCCESS;
     }
     QUERY_CHECK_CODE(code, lino, _end);
 
-    ++count;
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
     }
   }
-
-  pRes->info.rows = count;
 
   pAPI->metaReaderFn.clearReader(&mr);
   bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);
@@ -6033,9 +6032,10 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
                                               SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  STupleHandle*        pTupleHandle = NULL;
 
   blockDataCleanup(pResBlock);
-  STupleHandle* pTupleHandle = NULL;
+
   while (1) {
     while (1) {
       pTupleHandle = NULL;

@@ -86,11 +86,13 @@ static void destroyGroupOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  if (pInfo->pOperator) {
+
+  if (pInfo->pOperator != NULL) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
                       &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
     pInfo->pOperator = NULL;
   }
+
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);

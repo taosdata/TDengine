@@ -75,6 +75,8 @@ void    setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup);
 
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 
+void reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
+
 #ifdef __cplusplus
 }
 #endif
