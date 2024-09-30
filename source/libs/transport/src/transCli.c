@@ -1039,6 +1039,34 @@ _failed:
   taosMemoryFree(conn);
   return code;
 }
+
+static void cliDestroyAllQidFromThrd(SCliConn* conn) {
+  int32_t   code = 0;
+  SCliThrd* pThrd = conn->hostThrd;
+
+  void* pIter = taosHashIterate(conn->pQTable, NULL);
+  while (pIter != NULL) {
+    int64_t* qid = taosHashGetKey(pIter, NULL);
+
+    code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
+    if (code != 0) {
+      tDebug("%s conn %p failed to remove state %" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, *qid,
+             tstrerror(code));
+    } else {
+      tDebug("%s conn %p destroy state %" PRId64 "", CONN_GET_INST_LABEL(conn), conn, *qid);
+    }
+
+    STransCtx* ctx = pIter;
+    transCtxCleanup(ctx);
+
+    transReleaseExHandle(transGetRefMgt(), *qid);
+    transRemoveExHandle(transGetRefMgt(), *qid);
+
+    pIter = taosHashIterate(conn->pQTable, pIter);
+  }
+  taosHashCleanup(conn->pQTable);
+  conn->pQTable = NULL;
+}
 static void cliDestroyConn(SCliConn* conn, bool clear) { cliHandleException(conn); }
 static void cliDestroy(uv_handle_t* handle) {
   int32_t code = 0;
@@ -1061,20 +1089,7 @@ static void cliDestroy(uv_handle_t* handle) {
   taosMemoryFree(conn->dstAddr);
   taosMemoryFree(conn->stream);
   taosMemoryFree(conn->ipStr);
-
-  void* pIter = taosHashIterate(conn->pQTable, NULL);
-  while (pIter) {
-    int64_t* qid = taosHashGetKey(pIter, NULL);
-    code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
-    if (code != 0) {
-      tDebug("%s conn %p failed to remove state %" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, *qid,
-             tstrerror(code));
-    }
-    pIter = taosHashIterate(conn->pQTable, pIter);
-    tDebug("%s conn %p destroy state %" PRId64 "", CONN_GET_INST_LABEL(conn), conn, *qid);
-  }
-
-  destroyCliConnQTable(conn);
+  cliDestroyAllQidFromThrd(conn);
 
   if (conn->pInitUserReq) {
     taosMemoryFree(conn->pInitUserReq);
@@ -1149,7 +1164,9 @@ static void cliHandleException(SCliConn* conn) {
     tError("%s conn %p failed to destroy all reqs on conn since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
   }
 
+  cliDestroyAllQidFromThrd(conn);
   QUEUE_REMOVE(&conn->q);
+
   if (conn->registered) {
     int8_t ref = transGetRefCount(conn);
     if (ref == 0 && !uv_is_closing((uv_handle_t*)conn->stream)) {
