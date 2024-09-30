@@ -776,6 +776,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   }
 
   pMgmt->state.openVnodes = 0;
+  pMgmt->state.dropVnodes = 0;
   dInfo("restore %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {
