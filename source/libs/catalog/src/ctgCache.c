@@ -936,11 +936,12 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
     TAOS_UNUSED(tsem_destroy(&operation->rspSem));
-    taosMemoryFree(operation);
+    taosMemoryFreeClear(operation);
   }
+  return code;
 
 _return:
-  if (syncOp) {
+  if (syncOp && operation) {
     TAOS_UNUSED(tsem_destroy(&operation->rspSem));
   }
   return code;
