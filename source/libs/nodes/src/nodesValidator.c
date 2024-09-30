@@ -30,6 +30,7 @@ typedef enum ValidationType {
 typedef struct ColumnValidation {
   bool ignoreSlotId;
   bool validateFromDownstream;
+  bool ignoreOthers;
 } ColumnValidation;
 
 typedef struct NodeValidationCtx {
@@ -39,7 +40,6 @@ typedef struct NodeValidationCtx {
   SDataBlockDescNode* pDownstreamOutputDesc;
   ColumnValidation    validateCol;
   ValidationType      validateType;
-  bool                shouldHaveChild;
 } NodeValidationCtx;
 
 void setColumnValidation(NodeValidationCtx* pCtx, bool ignoreSlotId, bool validateFromDownstream) {
@@ -52,7 +52,13 @@ void setValidateCol_IgnoreSlotId(NodeValidationCtx* pCtx, bool ignoreSlotId) {
 }
 
 void setValidateCol_ValidateFromDownstream(NodeValidationCtx* pCtx, bool validateFromDownstream) {
-  pCtx->validateCol.validateFromDownstream = validateFromDownstream;
+  if (LIST_LENGTH(pCtx->pNode->pChildren) > 0) {
+    pCtx->validateCol.validateFromDownstream = validateFromDownstream;
+  }
+}
+
+void setValidateCol_IgnoreOthers(NodeValidationCtx* pCtx, bool ignoreOthers) {
+  pCtx->validateCol.ignoreOthers = ignoreOthers;
 }
 
 static SDataBlockDescNode* getDownstreamOutputDesc(SPhysiNode* pNode) {
@@ -180,22 +186,24 @@ static int32_t validateColumn(SColumnNode* pCol, NodeValidationCtx* pCtx) {
       return pCtx->code;
     }
   }
-  pCtx->code = validateTableUid(pCol->tableType, pCol->tableId, pCtx);
-  if (TSDB_CODE_SUCCESS != pCtx->code) {
-    qLogWarn();
-    return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
-  }
-  if (pCol->colId == 0 && pCol->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
-    qLogWarn();
-    return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
-  }
-  if (pCol->colId < 0) {
-    qLogWarn();
-    return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
-  }
-  if (pCol->colType > COLUMN_TYPE_MAX) {
-    qLogWarn();
-    return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+  if (!pCtx->validateCol.ignoreOthers) {
+    pCtx->code = validateTableUid(pCol->tableType, pCol->tableId, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
+    if (pCol->colId == 0 && pCol->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
+    if (pCol->colId < 0) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
+    if (pCol->colType > COLUMN_TYPE_MAX) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_VALIDATION_ERR;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -222,7 +230,7 @@ static EDealRes validateColumnInWalk(SNode* pNode, void* pCtxVoid) {
 
 static int32_t tryGetDownstreamOutput(SPhysiNode* pNode, NodeValidationCtx* pCtx) {
   pCtx->code = TSDB_CODE_SUCCESS;
-  if (!pCtx->pDownstreamOutputDesc && pCtx->shouldHaveChild) {
+  if (!pCtx->pDownstreamOutputDesc && LIST_LENGTH(pNode->pChildren) > 0) {
     pCtx->pDownstreamOutputDesc = getDownstreamOutputDesc(pNode);
     if (!pCtx->pDownstreamOutputDesc) {
       qLogWarn();
@@ -239,6 +247,10 @@ static int32_t tryGetOutputDesc(SPhysiNode* pNode, NodeValidationCtx* pCtx) {
   }
   pCtx->pOutputDesc = pNode->pOutputDataBlockDesc;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateNode(SNode* pNode, NodeValidationCtx* pCtx) {
+  return pCtx->code;
 }
 
 static int32_t validateTargetNode(STargetNode* pTarget, NodeValidationCtx* pCtx) {
@@ -260,15 +272,13 @@ static int32_t validateTargetNode(STargetNode* pTarget, NodeValidationCtx* pCtx)
         return TSDB_CODE_PLAN_VALIDATION_ERR;
       }
     } else if (nodeType(pTarget->pExpr) == QUERY_NODE_FUNCTION) {
-      if (!fmIsScanPseudoColumnFunc(((SFunctionNode*)pTarget->pExpr)->funcId)) {
-        qLogWarn();
-        return TSDB_CODE_PLAN_VALIDATION_ERR;
-      }
       pCtx->code = validateFunction((SFunctionNode*)pTarget->pExpr, pCtx);
       if (TSDB_CODE_SUCCESS != pCtx->code) {
         qLogWarn();
         return pCtx->code;
       }
+    } else if (nodeType(pTarget->pExpr) == QUERY_NODE_VALUE) {
+      return pCtx->code;
     } else {
       qLogWarn();
       return TSDB_CODE_PLAN_VALIDATION_ERR;
@@ -360,8 +370,6 @@ static int32_t validateBasePhysiNode(SPhysiNode* pNode, NodeValidationCtx* pCtx)
     qLogWarn();
     return TSDB_CODE_PLAN_VALIDATION_ERR;
   }
-  pCtx->shouldHaveChild = shouldHaveChild(pNode);
-
   pCtx->code = tryGetOutputDesc(pNode, pCtx);
   if (TSDB_CODE_SUCCESS != pCtx->code) {
     qLogWarn();
@@ -518,9 +526,17 @@ int32_t doValidateBlockDistScanPhysiNode(SBlockDistScanPhysiNode* pNode) {
   }
 
 int32_t doValidateProjectPhysiNode(SProjectPhysiNode* pNode) {
-  VALIDATE_BASE_PHYSI_NODE(pNode);
+  NodeValidationCtx ctx = {.code = TSDB_CODE_SUCCESS, .pNode = &pNode->node};
   setValidateCol_ValidateFromDownstream(&ctx, true);
-  ctx.code = walkAndValidateColumnNodes(pNode->pProjections, ctx.pNode, &ctx);
+  ctx.code = validateBasePhysiNode(&pNode->node, &ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    qLogWarn();
+    return ctx.code;
+  }
+  SNode* pC = NULL;
+  setValidateCol_IgnoreOthers(&ctx, true);
+  ctx.code = validateTargetNodes(pNode->pProjections, &ctx);
+  setValidateCol_IgnoreOthers(&ctx, false);
   setValidateCol_ValidateFromDownstream(&ctx, false);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
