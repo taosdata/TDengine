@@ -1174,8 +1174,8 @@ static void notifyAndDestroyReq(SCliConn* pConn, SCliReq* pReq, int32_t code) {
 }
 
 static FORCE_INLINE void destroyReqInQueue(SCliConn* conn, queue* set) {
-  while (!QUEUE_IS_EMPTY(&set)) {
-    queue* el = QUEUE_HEAD(&set);
+  while (!QUEUE_IS_EMPTY(set)) {
+    queue* el = QUEUE_HEAD(set);
     QUEUE_REMOVE(el);
 
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
