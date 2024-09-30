@@ -22,6 +22,12 @@
 
 #define ROCKS_BATCH_SIZE (4096)
 
+void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef) {
+  if (!taosLRUCacheRelease(cache, handle, eraseIfLastRef)) {
+    tsdbTrace(" release lru cache failed");
+  }
+}
+
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t    code = 0, lino = 0;
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
@@ -757,9 +763,7 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     for (int i = 0; i < 2; i++) {
       LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
       if (h) {
-        if (taosLRUCacheRelease(pTsdb->lruCache, h, true)) {
-          tsdbInfo("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-        }
+        tsdbLRUCacheRelease(pTsdb->lruCache, h, true);
         taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
       }
     }
@@ -1194,9 +1198,7 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         }
       }
 
-      if (!taosLRUCacheRelease(pCache, h, false)) {
-        tsdbInfo("vgId:%d, %s release lru cache failed at line %d", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-      }
+      tsdbLRUCacheRelease(pCache, h, false);
       TAOS_CHECK_EXIT(code);
     } else {
       if (!remainCols) {
@@ -1886,10 +1888,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     }
 
     if (h) {
-      code = taosLRUCacheRelease(pCache, h, false);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-      }
+      tsdbLRUCacheRelease(pCache, h, false);
     }
   }
 
@@ -1916,12 +1915,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         // no cache or cache is invalid
         ++i;
       }
-
       if (h) {
-        code = taosLRUCacheRelease(pCache, h, false);
-        if (code != TSDB_CODE_SUCCESS) {
-          tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-        }
+        tsdbLRUCacheRelease(pCache, h, false);
       }
     }
 
@@ -1976,9 +1971,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
                               .cacheStatus = TSDB_LAST_CACHE_NO_CACHE};
           code = tsdbCachePutToLRU(pTsdb, &lastKey, &noneCol);
         }
-        if (taosLRUCacheRelease(pTsdb->lruCache, h, false) != TSDB_CODE_SUCCESS) {
-          tsdbTrace("vgId:%d, %s release lru cache failed at line %d.", TD_VID(pTsdb->pVnode), __func__, __LINE__);
-        }
+        tsdbLRUCacheRelease(pTsdb->lruCache, h, false);
         TAOS_CHECK_EXIT(code);
       } else {
         if (!remainCols) {
@@ -3540,11 +3533,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) {
-  if (taosLRUCacheRelease(pCache, h, false)) {
-    tsdbTrace("%s release lru cache failed at line %d.", __func__, __LINE__);
-  }
-}
+void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) { tsdbLRUCacheRelease(pCache, h, false); }
 
 void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
   taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, capacity);
