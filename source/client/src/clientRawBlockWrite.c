@@ -23,12 +23,12 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 
-#define RAW_NULL_CHECK(c)             \
-  do {                                \
-    if (c == NULL) {                  \
-      code = terrno; \
-      goto end;                       \
-    }                                 \
+#define RAW_NULL_CHECK(c) \
+  do {                    \
+    if (c == NULL) {      \
+      code = terrno;      \
+      goto end;           \
+    }                     \
   } while (0)
 
 #define RAW_FALSE_CHECK(c)           \
@@ -47,7 +47,7 @@
     }                       \
   } while (0)
 
-#define LOG_ID_TAG   "connId:0x%" PRIx64 ",qid:0x%" PRIx64
+#define LOG_ID_TAG   "connId:0x%" PRIx64 ",QID:0x%" PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId
 
 #define TMQ_META_VERSION "1.0"
@@ -1188,7 +1188,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       pCreateReq->ctb.suid = pTableMeta->uid;
 
       SArray* pTagVals = NULL;
-      code = tTagToValArray((STag *)pCreateReq->ctb.pTag, &pTagVals);
+      code = tTagToValArray((STag*)pCreateReq->ctb.pTag, &pTagVals);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFreeClear(pTableMeta);
         goto end;
@@ -1206,18 +1206,19 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
           if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
             STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
             if (pTagVal) {
-              if (pTagVal->cid != tag->colId){
+              if (pTagVal->cid != tag->colId) {
                 pTagVal->cid = tag->colId;
                 rebuildTag = true;
               }
             } else {
-              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name, (int)taosArrayGetSize(pTagVals), i, tag->colId);
+              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name,
+                     (int)taosArrayGetSize(pTagVals), i, tag->colId);
             }
           }
         }
       }
       taosMemoryFreeClear(pTableMeta);
-      if (rebuildTag){
+      if (rebuildTag) {
         STag* ppTag = NULL;
         code = tTagNew(pTagVals, 1, false, &ppTag);
         taosArrayDestroy(pTagVals);
@@ -1815,7 +1816,7 @@ end:
 
 static int32_t buildCreateTbMap(STaosxRsp* rsp, SHashObj* pHashObj) {
   // find schema data info
-  int32_t             code = 0;
+  int32_t       code = 0;
   SVCreateTbReq pCreateReq = {0};
   SDecoder      decoderTmp = {0};
 
@@ -1826,15 +1827,16 @@ static int32_t buildCreateTbMap(STaosxRsp* rsp, SHashObj* pHashObj) {
     RAW_NULL_CHECK(lenTmp);
 
     tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-    RAW_RETURN_CHECK (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq));
+    RAW_RETURN_CHECK(tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq));
 
     if (pCreateReq.type != TSDB_CHILD_TABLE) {
       code = TSDB_CODE_INVALID_MSG;
       goto end;
     }
-    if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL){
-      RAW_RETURN_CHECK(taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
-    } else{
+    if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL) {
+      RAW_RETURN_CHECK(
+          taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
+    } else {
       tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
       pCreateReq = (SVCreateTbReq){0};
     }
@@ -1927,7 +1929,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
     // find schema data info
     SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
-    SVgroupInfo vg = {0};
+    SVgroupInfo    vg = {0};
     RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg));
     if (pCreateReqDst) {  // change stable name to get meta
       (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
@@ -1957,10 +1959,10 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    void* rawData = getRawDataFromRes(pRetrieve);
-    char  err[ERR_MSG_LEN] = {0};
+    void*          rawData = getRawDataFromRes(pRetrieve);
+    char           err[ERR_MSG_LEN] = {0};
     SVCreateTbReq* pCreateReqTmp = NULL;
-    if (pCreateReqDst){
+    if (pCreateReqDst) {
       RAW_RETURN_CHECK(cloneSVreateTbReq(pCreateReqDst, &pCreateReqTmp));
     }
     code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqTmp, fields, pSW->nCols, true, err, ERR_MSG_LEN);
