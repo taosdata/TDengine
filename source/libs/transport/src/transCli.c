@@ -3616,7 +3616,8 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   int32_t stateNum = taosHashGetSize(pConn->pQTable);
   int32_t totalReqs = reqsNum + reqsSentOut;
 
-  if (stateNum >= pInst->shareConnLimit || totalReqs >= pInst->shareConnLimit) {
+  if (((totalReqs >= pInst->shareConnLimit / 2) && (stateNum >= pInst->shareConnLimit)) ||
+      totalReqs >= pInst->shareConnLimit) {
     if (pConn->list == NULL && pConn->dstAddr != NULL) {
       pConn->list = taosHashGet((SHashObj*)pThrd->pool, pConn->dstAddr, strlen(pConn->dstAddr));
       if (pConn->list != NULL) {
