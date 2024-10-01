@@ -1832,7 +1832,8 @@ int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq) {
   SReqState state = {.conn = pConn, .arg = NULL};
   code = taosHashPut(pThrd->pIdConnTable, &qid, sizeof(qid), &state, sizeof(state));
   if (code != 0) {
-    tDebug("%s conn %p failed to statue, sid:%" PRId64 "", transLabel(pThrd->pInst), pConn, qid);
+    tDebug("%s conn %p failed to statue, sid:%" PRId64 " since %s", transLabel(pThrd->pInst), pConn, qid,
+           tstrerror(code));
   } else {
     tDebug("%s conn %p succ to add statue, sid:%" PRId64 " (1)", transLabel(pThrd->pInst), pConn, qid);
   }
@@ -1854,9 +1855,7 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
   } else if (code == TSDB_CODE_RPC_STATE_DROPED) {
     TAOS_CHECK_GOTO(code, &lino, _exception);
     return;
-  }
-
-  if (code == TSDB_CODE_RPC_NO_STATE || code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
+  } else if (code == TSDB_CODE_RPC_NO_STATE || code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
     char    addr[TSDB_FQDN_LEN + 64] = {0};
     char*   ip = EPSET_GET_INUSE_IP(pReq->ctx->epSet);
     int32_t port = EPSET_GET_INUSE_PORT(pReq->ctx->epSet);
