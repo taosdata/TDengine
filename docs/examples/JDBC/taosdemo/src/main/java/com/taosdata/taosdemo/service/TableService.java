@@ -11,15 +11,14 @@ public class TableService extends AbstractService {
 
     private TableMapper tableMapper;
 
-    //创建一张表
+    // Create a table
     public void create(TableMeta tableMeta) {
         tableMapper.create(tableMeta);
     }
 
-    //创建多张表
+    // Create multiple tables
     public void create(List<TableMeta> tables) {
         tables.stream().forEach(this::create);
     }
-
 
 }
