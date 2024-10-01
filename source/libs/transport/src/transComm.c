@@ -764,7 +764,7 @@ void transDestroyExHandle(void* handle) {
     return;
   }
   SExHandle* eh = handle;
-  tDebug("trans destroy qid:%" PRId64 ", memory %p", eh->refId, handle);
+  tDebug("trans destroy sid:%" PRId64 ", memory %p", eh->refId, handle);
   taosMemoryFree(handle);
 }
 

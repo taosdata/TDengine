@@ -394,11 +394,11 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
-              ", qid:%" PRId64 "",
+              ", sid:%" PRId64 "",
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
               (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", qid:%" PRId64 "",
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64 "",
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
               (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
@@ -406,13 +406,13 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug(
           "%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
-          "seqNum:%" PRId64 ", qid:%" PRId64 "",
+          "seqNum:%" PRId64 ", sid:%" PRId64 "",
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
           pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
               ", "
-              "qid:%" PRId64 "",
+              "sid:%" PRId64 "",
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
               pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
@@ -440,23 +440,23 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
     int64_t qId = taosHton64(pHead->qid);
     if (qId <= 0) {
-      tError("conn %p recv release, but invalid qid:%" PRId64 "", pConn, qId);
+      tError("conn %p recv release, but invalid sid:%" PRId64 "", pConn, qId);
       code = TSDB_CODE_RPC_NO_STATE;
     } else {
       void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
       if (p == NULL) {
         code = TSDB_CODE_RPC_NO_STATE;
-        tTrace("conn %p recv release, and releady release by server qid:%" PRId64 "", pConn, qId);
+        tTrace("conn %p recv release, and releady release by server sid:%" PRId64 "", pConn, qId);
       } else {
         SSvrRegArg* arg = p;
         (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
-        tTrace("conn %p recv release, notify server app, qid:%" PRId64 "", pConn, qId);
+        tTrace("conn %p recv release, notify server app, sid:%" PRId64 "", pConn, qId);
 
         code = taosHashRemove(pConn->pQTable, &qId, sizeof(qId));
         if (code != 0) {
-          tDebug("conn %p failed to remove qid:%" PRId64 "", pConn, qId);
+          tDebug("conn %p failed to remove sid:%" PRId64 "", pConn, qId);
         }
-        tTrace("conn %p clear state,qid:%" PRId64 "", pConn, qId);
+        tTrace("conn %p clear state,sid:%" PRId64 "", pConn, qId);
       }
     }
 
@@ -680,7 +680,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn %p msg already send out, seqNum:%" PRId64 ", qid:%" PRId64 "", transLabel(conn->pInst), conn,
+      tGDebug("%s conn %p msg already send out, seqNum:%" PRId64 ", sid:%" PRId64 "", transLabel(conn->pInst), conn,
               smsg->msg.info.seqNum, smsg->msg.info.qId);
       destroySmsg(smsg);
     }
@@ -691,7 +691,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn %p failed to send, seqNum:%" PRId64 ", qid:%" PRId64 " since %s", transLabel(conn->pInst), conn,
+      tGDebug("%s conn %p failed to send, seqNum:%" PRId64 ", sid:%" PRId64 " since %s", transLabel(conn->pInst), conn,
               smsg->msg.info.seqNum, smsg->msg.info.qId, uv_err_name(status));
       destroySmsg(smsg);
     }
@@ -759,7 +759,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   }
 
   STraceId* trace = &pMsg->info.traceId;
-  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%" PRId64 ", qid:%" PRId64 "", transLabel(pInst),
+  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64 "", transLabel(pInst),
           pConn, TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len, pMsg->info.seqNum, pMsg->info.qId);
 
   wb->base = (char*)pHead;
@@ -865,13 +865,13 @@ int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
   if (pMsg->msg.msgType == TDMT_SCH_TASK_RELEASE && qid > 0) {
     SSvrRegArg* p = taosHashGet(pConn->pQTable, &qid, sizeof(qid));
     if (p == NULL) {
-      tError("%s conn %p already release qid:%" PRId64 "", transLabel(pConn->pInst), pConn, qid);
+      tError("%s conn %p already release sid:%" PRId64 "", transLabel(pConn->pInst), pConn, qid);
       return TSDB_CODE_RPC_NO_STATE;
     } else {
       transFreeMsg(p->msg.pCont);
       code = taosHashRemove(pConn->pQTable, &qid, sizeof(qid));
       if (code != 0) {
-        tError("%s conn %p failed to release qid:%" PRId64 " since %s", transLabel(pConn->pInst), pConn, qid,
+        tError("%s conn %p failed to release sid:%" PRId64 " since %s", transLabel(pConn->pInst), pConn, qid,
                tstrerror(code));
       }
     }
@@ -1393,7 +1393,7 @@ void uvConnDestroyAllState(SSvrConn* p) {
     SSvrRegArg* arg = pIter;
     int64_t*    qid = taosHashGetKey(pIter, NULL);
     (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
-    tTrace("conn %p broken, notify server app, qid:%" PRId64 "", p, *qid);
+    tTrace("conn %p broken, notify server app, sid:%" PRId64 "", p, *qid);
     pIter = taosHashIterate(pQTable, pIter);
   }
 
@@ -1698,7 +1698,7 @@ int32_t uvHandleStateReq(SSvrRespMsg* msg) {
   int32_t   code = 0;
   SSvrConn* conn = msg->pConn;
   int64_t   qid = msg->msg.info.qId;
-  tDebug("%s conn %p start to register brokenlink callback, qid:%" PRId64 "", transLabel(conn->pInst), conn, qid);
+  tDebug("%s conn %p start to register brokenlink callback, sid:%" PRId64 "", transLabel(conn->pInst), conn, qid);
 
   SSvrRegArg  arg = {.notifyCount = 0, .init = 1, .msg = msg->msg};
   SSvrRegArg* p = taosHashGet(conn->pQTable, &qid, sizeof(qid));
@@ -1875,7 +1875,7 @@ int32_t transReleaseSrvHandle(void* handle) {
   m->msg = tmsg;
   m->type = Normal;
 
-  tDebug("%s conn %p start to send %s, qid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
+  tDebug("%s conn %p start to send %s, sid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
          qId);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
