@@ -904,7 +904,7 @@ static int32_t doChkptStatusCheck(SStreamTask* pTask) {
     return -1;
   }
 
-  if ((pTmrInfo->launchChkptId != pActiveInfo->activeId) || (pActiveInfo->activeId == 0)) {
+  if (pTmrInfo->launchChkptId != pActiveInfo->activeId) {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
                ", quit, ref:%d",
@@ -1055,7 +1055,8 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   numOfNotSend = taosArrayGetSize(pNotSendList);
   if (numOfNotSend > 0) {
     stDebug("s-task:%s start to monitor checkpoint-trigger in 10s", id);
-    streamTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId, "trigger-recv-monitor");
+    streamTmrStart(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
+                   "trigger-recv-monitor");
   } else {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stDebug("s-task:%s all checkpoint-trigger recved, quit from monitor checkpoint-trigger tmr, ref:%d", id, ref);
