@@ -10,6 +10,7 @@ from requests.auth import HTTPBasicAuth
 from taos.error import SchemalessError
 
 import taos
+import taosws
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
@@ -26,6 +27,7 @@ from .types import QueryResult
 class DbConn:
     TYPE_NATIVE = "native-c"
     TYPE_REST =   "rest-api"
+    TYPE_WS =    "websocket"
     TYPE_INVALID = "invalid"
 
     # class variables
@@ -72,7 +74,7 @@ class DbConn:
         th = threading.current_thread()
         shortTid = th.native_id % 10000 #type: ignore
         cls.current_time[shortTid] = float(time.time()) # Save this for later
- 
+
     @classmethod
     def sql_exec_spend(cls, cost: float):
         '''
@@ -96,6 +98,8 @@ class DbConn:
             return DbConnNative(dbTarget)
         elif connType == cls.TYPE_REST:
             return DbConnRest(dbTarget)
+        elif connType == cls.TYPE_WS:
+            return DbConnWS(dbTarget)
         else:
             raise RuntimeError(
                 "Unexpected connection type: {}".format(connType))
@@ -108,6 +112,10 @@ class DbConn:
     @classmethod
     def createRest(cls, dbTarget) -> DbConn:
         return cls.create(cls.TYPE_REST, dbTarget)
+
+    @classmethod
+    def createWS(cls, dbTarget) -> DbConn:
+        return cls.create(cls.TYPE_WS, dbTarget)
 
     def __init__(self, dbTarget):
         self.isOpen = False
@@ -294,6 +302,121 @@ class DbConnRest(DbConn):
 
     # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
 
+class DbConnWS(DbConn):
+    # Class variables
+    _lock = threading.Lock()
+    # _connInfoDisplayed = False # TODO: find another way to display this
+    totalConnections = 0 # Not private
+    totalRequests = 0
+    time_cost = -1
+    WS_PORT_INCREMENT = 11
+
+    def __init__(self, dbTarget: DbTarget):
+        super().__init__(dbTarget)
+        self._type = self.TYPE_WS
+        self._conn = None
+        self.wsPort = dbTarget.port + 11
+        self._result = None
+
+    @classmethod
+    def resetTotalRequests(cls):
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
+            cls.totalRequests = 0
+
+    def openByType(self):  # Open connection
+        # global gContainer
+        # tInst = tInst or gContainer.defTdeInstance # set up in ClientManager, type: TdeInstance
+        # cfgPath = self.getBuildPath() + "/test/cfg"
+        # cfgPath  = tInst.getCfgDir()
+        # hostAddr = tInst.getHostAddr()
+
+        cls = self.__class__ # Get the class, to access class variables
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
+            dbTarget = self._dbTarget
+            # if not cls._connInfoDisplayed:
+            #     cls._connInfoDisplayed = True # updating CLASS variable
+            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))
+            # Make the connection
+            # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
+            # self._cursor = self._conn.cursor()
+            # Record the count in the class
+            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_WS, self.wsPort) # making DB connection
+            cls.totalConnections += 1
+
+        self._tdSql.execute('reset query cache')
+        # self._cursor.execute('use db') # do this at the beginning of every
+
+        # Open connection
+        # self._tdSql = MyTDSql()
+        # self._tdSql.init(self._cursor)
+
+    def close(self):
+        if (not self.isOpen):
+            raise RuntimeError("Cannot clean up database until connection is open")
+        self._tdSql.close()
+        # Decrement the class wide counter
+        cls = self.__class__ # Get the class, to access class variables
+        with cls._lock:
+            cls.totalConnections -= 1
+
+        Logging.debug("[DB] Database connection closed")
+        self.isOpen = False
+
+    def execute(self, sql):
+        if (not self.isOpen):
+            traceback.print_stack()
+            raise CrashGenError(
+                "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
+        Logging.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
+        time_cost = -1
+        nRows = 0
+        time_start = time.time()
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
+        try:
+            nRows= self._tdSql.execute(sql)
+        except Exception as e:
+            self.sql_exec_spend(-2)
+        finally:
+            time_cost =  time.time() - time_start
+            self.sql_exec_spend(time_cost)
+
+        cls = self.__class__
+        cls.totalRequests += 1
+        Logging.debug(
+            "[SQL] Execution Result, nRows = {}, SQL = {}".format(
+                nRows, sql))
+        return nRows
+
+    def query(self, sql):  # return rows affected
+        if (not self.isOpen):
+            traceback.print_stack()
+            raise CrashGenError(
+                "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
+        Logging.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
+        nRows = self._tdSql.query(sql)
+        cls = self.__class__
+        cls.totalRequests += 1
+        Logging.debug(
+            "[SQL] Query Result, nRows = {}, SQL = {}".format(
+                nRows, sql))
+        return nRows
+        # results are in: return self._tdSql.queryResult
+
+    def getQueryResult(self):
+        return self._tdSql.queryResult
+
+    def getResultRows(self):
+        return self._tdSql.queryRows
+
+    def getResultCols(self):
+        return self._tdSql.queryCols
+
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
+
 
 class MyTDSql:
     # Class variables
@@ -303,9 +426,9 @@ class MyTDSql:
     lqStartTime = 0.0
     # lqEndTime = 0.0 # Not needed, as we have the two above already
 
-    def __init__(self, hostAddr, cfgPath):
+    def __init__(self, hostAddr, cfgPath, connType='native-c', port=6030):
         # Make the DB connection
-        self._conn = taos.connect(host=hostAddr, config=cfgPath)
+        self._conn = taos.connect(host=hostAddr, config=cfgPath) if connType == 'native-c' else taosws.connect(host=hostAddr, port=port)
         self._cursor = self._conn.cursor()
         self.cfgPath = cfgPath
         self.queryRows = 0
