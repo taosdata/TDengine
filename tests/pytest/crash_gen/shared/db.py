@@ -177,8 +177,8 @@ class DbConn:
         sts = [v[0] for v in self.getQueryResult()]
         return stName in sts
 
-    def hasTables(self):
-        return self.query("show tables") > 0
+    def hasTables(self, dbName):
+        return self.query(f"show {dbName}.tables") > 0
 
     def execute(self, sql):
         ''' Return the number of rows affected'''
@@ -210,6 +210,8 @@ class DbConn:
         raise RuntimeError("Unexpected execution, should be overriden")
 
     def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        if self._type != self.TYPE_NATIVE:
+            return
         raise RuntimeError("Unexpected execution, should be overriden")
 
 # Sample: curl -u root:taosdata -d "select * from information_schema.ins_databases" localhost:6020/rest/sql
@@ -253,22 +255,16 @@ class DbConnRest(DbConn):
             time_cost = time.time()- time_start
             self.sql_exec_spend(time_cost)
         rj = r.json()
-        # Sanity check for the "Json Result"
-        if ('status' not in rj):
-            raise RuntimeError("No status in REST response")
 
-        if rj['status'] == 'error':  # clearly reported error
-            if ('code' not in rj):  # error without code
-                raise RuntimeError("REST error return without code")
-            errno = rj['code']  # May need to massage this in the future
-            # print("Raising programming error with REST return: {}".format(rj))
-            raise taos.error.ProgrammingError(
-                rj['desc'], errno)  # todo: check existance of 'desc'
+        if ('code' not in rj):  # error without code
+            raise RuntimeError("REST error return without code")
 
-        if rj['status'] != 'succ':  # better be this
+        returnCode = rj['code']  # May need to massage this in the future
+        if returnCode != 0:  # better be this
+            return returnCode
             raise RuntimeError(
-                "Unexpected REST return status: {}".format(
-                    rj['status']))
+                "sql: {} - Unexpected REST return: {} ".format(
+                    sql, r.text))
 
         nRows = rj['rows'] if ('rows' in rj) else 0
         self._result = rj
@@ -289,15 +285,16 @@ class DbConnRest(DbConn):
         return self.execute(sql)
 
     def getQueryResult(self):
+        # print("----self._result", self._result)
         return self._result['data']
 
     def getResultRows(self):
-        print(self._result)
+        # print(self._result)
         raise RuntimeError("TBD") # TODO: finish here to support -v under -c rest
         # return self._tdSql.queryRows
 
     def getResultCols(self):
-        print(self._result)
+        # print(self._result)
         raise RuntimeError("TBD")
 
     # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
@@ -428,7 +425,13 @@ class MyTDSql:
 
     def __init__(self, hostAddr, cfgPath, connType='native-c', port=6030):
         # Make the DB connection
-        self._conn = taos.connect(host=hostAddr, config=cfgPath) if connType == 'native-c' else taosws.connect(host=hostAddr, port=port)
+        if connType == 'native-c':
+            self._conn = taos.connect(host=hostAddr, config=cfgPath)
+        elif connType == 'rest':
+            pass
+            # self._conn = taos.connect(host=hostAddr, config=cfgPath)
+        else:
+            self._conn = taosws.connect(host=hostAddr, port=port)
         self._cursor = self._conn.cursor()
         self.cfgPath = cfgPath
         self.queryRows = 0
@@ -538,8 +541,8 @@ class MyTDSql:
             self.recordSmlLine(line)
             # Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:
-            Logging.error(f"SchemalessError-{e}: {line}")
-            raise f"SchemalessError: {e}"
+            Logging.error(f"SchemalessError: {e}-{line}")
+            raise
 
     def openTsdbTelnetLineInsert(self, line, ts_type=None):
         # TODO finish

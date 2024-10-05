@@ -38,6 +38,7 @@ import requests
 # from guppy import hpy
 import gc
 import taos
+import taosws
 from taos.tmq import *
 
 from .shared.types import TdColumns, TdTags
@@ -188,7 +189,8 @@ class WorkerThread:
                     dummy = 0
                 else:
                     print("\nCaught programming error. errno=0x{:X}, msg={} ".format(errno, err.msg))
-                    raise CrashGenError("func _doTaskLoop error")
+                    self.logError("func _doTaskLoop error")
+                    raise
 
             # Fetch a task from the Thread Coordinator
             Logging.debug("[TRD] Worker thread [{}] about to fetch task".format(self._tid))
@@ -317,7 +319,7 @@ class ThreadCoordinator:
         return False
 
     def _hasAbortedTask(self):  # from execution of previous step
-        print("------- self._executedTasks: {}".format(self._executedTasks))
+        # print("------- self._executedTasks: {}".format(self._executedTasks))
         for task in self._executedTasks:
             if task.isAborted():
                 print("------- Task aborted: {}".format(task))
@@ -393,7 +395,8 @@ class ThreadCoordinator:
                 self._te = None  # Not running any more
                 self._execStats.registerFailure("State transition error: {}".format(err))
             else:
-                raise CrashGenError("func _doTransition error")
+                Logging.error("func _doTransition error")
+                raise
         # return transitionFailed # Why did we have this??!!
 
         self.resetExecutedTasks()  # clear the tasks after we are done
@@ -984,7 +987,7 @@ class StateMechine:
         except taos.error.ProgrammingError as err:
             Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
             traceback.print_stack()
-            raise CrashGenError("func StateMechine init error")  # re-throw
+            raise  # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -1038,7 +1041,7 @@ class StateMechine:
         # thread, which does this on their own
         dbc.use(dbName)
 
-        if not dbc.hasTables():  # no tables
+        if not dbc.hasTables(dbName):  # no tables
 
             Logging.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
@@ -1498,7 +1501,47 @@ class Task():
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
         except taos.error.ProgrammingError as err:
+            print("-----!!!!!------err.errno", err.errno)
             errno2 = Helper.convertErrno(err.errno)
+            print("-----!!!!!------errno2", errno2)
+            if (Config.getConfig().continue_on_exception):  # user choose to continue
+                self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                self._err = err
+            elif self._isErrAcceptable(errno2, err.__str__()):
+                self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                self.logError("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                    errno2, err, wt.getDbConn().getLastSql()))
+                # print("_", end="", flush=True)
+                Progress.emit(Progress.ACCEPTABLE_ERROR)
+                self._err = err
+            else:  # not an acceptable error
+                shortTid = threading.get_ident() % 10000
+                errMsg = "[=] Unexpected Taos library exception ({}): errno=0x{:X}, thread={}, msg: {}, SQL: {}".format(
+                    self.__class__.__name__,
+                    errno2,
+                    shortTid,
+                    err, wt.getDbConn().getLastSql())
+                self.logDebug(errMsg)
+                self.logError(f'-------------------\nProgram ABORTED Due to Unexpected TAOS Error:{errMsg}\n-------------------')
+                if Config.getConfig().debug:
+                    # raise # so that we see full stack
+                    traceback.print_exc()
+                print(
+                    "\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(
+                        errMsg) +
+                    "----------------------------\n")
+                # sys.exit(-1)
+                self._err = err
+                self._aborted = True
+        except taosws.Error as err:
+            errmsg = err.args[0].split()[0]
+            print("-----!!!!!------errmsg", errmsg)
+            errno2 = int(errmsg[1:-1], 16)
+            print("-----!!!!!------errno2", errno2)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
@@ -2023,46 +2066,31 @@ class TaskCreateStream(StateTransitionTask):
             if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
                 return
             tags = sTable._getTags(dbc)
-            print("stream tags------", tags)
+            # print("stream tags------", tags)
             cols = sTable._getCols(dbc)
-            print("stream cols------", cols)
+            # print("stream cols------", cols)
             # if not tags or not cols:
             #     return "no table exists"
             tagCols = {**tags, **cols}
-            print("stream tagCols------", tagCols)
+            # print("stream tagCols------", tagCols)
             selectCnt = random.randint(1, len(tagCols))
-            print("stream selectCnt------", selectCnt)
+            # print("stream selectCnt------", selectCnt)
             selectKeys = random.sample(list(tagCols.keys()), selectCnt)
-            print("stream selectKeys------", selectKeys)
+            # print("stream selectKeys------", selectKeys)
             selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
-            print("stream selectItems------", selectItems)
+            # print("stream selectItems------", selectItems)
 
 
             # wt.execSql("use db")    # should always be in place
             stbname = sTable.getName()
             streamSql = self.genCreateStreamSql(sTable, selectItems, stbname)
-            print("streamSql------", streamSql)
+            # print("streamSql------", streamSql)
             self.execWtSql(wt, streamSql)
             Logging.debug("[OPS] stream is creating at {}".format(time.time()))
-        except Exception as e:
-            self.logError(f"func TaskCreateStream error: {e}")
-            raise CrashGenError(f"func TaskCreateStream error: {e}")
-
-"""
-try:
-                sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
-                    fullRegTableName,
-                    fullStableName,
-                    tagNames,
-                    tagStrs,
-                    colNames,
-                    colStrs)
-                dbc.execute(sql)
-            except Exception as e:  # Any exception at all
-                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
-                self._unlockTableIfNeeded(fullRegTableName)
-                raise CrashGenError(f"func _addDataByAutoCreateTable_n error: {e}")
-"""
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskCreateStream error: {errno2}-{err}")
+            raise
 
 
     # def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
@@ -2222,9 +2250,10 @@ class TaskCreateTsma(StateTransitionTask):
             for createTsmaSql in createTsmaSqls:
                 self.execWtSql(wt, createTsmaSql)
             Logging.debug("[OPS] db tsma is creating at {}".format(time.time()))
-        except Exception as e:
-            self.logError(f"func TaskCreateTsma error: {e}")
-            raise CrashGenError(f"func TaskCreateTsma error: {e}")
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskCreateTsma error: {errno2}-{err}")
+            raise
 
 class TaskDropTopics(StateTransitionTask):
 
@@ -2563,7 +2592,7 @@ class TdSuperTable:
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
             Logging.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
-            raise CrashGenError(f"func getRegTables error: {err}")
+            raise
 
         qr = dbc.getQueryResult()
         return [v[0] for v in
@@ -2814,6 +2843,7 @@ class TdSuperTable:
         """
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
+        # print("----stCols", stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
         return ret
 
@@ -3785,8 +3815,7 @@ class TaskReadData(StateTransitionTask):
                 errno2 = Helper.convertErrno(err.errno)
                 Logging.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
                 self.logError(f"func TaskReadData error: {sql}")
-                raise CrashGenError(f"func TaskReadData error: {err}")
-
+                raise
 
 class SqlQuery:
     @classmethod
@@ -4005,9 +4034,10 @@ class TaskAddData(StateTransitionTask):
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
             dbc.execute(sql)
-        except Exception as e:
-            self.logError(f"func _addDataInBatch_n error: {sql}")
-            raise CrashGenError(f"func _addDataInBatch_n error {e}")
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func _addDataInBatch_n error: {errno2}-{sql}")
+            raise
         finally:
             self._unlockTableIfNeeded(fullTableName)
 
@@ -4374,9 +4404,9 @@ class TaskAddData(StateTransitionTask):
                     intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
 
             except Exception as e:  # Any exception at all
-                self.logError(f"func _addData_n error: {sql}")
+                self.logError(f"func _addData_n error: {sql}-{e}")
                 self._unlockTableIfNeeded(fullTableName)
-                raise CrashGenError(f"func _addData_n error: {e}")
+                raise
 
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
@@ -4457,9 +4487,9 @@ class TaskAddData(StateTransitionTask):
                     colStrs)
                 dbc.execute(sql)
             except Exception as e:  # Any exception at all
-                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}")
+                self.logError(f"func _addDataByAutoCreateTable_n error: {sql}-{e}")
                 self._unlockTableIfNeeded(fullRegTableName)
-                raise CrashGenError(f"func _addDataByAutoCreateTable_n error: {e}")
+                raise
 
     def _addDataByMultiTable_n(self, db: Database, dbc):
         """
@@ -4496,9 +4526,9 @@ class TaskAddData(StateTransitionTask):
             # Logging.info("Adding data: {}".format(sql))
             dbc.execute(sql)
         except Exception as e:  # Any exception at all
-            self.logError(f"func _addDataByMultiTable_n error: {sql}")
+            self.logError(f"func _addDataByMultiTable_n error: {sql}-{e}")
             self._unlockTableIfNeeded(fullRegTableName)
-            raise CrashGenError(f"func _addDataByMultiTable_n error: {e}")
+            raise
 
     def _getStmtBindLines(self, db: Database, dbc):
         """
@@ -4623,7 +4653,7 @@ class TaskAddData(StateTransitionTask):
             stmt.close()
         except Exception as e:  # Any exception at all
             self.logError(f"func _addDataBySTMT error: {e}")
-            raise CrashGenError(f"func _addDataBySTMT error: {e}")
+            raise
         finally:
             conn.close()
 
@@ -4764,8 +4794,8 @@ class TaskAddData(StateTransitionTask):
             ts_type = self._transSmlTsType(precision)
             dbc.influxdbLineInsert(line=[lines], ts_type=ts_type, dbname=db.getName())
         except Exception as e:  # Any exception at all
-            self.logError(f"func _addDataByInfluxdbLine error: {lines}")
-            raise CrashGenError(f"func _addDataByInfluxdbLine error: {e}")
+            self.logError(f"func _addDataByInfluxdbLine error: {lines}-{e}")
+            raise
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
@@ -4802,8 +4832,8 @@ class TaskAddData(StateTransitionTask):
                 self._addDataByMultiTable_n(db, dbc)
             elif Dice.throw(6) == 4:
                 self._addDataBySTMT(db, dbc)
-            elif Dice.throw(6) == 5:
-                self._addDataByInfluxdbLine(db, dbc)
+            # elif Dice.throw(6) == 5:
+            #     self._addDataByInfluxdbLine(db, dbc)
             else:
                 self.activeTable.discard(i)  # not raising an error, unlike remove
 
@@ -4900,9 +4930,10 @@ class TaskDeleteData(StateTransitionTask):
                         dbc.execute(sql)
                         intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
 
-                except:  # Any exception at all
+                except Exception as e:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise CrashGenError("func _deleteData error")
+                    self.logError(f"func _deleteData error: {sql}-{e}")
+                    raise
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -4925,7 +4956,8 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise CrashGenError("func _deleteData error")
+                            self.logError(f"func _deleteData error: {sql}")
+                            raise
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
@@ -4962,7 +4994,8 @@ class TaskDeleteData(StateTransitionTask):
 
                 except:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise CrashGenError("func _deleteData error")
+                    self.logError(f"func _deleteData error: {sql}")
+                    raise
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -4985,7 +5018,8 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise CrashGenError("func _deleteData error")
+                            self.logError(f"func _deleteData error: {sql}")
+                            raise
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
