@@ -98,11 +98,15 @@ class WorkerThread:
                 self._dbConn = DbConn.createNative(tInst.getDbTarget())
             elif Config.getConfig().connector_type == 'rest':
                 self._dbConn = DbConn.createRest(tInst.getDbTarget())
+            elif Config.getConfig().connector_type == 'ws':
+                self._dbConn = DbConn.createWs(tInst.getDbTarget())
             elif Config.getConfig().connector_type == 'mixed':
-                if Dice.throw(2) == 0:  # 1/2 chance
+                if Dice.throw(3) == 0:  # 1/3 chance
                     self._dbConn = DbConn.createNative(tInst.getDbTarget())
-                else:
+                if Dice.throw(3) == 1:  # 1/3 chance
                     self._dbConn = DbConn.createRest(tInst.getDbTarget())
+                else:
+                    self._dbConn = DbConn.createWs(tInst.getDbTarget())
             else:
                 raise RuntimeError("Unexpected connector type: {}".format(Config.getConfig().connector_type))
 
@@ -414,9 +418,9 @@ class ThreadCoordinator:
             # if (self._curStep % 2) == 0: # print memory usage once every 10 steps
             #     memUsage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             #     print("[m:{}]".format(memUsage), end="", flush=True) # print memory usage
-            # if (self._curStep % 10) == 3: 
+            # if (self._curStep % 10) == 3:
             #     h = hpy()
-            #     print("\n")        
+            #     print("\n")
             #     print(h.heap())
 
             try:
@@ -896,9 +900,9 @@ class StateDbOnly(AnyState):
             self.assertAtMostOneSuccess(tasks, TaskDropDb)
 
         # TODO: restore the below, the problem exists, although unlikely in real-world
-        # if (gSvcMgr!=None) and gSvcMgr.isRestarting():     
-        # if (gSvcMgr == None) or (not gSvcMgr.isRestarting()) : 
-        #     self.assertIfExistThenSuccess(tasks, TaskDropDb)       
+        # if (gSvcMgr!=None) and gSvcMgr.isRestarting():
+        # if (gSvcMgr == None) or (not gSvcMgr.isRestarting()) :
+        #     self.assertIfExistThenSuccess(tasks, TaskDropDb)
 
 
 class StateSuperTableOnly(AnyState):
@@ -1043,7 +1047,7 @@ class StateMechine:
 
         sTable = self._db.getFixedSuperTable()
 
-        if sTable.hasRegTables(dbc):  # no regular tables 
+        if sTable.hasRegTables(dbc):  # no regular tables
             # print("debug=====*\n"*100)
             Logging.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
 
@@ -2363,6 +2367,7 @@ class TaskCreateConsumers(StateTransitionTask):
                 sTable.createConsumer(wt.getDbConn(), random.randint(1, 10))
                 pass
         else:
+            # TODO WS supported
             print(" restful not support tmq consumers")
             return
 
@@ -5282,7 +5287,7 @@ class MainExec:
             action='store',
             default='native',
             type=str,
-            help='Connector type to use: native, rest, or mixed (default: 10)')
+            help='Connector type to use: native, rest, ws, or mixed (default: 10)')
         parser.add_argument(
             '-d',
             '--debug',

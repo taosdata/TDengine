@@ -27,7 +27,7 @@ from .types import QueryResult
 class DbConn:
     TYPE_NATIVE = "native-c"
     TYPE_REST =   "rest-api"
-    TYPE_WS =    "websocket"
+    TYPE_WS =    "ws"
     TYPE_INVALID = "invalid"
 
     # class variables
@@ -114,7 +114,7 @@ class DbConn:
         return cls.create(cls.TYPE_REST, dbTarget)
 
     @classmethod
-    def createWS(cls, dbTarget) -> DbConn:
+    def createWs(cls, dbTarget) -> DbConn:
         return cls.create(cls.TYPE_WS, dbTarget)
 
     def __init__(self, dbTarget):
@@ -315,7 +315,7 @@ class DbConnWS(DbConn):
         super().__init__(dbTarget)
         self._type = self.TYPE_WS
         self._conn = None
-        self.wsPort = dbTarget.port + 11
+        self.wsPort = dbTarget.port + self.WS_PORT_INCREMENT
         self._result = None
 
     @classmethod
@@ -674,15 +674,21 @@ class DbConnNative(DbConn):
 
 
 class DbManager():
-    ''' This is a wrapper around DbConn(), to make it easier to use. 
+    ''' This is a wrapper around DbConn(), to make it easier to use.
 
         TODO: rename this to DbConnManager
     '''
     def __init__(self, cType, dbTarget):
         # self.tableNumQueue = LinearQueue() # TODO: delete?
         # self.openDbServerConnection()
-        self._dbConn = DbConn.createNative(dbTarget) if (
-            cType == 'native') else DbConn.createRest(dbTarget)
+        if cType == 'native':
+            self._dbConn = DbConn.createNative(dbTarget)
+        elif cType == 'rest':
+            self._dbConn = DbConn.createRest(dbTarget)
+        elif cType == 'ws':
+            self._dbConn = DbConn.createWs(dbTarget)
+        else:
+            raise RuntimeError("Unexpected connection type: {}".format(cType))
         try:
             self._dbConn.open()  # may throw taos.error.ProgrammingError: disconnected
             Logging.debug("DbManager opened DB connection...")
