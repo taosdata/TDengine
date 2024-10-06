@@ -702,16 +702,18 @@ class AnyState:
     CAN_CREATE_TOPIC = 3  # super table must exists
     CAN_CREATE_CONSUMERS = 3
     CAN_CREATE_TSMA = 3
+    CAN_CREATE_VIEW = 3  # super table must exists
     CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_DROP_TOPIC = 4
     CAN_DROP_STREAM = 4
     CAN_PAUSE_STREAM = 4
     CAN_RESUME_STREAM = 4
     CAN_DROP_TSMA = 4
+    CAN_DROP_VIEW = 4
     CAN_ADD_DATA = 5
     CAN_READ_DATA = 6
     CAN_DELETE_DATA = 6
-    
+
 
     def __init__(self):
         self._info = self.getInfo()
@@ -788,6 +790,12 @@ class AnyState:
 
     def canResumeStream(self):
         return self._info[self.CAN_RESUME_STREAM]
+
+    def canCreateView(self):
+        return self._info[self.CAN_CREATE_VIEW]
+
+    def canDropView(self):
+        return self._info[self.CAN_DROP_VIEW]
 
     def canAddData(self):
         return self._info[self.CAN_ADD_DATA]
@@ -1129,10 +1137,10 @@ class StateMechine:
         weightsTypes = BasicTypes.copy()
 
         # this matrixs can balance  the Frequency of TaskTypes
-        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 1, 'TaskDropTsmas': 1,
+        balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 1, 'TaskDropTsmas': 1, 'TaskDropViews': 1,
                                     'TaskDropStreamTables': 10, 'TaskPauseStreams': 1, 'TaskResumeStreams': 1,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
-                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10,
+                                    'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10, 'TaskCreateView': 10,
                                     'TaskCreateTopic': 3,
                                     'TaskCreateConsumers': 10,
                                     'TaskCreateSuperTable': 10}  # TaskType : balance_matrixs of task
@@ -1459,7 +1467,7 @@ class Task():
             0x03ed,  # Topic must be dropped first, SQL: drop database db_0
             0x0203,  # Invalid value
             0x03f0,  # Stream already exist , topic already exists
-
+            0x260d,  # Tags number not matched added for stmt, #TODO add lock when alter schema
             1000  # REST catch-all error
         ]:
             return True  # These are the ALWAYS-ACCEPTABLE ones
@@ -2255,6 +2263,43 @@ class TaskCreateTsma(StateTransitionTask):
             self.logError(f"func TaskCreateTsma error: {errno2}-{err}")
             raise
 
+class TaskCreateView(StateTransitionTask):
+    maxSelectItems = 5
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canCreateStreams()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbc = wt.getDbConn()
+            dbname = self._db.getName()
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+            if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
+                return
+            tags = sTable._getTags(dbc)
+            cols = sTable._getCols(dbc)
+            tagCols = {**tags, **cols}
+            selectCnt = random.randint(1, len(tagCols))
+            selectKeys = random.sample(list(tagCols.keys()), selectCnt)
+            selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
+            stbname = sTable.getName()
+            subQuerySql = sTable.generateRandomSql(selectItems, stbname)
+            viewSql = f'CREATE VIEW {dbname}_{stbname}_view AS {subQuerySql};'
+            print("viewSql------", viewSql)
+            self.execWtSql(wt, viewSql)
+            Logging.debug("[OPS] view is creating at {}".format(time.time()))
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskCreateView error: {errno2}-{err}")
+            raise
+
 class TaskDropTopics(StateTransitionTask):
 
     @classmethod
@@ -2423,7 +2468,26 @@ class TaskDropTsmas(StateTransitionTask):
         if sTable.hasTsmas(wt.getDbConn()):
             sTable.dropStreams(wt.getDbConn())  # drop stream of database
 
+class TaskDropViews(StateTransitionTask):
 
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canDropView()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        dbname = self._db.getName()
+
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        if sTable.hasViews(wt.getDbConn(), dbname):
+            sTable.dropViews(wt.getDbConn(), dbname)  # drop views of database
 class TaskCreateSuperTable(StateTransitionTask):
     @classmethod
     def getEndState(cls):
@@ -2616,6 +2680,9 @@ class TdSuperTable:
     def hasTsmas(self, dbc: DbConn):
         return dbc.query("show tsmas") > 0
 
+    def hasViews(self, dbc: DbConn, dbname):
+        return dbc.query(f"show {dbname}.views") > 0
+
     def hasTopics(self, dbc: DbConn):
 
         return dbc.query("show topics") > 0
@@ -2669,6 +2736,16 @@ class TdSuperTable:
                 dbc.execute('drop tsma {}'.format(tsma[0]))
 
         return not dbc.query("show tsmas ") > 0
+
+    def dropViews(self, dbc: DbConn, dbname):
+        dbc.query(f"show {dbname}.views;")
+        tsmas = dbc.getQueryResult()
+        for tsma in tsmas:
+            if tsma[0].startswith(self._dbName):
+                print('drop view {}.{}'.format(dbname, tsma[0]))
+                dbc.execute('drop view {}.{}'.format(dbname, tsma[0]))
+
+        return not dbc.query(f"show {dbname}.views;") > 0
 
     def dropStreamTables(self, dbc: DbConn):
         dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))
@@ -4646,7 +4723,6 @@ class TaskAddData(StateTransitionTask):
             tag_placeholders = ', '.join(['?' for _ in tag_dict])
             value_placeholders = ', '.join(['?' for _ in col_dict])
             sql = f"INSERT INTO ? USING {stbname} TAGS({tag_placeholders}) VALUES({value_placeholders})"
-
             stmt = conn.statement(sql)
             self.bind_row_by_row(stmt, lines, tag_dict, col_dict, precision)
             stmt.execute()
