@@ -565,10 +565,10 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   }
 
   STransCtx* pCtx = taosHashGet(conn->pQTable, &qId, sizeof(qId));
-  pCtx->st = taosGetTimestampUs();
   if (pCtx == 0) {
     return TSDB_CODE_RPC_NO_STATE;
   }
+  pCtx->st = taosGetTimestampUs();
   STraceId* trace = &pHead->traceId;
   pResp->info.ahandle = transCtxDumpVal(pCtx, pHead->msgType);
   tGDebug("%s conn %p %s received from %s, local info:%s, sid:%" PRId64 ", create ahandle %p by %s",
