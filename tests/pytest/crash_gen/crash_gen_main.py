@@ -2300,9 +2300,9 @@ class TaskCreateView(StateTransitionTask):
             selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
             stbname = sTable.getName()
             subQuerySql = sTable.generateRandomSql(selectItems, stbname)
-            nextTick = self._db.getNextTick()
-            print("nextTick------", nextTick)
-            viewSql = f'CREATE VIEW {dbname}_{stbname}_view_{nextTick} AS {subQuerySql};'
+            nextInt = self._db.getNextInt()
+            print("nextTick------", nextInt)
+            viewSql = f'CREATE VIEW {dbname}_{stbname}_view_{nextInt} AS {subQuerySql};'
             print("viewSql------", viewSql)
             self.execWtSql(wt, viewSql)
             Logging.debug("[OPS] view is creating at {}".format(time.time()))
@@ -2334,9 +2334,9 @@ class TaskCreateIndex(StateTransitionTask):
             tagNames = list(tags.keys())
             tagName = random.choice(tagNames[1:])
             stbname = sTable.getName()
-            nextTick = self._db.getNextTick()
-            print("nextTick------", nextTick)
-            indexSql = f'CREATE INDEX IF NOT EXISTS {dbname}_{stbname}_idx_{nextTick} ON {dbname}.{stbname} ({tagName});'
+            nextInt = self._db.getNextInt()
+            print("nextTick------", nextInt)
+            indexSql = f'CREATE INDEX IF NOT EXISTS {dbname}_{stbname}_idx_{nextInt} ON {dbname}.{stbname} ({tagName});'
             print("indexSql------", indexSql)
             self.execWtSql(wt, indexSql)
             Logging.debug("[OPS] index is creating at {}".format(time.time()))
