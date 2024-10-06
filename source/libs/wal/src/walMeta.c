@@ -796,7 +796,7 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
 
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  if (cJSON_AddItemToObject(pRoot, "meta", pMeta) != 0) {
+  if (!cJSON_AddItemToObject(pRoot, "meta", pMeta)) {
     wInfo("vgId:%d, failed to add meta to root", pWal->cfg.vgId);
   }
   (void)sprintf(buf, "%" PRId64, pWal->vers.firstVer);
@@ -816,13 +816,13 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
     wInfo("vgId:%d, failed to add lastVer to meta", pWal->cfg.vgId);
   }
 
-  if (cJSON_AddItemToObject(pRoot, "files", pFiles) != 0) {
+  if (!cJSON_AddItemToObject(pRoot, "files", pFiles)) {
     wInfo("vgId:%d, failed to add files to root", pWal->cfg.vgId);
   }
   SWalFileInfo* pData = pWal->fileInfoSet->pData;
   for (int i = 0; i < sz; i++) {
     SWalFileInfo* pInfo = &pData[i];
-    if (cJSON_AddItemToArray(pFiles, pField = cJSON_CreateObject()) != 0) {
+    if (!cJSON_AddItemToArray(pFiles, pField = cJSON_CreateObject())) {
       wInfo("vgId:%d, failed to add field to files", pWal->cfg.vgId);
     }
     if (pField == NULL) {

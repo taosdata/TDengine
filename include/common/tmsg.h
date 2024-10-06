@@ -1685,6 +1685,7 @@ typedef struct {
 
 typedef struct {
   int32_t openVnodes;
+  int32_t dropVnodes;
   int32_t totalVnodes;
   int32_t masterNum;
   int64_t numOfSelectReqs;

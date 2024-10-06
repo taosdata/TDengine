@@ -1060,7 +1060,7 @@ _end:
   return code;
 }
 
-int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
   SSessionKey* pWinKey = pKey;
   const TSKEY  gap = 0;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1082,21 +1082,27 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
   int32_t size = taosArrayGetSize(pWinStates);
   if (size == 0) {
     void* pFileStore = getStateFileStore(pFileState);
-    void* p = NULL;
+    void* pRockVal = NULL;
 
-    int32_t code_file = getCountWinStateFromDisc(pFileStore, pWinKey, &p, pVLen);
+    int32_t code_file = getCountWinStateFromDisc(pFileStore, pWinKey, &pRockVal, pVLen);
     if (code_file == TSDB_CODE_SUCCESS && isFlushedState(pFileState, endTs, 0)) {
-      (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
-      if (!(*pVal)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      int32_t     valSize = *pVLen;
+      COUNT_TYPE* pWinStateCount = (COUNT_TYPE*)((char*)(pRockVal) + (valSize - sizeof(COUNT_TYPE)));
+      if ((*pWinStateCount) == winCount) {
+        code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
         QUERY_CHECK_CODE(code, lino, _end);
-      }
-
-      qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey,
+      } else {
+        (*pVal) = createSessionWinBuff(pFileState, pWinKey, pRockVal, pVLen);
+        if (!(*pVal)) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey,
              pWinKey->win.ekey, code_file);
+      }
     } else {
       code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
-      taosMemoryFree(p);
+      taosMemoryFree(pRockVal);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {

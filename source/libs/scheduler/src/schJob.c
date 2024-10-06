@@ -728,7 +728,7 @@ void schFreeJobImpl(void *job) {
   uint64_t queryId = pJob->queryId;
   int64_t  refId = pJob->refId;
 
-  qDebug("qid:0x%" PRIx64 " begin to free sch job, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qDebug("QID:0x%" PRIx64 " begin to free sch job, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 
   schDropJobAllTasks(pJob);
 
@@ -775,7 +775,7 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
-  int32_t code = tsem_destroy(&pJob->rspSem); 
+  int32_t code = tsem_destroy(&pJob->rspSem);
   if (code) {
     qError("tsem_destroy failed, error:%s", tstrerror(code));
   }
@@ -786,7 +786,7 @@ void schFreeJobImpl(void *job) {
     schCloseJobRef();
   }
 
-  qDebug("qid:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qDebug("QID:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 }
 
 int32_t schJobFetchRows(SSchJob *pJob) {
@@ -797,7 +797,7 @@ int32_t schJobFetchRows(SSchJob *pJob) {
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {
       SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-      code = tsem_wait(&pJob->rspSem); 
+      code = tsem_wait(&pJob->rspSem);
       if (code) {
         qError("tsem_wait for fetch rspSem failed, error:%s", tstrerror(code));
         SCH_RET(code);
@@ -821,7 +821,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("qid:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_JRET(terrno);
   }
 
@@ -831,7 +831,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   if (pReq->sql) {
     pJob->sql = taosStrdup(pReq->sql);
     if (NULL == pJob->sql) {
-      qError("qid:0x%" PRIx64 " strdup sql %s failed", pReq->pDag->queryId, pReq->sql);
+      qError("QID:0x%" PRIx64 " strdup sql %s failed", pReq->pDag->queryId, pReq->sql);
       SCH_ERR_JRET(terrno);
     }
   }
@@ -839,7 +839,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   if (pReq->allocatorRefId > 0) {
     pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
     if (pJob->allocatorRefId <= 0) {
-      qError("qid:0x%" PRIx64 " nodesMakeAllocatorWeakRef failed", pReq->pDag->queryId);
+      qError("QID:0x%" PRIx64 " nodesMakeAllocatorWeakRef failed", pReq->pDag->queryId);
       SCH_ERR_JRET(terrno);
     }
   }
@@ -851,11 +851,11 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->pWorkerCb = pReq->pWorkerCb;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
-    qDebug("qid:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
+    qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
   } else {
     pJob->nodeList = taosArrayDup(pReq->pNodeList, NULL);
     if (NULL == pJob->nodeList) {
-      qError("qid:0x%" PRIx64 " taosArrayDup failed, origNum:%d", pReq->pDag->queryId,
+      qError("QID:0x%" PRIx64 " taosArrayDup failed, origNum:%d", pReq->pDag->queryId,
              (int32_t)taosArrayGetSize(pReq->pNodeList));
       SCH_ERR_JRET(terrno);
     }
@@ -918,7 +918,7 @@ _return:
 
 int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
   int32_t code = 0;
-  qDebug("qid:0x%" PRIx64 " sch job refId 0x%" PRIx64 " started", pReq->pDag->queryId, pJob->refId);
+  qDebug("QID:0x%" PRIx64 " sch job refId 0x%" PRIx64 " started", pReq->pDag->queryId, pJob->refId);
 
   SCH_ERR_RET(schLaunchJob(pJob));
 
@@ -926,7 +926,7 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
     SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
     code = tsem_wait(&pJob->rspSem);
     if (code) {
-      qError("qid:0x%" PRIx64 " tsem_wait sync rspSem failed, error:%s", pReq->pDag->queryId, tstrerror(code));
+      qError("QID:0x%" PRIx64 " tsem_wait sync rspSem failed, error:%s", pReq->pDag->queryId, tstrerror(code));
       SCH_ERR_RET(code);
     }
   }
@@ -1191,7 +1191,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
 
   (void)schAcquireJob(rId, &pJob);
   if (NULL == pJob) {
-    qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, qId, tId, rId);
+    qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, qId, tId, rId);
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 
