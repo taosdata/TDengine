@@ -1952,7 +1952,7 @@ static void cliDoReq(queue* wq, SCliThrd* pThrd) {
     (*cliAsyncHandle[pReq->type])(pThrd, pReq);
     count++;
   }
-
+  int32_t code = 0;
   while (!QUEUE_IS_EMPTY(&pThrd->batchSendSet)) {
     queue* el = QUEUE_HEAD(&pThrd->batchSendSet);
     QUEUE_REMOVE(el);
@@ -1960,7 +1960,11 @@ static void cliDoReq(queue* wq, SCliThrd* pThrd) {
     SCliConn* conn = QUEUE_DATA(el, SCliConn, batchSendq);
     conn->inThreadSendq = 0;
     QUEUE_INIT(&conn->batchSendq);
-    TAOS_UNUSED(cliBatchSend(conn, 1));
+    code = cliBatchSend(conn, 1);
+    if (code != 0) {
+      tWarn("%s conn %p failed to send req since %s", pThrd->pInst->label, conn, tstrerror(code));
+      TAOS_UNUSED(transUnrefCliHandle(conn));
+    }
   }
   QUEUE_INIT(&pThrd->batchSendSet);
   if (count >= 2) {
