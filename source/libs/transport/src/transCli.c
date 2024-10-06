@@ -1960,7 +1960,7 @@ static void cliDoReq(queue* wq, SCliThrd* pThrd) {
     SCliConn* conn = QUEUE_DATA(el, SCliConn, batchSendq);
     conn->inThreadSendq = 0;
     QUEUE_INIT(&conn->batchSendq);
-    cliBatchSend(conn, 1);
+    TAOS_UNUSED(cliBatchSend(conn, 1));
   }
   QUEUE_INIT(&pThrd->batchSendSet);
   if (count >= 2) {
