@@ -80,6 +80,7 @@ class TdeInstance():
         # An "Tde Instance" will *contain* a "sub process" object, with will/may use a thread internally
         # self._smThread    = ServiceManagerThread()
         self._subProcess  = None # type: Optional[TdeSubProcess]
+        self._taosAdapterSubProcess = None
 
     def getDbTarget(self):
         return DbTarget(self.getCfgDir(), self.getHostAddr(), self._port)
@@ -138,6 +139,136 @@ rpcMaxTime 101
         f.write(cfgContent)
         f.close()
 
+    def generateTaosadapterCfgFile(self):
+        # print("Logger = {}".format(logger))
+        # buildPath = self.getBuildPath()
+        # taosdPath = self._buildPath + "/build/bin/taosd"
+
+        cfgDir  = self.getCfgDir()
+        cfgFile = cfgDir + "/taosadapter.toml" # TODO: inquire if this is fixed
+        if os.path.exists(cfgFile):
+            if os.path.isfile(cfgFile):
+                Logging.warning("Config file exists already, skip creation: {}".format(cfgFile))
+                return # cfg file already exists, nothing to do
+            else:
+                raise CrashGenError("Invalid config file: {}".format(cfgFile))
+        # Now that the cfg file doesn't exist
+        if os.path.exists(cfgDir):
+            if not os.path.isdir(cfgDir):
+                raise CrashGenError("Invalid config dir: {}".format(cfgDir))
+            # else: good path
+        else:
+            os.makedirs(cfgDir, exist_ok=True) # like "mkdir -p"
+        # Now we have a good cfg dir
+        # cfgValues = {
+        #     'runDir':   self.getRunDir(),
+        #     'ip':       'localhost', # TODO: change to a network addressable ip
+        #     'port':     self._port,
+        #     'fepPort':  self._fepPort,
+        # }
+        cfgTemplate = """
+debug = true
+taosConfigDir = ""
+port = 6041
+httpCodeServerError = false
+smlAutoCreateDB = false
+instanceId = 32
+[cors]
+allowAllOrigins = true
+[pool]
+maxWait = 0
+waitTimeout = 60
+
+[ssl]
+enable = false
+certFile = ""
+keyFile = ""
+
+[log]
+level = "info"
+rotationCount = 30
+keepDays = 30
+rotationSize = "1GB"
+compress = false
+reservedDiskSize = "1GB"
+enableRecordHttpSql = false
+sqlRotationCount = 2
+sqlRotationTime = "24h"
+sqlRotationSize = "1GB"
+[monitor]
+disable = true
+collectDuration = "3s"
+incgroup = false
+pauseQueryMemoryThreshold = 70
+pauseAllMemoryThreshold = 80
+identity = ""
+[uploadKeeper]
+enable = true
+url = "http://127.0.0.1:6043/adapter_report"
+interval = "15s"
+timeout = "5s"
+retryTimes = 3
+retryInterval = "5s"
+[opentsdb]
+enable = true
+[influxdb]
+enable = true
+[statsd]
+enable = false
+port = 6044
+db = "statsd"
+user = "root"
+password = "taosdata"
+worker = 10
+gatherInterval = "5s"
+protocol = "udp4"
+maxTCPConnections = 250
+tcpKeepAlive = false
+allowPendingMessages = 50000
+deleteCounters = true
+deleteGauges = true
+deleteSets = true
+deleteTimings = true
+[collectd]
+enable = false
+port = 6045
+db = "collectd"
+user = "root"
+password = "taosdata"
+worker = 10
+[opentsdb_telnet]
+enable = false
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+batchSize = 1
+flushInterval = "0s"
+[node_exporter]
+enable = false
+db = "node_exporter"
+user = "root"
+password = "taosdata"
+urls = ["http://localhost:9100"]
+responseTimeout = "5s"
+httpUsername = ""
+httpPassword = ""
+httpBearerTokenString = ""
+caCertFile = ""
+certFile = ""
+keyFile = ""
+insecureSkipVerify = true
+gatherDuration = "5s"
+[prometheus]
+enable = true
+"""
+        # cfgContent = cfgTemplate.format_map(cfgValues)
+        f = open(cfgFile, "w")
+        f.write(cfgTemplate)
+        f.close()
+
     def rotateLogs(self):
         logPath = self.getLogDir()
         # ref: https://stackoverflow.com/questions/1995373/deleting-all-files-in-a-directory-with-python/1995397
@@ -151,11 +282,17 @@ rpcMaxTime 101
     def getExecFile(self): # .../taosd
         return self._buildDir + "/build/bin/taosd"
 
+    def getTaosadapterExecFile(self): # .../taosadapter
+        return self._buildDir + "/build/bin/taosadapter"
+
     def getRunDir(self) -> DirPath : # TODO: rename to "root dir" ?!
         return DirPath(self._buildDir + self._subdir)
 
     def getCfgDir(self) -> DirPath : # path, not file
         return DirPath(self.getRunDir() + "/cfg")
+
+    def getTaosadapterCfg(self):
+        return DirPath(self.getRunDir() + "/cfg/taosadapter.toml")
 
     def getLogDir(self) -> DirPath :
         return DirPath(self.getRunDir() + "/log")
@@ -170,6 +307,9 @@ rpcMaxTime 101
         else:
             # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
             return ["exec " + self.getExecFile(), '-c', self.getCfgDir()] # used in subproce.Popen()
+
+    def getTaosadapterServiceCmdLine(self): # to start the instance
+        return ["exec " + self.getTaosadapterExecFile(), '-c', self.getTaosadapterCfg()] # used in subproce.Popen()
 
     def _getDnodes(self, dbc):
         dbc.query("select * from information_schema.ins_dnodes")
@@ -208,15 +348,30 @@ rpcMaxTime 101
 
         Logging.info("Starting TDengine instance: {}".format(self))
         self.generateCfgFile() # service side generates config file, client does not
+        taosadapterExecFile = self.getTaosadapterExecFile()
+        if Config.getConfig().connector_type == "rest":
+            if os.path.exists(taosadapterExecFile) :
+                self.generateTaosadapterCfgFile() # service side generates config file, client does not
+            else:
+                Logging.error(f"{taosadapterExecFile} not exists and skip generate taosadapter.toml")
         self.rotateLogs()
-
         # self._smThread.start(self.getServiceCmdLine(), self.getLogDir()) # May raise exceptions
+        if Config.getConfig().connector_type == "rest":
+            if os.path.exists(self.getTaosadapterExecFile()):
+                self._taosAdapterSubProcess = TdeSubProcess(self.getTaosadapterServiceCmdLine(),  self.getLogDir())
+            else:
+                Logging.error(f"Starting taosAdapter error, {taosadapterExecFile} not exists")
         self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
 
     def stop(self):
         print("self._subProcess----", self._subProcess)
+        print("self._taosAdapterSubProcess----", self._taosAdapterSubProcess)
         self._subProcess.stop()
+        if Config.getConfig().connector_type == "rest":
+            if os.path.exists(self.getTaosadapterExecFile()):
+                self._taosAdapterSubProcess.stop()
         self._subProcess = None
+        self._taosAdapterSubProcess = None
 
     def isFirst(self):
         return self._tInstNum == 0
@@ -239,12 +394,12 @@ rpcMaxTime 101
 class TdeSubProcess:
     """
     A class to to represent the actual sub process that is the run-time
-    of a TDengine instance. 
+    of a TDengine instance.
 
     It takes a TdeInstance object as its parameter, with the rationale being
     "a sub process runs an instance".
 
-    We aim to ensure that this object has exactly the same life-cycle as the 
+    We aim to ensure that this object has exactly the same life-cycle as the
     underlying sub process.
     """
 
@@ -257,10 +412,9 @@ class TdeSubProcess:
 
         Logging.info("Attempting to start TAOS sub process...")
         self._popen     = self._start(cmdLine) # the actual sub process
-        self._smThread  = ServiceManagerThread(self, logDir)  # A thread to manage the sub process, mostly to process the IO
-        Logging.info("Successfully started TAOS process: {}".format(self))
-
-
+        if "taosadapter" not in ' '.join(cmdLine):
+            self._smThread  = ServiceManagerThread(self, logDir)  # A thread to manage the sub process, mostly to process the IO
+            Logging.info("Successfully started TAOS process: {}".format(self))
 
     def __repr__(self):
         # if self.subProcess is None:
