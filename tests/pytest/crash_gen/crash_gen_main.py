@@ -4751,37 +4751,41 @@ class TaskAddData(StateTransitionTask):
             taos.TaosStmt: The TaosStmt object with the data bound.
 
         """
-        tb_name = None
-        for row in lines:
-            if tb_name != row[0]:
-                tb_name = row[0]
-                # Dynamic tag binding based on tag_types list
-                tags = taos.new_bind_params(len(tag_dict))  # Dynamically set the count of tags
-                for i, tag_name in enumerate(tag_dict):
-                    bind_type = tag_dict[tag_name].lower()
-                    if "unsigned" in tag_dict[tag_name].lower():
-                        bind_type = bind_type.replace(" unsigned", "_unsigned")
-                    if bind_type == "varbinary" or bind_type == "geometry":
-                        getattr(tags[i], bind_type)((row[len(col_dict) + i + 1]).encode('utf-8'))  # Dynamically call the appropriate binding method
-                    else:
-                        getattr(tags[i], bind_type)(row[len(col_dict) + i + 1])  # Dynamically call the appropriate binding method
-                stmt.set_tbname_tags(tb_name, tags)
+        try:
+            tb_name = None
+            for row in lines:
+                if tb_name != row[0]:
+                    tb_name = row[0]
+                    # Dynamic tag binding based on tag_types list
+                    tags = taos.new_bind_params(len(tag_dict))  # Dynamically set the count of tags
+                    for i, tag_name in enumerate(tag_dict):
+                        bind_type = tag_dict[tag_name].lower()
+                        if "unsigned" in tag_dict[tag_name].lower():
+                            bind_type = bind_type.replace(" unsigned", "_unsigned")
+                        if bind_type == "varbinary" or bind_type == "geometry":
+                            getattr(tags[i], bind_type)((row[len(col_dict) + i + 1]).encode('utf-8'))  # Dynamically call the appropriate binding method
+                        else:
+                            getattr(tags[i], bind_type)(row[len(col_dict) + i + 1])  # Dynamically call the appropriate binding method
+                    stmt.set_tbname_tags(tb_name, tags)
 
-            # Dynamic value binding based on value_types list
-            values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
-            for j, col_name in enumerate(col_dict):
-                bind_type = col_dict[col_name].lower()
-                if "unsigned" in col_dict[col_name].lower():
-                    bind_type = bind_type.replace("unsigned", "_unsigned")
-                if j == 0:
-                    getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
-                else:
-                    if bind_type == "varbinary" or bind_type == "geometry":
-                        getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
+                # Dynamic value binding based on value_types list
+                values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
+                for j, col_name in enumerate(col_dict):
+                    bind_type = col_dict[col_name].lower()
+                    if "unsigned" in col_dict[col_name].lower():
+                        bind_type = bind_type.replace("unsigned", "_unsigned")
+                    if j == 0:
+                        getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
                     else:
-                        getattr(values[j], bind_type)(row[1 + j])  # Dynamically call the appropriate binding method
-            stmt.bind_param(values)
-        return stmt
+                        if bind_type == "varbinary" or bind_type == "geometry":
+                            getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
+                        else:
+                            getattr(values[j], bind_type)(row[1 + j])  # Dynamically call the appropriate binding method
+                stmt.bind_param(values)
+            return stmt
+        except Exception as e:  # Any exception at all
+            self.logError(f"func bind_row_by_row error: {e}")
+            raise
 
     def _addDataBySTMT(self, db: Database, dbc):
         """
