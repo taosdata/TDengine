@@ -920,6 +920,9 @@ impl DataSourceDefinition {
     }
 }
 
+#[cfg(test)]
+use std::str::FromStr;
+
 #[test]
 fn test() {
     use std::str::FromStr;
