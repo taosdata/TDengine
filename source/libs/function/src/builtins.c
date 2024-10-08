@@ -2082,8 +2082,8 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (2 != numOfParams) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, "FORECAST require two parameters");
+  if (2 != numOfParams && 1 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "FORECAST require 1 or 2 parameters");
   }
 
   uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
@@ -2091,22 +2091,25 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST only support mathable column");
   }
 
-  uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
-  if (TSDB_DATA_TYPE_BINARY != optionType) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be varchar");
+  if (numOfParams == 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+    if (TSDB_DATA_TYPE_BINARY != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (!taosAnalGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "FORECAST option should include algo field");
+    }
+
+    pValue->notReserved = true;
   }
 
-  SNode* pOption = nodesListGetNode(pFunc->pParameterList, 1);
-  if (QUERY_NODE_VALUE != nodeType(pOption)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be value");
-  }
-
-  SValueNode* pValue = (SValueNode*)pOption;
-  if (!taosAnalGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
-    return invaildFuncParaValueErrMsg(pErrBuf, len, "FORECAST option should include algo field");
-  }
-
-  pValue->notReserved = true;
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
   return TSDB_CODE_SUCCESS;
 }

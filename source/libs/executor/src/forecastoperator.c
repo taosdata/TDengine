@@ -35,7 +35,7 @@ typedef struct {
   int64_t  numOfRows;
   uint64_t groupId;
   int32_t  numOfBlocks;
-  int32_t  optPeriod;
+  int32_t  optRows;
   int16_t  resTsSlot;
   int16_t  resValSlot;
   int16_t  resLowSlot;
@@ -268,20 +268,20 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
     resCurRow++;
   }
 
-  // for (int32_t i = rows; i < pSupp->optPeriod; ++i) {
-  //   colDataSetNNULL(pResValCol, rows, (pSupp->optPeriod - rows));
+  // for (int32_t i = rows; i < pSupp->optRows; ++i) {
+  //   colDataSetNNULL(pResValCol, rows, (pSupp->optRows - rows));
   //   if (pResTsCol != NULL) {
-  //     colDataSetNNULL(pResTsCol, rows, (pSupp->optPeriod - rows));
+  //     colDataSetNNULL(pResTsCol, rows, (pSupp->optRows - rows));
   //   }
   //   if (pResLowCol != NULL) {
-  //     colDataSetNNULL(pResLowCol, rows, (pSupp->optPeriod - rows));
+  //     colDataSetNNULL(pResLowCol, rows, (pSupp->optRows - rows));
   //   }
   //   if (pResHighCol != NULL) {
-  //     colDataSetNNULL(pResHighCol, rows, (pSupp->optPeriod - rows));
+  //     colDataSetNNULL(pResHighCol, rows, (pSupp->optRows - rows));
   //   }
   // }
 
-  // if (rows == pSupp->optPeriod) {
+  // if (rows == pSupp->optRows) {
   //   pResValCol->hasNull = false;
   // }
 
@@ -434,22 +434,38 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
       int32_t        numOfParam = LIST_LENGTH(pFunc->pParameterList);
 
       if (pFunc->funcType == FUNCTION_TYPE_FORECAST) {
-        if (numOfParam != 3) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-        SNode* p1 = nodesListGetNode(pFunc->pParameterList, 0);
-        SNode* p2 = nodesListGetNode(pFunc->pParameterList, 1);
-        SNode* p3 = nodesListGetNode(pFunc->pParameterList, 2);
-        if (p1 == NULL || p2 == NULL || p3 == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-        if (p1->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-        if (p2->type != QUERY_NODE_VALUE) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-        if (p3->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-        SColumnNode* pValNode = (SColumnNode*)p1;
-        SValueNode*  pOptNode = (SValueNode*)p2;
-        SColumnNode* pTsNode = (SColumnNode*)p3;
-        pSupp->inputTsSlot = pTsNode->slotId;
-        pSupp->inputPrecision = pTsNode->node.resType.precision;
-        pSupp->inputValSlot = pValNode->slotId;
-        pSupp->inputValType = pValNode->node.resType.type;
-        tstrncpy(pSupp->algoOpt, pOptNode->literal, sizeof(pSupp->algoOpt));
+        if (numOfParam == 3) {
+          SNode* p1 = nodesListGetNode(pFunc->pParameterList, 0);
+          SNode* p2 = nodesListGetNode(pFunc->pParameterList, 1);
+          SNode* p3 = nodesListGetNode(pFunc->pParameterList, 2);
+          if (p1 == NULL || p2 == NULL || p3 == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          if (p1->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          if (p2->type != QUERY_NODE_VALUE) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          if (p3->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          SColumnNode* pValNode = (SColumnNode*)p1;
+          SValueNode*  pOptNode = (SValueNode*)p2;
+          SColumnNode* pTsNode = (SColumnNode*)p3;
+          pSupp->inputTsSlot = pTsNode->slotId;
+          pSupp->inputPrecision = pTsNode->node.resType.precision;
+          pSupp->inputValSlot = pValNode->slotId;
+          pSupp->inputValType = pValNode->node.resType.type;
+          tstrncpy(pSupp->algoOpt, pOptNode->literal, sizeof(pSupp->algoOpt));
+        } else if (numOfParam == 2) {
+          SNode* p1 = nodesListGetNode(pFunc->pParameterList, 0);
+          SNode* p2 = nodesListGetNode(pFunc->pParameterList, 1);
+          if (p1 == NULL || p2 == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          if (p1->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          if (p2->type != QUERY_NODE_COLUMN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          SColumnNode* pValNode = (SColumnNode*)p1;
+          SColumnNode* pTsNode = (SColumnNode*)p2;
+          pSupp->inputTsSlot = pTsNode->slotId;
+          pSupp->inputPrecision = pTsNode->node.resType.precision;
+          pSupp->inputValSlot = pValNode->slotId;
+          pSupp->inputValType = pValNode->node.resType.type;
+          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANAL_ALGO_OPTION_LEN);
+        } else {
+          return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        }
       }
     }
   }
@@ -506,11 +522,18 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
     if (code != 0) goto _OVER;
   }
 
-  bool hasPeriod = taosAnalGetOptInt(pSupp->algoOpt, "period", &pSupp->optPeriod);
+  bool hasPeriod = taosAnalGetOptInt(pSupp->algoOpt, "period", NULL);
   if (!hasPeriod) {
-    pSupp->optPeriod = ANAL_FORECAST_DEFAULT_PERIOD;
-    qInfo("forecast period not found from %s, use default:%d", pSupp->algoOpt, pSupp->optPeriod);
-    code = taosAnalBufWriteOptInt(pBuf, "period", pSupp->optPeriod);
+    qInfo("forecast period not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PERIOD);
+    code = taosAnalBufWriteOptInt(pBuf, "period", ANAL_FORECAST_DEFAULT_PERIOD);
+    if (code != 0) goto _OVER;
+  }
+
+  bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
+  if (!hasRows) {
+    pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
+    qInfo("forecast rows not found from %s, use default:%d", pSupp->algoOpt, pSupp->optRows);
+    code = taosAnalBufWriteOptInt(pBuf, "rows", pSupp->optRows);
     if (code != 0) goto _OVER;
   }
 
