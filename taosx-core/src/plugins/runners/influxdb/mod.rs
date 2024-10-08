@@ -23,7 +23,7 @@ use super::get_plugin_dir;
 
 mod config;
 
-const EXE: &'static str = "taosx-influxdb.jar";
+const EXE: &str = "taosx-influxdb.jar";
 
 pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     let path = influxdb_jar_path()?;
@@ -77,20 +77,17 @@ pub async fn influxdb_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
     // save the temporary file to task dir
-    match task_id {
-        Some(task_id) => {
-            let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
-            let path = path.join(format!(
-                "{}-{}-{}.{}",
-                task_id,
-                "influxdb",
-                chrono::Local::now().format("%Y%m%d%H%M"),
-                "toml"
-            ));
-            let _ = fs::copy(&config_path, path);
-        }
-        None => {}
+    if let Some(task_id) = task_id {
+        let path = get_data_dir().join("tasks").join(task_id.to_string());
+        std::fs::create_dir_all(&path).unwrap();
+        let path = path.join(format!(
+            "{}-{}-{}.{}",
+            task_id,
+            "influxdb",
+            chrono::Local::now().format("%Y%m%d%H%M"),
+            "toml"
+        ));
+        let _ = fs::copy(&config_path, path);
     }
     // create socket channel
     let mut ipc = build_ipc(
@@ -141,7 +138,7 @@ pub async fn influxdb_to_taos(
     let arg_coverage = {
         let coverage_report_file = format!(
             "/data/coverage/influxdb/jacoco_test_report_{}.exec",
-            Local::now().format("%Y%m%d%H%M%S%3f").to_string()
+            Local::now().format("%Y%m%d%H%M%S%3f")
         );
         format!(
             "-javaagent:/data/coverage/jacocoagent.jar=destfile={},output=file",
@@ -266,8 +263,8 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .arg("-fetch")
             .arg(&c.version)
             .arg(&c.url)
-            .arg(&c.username.unwrap())
-            .arg(&c.password.unwrap())
+            .arg(c.username.unwrap())
+            .arg(c.password.unwrap())
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped())
             .output()
@@ -280,8 +277,8 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .arg("-fetch")
             .arg(&c.version)
             .arg(&c.url)
-            .arg(&c.token.unwrap())
-            .arg(&c.org_id.unwrap())
+            .arg(c.token.unwrap())
+            .arg(c.org_id.unwrap())
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped())
             .output()
@@ -291,7 +288,7 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
 
     if output.status.success() {
         let s = String::from_utf8(output.stdout.clone())?;
-        if s == "" {
+        if s.is_empty() {
             anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
         }
         let mut vec = Vec::new();
@@ -322,22 +319,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "influxdb".to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = validate_source_influxdb(c).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     "influxdb".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(validate) => validate,
             }
@@ -404,9 +393,9 @@ async fn validate_source_influxdb(
                     x_version.unwrap().to_str().unwrap()
                 )
             } else if x_build.is_some() {
-                format!("{}", x_build.unwrap().to_str().unwrap())
+                x_build.unwrap().to_str().unwrap().to_string()
             } else if x_version.is_some() {
-                format!("{}", x_version.unwrap().to_str().unwrap())
+                x_version.unwrap().to_str().unwrap().to_string()
             } else {
                 "unknown".to_string()
             };
@@ -474,8 +463,8 @@ mod tests {
     async fn test_invalid() {
         let dsn = Dsn::from_str("influxdb://?version=2.7").unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("influxdb", validation.data_source);
         assert!(validation.version.is_none());
         assert_eq!(
@@ -486,8 +475,8 @@ mod tests {
         let dsn =
             Dsn::from_str("influxdb://127.0.0.1:8086?version=2.7&orgId=abc&token=123").unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("influxdb", validation.data_source);
         assert!(validation.version.is_none());
         assert!(validation
@@ -507,7 +496,7 @@ mod tests {
             )
             .unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // port error
@@ -517,7 +506,7 @@ mod tests {
             )
             .unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // success
@@ -527,8 +516,8 @@ mod tests {
             )
             .unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(true, dsv.valid);
-            assert_eq!(true, dsv.support);
+            assert!(dsv.valid);
+            assert!(dsv.support);
             assert_eq!("influxdb", dsv.data_source);
             assert_eq!("OSS - 1.8.0", dsv.version.unwrap());
             dbg!(dsv.message);
@@ -543,29 +532,29 @@ mod tests {
         {
             let dsn = Dsn::from_str("influxdb://192.168.2.13:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // port error
         {
             let dsn = Dsn::from_str("influxdb://192.168.2.12:8087/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // token error
         {
             let dsn = Dsn::from_str("influxdb://192.168.2.12:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw=").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // success
         {
             let dsn = Dsn::from_str("influxdb://192.168.2.12:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(true, dsv.valid);
-            assert_eq!(true, dsv.support);
+            assert!(dsv.valid);
+            assert!(dsv.support);
             assert_eq!("influxdb", dsv.data_source);
             assert_eq!("OSS - v2.7.1", dsv.version.unwrap());
             dbg!(dsv.message);
@@ -579,15 +568,15 @@ mod tests {
         {
             let dsn = Dsn::from_str("influxdb+https://us-east-1-1.aws.cloud2.influxdata.com:443/?version=2.7&orgId=18cda906d2dda66c&token=soX1nb8pVzjuYlNomO717q19aS0Aa-aA5M4Wnjf1pGYAeepm7M2OmuOfANWHX_Dd0HA8LVqe8SVV83d5-QCBeQ=").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(false, dsv.valid);
+            assert!(!dsv.valid);
             dbg!(dsv.message);
         }
         // success
         {
             let dsn = Dsn::from_str("influxdb+https://us-east-1-1.aws.cloud2.influxdata.com:443/?version=2.7&orgId=18cda906d2dda66c&token=soX1nb8pVzjuYlNomO717q19aS0Aa-aA5M4Wnjf1pGYAeepm7M2OmuOfANWHX_Dd0HA8LVqe8SVV83d5-QCBeQ==").unwrap();
             let dsv = is_valid(&dsn).await;
-            assert_eq!(true, dsv.valid);
-            assert_eq!(true, dsv.support);
+            assert!(dsv.valid);
+            assert!(dsv.support);
             assert_eq!("influxdb", dsv.data_source);
             assert_eq!("Cloud", dsv.version.unwrap());
             dbg!(dsv.message);

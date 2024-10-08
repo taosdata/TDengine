@@ -556,7 +556,7 @@ fn save_metrics(metrics: Arc<CoreMetrics>) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::get_data_dir;
-    const TEST_STABLE: &'static str = "test_stable";
+    const TEST_STABLE: &str = "test_stable";
 
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
     #[tokio::test]

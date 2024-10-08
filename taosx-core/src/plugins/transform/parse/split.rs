@@ -165,7 +165,7 @@ impl SplitOps {
                         })
                         .collect()
                 }
-                Ok(split_iter(str, &sep))
+                Ok(split_iter(str, sep))
             }
         }
     }

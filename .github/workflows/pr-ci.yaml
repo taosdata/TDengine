@@ -29,8 +29,46 @@ jobs:
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
 
+
+  check-stable:
+    name: Stable Channel
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Compile check
+        run: |
+          cargo +stable check --locked --workspace --all --tests --examples --target-dir targets/stable
+
+  check:
+    name: Check
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Compile check
+        run: |
+          cargo check --locked --workspace --all --tests --examples
+
+      - name: Format check
+        run: |
+          cargo fmt --check --all
+
+      - name: Typos check
+        run: |
+          typos --version || cargo install typos-cli
+          typos src taosx-* README.md
+
+      - name: Clippy check
+        run: |
+          cargo clippy --locked --workspace --all --tests --examples
+
   build_rust:
-    needs: remove_artifacts
+    needs: check
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
@@ -63,7 +101,7 @@ jobs:
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taosx ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
-  
+
   build_explorer:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -192,7 +230,7 @@ jobs:
   deploy_with_docker:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [build_rust, build_go, build_java, build_explorer]
-    outputs: 
+    outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
       EXPLORER_PORT: ${{ steps.run_container.outputs.explorer_port }}
@@ -255,7 +293,7 @@ jobs:
           # 删除之前的测试结果，以防重新执行的时候由于旧的数据导致计算通过率错误
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
-          
+
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest  --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
@@ -283,7 +321,7 @@ jobs:
           # 若通过率小于 100 则返回失败
           echo "Pass Rate: $pass_rate"
           awk "BEGIN {exit ($pass_rate < 100)}"
-      
+
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, generate_report]
@@ -296,14 +334,14 @@ jobs:
           echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
           docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
           docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-  
+
 
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, generate_report, clean_up]
     # needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, clean_up]
     if: failure()
-    steps: 
+    steps:
       - name: Send Feishu Message
         run: |
           function post_to_feishu() {
@@ -327,4 +365,3 @@ jobs:
           Test Report: $REPORT_BASE_URL/$DIR_PATH/allure_report/\n"
 
           post_to_feishu "$PR_INFO"
-        

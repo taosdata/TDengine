@@ -217,13 +217,13 @@ async fn process_tcp_stream(id: usize) -> Result<()> {
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 20)]
-async fn main() -> Result<()> {
+async fn main() {
     let mut handles = vec![];
     for i in 0..4 {
         handles.push(tokio::spawn(process_tcp_stream(i)));
     }
     for h in handles {
-        h.await?.unwrap();
+        h.await.unwrap().unwrap();
     }
-    panic!("expect run forever");
+    panic!("expect run forever")
 }

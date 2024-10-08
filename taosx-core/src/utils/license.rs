@@ -250,7 +250,7 @@ async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
-    let source_dsn_context = || format!("Source error with {}", mask_dsn(&from));
+    let source_dsn_context = || format!("Source error with {}", mask_dsn(from));
     let sink_dsn_context = || format!("Sink error with {}", mask_dsn(to));
     // Check if enterprise available
     match (from.driver.as_str(), to.driver.as_str()) {
@@ -287,7 +287,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                         return Ok(kind);
                     }
                 }
-                if !is_cloud(&to) {
+                if !is_cloud(to) {
                     let kind = check_grant_of(&sink_builder, &sink_version, "active_active")
                         .in_current_span()
                         .await
@@ -314,7 +314,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     }
                 };
 
-                if is_cloud(&to) {
+                if is_cloud(to) {
                     return Ok(LicenseKind::good());
                 }
                 let edition = sink_builder
@@ -403,7 +403,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("Failed to connect target server: {err}");
                 }
             };
-            if is_cloud(&to) {
+            if is_cloud(to) {
                 return Ok(LicenseKind::good());
             }
             let edition = sink_builder
@@ -531,7 +531,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("Failed to connect sink server: {err}");
                 }
             };
-            if is_cloud(&to) {
+            if is_cloud(to) {
                 return Ok(LicenseKind::good());
             }
             let edition = sink_builder
@@ -567,12 +567,10 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("The current connector {connector} is not supported by license.");
                 }
             };
-            return Ok(
-                check_connector_grant_of(&sink_builder, &sink_version, connector)
-                    .in_current_span()
-                    .await
-                    .with_context(sink_dsn_context)?,
-            );
+            return check_connector_grant_of(&sink_builder, &sink_version, connector)
+                .in_current_span()
+                .await
+                .with_context(sink_dsn_context);
         }
         _ => (),
     };
@@ -848,7 +846,7 @@ mod tests {
 
             // c.3 good
             conn.exec_many([
-                format!("delete from test.test_grants_full"),
+                "delete from test.test_grants_full".to_string(),
                 format!(
                     r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
                     '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,

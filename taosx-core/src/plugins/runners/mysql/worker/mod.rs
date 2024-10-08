@@ -27,7 +27,7 @@ pub async fn migrate_history(config: MySqlConfig, cancel: CancellationToken) -> 
     // mark the current time
     let mut now = Utc::now();
     // origin task end
-    let origin_end = config.task.end.clone();
+    let origin_end = config.task.end;
 
     // if origin end is None, or origin end is greater than now, set end to now
     let mut config_clone = config.clone();
@@ -86,7 +86,6 @@ pub async fn migrate_history(config: MySqlConfig, cancel: CancellationToken) -> 
             // sleep 2 second
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
-        return ();
     };
     tokio::select! {
         _ = future_sync => {}
@@ -259,7 +258,7 @@ pub async fn get_all_distinct_values(
     let interval = config.task.interval;
 
     // split the query into multiple windows
-    let window_start = start.clone();
+    let window_start = start;
     // with time zone
     let mut window_start_with_tz = window_start.with_timezone(&time_zone);
     let end_with_tz = end.with_timezone(&time_zone);
@@ -483,8 +482,8 @@ fn generate_combinations(
         result.insert(SubSql {
             sql: filled_template,
             sub_values: distinct_values
-                .iter()
-                .map(|(_, v)| format!("{}", v))
+                .values()
+                .map(|v| v.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
         });
@@ -497,7 +496,7 @@ pub async fn set_breakpoint(
 ) -> anyhow::Result<()> {
     let task_id = format!("{}", config.task_id.unwrap_or(0));
     let sub_task_id = config.sub_task_id.clone().unwrap();
-    let breakpoint = format!("{}", breakpoint.to_rfc3339());
+    let breakpoint = breakpoint.to_rfc3339().to_string();
 
     // set break point and ignore error
     let _ = breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint);
@@ -506,9 +505,7 @@ pub async fn set_breakpoint(
 
 fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
-    if task_id.is_none() {
-        return None;
-    }
+    task_id?;
     // get all break points by task_id
     let breakpoints = breakpoints::breakpoints_get_all(&format!("{}", task_id.unwrap()));
     // find the earliest break point
@@ -689,7 +686,7 @@ mod tests {
             .unwrap();
 
         let result = set_breakpoint(&config, &breakpoint);
-        assert_eq!(result.await.is_ok(), true);
+        assert!(result.await.is_ok());
     }
 
     #[test]

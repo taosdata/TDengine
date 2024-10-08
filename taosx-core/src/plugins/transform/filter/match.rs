@@ -54,14 +54,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -78,14 +76,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -102,14 +98,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -126,14 +120,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -150,14 +142,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -174,14 +164,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -198,14 +186,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -222,14 +208,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -246,14 +230,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -272,14 +254,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -296,14 +276,12 @@ impl RecordFilter for MatchRecordFilter {
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -315,19 +293,17 @@ impl RecordFilter for MatchRecordFilter {
                                         .iter()
                                         .for_each(|data| {
                                             if value.is_f64() {
-                                                if data.unwrap() == value.as_f64().unwrap() as f64 {
+                                                if data.unwrap() == value.as_f64().unwrap() {
                                                     filter.push(true);
                                                 } else {
                                                     filter.push(false);
                                                 }
+                                            } else if data.unwrap().to_string().as_str()
+                                                == value.as_str().unwrap()
+                                            {
+                                                filter.push(true);
                                             } else {
-                                                if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
+                                                filter.push(false);
                                             }
                                         });
                                 }
@@ -345,14 +321,12 @@ impl RecordFilter for MatchRecordFilter {
                                                     } else {
                                                         filter.push(false);
                                                     }
+                                                } else if data.unwrap().to_string().as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
                                                 } else {
-                                                    if data.unwrap().to_string().as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                                    filter.push(false);
                                                 }
                                             });
                                     }
@@ -369,14 +343,12 @@ impl RecordFilter for MatchRecordFilter {
                                                     } else {
                                                         filter.push(false);
                                                     }
+                                                } else if data.unwrap().to_string().as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
                                                 } else {
-                                                    if data.unwrap().to_string().as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                                    filter.push(false);
                                                 }
                                             });
                                     }
@@ -393,14 +365,12 @@ impl RecordFilter for MatchRecordFilter {
                                                     } else {
                                                         filter.push(false);
                                                     }
+                                                } else if data.unwrap().to_string().as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
                                                 } else {
-                                                    if data.unwrap().to_string().as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                                    filter.push(false);
                                                 }
                                             });
                                     }
@@ -417,14 +387,12 @@ impl RecordFilter for MatchRecordFilter {
                                                     } else {
                                                         filter.push(false);
                                                     }
+                                                } else if data.unwrap().to_string().as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
                                                 } else {
-                                                    if data.unwrap().to_string().as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                                    filter.push(false);
                                                 }
                                             });
                                     }

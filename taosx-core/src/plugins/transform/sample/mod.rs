@@ -49,8 +49,7 @@ impl DsSampleIn {
         let json = self
             .input
             .iter()
-            .map(|value| serde_json::to_vec(value).unwrap())
-            .flatten()
+            .flat_map(|value| serde_json::to_vec(value).unwrap())
             .collect_vec();
 
         let schema = self.to_schema()?;

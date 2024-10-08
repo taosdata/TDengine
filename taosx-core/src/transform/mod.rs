@@ -227,9 +227,9 @@ impl RenameOpts {
                 })
                 .map_ok(|r| (r[0].to_string().into(), r[1].to_string().into()))
                 .try_collect();
-            return Ok(Self::Map {
+            Ok(Self::Map {
                 map: Arc::new(map?),
-            });
+            })
         } else {
             let mut reader = csv_lib::ReaderBuilder::new()
                 .has_headers(false)
@@ -249,9 +249,9 @@ impl RenameOpts {
                 })
                 .map_ok(|r| (r[0].to_string().into(), r[1].to_string().into()))
                 .try_collect();
-            return Ok(Self::Map {
+            Ok(Self::Map {
                 map: Arc::new(map?),
-            });
+            })
         }
     }
 
@@ -269,7 +269,7 @@ impl RenameOpts {
                 if split.len() != 2 {
                     anyhow::bail!("replace_with_regex config should be <regex>::<replace_with>")
                 }
-                let regex = Regex::new(split.get(0).unwrap())?;
+                let regex = Regex::new(split.first().unwrap())?;
                 Ok(regex
                     .replace_all(name, split.get(1).unwrap().to_string())
                     .to_string())
@@ -285,9 +285,9 @@ impl RenameOpts {
     }
 
     pub fn apply_in_place(&self, name: &mut String) -> anyhow::Result<()> {
-        let new = self.apply(&name)?;
+        let new = self.apply(name)?;
         name.clear();
-        name.extend(new.chars());
+        name.push_str(&new);
         Ok(())
     }
 }
@@ -578,8 +578,8 @@ impl Action {
                     a => a,
                 };
                 let field = Field::new(&action.name, Ty::VarChar, len as u32);
-                match meta {
-                    MetaUnit::Create(create) => match create {
+                if let MetaUnit::Create(create) = meta {
+                    match create {
                         MetaCreate::Super {
                             table_name: _,
                             columns: _,
@@ -604,8 +604,7 @@ impl Action {
                             tags.push(TagWithValue { field, value });
                         }
                         _ => (),
-                    },
-                    _ => (),
+                    }
                 }
             }
             Action::RenameTable(action) => match meta {
@@ -617,7 +616,7 @@ impl Action {
                     } => {
                         let s = action.apply(table_name)?;
                         table_name.clear();
-                        table_name.extend(s.chars());
+                        table_name.push_str(&s);
                     }
                     MetaCreate::Child {
                         table_name,
@@ -628,11 +627,11 @@ impl Action {
                         // change child table name and super table name.
                         let s = action.apply(table_name)?;
                         table_name.clear();
-                        table_name.extend(s.chars());
+                        table_name.push_str(&s);
 
-                        let s = action.apply(&using)?;
+                        let s = action.apply(using)?;
                         using.clear();
-                        using.extend(s.chars());
+                        using.push_str(&s);
                     }
                     MetaCreate::Normal {
                         table_name,
@@ -640,13 +639,13 @@ impl Action {
                     } => {
                         let s = action.apply(table_name)?;
                         table_name.clear();
-                        table_name.extend(s.chars());
+                        table_name.push_str(&s);
                     }
                 },
                 MetaUnit::Alter(alter) => {
                     let new = action.apply(&alter.table_name)?;
                     alter.table_name.clear();
-                    alter.table_name.extend(new.chars());
+                    alter.table_name.push_str(&new);
                 }
                 MetaUnit::Drop(drop) => match drop {
                     MetaDrop::Super { table_name } => action.apply_in_place(table_name)?,
@@ -662,20 +661,20 @@ impl Action {
                 }
             },
             Action::RenameChildTable(action) => match meta {
-                MetaUnit::Create(create) => match create {
-                    MetaCreate::Child {
+                MetaUnit::Create(create) => {
+                    if let MetaCreate::Child {
                         table_name,
                         using: _,
                         tags: _,
                         tag_num: _,
-                    } => {
+                    } = create
+                    {
                         // dbg!(action, &meta);
                         let s = action.apply(table_name)?;
                         table_name.clear();
-                        table_name.extend(s.chars());
+                        table_name.push_str(&s);
                     }
-                    _ => (),
-                },
+                }
                 MetaUnit::Alter(_) => (),
                 MetaUnit::Drop(drop) => match drop {
                     MetaDrop::Super { table_name: _ } => (),
@@ -706,7 +705,7 @@ impl Action {
                 } => {
                     let s = action.apply(table_name)?;
                     table_name.clear();
-                    table_name.extend(s.chars());
+                    table_name.push_str(&s);
                 }
                 MetaCreate::Child {
                     table_name: _,
@@ -730,13 +729,12 @@ impl Action {
                 taos::AlterType::ModifyTableOption => (),
                 taos::AlterType::RenameColumn => (),
             },
-            MetaUnit::Drop(drop) => match drop {
-                MetaDrop::Super { table_name } => {
+            MetaUnit::Drop(drop) => {
+                if let MetaDrop::Super { table_name } = drop {
                     // todo(@zitsen): normal or child?
                     action.apply_in_place(table_name)?
                 }
-                _ => (),
-            },
+            }
             MetaUnit::Delete(_) => (),
         }
         anyhow::Ok(())

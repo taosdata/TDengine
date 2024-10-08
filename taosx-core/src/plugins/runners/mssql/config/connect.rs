@@ -50,13 +50,7 @@ impl ConnectConfig {
     fn parse_port(dsn: &Dsn) -> anyhow::Result<u16> {
         dsn.addresses
             .first()
-            .map(|addr| {
-                anyhow::Ok(
-                    addr.port
-                        .clone()
-                        .ok_or(anyhow::anyhow!("port is required"))?,
-                )
-            })
+            .map(|addr| anyhow::Ok(addr.port.ok_or(anyhow::anyhow!("port is required"))?))
             .transpose()?
             .ok_or_else(|| anyhow::anyhow!("port is required"))
     }
@@ -80,23 +74,20 @@ impl ConnectConfig {
     }
 
     fn parse_instance_name(dsn: &Dsn) -> String {
-        dsn.params
-            .get("instance_name")
-            .map(|instance_name| instance_name.clone())
-            .unwrap_or_else(|| "".to_string())
+        dsn.params.get("instance_name").cloned().unwrap_or_default()
     }
 
     fn parse_application_name(dsn: &Dsn) -> String {
         dsn.params
             .get("application_name")
-            .map(|application_name| application_name.clone())
-            .unwrap_or_else(|| "".to_string())
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn parse_encryption(dsn: &Dsn) -> String {
         dsn.params
             .get("encryption")
-            .map(|encryption| encryption.clone())
+            .cloned()
             .unwrap_or_else(|| "NotSupported".to_string())
     }
 
@@ -108,9 +99,7 @@ impl ConnectConfig {
     }
 
     fn parse_trust_cert_ca(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("trust_cert_ca")
-            .map(|trust_cert_ca| trust_cert_ca.clone())
+        dsn.params.get("trust_cert_ca").cloned()
     }
 }
 

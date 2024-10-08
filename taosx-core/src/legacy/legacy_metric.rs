@@ -161,8 +161,8 @@ impl TaskMetrics for LegacyToTaosMetrics {
     }
 }
 
-impl Into<CoreMetrics> for LegacyToTaosMetrics {
-    fn into(self) -> CoreMetrics {
-        CoreMetrics::Legacy(self)
+impl From<LegacyToTaosMetrics> for CoreMetrics {
+    fn from(val: LegacyToTaosMetrics) -> Self {
+        CoreMetrics::Legacy(val)
     }
 }

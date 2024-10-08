@@ -33,7 +33,7 @@ impl Modeler {
     }
 
     pub fn table0(&self) -> Option<&Table> {
-        self.0.get(0)
+        self.0.first()
     }
 }
 
@@ -270,7 +270,7 @@ fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
 impl Table {
     pub fn eval_table_name(&self, records: &RecordBatch) -> Result<StringArray, super::Error> {
         let name_expr = template_to_expr(&self.name)?;
-        let name_array = name_expr.eval_as(&records, DataType::Utf8)?;
+        let name_array = name_expr.eval_as(records, DataType::Utf8)?;
         let name_array = name_array
             .as_any()
             .downcast_ref::<StringArray>()

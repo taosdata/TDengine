@@ -29,7 +29,7 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
     use arrow::datatypes::DataType;
     Schema::new(
         fields
-            .into_iter()
+            .iter()
             .map(|f| match f.ty() {
                 Ty::Null => unreachable!("field should always have a known type"),
                 Ty::Bool => arrow::datatypes::Field::new(f.name(), DataType::Boolean, true),
@@ -169,45 +169,47 @@ async fn test() -> Result<()> {
     );
     assert_eq!(
             client.exec(
-                format!("create table stb1(ts timestamp,\
+                "create table stb1(ts timestamp,\
                     b1 bool, c8i1 tinyint, c16i1 smallint, c32i1 int, c64i1 bigint,\
                     c8u1 tinyint unsigned, c16u1 smallint unsigned, c32u1 int unsigned, c64u1 bigint unsigned,\
                     cb1 binary(100), cn1 nchar(10),
 
                     b2 bool, c8i2 tinyint, c16i2 smallint, c32i2 int, c64i2 bigint,\
                     c8u2 tinyint unsigned, c16u2 smallint unsigned, c32u2 int unsigned, c64u2 bigint unsigned,\
-                    cb2 binary(10), cn2 nchar(16)) tags (jt json)")
+                    cb2 binary(10), cn2 nchar(16)) tags (jt json)".to_string()
             ).await?,
             0
         );
     assert_eq!(
         client
-            .exec(format!(
-                r#"insert into tb1 using stb1 tags('{{"key":"数据"}}')
+            .exec(
+                r#"insert into tb1 using stb1 tags('{"key":"数据"}')
                    values(0,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
                                 false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
                          (65535,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
                                 NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
-            ))
+                    .to_string()
+            )
             .await?,
         2
     );
     assert_eq!(
         client
-            .exec(format!(
+            .exec(
                 r#"insert into tb2 using stb1 tags(NULL)
                    values(1,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
                                 false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
                          (65536,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
                                 NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
-            ))
+                    .to_string()
+            )
             .await?,
         2
     );
 
     query_to_parquet(from, to.clone(), true).await?;
 
-    std::fs::remove_file(&to.path.unwrap())?;
+    std::fs::remove_file(to.path.unwrap())?;
 
     client.exec(format!("drop database {db}")).await?;
     Ok(())

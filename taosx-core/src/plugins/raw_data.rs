@@ -84,7 +84,6 @@ mod tests {
         logger.start();
 
         let senders = (0..10)
-            .into_iter()
             .map(|thread_index| {
                 let tx = tx.clone();
                 tokio::spawn(async move {

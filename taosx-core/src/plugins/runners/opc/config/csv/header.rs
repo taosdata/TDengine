@@ -106,14 +106,12 @@ impl CsvHeader {
     pub fn get_column(&self, col_name: &str) -> Option<&CsvColumn> {
         self.column_map
             .get(col_name)
-            .map(|index| self.columns.get(*index))
-            .flatten()
+            .and_then(|index| self.columns.get(*index))
     }
 
     pub fn get_primary_timestamp(&self) -> Option<&CsvColumn> {
         self.primary_timestamp_index
-            .map(|index| self.columns.get(index))
-            .flatten()
+            .and_then(|index| self.columns.get(index))
     }
 }
 
@@ -157,7 +155,7 @@ mod tests {
 
         let col = csv_header.get_column("name").unwrap();
         assert_eq!(col.index, 13);
-        assert_eq!(col.is_tag, true);
+        assert!(col.is_tag);
         assert_eq!(col.tag_type, Some(IpcDataType::VarChar(200)));
     }
 

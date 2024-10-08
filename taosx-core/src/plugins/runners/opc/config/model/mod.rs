@@ -189,12 +189,12 @@ impl OpcModelConfig {
         for (point_id, table_config) in self.table_config_map.iter() {
             let mut has_primary_key = false;
             for col_config in table_config.column_configs.iter() {
-                if col_config.is_primary_key == true {
+                if col_config.is_primary_key {
                     has_primary_key = true;
                     break;
                 }
             }
-            if has_primary_key == false {
+            if !has_primary_key {
                 bail!(
                     "ts_col or received_ts_col is required for point_id: {}",
                     point_id
@@ -337,8 +337,7 @@ impl OpcModelConfig {
 
         let value_col = table_config
             .column_config(ColumnConfig::VALUE)
-            .map(|v| v.alias.as_ref())
-            .flatten();
+            .and_then(|v| v.alias.as_ref());
 
         // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
         for (id, p_config) in point_config_map {
@@ -388,7 +387,7 @@ impl PointConfig {
 
         // 遍历tag_values，校验tag_values中的tag_name是否合法
         if tag_values.is_some() {
-            for (tag_name, _) in tag_values.as_ref().unwrap() {
+            for tag_name in tag_values.as_ref().unwrap().keys() {
                 validate_table_column_name("tag name", tag_name)?;
             }
         }
@@ -406,8 +405,7 @@ impl PointConfig {
 fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<IpcDataType>> {
     header
         .get_column("type")
-        .map(|col| row.get(col.index))
-        .flatten()
+        .and_then(|col| row.get(col.index))
         .map(|val| {
             if val.is_empty() {
                 return Ok(None);
@@ -425,9 +423,8 @@ fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<I
 fn parse_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("type")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
             if val.is_empty() {
                 return None;
             }
@@ -436,15 +433,13 @@ fn parse_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
                 None => Some(val.replace(" ", "_")),
             }
         })
-        .flatten()
 }
 
 fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("stable")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
             if val.is_empty() {
                 return None;
             }
@@ -456,7 +451,6 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
             };
             Some(stable_name)
         })
-        .flatten()
 }
 
 /// example:
@@ -545,7 +539,7 @@ pub struct TableConfig {
     pub tag_configs: Option<Vec<TagConfig>>,
 }
 
-const DEFAULT_STABLE_PREFIX: &'static str = "opc";
+const DEFAULT_STABLE_PREFIX: &str = "opc";
 
 impl TableConfig {
     pub fn empty() -> Self {
@@ -725,8 +719,7 @@ fn parse_quality_col(
 ) -> anyhow::Result<Option<ColumnConfig>> {
     let col = header
         .get_column("quality_col")
-        .map(|col| row.get(col.index))
-        .flatten();
+        .and_then(|col| row.get(col.index));
 
     if col.is_none() {
         return Ok(None);
@@ -809,7 +802,7 @@ fn parse_received_ts_col(
         }));
     }
 
-    return Ok(None);
+    Ok(None)
 }
 
 fn parse_original_ts_col(
@@ -864,7 +857,7 @@ fn parse_original_ts_col(
         }));
     }
 
-    return Ok(None);
+    Ok(None)
 }
 
 #[cfg(test)]

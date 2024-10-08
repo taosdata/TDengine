@@ -50,13 +50,7 @@ impl ConnectConfig {
     fn parse_port(dsn: &Dsn) -> anyhow::Result<u16> {
         dsn.addresses
             .first()
-            .map(|addr| {
-                anyhow::Ok(
-                    addr.port
-                        .clone()
-                        .ok_or(anyhow::anyhow!("port is required"))?,
-                )
-            })
+            .map(|addr| anyhow::Ok(addr.port.ok_or(anyhow::anyhow!("port is required"))?))
             .transpose()?
             .ok_or_else(|| anyhow::anyhow!("port is required"))
     }
@@ -98,19 +92,15 @@ impl ConnectConfig {
     }
 
     fn parse_ssl_ca(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("ssl_ca").map(|ssl_ca| ssl_ca.clone())
+        dsn.params.get("ssl_ca").cloned()
     }
 
     fn parse_ssl_client_cert(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("ssl_client_cert")
-            .map(|ssl_client_cert| ssl_client_cert.clone())
+        dsn.params.get("ssl_client_cert").cloned()
     }
 
     fn parse_ssl_client_key(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("ssl_client_key")
-            .map(|ssl_client_key| ssl_client_key.clone())
+        dsn.params.get("ssl_client_key").cloned()
     }
 }
 

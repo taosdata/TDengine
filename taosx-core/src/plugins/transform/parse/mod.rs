@@ -197,7 +197,7 @@ impl TransformExt for ParserImpl {
 
         for field in schema.fields() {
             let name = field.name();
-            let array = records.column_by_name(&name).unwrap();
+            let array = records.column_by_name(name).unwrap();
 
             if let Some(parser) = self.0.get(name) {
                 let (batch, indices) = parser.parse_array(field, array).map_err(|error| {
@@ -253,16 +253,16 @@ impl TransformExt for ParserImpl {
                             ),
                         )
                     }
+                } else if let Some((idx, field)) =
+                    fields.iter().find_position(|f| name == *f.name())
+                {
+                    (field.clone(), columns[idx].clone())
                 } else {
-                    if let Some((idx, field)) = fields.iter().find_position(|f| name == *f.name()) {
-                        (field.clone(), columns[idx].clone())
-                    } else {
-                        // dbg!(&name);
-                        (
-                            schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
-                            records.column_by_name(&name).unwrap().clone(),
-                        )
-                    }
+                    // dbg!(&name);
+                    (
+                        schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
+                        records.column_by_name(&name).unwrap().clone(),
+                    )
                 }
             })
             .unzip();

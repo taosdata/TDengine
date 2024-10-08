@@ -70,7 +70,7 @@ impl ZFile {
         let prefix = prefix.as_ref().to_path_buf();
         let (file_name, file) =
             new_z_file(&prefix, compression_level, api_version, server_version).await?;
-        let max_file_size = 1 * 1024 * 1024 * 1024;
+        let max_file_size = 1024 * 1024 * 1024;
         Ok(Self {
             path: file_name,
             file,
@@ -285,22 +285,14 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
     match builder {
         Err(err) => DataSourceValidation::invalid(
             "taos".to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(b) => {
             let conn = b.build().await;
             match conn {
                 Err(err) => DataSourceValidation::invalid(
                     "taos".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(c) => {
                     let version = c.server_version().await;
@@ -309,8 +301,7 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
                             "taos".to_string(),
                             format!(
                                 "failed to get server version from dsn: {}, cause: {}",
-                                dsn.to_string(),
-                                err.to_string()
+                                dsn, err
                             ),
                         ),
                         Ok(v) => DataSourceValidation {
@@ -360,8 +351,8 @@ mod tests {
         // taos
         let dsn = Dsn::from_str("taos+ws://root:taosdata@192.168.1.40:6041").unwrap();
         let dsv = is_taos_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("taos", dsv.data_source);
         assert_eq!("2.6.0.27", dsv.version.unwrap());
     }

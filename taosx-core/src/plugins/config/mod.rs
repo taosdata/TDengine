@@ -272,11 +272,11 @@ mod tests {
     fn test_parse_keep_raw_data() {
         let dsn = Dsn::from_str("ds://?keep_raw_data=true").unwrap();
         let keep_raw_data = AdvancedOptions::parse_keep_raw_data(&dsn).unwrap().unwrap();
-        assert_eq!(keep_raw_data, true);
+        assert!(keep_raw_data);
 
         let dsn = Dsn::from_str("ds://?keep_raw_data=false").unwrap();
         let keep_raw_data = AdvancedOptions::parse_keep_raw_data(&dsn).unwrap().unwrap();
-        assert_eq!(keep_raw_data, false);
+        assert!(!keep_raw_data);
 
         let dsn = Dsn::from_str("ds://?keep_raw_data=invalid").unwrap();
         let result = AdvancedOptions::parse_keep_raw_data(&dsn);

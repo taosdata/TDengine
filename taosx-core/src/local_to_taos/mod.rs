@@ -183,7 +183,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
     let local_dir = from
         .path
         .as_ref()
-        .map(|s| PathBuf::from(s))
+        .map(PathBuf::from)
         .ok_or(anyhow::anyhow!(
             "invalid local dsn: {}, Please use a local path DSN like `local:./path/to/backup`",
             from
@@ -242,7 +242,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
     let mut task_id = 0;
     for topic in &config.topics {
         if let Some(target) = target_database.as_ref() {
-            if !global_taos.database_exists(&target).await? {
+            if !global_taos.database_exists(target).await? {
                 tracing::info!(
                     "target database not exist, create database `{target}` with the same parameter in the backup"
                 );
@@ -256,16 +256,14 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             } else if !force {
                 bail!("the database has already exists, please be sure to override it by force");
             }
-        } else {
-            if !global_taos.database_exists(&topic.database).await? {
-                if let Some(sql) = topic.database_sql.as_deref() {
-                    global_taos
-                        .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
-                        .await?;
-                }
-            } else if !force {
-                bail!("the database has already exists, please be sure to override it by force");
+        } else if !global_taos.database_exists(&topic.database).await? {
+            if let Some(sql) = topic.database_sql.as_deref() {
+                global_taos
+                    .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
+                    .await?;
             }
+        } else if !force {
+            bail!("the database has already exists, please be sure to override it by force");
         }
 
         if let Some(table) = topic.table.as_ref() {
@@ -320,12 +318,12 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             let vgroup: i64 = vgroup.parse().unwrap();
             let ts: i64 = ts.parse().unwrap();
 
-            if files.contains_key(&vgroup) {
-                files.get_mut(&vgroup).unwrap().insert(ts, path);
-            } else {
+            if let std::collections::btree_map::Entry::Vacant(e) = files.entry(vgroup) {
                 let mut map = BTreeMap::new();
                 map.insert(ts, path);
-                files.insert(vgroup, map);
+                e.insert(map);
+            } else {
+                files.get_mut(&vgroup).unwrap().insert(ts, path);
             }
         }
 

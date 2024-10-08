@@ -37,18 +37,14 @@ impl OracleConfig {
     }
 
     fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params
-            .get("taskId")
-            .map(|s| {
-                s.parse::<i64>()
-                    .map(Some)
-                    .map_err(|err| {
-                        tracing::warn!("failed to parse taskId: {}, use None", s);
-                        err
-                    })
-                    .unwrap_or(None)
-            })
-            .flatten()
+        dsn.params.get("taskId").and_then(|s| {
+            s.parse::<i64>()
+                .map(Some)
+                .inspect_err(|_err| {
+                    tracing::warn!("failed to parse taskId: {}, use None", s);
+                })
+                .unwrap_or(None)
+        })
     }
 }
 
@@ -267,7 +263,7 @@ impl TaskConfig {
     pub fn generate_sql(&self) -> anyhow::Result<String> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
-        let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
+        let end = self.end.unwrap_or(Utc::now());
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
 
         let start_tz = start.with_timezone(&time_zone);

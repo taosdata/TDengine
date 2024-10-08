@@ -607,7 +607,7 @@ impl CsvOption {
                 }
             }
 
-            if records[0].len() > 0 {
+            if !records[0].is_empty() {
                 count += records[0].len();
                 let record_batch = RecordBatch::try_from_iter(
                     headers.iter().zip(
@@ -716,7 +716,7 @@ impl CsvSource {
                 [quote] if *quote == delimiter => Some(Err(anyhow!(
                     "CSV quote should not be the same as delimiter"
                 ))),
-                [quote] => Some(Ok(quote.clone())),
+                [quote] => Some(Ok(*quote)),
                 _ => Some(Err(anyhow!("CSV quote should be a single character"))),
             })
             .transpose()?;
@@ -729,7 +729,7 @@ impl CsvSource {
                 [comment] if *comment == delimiter => Some(Err(anyhow!(
                     "CSV comment should not be the same as delimiter"
                 ))),
-                [comment] => Some(Ok(comment.clone())),
+                [comment] => Some(Ok(*comment)),
                 _ => Some(Err(anyhow!("CSV comment should be a single character"))),
             })
             .transpose()?;
@@ -877,7 +877,7 @@ impl CsvSource {
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
         // let total = Arc::new(AtomicU64::new(0));
 
-        for (_, (reader, path)) in self.readers.drain(..).zip(self.paths.drain(..)).enumerate() {
+        for (reader, path) in self.readers.drain(..).zip(self.paths.drain(..)) {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();
@@ -937,7 +937,7 @@ impl CsvSource {
                 if paths.is_empty() {
                     return Ok(vec![path.to_string()]);
                 }
-                return Ok(paths);
+                Ok(paths)
             }
             Err(err) => {
                 anyhow::bail!("Invalid csv path/glob {path:?}: {err:#}");
@@ -1099,11 +1099,11 @@ async fn test_csv_source() -> anyhow::Result<()> {
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     let (sender, _) = flume::bounded(0);
-    return if let Err(err) = CsvSource::new(&mut from.clone(), sender) {
+    if let Err(err) = CsvSource::new(&mut from.clone(), sender) {
         DataSourceValidation::invalid("csv".to_string(), err.to_string())
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
-    };
+    }
 }
 
 #[cfg(test)]
@@ -1168,7 +1168,7 @@ mod tests {
     async fn test_csv_readers() {
         let paths = vec![tempfile::NamedTempFile::new().unwrap().path().to_path_buf()];
         for path in &paths {
-            let _ = create_csv_file(path).await.unwrap();
+            create_csv_file(path).await.unwrap();
         }
 
         let option = CsvOption {
@@ -1281,7 +1281,7 @@ mod tests {
     async fn test_validate() {
         let paths = vec![tempfile::NamedTempFile::new().unwrap().path().to_path_buf()];
         for path in &paths {
-            let _ = create_csv_file(path).await.unwrap();
+            create_csv_file(path).await.unwrap();
         }
 
         let option = CsvOption {
@@ -1296,7 +1296,7 @@ mod tests {
             null_pattern: None,
             concurrent: 1,
         };
-        let _ = option.validate(&paths).unwrap();
+        option.validate(&paths).unwrap();
 
         for path in &paths {
             let _ = delete_csv_file(path);
@@ -1338,9 +1338,9 @@ mod tests {
             let gz = flate2::write::GzEncoder::new(file, flate2::Compression::default());
             let mut csv = csv_lib::Writer::from_writer(gz);
 
-            csv.write_record(&["ts", "payload"])?;
-            csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])?;
-            csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])?;
+            csv.write_record(["ts", "payload"])?;
+            csv.write_record(["2001-01-01T00:00:00Z", "location,1,2,3"])?;
+            csv.write_record(["2001-01-01T00:00:01Z", "location,1,2,3"])?;
             csv.flush()?;
         } else {
             let file = tokio::fs::File::create(path).await?;

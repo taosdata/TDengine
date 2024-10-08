@@ -33,7 +33,7 @@ impl Producer {
         );
 
         // split the task into multiple windows
-        let window_start = start.clone();
+        let window_start = start;
 
         // with time zone
         let mut window_start_with_tz = window_start.with_timezone(&time_zone);
@@ -103,6 +103,6 @@ mod tests {
         let tasks = consumer.await.unwrap();
 
         assert_eq!(62, tasks.len());
-        dbg!(tasks.get(0).unwrap());
+        dbg!(tasks.first().unwrap());
     }
 }

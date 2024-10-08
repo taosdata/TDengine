@@ -109,18 +109,14 @@ impl TaskConfig {
     }
 
     fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params
-            .get("taskId")
-            .map(|s| {
-                s.parse::<i64>()
-                    .map(Some)
-                    .map_err(|err| {
-                        tracing::warn!("failed to parse taskId: {}, use None", s);
-                        err
-                    })
-                    .unwrap_or(None)
-            })
-            .flatten()
+        dsn.params.get("taskId").and_then(|s| {
+            s.parse::<i64>()
+                .map(Some)
+                .inspect_err(|err| {
+                    tracing::warn!("failed to parse taskId: {} ({err}), use None", s);
+                })
+                .unwrap_or(None)
+        })
     }
 
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
@@ -336,7 +332,7 @@ impl TaskConfig {
                         err.to_string()
                     )
                 })?;
-                if sample_data_limit <= 0 {
+                if sample_data_limit == 0 {
                     bail!("sample_data_limit must be greater than 0");
                 }
                 Ok(sample_data_limit)

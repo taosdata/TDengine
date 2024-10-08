@@ -217,7 +217,7 @@ mod tests {
             .unwrap();
         let mut config = OracleConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
-        config.sub_task_id = Some(format!("mig-1"));
+        config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 
         // query for schema

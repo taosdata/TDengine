@@ -152,16 +152,12 @@ pub struct PointsUaConfig {
 
 impl PointsUaConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let root = dsn
-            .params
-            .get("root")
-            .map(|v| {
-                if v.is_empty() {
-                    return None;
-                }
-                Some(v.to_string())
-            })
-            .flatten();
+        let root = dsn.params.get("root").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            Some(v.to_string())
+        });
 
         let namespaces = dsn
             .params
@@ -234,17 +230,13 @@ pub struct PointsDaConfig {
 
 impl PointsDaConfig {
     pub fn from_dsn(dsn: &Dsn) -> Option<Self> {
-        let access_path = dsn
-            .params
-            .get("root")
-            .map(|v| {
-                if v.is_empty() {
-                    return None;
-                }
-                let access_path = v.split(".").map(|v| v.to_string()).collect::<Vec<String>>();
-                Some(access_path)
-            })
-            .flatten();
+        let access_path = dsn.params.get("root").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            let access_path = v.split(".").map(|v| v.to_string()).collect::<Vec<String>>();
+            Some(access_path)
+        });
 
         Some(Self { access_path })
     }

@@ -33,11 +33,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             MONGODB_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let query = MongoDBQuery::try_new(c).await;
@@ -206,7 +202,7 @@ pub async fn mongodb_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -388,7 +384,7 @@ mod tests {
                     let database = query.client.database("test_taosx");
                     let collection = database.collection("metrics");
                     let doc_all = doc! {
-                        "double": Bson::Double(3.141592653),
+                        "double": Bson::Double(1.234567890),
                         "string": Bson::String("abc".to_string()),
                         "array": Bson::Array(vec![Bson::Int32(1), Bson::Int32(2), Bson::Int32(3)]),
                         "document": Bson::Document(doc! {
@@ -419,7 +415,7 @@ mod tests {
                         "object_id": Bson::ObjectId(ObjectId::new()),
                         "datetime": Bson::DateTime(mongodb::bson::DateTime::now()),
                         "symbol": Bson::Symbol("abc".to_string()),
-                        "decimal128": Bson::Decimal128(Decimal128::from_str("3.141592653").unwrap()),
+                        "decimal128": Bson::Decimal128(Decimal128::from_str("1.234567890").unwrap()),
                         "undefined": Bson::Undefined,
                         "max_key": Bson::MaxKey,
                         "min_key": Bson::MinKey,
@@ -465,8 +461,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.41:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: No available servers",
@@ -477,8 +473,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27018?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: No available servers",
@@ -489,8 +485,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin1:tbase125!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -501,8 +497,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase126!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -513,8 +509,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin1").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -525,8 +521,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mongodb", res.data_source);
     }
 
@@ -542,7 +538,7 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
         let _ = test_clear_data().await;
     }

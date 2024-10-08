@@ -47,7 +47,7 @@ impl PointsUpdater {
                 let csv_config_files = OPCConfig::parse_csv_config_files(&origin_dsn).ok_or(
                     anyhow::anyhow!("csv config file not found in dsn: {:?}", origin_dsn),
                 )?;
-                let csv = csv_config_files.get(0).ok_or(anyhow::anyhow!(
+                let csv = csv_config_files.first().ok_or(anyhow::anyhow!(
                     "cannot found the first csv config file in dsn: {:?}",
                     origin_dsn
                 ))?;

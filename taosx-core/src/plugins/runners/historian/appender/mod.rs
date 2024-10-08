@@ -40,7 +40,7 @@ pub async fn to_record_batches(
                 }
 
                 for (col_name, col_type) in columns.iter() {
-                    let arrow_type = to_arrow_data_type(col_type.clone())?;
+                    let arrow_type = to_arrow_data_type(*col_type)?;
                     fields.push(Field::new(col_name, arrow_type.clone(), true));
                     builders.push(array::make_builder(&arrow_type, 10));
                 }
@@ -167,7 +167,7 @@ pub async fn to_record_batches(
 
                     builders = Vec::new();
                     for (_col_name, col_type) in columns.iter() {
-                        let arrow_type = to_arrow_data_type(col_type.clone())?;
+                        let arrow_type = to_arrow_data_type(*col_type)?;
                         builders.push(array::make_builder(&arrow_type, 10));
                     }
                     row_count = 0;

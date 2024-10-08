@@ -111,7 +111,7 @@ impl ConnectorLicense {
             .num_days();
 
         if days > self.expire && self.expire >= 0 {
-            Some(chrono::Duration::days((days - self.expire as i64) as _))
+            Some(chrono::Duration::days((days - self.expire) as _))
         } else {
             None
         }
@@ -428,7 +428,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -444,7 +444,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -460,7 +460,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -475,7 +475,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -491,7 +491,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -507,7 +507,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -523,7 +523,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -539,7 +539,7 @@ impl TaskOpts {
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
-                        jobs.clone(),
+                        *jobs,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
@@ -568,20 +568,17 @@ impl TaskOpts {
             ("csv", _) => {
                 let path = from.path.clone();
                 tracing::warn!("delete csv task, path: {:?}", path);
-                match path {
-                    Some(path) => {
-                        let path = std::path::Path::new(&path);
-                        if path.exists() {
-                            if path.is_file() && path.is_relative() {
-                                if let Some(parent) = path.parent() {
-                                    std::fs::remove_dir_all(parent)?;
-                                }
-                            } else {
-                                // ignore directory or absolute path, since it's created by manual
+                if let Some(path) = path {
+                    let path = std::path::Path::new(&path);
+                    if path.exists() {
+                        if path.is_file() && path.is_relative() {
+                            if let Some(parent) = path.parent() {
+                                std::fs::remove_dir_all(parent)?;
                             }
+                        } else {
+                            // ignore directory or absolute path, since it's created by manual
                         }
                     }
-                    None => {}
                 }
             }
             (_, _) => {}

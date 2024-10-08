@@ -64,10 +64,9 @@ impl KafkaTaskConfig {
     }
 
     pub fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
-        Ok(dsn
-            .get("topics")
+        dsn.get("topics")
             .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())
-            .ok_or(anyhow::anyhow!("topics is required"))?)
+            .ok_or(anyhow::anyhow!("topics is required"))
     }
 
     pub fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
@@ -194,17 +193,13 @@ impl KafkaTaskConfig {
     }
 
     fn parse_client_id(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        let client_id = dsn
-            .params
-            .get("client_id")
-            .map(|s| {
-                if s.is_empty() {
-                    None
-                } else {
-                    Some(s.to_string())
-                }
-            })
-            .flatten();
+        let client_id = dsn.params.get("client_id").and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_string())
+            }
+        });
         Ok(client_id)
     }
 
@@ -227,14 +222,14 @@ impl KafkaTaskConfig {
         }
 
         let result = parse_duration::parse(timeout);
-        return match result {
+        match result {
             Ok(d) => Ok(d.as_millis() as i64),
             Err(e) => Err(anyhow::anyhow!(
                 "invalid timeout: {}, cause: {}",
                 timeout,
                 e
             )),
-        };
+        }
     }
 
     fn parse_extras(dsn: &Dsn) -> anyhow::Result<Option<HashMap<FastStr, FastStr>>> {
@@ -248,7 +243,7 @@ impl KafkaTaskConfig {
         {
             extras.insert(FastStr::from_str(k)?, FastStr::from_str(v)?);
         }
-        if let Some(str) = std::env::var("KAFKA_CONSUMER_EXTRAS").ok() {
+        if let Ok(str) = std::env::var("KAFKA_CONSUMER_EXTRAS") {
             debug!("use env KAFKA_CONSUMER_EXTRAS: {}", str);
             for (k, v) in str
                 .split(',')
@@ -411,7 +406,7 @@ mod tests {
         let dsn = Dsn::from_str("kafka://?fetch_crc_validation=true").unwrap();
         let config = KafkaTaskConfig::parse_fetch_crc_validation(&dsn).unwrap();
         assert!(config.is_some());
-        assert_eq!(true, config.unwrap());
+        assert!(config.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
         let config = KafkaTaskConfig::parse_fetch_crc_validation(&dsn).unwrap();

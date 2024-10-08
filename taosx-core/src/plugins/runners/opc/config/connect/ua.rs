@@ -82,10 +82,7 @@ impl UaConnectConfig {
             .host
             .clone()
             .ok_or(anyhow::anyhow!("host is required"))?;
-        let port = addr
-            .port
-            .clone()
-            .ok_or(anyhow::anyhow!("port is required"))?;
+        let port = addr.port.ok_or(anyhow::anyhow!("port is required"))?;
         let subject = dsn.subject.clone().unwrap_or("".to_string());
         let endpoint = format!("opc.tcp://{}:{}/{}", host, port, subject);
         Ok(endpoint)

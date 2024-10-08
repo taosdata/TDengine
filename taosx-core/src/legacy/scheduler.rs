@@ -252,7 +252,7 @@ async fn worker(
                         for table in &tables {
                             let remap = opts.remap.as_ref().and_then(|v| v.get(table));
                             if let Err(err) =
-                                sync_normal_table_schema(&from, &table, &actions, remap, &to).await
+                                sync_normal_table_schema(&from, table, &actions, remap, &to).await
                             {
                                 tracing::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
@@ -366,7 +366,7 @@ async fn worker(
                         let mut chunk_err: Option<String> = None;
                         // chunks
                         'chunks: for (idx, chunk) in chunks.enumerate() {
-                            let mut query = query.clone();
+                            let mut query = query;
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
@@ -716,12 +716,12 @@ impl Scheduler {
                     if let Err(err) = &res {
                         tracing::error!("Scheduler runtime error: {err:#}");
                     }
-                    return res;
+                    res
                 },
                 _ = cancellation.cancelled() => {
                     tracing::debug!("Scheduler cancelled");
                     task_set.abort_all();
-                    return Ok(())
+                    Ok(())
                 }
             }
         });
@@ -805,7 +805,7 @@ async fn sync_sparse_stable(
     let new_table_name = if actions.is_empty() {
         table.clone()
     } else {
-        Arc::new(transform_tbname_with_actions(&table, actions, true)?.to_string())
+        Arc::new(transform_tbname_with_actions(table, actions, true)?.to_string())
     };
 
     let mut res = from
@@ -848,7 +848,7 @@ async fn sync_sparse_stable(
                 add_tag_names,
                 add_tag_values,
                 actions,
-                remap.clone(),
+                remap,
                 String::with_capacity(1024),
             )),
             |context| async move {
@@ -898,7 +898,7 @@ async fn sync_sparse_stable(
                             BorrowedValue::VarChar(s) => *s,
                             _ => unreachable!(),
                         };
-                        let name = transform_tbname_with_actions(&name, actions, false)?;
+                        let name = transform_tbname_with_actions(name, actions, false)?;
                         tmp.push_str(&format!(" `{}` using `{}` ", name, stable));
 
                         let tags = &values[tag_idx + 1..];
@@ -945,26 +945,24 @@ async fn sync_sparse_stable(
                                     values.iter().map(|(_, v)| v.to_sql_value()).join(","),
                                 ));
                             }
+                        } else if add_tag_names.is_empty() {
+                            tmp.push_str(&format!(
+                                "({}) tags({}) ({}) values({})",
+                                tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                            ));
                         } else {
-                            if add_tag_names.is_empty() {
-                                tmp.push_str(&format!(
-                                    "({}) tags({}) ({}) values({})",
-                                    tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
-                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
-                                    values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
-                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
-                                ));
-                            } else {
-                                tmp.push_str(&format!(
-                                    "({}{}) tags({}{}) ({}) values({})",
-                                    tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
-                                    add_tag_names,
-                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
-                                    add_tag_values,
-                                    values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
-                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
-                                ));
-                            }
+                            tmp.push_str(&format!(
+                                "({}{}) tags({}{}) ({}) values({})",
+                                tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                add_tag_names,
+                                tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                add_tag_values,
+                                values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                            ));
                         }
 
                         if sql.len() + tmp.len() > max_sql_length {
@@ -1040,7 +1038,7 @@ async fn sync_sparse_stable(
 
         let mut set = tokio::task::JoinSet::new();
 
-        let (tx, rx) = flume::bounded(concurrent_limit as usize * 8);
+        let (tx, rx) = flume::bounded(concurrent_limit * 8);
         for _ in 0..concurrent_limit {
             set.spawn(sparse_concurrent_runner(
                 target.clone(),

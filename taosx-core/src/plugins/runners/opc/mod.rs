@@ -96,7 +96,7 @@ impl Display for OpcType {
     }
 }
 
-const EXE: &'static str = {
+const EXE: &str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
             "taosx-opc.exe"
@@ -181,7 +181,7 @@ pub async fn opc_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -375,12 +375,11 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
             // should be Device.DeviceType.TagName pattern
             &point_id[index + 1..]
         } else {
-            &point_id
+            point_id
         };
         let tb_name = tb_name.replace("{TagName}", tag_name);
-        let tb_name = tb_name.replace("{tag_name}", tag_name);
 
-        tb_name
+        tb_name.replace("{tag_name}", tag_name)
     };
     tbname.replace(".", "_").replace("`", "_")
 }
@@ -405,17 +404,15 @@ fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<IpcDat
 /// 解析为文件路径: 如果以@开头，表示文件路径, 返回 None;
 /// 否则，认为参数值是文件内容，写入临时文件后，返回 NamedTempFile。
 fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
-    dsn.get(key)
-        .map(|v| {
-            if v.is_empty() || v.starts_with('@') {
-                return None;
-            }
+    dsn.get(key).and_then(|v| {
+        if v.is_empty() || v.starts_with('@') {
+            return None;
+        }
 
-            let mut file = NamedTempFile::new().unwrap();
-            file.write_all(v.as_bytes()).unwrap();
-            Some(file)
-        })
-        .flatten()
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(v.as_bytes()).unwrap();
+        Some(file)
+    })
 }
 
 /// 获取 opc 点位
@@ -822,28 +819,24 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_opc_ua_valid() {
-        unsafe {
-            std::env::set_var("PLUGINS_HOME", "../plugins");
-        }
+        std::env::set_var("PLUGINS_HOME", "../plugins");
 
         let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
         let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("opc", dsv.data_source);
     }
 
     #[ignore]
     #[tokio::test]
     async fn test_opc_da_valid() {
-        unsafe {
-            std::env::set_var("PLUGINS_HOME", "../plugins");
-        }
+        std::env::set_var("PLUGINS_HOME", "../plugins");
 
         let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
         let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("opc", dsv.data_source);
         assert_eq!("2.4.0", dsv.version.unwrap());
     }
@@ -867,10 +860,8 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_opc_datasets_by_command() {
-        unsafe {
-            std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
-            std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
-        }
+        // std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
+        // std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
 
         let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
         let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();

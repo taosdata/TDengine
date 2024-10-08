@@ -188,19 +188,19 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
                 .await?;
 
             topics.extend(databases);
-            return Ok(topics);
+            Ok(topics)
         }
         "opc" | "opcua" | "opcda" => {
             // opc
-            return opc_datasets(data).await;
+            opc_datasets(data).await
         }
         "influxdb" => {
             // influxdb
-            return influxdb_datasets(from).await;
+            influxdb_datasets(from).await
         }
         "opentsdb" => {
             // opentsdb
-            return opentsdb_datasets(from).await;
+            opentsdb_datasets(from).await
         }
         _ => Ok(vec![]),
     }

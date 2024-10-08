@@ -34,33 +34,21 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             POSTGRES_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = PostgresQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     POSTGRES_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(mut _cli) => {
                     let rs = _cli.select_one_for_schema("select 1 from pg_tables;").await;
                     match rs {
                         Err(err) => DataSourceValidation::invalid(
                             POSTGRES_ID.to_string(),
-                            format!(
-                                "failed to connect to dsn: {}, cause: {}",
-                                dsn.to_string(),
-                                err.to_string()
-                            ),
+                            format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                         ),
                         Ok(_) => DataSourceValidation::valid(POSTGRES_ID.to_string(), None),
                     }
@@ -124,10 +112,10 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // generate sample data
     for row in &rows {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
-        for (idx, col) in row.columns().into_iter().enumerate() {
+        for (idx, col) in row.columns().iter().enumerate() {
             let col_name = col.name();
             let col_type = col.type_info().name();
-            let col_val = generate_json_value(&row, col_type, idx)?;
+            let col_val = generate_json_value(row, col_type, idx)?;
             sample_map.insert(col_name.to_string(), col_val);
         }
         input_sample.push(sample_map);
@@ -205,7 +193,7 @@ pub async fn postgres_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -542,8 +530,8 @@ mod tests {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
             "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/test_taosx, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
@@ -556,8 +544,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
             "failed to connect to dsn: postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=Disable, cause: failed to connect to postgres, cause: error returned from database: no pg_hba.conf entry for host \"192.168.2.13\", user \"test_ssl_only\", database \"test_ssl_only\", no encryption",
@@ -570,8 +558,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("postgres", res.data_source);
 
         // user: test_disable_only -- ssl_mode: Require -- Access denied
@@ -580,8 +568,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
             "failed to connect to dsn: postgres://test_disable_only:taosdata@192.168.1.40:5432/test_disable_only?ssl_mode=Require, cause: failed to connect to postgres, cause: error returned from database: no pg_hba.conf entry for host \"192.168.2.13\", user \"test_disable_only\", database \"test_disable_only\", SSL encryption",
@@ -594,16 +582,16 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("postgres", res.data_source);
 
         // normal
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("postgres", res.data_source);
     }
 
@@ -618,7 +606,7 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
         let _ = test_clear_data().await;
     }

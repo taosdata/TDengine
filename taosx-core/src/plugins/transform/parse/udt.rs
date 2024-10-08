@@ -121,7 +121,7 @@ impl ArrowDataField {
                 }
             }
         };
-        return true;
+        true
     }
 
     fn pad_none(&mut self, size: usize) {
@@ -187,7 +187,7 @@ impl<'de> Deserialize<'de> for UdtAST {
         }
 
         let s = deserializer.deserialize_str(StringVisitor)?;
-        let udt_ast = match ENGINE.compile(&s) {
+        let udt_ast = match ENGINE.compile(s) {
             Ok(ast) => UdtAST {
                 ast: Some(ast),
                 error: None,
@@ -294,13 +294,12 @@ impl Parse for Udt {
                         }
                         None => {
                             let now_data_size = indices.len();
-                            match ArrowDataField::from_dynamic(&key, v, now_data_size) {
-                                Some(data_field) => {
-                                    key_index_map.insert(key, arrow_fields.len());
-                                    arrow_fields.push(data_field);
-                                    data_available = true;
-                                }
-                                None => {}
+                            if let Some(data_field) =
+                                ArrowDataField::from_dynamic(&key, v, now_data_size)
+                            {
+                                key_index_map.insert(key, arrow_fields.len());
+                                arrow_fields.push(data_field);
+                                data_available = true;
                             }
                         }
                     }

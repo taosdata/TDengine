@@ -39,13 +39,7 @@ impl ConnectConfig {
     fn parse_port(dsn: &Dsn) -> anyhow::Result<u16> {
         dsn.addresses
             .first()
-            .map(|addr| {
-                anyhow::Ok(
-                    addr.port
-                        .clone()
-                        .ok_or(anyhow::anyhow!("port is required"))?,
-                )
-            })
+            .map(|addr| anyhow::Ok(addr.port.ok_or(anyhow::anyhow!("port is required"))?))
             .transpose()?
             .ok_or_else(|| anyhow::anyhow!("port is required"))
     }

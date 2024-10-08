@@ -22,7 +22,7 @@ use super::get_plugin_dir;
 
 mod config;
 
-const EXE: &'static str = "taosx-opentsdb.jar";
+const EXE: &str = "taosx-opentsdb.jar";
 
 fn opentsdb_jar_path() -> anyhow::Result<PathBuf> {
     let path = get_plugin_dir("opentsdb").join(EXE);
@@ -80,20 +80,17 @@ pub async fn opentsdb_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
     // save the temporary file to task dir
-    match task_id {
-        Some(task_id) => {
-            let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
-            let path = path.join(format!(
-                "{}-{}-{}.{}",
-                task_id,
-                "opentsdb",
-                chrono::Local::now().format("%Y%m%d%H%M"),
-                "toml"
-            ));
-            let _ = fs::copy(&config_path, path);
-        }
-        None => {}
+    if let Some(task_id) = task_id {
+        let path = get_data_dir().join("tasks").join(task_id.to_string());
+        std::fs::create_dir_all(&path).unwrap();
+        let path = path.join(format!(
+            "{}-{}-{}.{}",
+            task_id,
+            "opentsdb",
+            chrono::Local::now().format("%Y%m%d%H%M"),
+            "toml"
+        ));
+        let _ = fs::copy(&config_path, path);
     }
 
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
@@ -148,7 +145,7 @@ pub async fn opentsdb_to_taos(
     let arg_coverage = {
         let coverage_report_file = format!(
             "/data/coverage/opentsdb/jacoco_test_report_{}.exec",
-            Local::now().format("%Y%m%d%H%M%S%3f").to_string()
+            Local::now().format("%Y%m%d%H%M%S%3f")
         );
         format!(
             "-javaagent:/data/coverage/jacocoagent.jar=destfile={},output=file",
@@ -283,7 +280,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 .with_context(|| "Start OpenTSDB collector error")?;
             if output.status.success() {
                 let s = String::from_utf8(output.stdout.clone())?;
-                if s == "" {
+                if s.is_empty() {
                     anyhow::bail!("OpenTSDB connector returns OK, but result is nothing");
                 }
                 let mut vec = Vec::new();
@@ -318,22 +315,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "opentsdb".to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = validate_source_opentsdb(c).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     "opentsdb".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(validate) => validate,
             }
@@ -397,8 +386,8 @@ mod tests {
     async fn test_invalid() {
         let dsn = Dsn::from_str("opentsdb://").unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("opentsdb", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!(
@@ -408,8 +397,8 @@ mod tests {
 
         let dsn = Dsn::from_str("opentsdb://127.0.0.1:6060").unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("opentsdb", validation.data_source);
         assert_eq!(None, validation.version);
         assert!(validation
@@ -425,8 +414,8 @@ mod tests {
 
         let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
         let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("opentsdb", dsv.data_source);
         assert_eq!("2.4.0", dsv.version.unwrap());
     }

@@ -19,6 +19,7 @@ use tracing::Instrument;
 
 use crate::agent::Task;
 
+#[allow(clippy::large_enum_variant)]
 pub enum Action {
     Run(Task),
     Stop(i64),

@@ -35,33 +35,21 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             MYSQL_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = MySqlQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     MYSQL_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(mut _cli) => {
                     let rs: Result<Vec<String>, anyhow::Error> = _cli.show_tables().await;
                     match rs {
                         Err(err) => DataSourceValidation::invalid(
                             MYSQL_ID.to_string(),
-                            format!(
-                                "failed to connect to dsn: {}, cause: {}",
-                                dsn.to_string(),
-                                err.to_string()
-                            ),
+                            format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                         ),
                         Ok(_) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
                     }
@@ -127,10 +115,10 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // generate sample data
     for row in &rows {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
-        for (idx, col) in row.columns().into_iter().enumerate() {
+        for (idx, col) in row.columns().iter().enumerate() {
             let col_name = col.name();
             let col_type = col.type_info().name();
-            let col_val = generate_json_value(&row, col_type, idx, config.task.time_zone.clone())?;
+            let col_val = generate_json_value(row, col_type, idx, config.task.time_zone.clone())?;
             sample_map.insert(col_name.to_string(), col_val);
         }
         input_sample.push(sample_map);
@@ -208,7 +196,7 @@ pub async fn mysql_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -520,8 +508,8 @@ mod tests {
         // invalid port
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
             "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_taosx, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
@@ -534,8 +522,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
             "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED, cause: failed to connect to mysql, cause: error returned from database: 1045 (28000): Access denied for user 'test_ssl_only'@'192.168.2.13' (using password: YES)",
@@ -548,8 +536,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mysql", res.data_source);
 
         // user: test_disabled_only -- not support
@@ -557,8 +545,8 @@ mod tests {
         // normal
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mysql", res.data_source);
     }
 
@@ -574,7 +562,7 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
         // clear data
         let _ = test_clear_data().await;
