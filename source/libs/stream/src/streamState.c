@@ -345,7 +345,7 @@ bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
   return hasRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey));
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pVal, pVLen);
+  return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), NULL, NULL);
 #endif
 }
 

@@ -380,8 +380,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -398,7 +397,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -492,8 +491,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -512,7 +510,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       taosStopQueryImpl(pTmp);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }

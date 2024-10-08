@@ -86,18 +86,18 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
   // checkpoint ver is the kept version, handled data should be the next version.
   if (pTask->chkInfo.checkpointId != 0) {
-    pTask->chkInfo.currentVer = pTask->chkInfo.checkpointVer + 1;
-    qInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
-           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer);
+    pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
+    qInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64, pTask->id.idStr,
+           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   } else {
-    if (pTask->chkInfo.currentVer == -1) {
-      pTask->chkInfo.currentVer = 0;
+    if (pTask->chkInfo.nextProcessVer == -1) {
+      pTask->chkInfo.nextProcessVer = 0;
     }
   }
 
-  qInfo("snode:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
+  qInfo("snode:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " nextProcessVer:%" PRId64
          " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
-        SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
+        SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
          pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
          pTask->info.fillHistory, pTask->info.triggerParam);
 

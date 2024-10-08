@@ -308,9 +308,10 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 
     if (retentions) {
       len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
-      taosMemoryFree(retentions);
     }
   }
+
+  taosMemoryFree(retentions);
 
   (varDataLen(buf2)) = len;
 

@@ -683,8 +683,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         pStart += BitmapLen(numOfRows);
       }
       char* pData = pStart;
-
-      tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+      ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+      if(ret != 0){
+        goto end;
+      }
       fields += sizeof(int8_t) + sizeof(int32_t);
       if (needChangeLength) {
         pStart += htonl(colLength[j]);
@@ -712,7 +714,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
           char* pData = pStart;
 
           SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
-          tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+          ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+          if(ret != 0){
+            goto end;
+          }
           fields += sizeof(int8_t) + sizeof(int32_t);
           if (needChangeLength) {
             pStart += htonl(colLength[i]);
@@ -729,7 +734,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int c = 0; c < boundInfo->numOfBound; ++c) {
       if( boundInfo->pColIndex[c] != -1){
         SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
-        tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
+        ret = tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
+        if(ret != 0){
+          goto end;
+        }
       }else{
         boundInfo->pColIndex[c] = c;  // restore for next block
       }

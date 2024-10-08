@@ -669,8 +669,13 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
         p->info.id.groupId = tupleGroupId;
         pInfo->groupId = tupleGroupId;
       } else {
-        pInfo->prefetchedTuple = pTupleHandle;
-        break;
+        if (p->info.rows == 0) {
+          appendOneRowToDataBlock(p, pTupleHandle);
+          p->info.id.groupId = pInfo->groupId = tupleGroupId;
+        } else {
+          pInfo->prefetchedTuple = pTupleHandle;
+          break;
+        }
       }
     } else {
       appendOneRowToDataBlock(p, pTupleHandle);
@@ -715,14 +720,9 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
-    // if limit is reached within a group, do not clear limiInfo otherwise the next block
-    // will be processed.
-    if (newgroup && limitReached) {
-      resetLimitInfoForNextGroup(&pInfo->limitInfo);
-    }
+    applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
-    if (p->info.rows > 0 || limitReached) {
+    if (p->info.rows > 0) {
       break;
     }
   }

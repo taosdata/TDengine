@@ -277,7 +277,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   SFilterColumnParam param2 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(pInfo->pEndCondInfo, &param2);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto _return;
   }
 
   int32_t status2 = 0;
@@ -331,10 +331,12 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     }
   }
 
+_return:
+
   colDataDestroy(ps);
   taosMemoryFree(ps);
   colDataDestroy(pe);
   taosMemoryFree(pe);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }

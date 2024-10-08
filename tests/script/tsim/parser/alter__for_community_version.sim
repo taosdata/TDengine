@@ -35,7 +35,7 @@ sql_error alter database $db keep 20.0,20.0,20.0
 sql_error alter database $db keep 0,0,0
 sql_error alter database $db keep 3
 sql_error alter database $db keep -1,-1,-1
-sql_error alter database $db keep 20,20
+sql alter database $db keep 20,20
 sql_error alter database $db keep 9,9,9
 sql_error alter database $db keep 20,20,19
 sql_error alter database $db keep 20,19,20
@@ -44,7 +44,7 @@ sql_error alter database $db keep 20,19,18
 sql_error alter database $db keep 20,20,20,20
 sql_error alter database $db keep 365001,365001,365001
 sql_error alter database $db keep 365001
-sql_error alter database $db keep 20
+sql alter database $db keep 20
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1

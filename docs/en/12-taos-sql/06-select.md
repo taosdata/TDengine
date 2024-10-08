@@ -9,7 +9,7 @@ description: This document describes how to query data in TDengine.
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -223,14 +223,6 @@ The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolu
 
 ```sql
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
-```
-
-### TAGS Query
-
-The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
-
-```sql
-SELECT TAGS tag_name [, tag_name ...] FROM stb_name
 ```
 
 ## Query Objects

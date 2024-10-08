@@ -188,6 +188,9 @@ static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, S
     SGroupCacheFileInfo newFile = {0};
     taosHashPut(pFileCtx->pCacheFile, &fileId, sizeof(fileId), &newFile, sizeof(newFile));
     pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
+    if (NULL == pTmp) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   if (pTmp->deleted) {
@@ -227,8 +230,8 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     }
 
     if (deleted) {
-      qTrace("FileId:%d-%d already be deleted, skip write", 
-          pCtx->id, pHead->basic.fileId);
+      qTrace("FileId:%d-%d-%d already be deleted, skip write", 
+          pCtx->id, pGroup ? pGroup->vgId : GROUP_CACHE_DEFAULT_VGID, pHead->basic.fileId);
       
       int64_t blkId = pHead->basic.blkId;
       pHead = pHead->next;
@@ -274,7 +277,9 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
-
+  if (NULL == pBufInfo) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   int32_t code = TSDB_CODE_SUCCESS;
   SGcBlkBufInfo* pWriteHead = NULL;
   
@@ -313,6 +318,10 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
 
 static FORCE_INLINE void chkRemoveVgroupCurrFile(SGcFileCacheCtx* pFileCtx, int32_t downstreamIdx) {
   SGroupCacheFileInfo* pFileInfo = taosHashGet(pFileCtx->pCacheFile, &pFileCtx->fileId, sizeof(pFileCtx->fileId));
+  if (NULL == pFileInfo) {
+    return;
+  }
+  
   if (0 == pFileInfo->groupNum) {
     removeGroupCacheFile(pFileInfo);
 
@@ -500,6 +509,9 @@ static int32_t addFileRefTableNum(SGcFileCacheCtx* pFileCtx, int32_t fileId, int
     newFile.groupNum = 1;
     taosHashPut(pFileCtx->pCacheFile, &fileId, sizeof(fileId), &newFile, sizeof(newFile));
     pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
+    if (NULL == pTmp) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
     pTmp->groupNum++;
   }
@@ -547,6 +559,10 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
   }
 
   *ppGrp = taosHashGet(pGrpHash, &uid, sizeof(uid));
+  initNewGroupData(pCtx, *ppGrp, pGcParam->needCache);
+  if (NULL == *ppGrp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   initNewGroupData(pCtx, *ppGrp, pGcParam->needCache);
 
   qError("new group %" PRIu64 " initialized, downstreamIdx:%d, vgId:%d, needCache:%d", uid, pParam->downstreamIdx, vgId, pGcParam->needCache);

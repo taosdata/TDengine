@@ -418,6 +418,10 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
     int64_t        keys[2] = {pId->streamId, pId->taskId};
 
     SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if (p == NULL) {
+      continue;
+    }
+
     if ((*p)->info.fillHistory == 0) {
       num += 1;
     }
@@ -521,6 +525,13 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     ASSERT(pTask->status.timerActive == 0);
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
 
+    if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
+      qDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
+      taosTmrStop(pTask->schedInfo.pTimer);
+      pTask->info.triggerParam = 0;
+      streamMetaReleaseTask(pMeta, pTask);
+    }
+
     streamMetaRemoveTask(pMeta, keys);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
@@ -532,10 +543,13 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
+  taosWLockLatch(&pMeta->lock);
   if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    taosWUnLockLatch(&pMeta->lock);
     return -1;
   }
+  taosWUnLockLatch(&pMeta->lock);
   return 0;
 }
 
@@ -659,6 +673,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {
+      // pTask->chkInfo.checkpointVer may be 0, when a follower is become a leader
+      // In this case, we try not to start fill-history task anymore.
       if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         doClear(pKey, pVal, pCur, pRecycleList);
         tFreeStreamTask(pTask);

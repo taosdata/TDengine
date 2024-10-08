@@ -69,7 +69,7 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
 void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
   char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-  strncpy(processFuncName, udfName, sizeof(processFuncName));
+  snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
   char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
@@ -103,7 +103,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(processFuncName, udfName, sizeof(processFuncName));
+    snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);

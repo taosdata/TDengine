@@ -2257,7 +2257,7 @@ FETCH_NEXT_BLOCK:
         int32_t      current = pInfo->validBlockIndex++;
         SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
 
-        qDebug("set %d/%d as the input submit block, %s", current, totalBlocks, id);
+        qDebug("set %d/%d as the input submit block, %s", current + 1, totalBlocks, id);
         if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
           qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current, totalBlocks, id);
           continue;
@@ -2883,7 +2883,7 @@ static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
 }
 
 
-static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aFilterIdxs, void* pVnode, SStorageAPI* pAPI, STagScanInfo* pInfo) {
+static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aFilterIdxs, void* pVnode, SStorageAPI* pAPI, STagScanInfo* pInfo) {
   int32_t code = 0;
   int32_t numOfTables = taosArrayGetSize(aUidTags);
 
@@ -2894,9 +2894,15 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   SScalarParam output = {0};
-  tagScanCreateResultData(&type, numOfTables, &output);
+  code = tagScanCreateResultData(&type, numOfTables, &output);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
-  scalarCalculate(pTagCond, pBlockList, &output);
+  code = scalarCalculate(pTagCond, pBlockList, &output);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   bool* result = (bool*)output.columnData->pData;
   for (int32_t i = 0 ; i < numOfTables; ++i) {
@@ -2911,7 +2917,7 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
 
-
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tagScanFillOneCellWithTag(SOperatorInfo* pOperator, const STUidTagInfo* pUidTagInfo, SExprInfo* pExprInfo, SColumnInfoData* pColInfo, int rowIndex, const SStorageAPI* pAPI, void* pVnode) {
@@ -3024,7 +3030,11 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
     bool ignoreFilterIdx = true;
     if (pInfo->pTagCond != NULL) {
       ignoreFilterIdx = false;
-      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI, pInfo);
+      int32_t code = tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI, pInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        pOperator->pTaskInfo->code = code;
+        T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      }
     } else {
       ignoreFilterIdx = true;
     }

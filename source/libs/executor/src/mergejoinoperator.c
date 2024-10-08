@@ -711,6 +711,11 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
       }
     }
   }
+
+  if (NULL == pJoinInfo->pLeft || NULL == pJoinInfo->pRight) {
+    setMergeJoinDone(pOperator);
+    return false;
+  }
   
   // only the timestamp match support for ordinary table
   SColumnInfoData* pLeftCol = taosArrayGet(pJoinInfo->pLeft->pDataBlock, pJoinInfo->leftCol.slotId);

@@ -251,10 +251,19 @@ class TDTestCase:
         tdSql.checkData(2, 4, 9)
         tdSql.checkData(3, 4, 9)
 
+    def test_partition_by_limit_no_agg(self):
+        sql_template = 'select t1 from meters partition by t1 limit %d'
+
+        for i in range(1, 5000, 1000):
+            tdSql.query(sql_template % i)
+            tdSql.checkRows(5 * i)
+
+
     def run(self):
         self.prepareTestEnv()
         self.test_interval_limit_offset()
         self.test_interval_partition_by_slimit_limit()
+        self.test_partition_by_limit_no_agg()
 
     def stop(self):
         tdSql.close()

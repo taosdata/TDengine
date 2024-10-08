@@ -245,9 +245,12 @@ class ClusterComCheck:
                     tdLog.exit(f"vgroup number of {db_name} is not correct")
             if self.db_replica == 1 :
                 if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[1][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
-                    ready_time= (count + 1)
-                    tdLog.success(f"all vgroups of {db_name} are leaders in {count + 1} s")
-                    return True
+                    tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
+                    print("db replica :",tdSql.queryResult[0][0])
+                    if tdSql.queryResult[0][0] == db_replica:
+                        ready_time= (count + 1)
+                        tdLog.success(f"all vgroups with replica {self.db_replica} of {db_name} are leaders in {count + 1} s")
+                        return True
                 count+=1
             elif self.db_replica == 3 :
                 vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
@@ -255,13 +258,16 @@ class ClusterComCheck:
                 vgroup_status_last=[tdSql.queryResult[last_number][4],tdSql.queryResult[last_number][6],tdSql.queryResult[last_number][8]]
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
-                        ready_time= (count + 1)
-                        tdLog.success(f"elections of {db_name}.vgroups are ready in {ready_time} s")
-                        return True
+                        tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
+                        print("db replica :",tdSql.queryResult[0][0])
+                        if tdSql.queryResult[0][0] == db_replica:
+                            ready_time= (count + 1)
+                            tdLog.success(f"elections of {db_name}.vgroups with replica {self.db_replica}  are ready in {ready_time} s")
+                            return True
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.notice(f"elections of {db_name} all vgroups are failed in {count} s ")
+            tdLog.notice(f"elections of {db_name} all vgroups with replica {self.db_replica}  are failed in {count} s ")
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno)
             tdLog.exit("%s(%d) failed " % args)

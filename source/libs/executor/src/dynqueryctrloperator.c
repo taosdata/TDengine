@@ -151,14 +151,21 @@ static void updatePostJoinCurrTableInfo(SStbJoinDynCtrlInfo*          pStbJoin) 
 static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, bool needCache, SOperatorParam* pChild) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
+    freeOperatorParam(pChild, OP_GET_PARAM);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pChild) {
     (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-    if (NULL == *ppRes) {
+    if (NULL == (*ppRes)->pChildren) {
+      freeOperatorParam(pChild, OP_GET_PARAM);
+      freeOperatorParam(*ppRes, OP_GET_PARAM);
+      *ppRes = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild)) {
+      freeOperatorParam(pChild, OP_GET_PARAM);
+      freeOperatorParam(*ppRes, OP_GET_PARAM);
+      *ppRes = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   } else {
@@ -167,6 +174,8 @@ static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t down
 
   SGcOperatorParam* pGc = taosMemoryMalloc(sizeof(SGcOperatorParam));
   if (NULL == pGc) {
+    freeOperatorParam(*ppRes, OP_GET_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -193,6 +202,7 @@ static int32_t buildGroupCacheNotifyOperatorParam(SOperatorParam** ppRes, int32_
 
   SGcNotifyOperatorParam* pGc = taosMemoryMalloc(sizeof(SGcNotifyOperatorParam));
   if (NULL == pGc) {
+    freeOperatorParam(*ppRes, OP_NOTIFY_PARAM);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -248,6 +258,7 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
   
   SExchangeOperatorBatchParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
   if (NULL == pExc) {
+    taosMemoryFreeClear(*ppRes);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -255,6 +266,7 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
   pExc->pBatchs = tSimpleHashInit(tSimpleHashGetSize(pVg), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   if (NULL == pExc->pBatchs) {
     taosMemoryFree(pExc);
+    taosMemoryFreeClear(*ppRes);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
@@ -288,21 +300,36 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
 static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initParam, SOperatorParam* pChild0, SOperatorParam* pChild1) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
+    freeOperatorParam(pChild0, OP_GET_PARAM);
+    freeOperatorParam(pChild1, OP_GET_PARAM);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
   if (NULL == *ppRes) {
+    freeOperatorParam(pChild0, OP_GET_PARAM);
+    freeOperatorParam(pChild1, OP_GET_PARAM);
+    freeOperatorParam(*ppRes, OP_GET_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild0)) {
+    freeOperatorParam(pChild0, OP_GET_PARAM);
+    freeOperatorParam(pChild1, OP_GET_PARAM);
+    freeOperatorParam(*ppRes, OP_GET_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild1)) {
+    freeOperatorParam(pChild1, OP_GET_PARAM);
+    freeOperatorParam(*ppRes, OP_GET_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
   SSortMergeJoinOperatorParam* pJoin = taosMemoryMalloc(sizeof(SSortMergeJoinOperatorParam));
   if (NULL == pJoin) {
+    freeOperatorParam(*ppRes, OP_GET_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -318,16 +345,28 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
 static int32_t buildMergeJoinNotifyOperatorParam(SOperatorParam** ppRes, SOperatorParam* pChild0, SOperatorParam* pChild1) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
+    freeOperatorParam(pChild0, OP_NOTIFY_PARAM);
+    freeOperatorParam(pChild1, OP_NOTIFY_PARAM);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
   if (NULL == *ppRes) {
+    taosMemoryFreeClear(*ppRes);
+    freeOperatorParam(pChild0, OP_NOTIFY_PARAM);
+    freeOperatorParam(pChild1, OP_NOTIFY_PARAM);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pChild0 && NULL == taosArrayPush((*ppRes)->pChildren, &pChild0)) {
+    freeOperatorParam(*ppRes, OP_NOTIFY_PARAM);
+    freeOperatorParam(pChild0, OP_NOTIFY_PARAM);
+    freeOperatorParam(pChild1, OP_NOTIFY_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pChild1 && NULL == taosArrayPush((*ppRes)->pChildren, &pChild1)) {
+    freeOperatorParam(*ppRes, OP_NOTIFY_PARAM);
+    freeOperatorParam(pChild1, OP_NOTIFY_PARAM);
+    *ppRes = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
@@ -420,13 +459,34 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
   
   if (TSDB_CODE_SUCCESS == code) {
     code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pPost->leftNeedCache, pSrcParam0);
+    pSrcParam0 = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pPost->rightNeedCache, pSrcParam1);
+    pSrcParam1 = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildMergeJoinOperatorParam(ppParam, pSrcParam0 ? true : false, pGcParam0, pGcParam1);
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    if (pSrcParam0) {
+      freeOperatorParam(pSrcParam0, OP_GET_PARAM);
+    }
+    if (pSrcParam1) {
+      freeOperatorParam(pSrcParam1, OP_GET_PARAM);
+    }
+    if (pGcParam0) {
+      freeOperatorParam(pGcParam0, OP_GET_PARAM);
+    }
+    if (pGcParam1) {
+      freeOperatorParam(pGcParam1, OP_GET_PARAM);
+    }
+    if (*ppParam) {
+      freeOperatorParam(*ppParam, OP_GET_PARAM);
+      *ppParam = NULL;
+    }
+  }
+  
   return code;
 }
 
@@ -488,7 +548,7 @@ static void handleSeqJoinCurrRetrieveEnd(SOperatorInfo* pOperator, SStbJoinDynCt
   
   if (pPost->leftNeedCache) {
     uint32_t* num = tSimpleHashGet(pStbJoin->ctx.prev.leftCache, &pPost->leftCurrUid, sizeof(pPost->leftCurrUid));
-    if (--(*num) <= 0) {
+    if (num && --(*num) <= 0) {
       tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, &pPost->leftCurrUid, sizeof(pPost->leftCurrUid));
       notifySeqJoinTableCacheEnd(pOperator, pPost, true);
     }

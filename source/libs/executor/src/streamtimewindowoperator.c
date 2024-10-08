@@ -786,6 +786,8 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
       if (startPos < 0) {
         break;
       }
+      qDebug("===stream===ignore expired data, window end ts:%" PRId64 ", maxts - wartermak:%" PRId64, nextWin.ekey,
+             pInfo->twAggSup.maxTs - pInfo->twAggSup.waterMark);
       continue;
     }
 
@@ -1552,6 +1554,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
   pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
@@ -2197,6 +2200,7 @@ void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
   pGroupResInfo->pBuf = NULL;
+  pGroupResInfo->freeItem = false;
 }
 
 void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo, SSDataBlock* pBlock) {
@@ -2874,10 +2878,12 @@ void destroyStreamStateOperatorInfo(void* param) {
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
-  taosArrayDestroy(pInfo->historyWins);
   tSimpleHashCleanup(pInfo->pSeUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
   pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+
+  taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
 
   taosMemoryFreeClear(param);

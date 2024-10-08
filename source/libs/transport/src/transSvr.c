@@ -395,7 +395,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("success to dispatch conn to work thread");
   } else {
-    tError("fail to dispatch conn to work thread");
+    tError("fail to dispatch conn to work thread, code:%s", uv_strerror(status));
   }
   if (!uv_is_closing((uv_handle_t*)req->data)) {
     uv_close((uv_handle_t*)req->data, uvFreeCb);

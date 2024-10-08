@@ -79,7 +79,12 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 #define taospy 2.7.10
 pip3 list|grep taospy
 pip3 uninstall taospy -y
-pip3 install  --default-timeout=120 taospy==2.7.10
+pip3 install  --default-timeout=120 taospy==2.7.12
+
+#define taos-ws-py 0.2.8
+pip3 list|grep taos-ws-py
+pip3 uninstall taos-ws-py -y
+pip3 install --default-timeout=120 taos-ws-py==0.2.8
 
 $TIMEOUT_CMD $cmd
 RET=$?

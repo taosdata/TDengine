@@ -356,7 +356,8 @@ static int32_t tsdbSttIterOpen(STsdbIter *iter) {
   }
 
   iter->sttData->sttBlkArrayIdx = 0;
-  tBlockDataCreate(iter->sttData->blockData);
+  code = tBlockDataCreate(iter->sttData->blockData);
+  if (code) return code;
   iter->sttData->blockDataIdx = 0;
 
   return tsdbSttIterNext(iter, NULL);
@@ -381,7 +382,8 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   iter->dataData->brinBlockIdx = 0;
 
   // SBlockData
-  tBlockDataCreate(iter->dataData->blockData);
+  code = tBlockDataCreate(iter->dataData->blockData);
+  if (code) return code;
   iter->dataData->blockDataIdx = 0;
 
   return tsdbDataIterNext(iter, NULL);

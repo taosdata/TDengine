@@ -192,7 +192,7 @@ int32_t walApplyVer(SWal *, int64_t ver);
 // int32_t  walDataCorrupted(SWal*);
 
 // wal reader
-SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
+SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);

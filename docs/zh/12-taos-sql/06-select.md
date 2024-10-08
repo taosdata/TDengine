@@ -9,7 +9,7 @@ description: 查询数据的详细语法
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -159,16 +159,6 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 2. 由于浮点数天然的精度机制原因，在特定情况下，对 FLOAT 和 DOUBLE 列使用 DISTINCT 并不能保证输出值的完全唯一性。
 
 :::
-
-### 标签查询
-
-当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
-
-返回所有子表的标签列：
-
-```sql
-SELECT TAGS tag_name [, tag_name ...] FROM stb_name
-``` 
 
 ### 结果集列名
 

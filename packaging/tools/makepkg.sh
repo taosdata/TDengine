@@ -338,7 +338,7 @@ if [ "$verMode" == "cluster" ]; then
         tmp_pwd=`pwd`
     	  cd ${install_dir}/connector
     	  if [ ! -d taos-connector-jdbc ];then
-          	git clone -b 3.2.1 --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+          	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
     	  fi
     	  cd taos-connector-jdbc
     	  mvn clean package -Dmaven.test.skip=true

@@ -545,13 +545,10 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 1);
-  // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
-
-  if (pTSchema) {
-    *num = pTSchema->numOfCols;
-
-    taosMemoryFree(pTSchema);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 1);
+  if (pSW) {
+    *num = pSW->nCols;
+    tDeleteSchemaWrapper(pSW);
   } else {
     *num = 2;
   }

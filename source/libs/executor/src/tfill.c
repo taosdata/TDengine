@@ -578,9 +578,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);    
     int64_t* tsList = (int64_t*)pCol->pData;
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
-    numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
-    numOfRes += 1;
+    numOfRes = taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
+                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
     ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
@@ -588,9 +587,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
       return 0;
     }
 
-    numOfRes = taosTimeCountInterval(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
-    numOfRes += 1;
+    numOfRes = taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
+                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
   }
 
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;

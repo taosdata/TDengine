@@ -187,25 +187,26 @@ end:
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId) {
   int32_t code = -1;
   int32_t vgId = TD_VID(pTq->pVnode);
+  int64_t id = pHandle->pWalReader->readerId;
 
   int64_t offset = *fetchOffset;
   int64_t lastVer = walGetLastVer(pHandle->pWalReader->pWal);
   int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64,
-         vgId, offset, lastVer, committedVer, appliedVer);
+  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64", 0x%"PRIx64,
+         vgId, offset, lastVer, committedVer, appliedVer, id);
 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
-              ", no more log to return, reqId:0x%" PRIx64,
-              pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
+              ", no more log to return, reqId:0x%" PRIx64 " 0x%" PRIx64,
+              pHandle->consumerId, pHandle->epoch, vgId, offset, reqId, id);
       goto END;
     }
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64, vgId,
-            pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId);
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64" 0x%"PRIx64, vgId,
+            pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId, id);
 
     if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
       code = walFetchBody(pHandle->pWalReader);
@@ -250,7 +251,7 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
     return NULL;
   }
 
-  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);
+  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
   if (pReader->pWalReader == NULL) {
     taosMemoryFree(pReader);
     return NULL;
@@ -366,7 +367,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 bool tqNextBlockInWal(STqReader* pReader, const char* id) {
   SWalReader* pWalReader = pReader->pWalReader;
 
-//  uint64_t st = taosGetTimestampMs();
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SArray* pBlockList = pReader->submit.aSubmitTbData;
     if (pBlockList == NULL || pReader->nextBlk >= taosArrayGetSize(pBlockList)) {
@@ -441,9 +442,9 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
 
     pReader->msg.msgStr = NULL;
 
-//    if(taosGetTimestampMs() - st > 5){
-//      return false;
-//    }
+    if(taosGetTimestampMs() - st > 1000){
+      return false;
+    }
   }
 }
 
@@ -491,11 +492,11 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret != NULL) {
-      tqDebug("block found, ver:%" PRId64 ", uid:%" PRId64", %s", pReader->msg.ver, pSubmitTbData->uid, idstr);
+      tqDebug("block found, ver:%" PRId64 ", uid:%" PRId64 ", %s", pReader->msg.ver, pSubmitTbData->uid, idstr);
       return true;
     } else {
-      tqInfo("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
-          taosHashGetSize(pReader->tbIdHash), idstr);
+      tqDebug("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
+              taosHashGetSize(pReader->tbIdHash), idstr);
     }
 
     pReader->nextBlk++;

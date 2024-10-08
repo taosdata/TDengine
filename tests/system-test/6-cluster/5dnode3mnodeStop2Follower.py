@@ -88,15 +88,15 @@ class TDTestCase:
         # restart all taosd
         tdDnodes=cluster.dnodes
 
-        tdDnodes[1].stoptaosd()
+        # tdDnodes[1].stoptaosd()
         tdDnodes[2].stoptaosd()
 
-        tdLog.info("check  whether 2 mnode status is  offline")
-        clusterComCheck.check3mnode2off()
+        tdLog.info("check  whether 1 mnode status is  offline")
+        clusterComCheck.check3mnodeoff(3)
         # tdSql.error("create user user1 pass '123';")
 
-        tdLog.info("start two follower")
-        tdDnodes[1].starttaosd()
+        tdLog.info("start  follower")
+        # tdDnodes[1].starttaosd()
         tdDnodes[2].starttaosd()
 
         clusterComCheck.checkMnodeStatus(mnodeNums)

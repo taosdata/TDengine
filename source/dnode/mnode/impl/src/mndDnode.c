@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
+#include "audit.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -25,8 +27,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
-#include "mndCluster.h"
-#include "audit.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -420,6 +420,11 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
            tsTtlChangeOnWrite);
     return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
+  }
+  int8_t enable = tsEnableWhiteList ? 1 : 0;
+  if (pCfg->enableWhiteList != enable) {
+    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
   }
 
   return 0;
@@ -926,14 +931,10 @@ _OVER:
 
 extern int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq);
 
-int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
-  return mndProcessRestoreDnodeReqImpl(pReq);
-}
+int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq) { return mndProcessRestoreDnodeReqImpl(pReq); }
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
-  return 0;
-}
+int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) { return 0; }
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
@@ -1004,15 +1005,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s",
-          dropReq.dnodeId, dropReq.fqdn, dropReq.port, dropReq.force?"true":"false", dropReq.unsafe?"true":"false");
+  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", dropReq.dnodeId, dropReq.fqdn, dropReq.port,
+        dropReq.force ? "true" : "false", dropReq.unsafe ? "true" : "false");
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
   bool force = dropReq.force;
-  if(dropReq.unsafe)
-  {
+  if (dropReq.unsafe) {
     force = true;
   }
 
@@ -1043,19 +1043,19 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+  bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
 
   if (isonline && force) {
     terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
   if (!isonline && !force) {
     terrno = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
@@ -1065,8 +1065,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   char obj1[30] = {0};
   sprintf(obj1, "%d", dropReq.dnodeId);
 
-  //char obj2[150] = {0};
-  //sprintf(obj2, "%s:%d", dropReq.fqdn, dropReq.port);
+  // char obj2[150] = {0};
+  // sprintf(obj2, "%s:%d", dropReq.fqdn, dropReq.port);
 
   char detail[100] = {0};
   sprintf(detail, "force:%d, unsafe:%d", dropReq.force, dropReq.unsafe);
@@ -1164,8 +1164,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (code < 0) return code;
 
     if (flag < 0) {
-      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
-             flag, INT32_MAX);
+      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId, flag,
+             INT32_MAX);
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }

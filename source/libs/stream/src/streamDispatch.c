@@ -391,8 +391,8 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   SStreamTask* pTask = param;
 
   if (streamTaskShouldStop(&pTask->status)) {
-    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
-    qDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);
+    int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    qDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     return;
   }
 
@@ -409,17 +409,22 @@ static void doRetryDispatchData(void* param, void* tmrId) {
         streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
       }
     } else {
-      atomic_sub_fetch_8(&pTask->status.timerActive, 1);
-      qDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);
+      int32_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+      qDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     }
   } else {
-    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    qDebug("s-task:%s send success, jump out of timer, ref:%d", pTask->id.idStr, ref);
   }
 }
 
 void streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration) {
-  qError("s-task:%s dispatch data in %" PRId64 "ms", pTask->id.idStr, waitDuration);
-  taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->launchTaskTimer);
+  qWarn("s-task:%s dispatch data in %" PRId64 "ms, in timer", pTask->id.idStr, waitDuration);
+  if (pTask->launchTaskTimer != NULL) {
+    taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->launchTaskTimer);
+  } else {
+    pTask->launchTaskTimer = taosTmrStart(doRetryDispatchData, waitDuration, pTask, streamEnv.timer);
+  }
 }
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
@@ -493,9 +498,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT((pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH));
 
   const char* id = pTask->id.idStr;
-  int32_t numOfElems = taosQueueItemSize(pTask->outputInfo.queue->pQueue);
+  int32_t numOfElems = streamQueueGetNumOfItems(pTask->outputInfo.queue);
   if (numOfElems > 0) {
-    qDebug("s-task:%s try to dispatch intermediate block to downstream, elem in outputQ:%d", id, numOfElems);
+    double size = SIZE_IN_MB(taosQueueMemorySize(pTask->outputInfo.queue->pQueue));
+    qDebug("s-task:%s start to dispatch intermediate block to downstream, elem in outputQ:%d, size:%.2fMiB", id, numOfElems, size);
   }
 
   // to make sure only one dispatch is running
@@ -540,8 +546,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     }
 
     if (++retryCount > MAX_CONTINUE_RETRY_COUNT) {  // add to timer to retry
-      qDebug("s-task:%s failed to dispatch msg to downstream for %d times, code:%s, add timer to retry in %dms",
-             pTask->id.idStr, retryCount, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS);
+      int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
+
+      qDebug("s-task:%s failed to dispatch msg to downstream for %d times, code:%s, add timer to retry in %dms, ref:%d",
+             pTask->id.idStr, retryCount, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS, ref);
       streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
       break;
     }
@@ -982,8 +990,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
     }
 
-    streamFreeQitem(pTask->msgInfo.pData);
-    pTask->msgInfo.pData = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -996,9 +1002,17 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   // so the TASK_INPUT_STATUS_BLOCKED is rsp
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     pTask->inputInfo.status = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
-    pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
-    qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 " wait for %dms and retry dispatch data",
-           id, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
+    double el = 0;
+    if (pTask->msgInfo.blockingTs == 0) {
+      pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
+    } else {
+      el = (taosGetTimestampMs() - pTask->msgInfo.blockingTs) / 1000.0;
+    }
+
+    int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
+    qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64
+           " wait for %dms and retry dispatch data, total wait:%.2fSec ref:%d",
+           id, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS, el, ref);
     streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
   } else {  // pipeline send data in output queue
     // this message has been sent successfully, let's try next one.

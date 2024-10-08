@@ -210,7 +210,7 @@ class TDTestCase:
 
     # init
     def init(self, conn, logSql, replicaVar=1):
-        seed = time.clock_gettime(time.CLOCK_REALTIME)
+        seed = time.time() % 10000
         random.seed(seed)
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")

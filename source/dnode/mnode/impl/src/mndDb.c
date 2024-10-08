@@ -1017,7 +1017,10 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   code = mndSetDbCfgFromAlterDbReq(&dbObj, &alterReq);
-  if (code != 0) goto _OVER;
+  if (code != 0) {
+    if (code == TSDB_CODE_MND_DB_OPTION_UNCHANGED) code = 0;
+    goto _OVER;
+  }
 
   code = mndCheckInChangeDbCfg(pMnode, &dbObj.cfg);
   if (code != 0) goto _OVER;

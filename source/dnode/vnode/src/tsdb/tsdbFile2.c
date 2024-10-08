@@ -42,8 +42,12 @@ static const struct {
 };
 
 void remove_file(const char *fname) {
-  taosRemoveFile(fname);
-  tsdbInfo("file:%s is removed", fname);
+  int32_t code = taosRemoveFile(fname);
+  if (code) {
+    tsdbError("file:%s remove failed", fname);
+  } else {
+    tsdbInfo("file:%s is removed", fname);
+  }
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {

@@ -1,7 +1,7 @@
 # cos
 ExternalProject_Add(mxml
         GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
-	GIT_TAG release-2.12
+	GIT_TAG v2.12
         SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
