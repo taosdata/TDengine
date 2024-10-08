@@ -68,7 +68,7 @@ jobs:
           cargo clippy --locked --workspace --all --tests --examples
 
   build_rust:
-    needs: clippy
+    needs: check
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
