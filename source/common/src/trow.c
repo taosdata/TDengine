@@ -354,8 +354,10 @@ bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVa
   }
 
   void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
-  (void)tdGetKvRowValOfCol(pVal, pRow, pBitmap, pColIdx->offset,
-                           POINTER_DISTANCE(pColIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx));
+  if (tdGetKvRowValOfCol(pVal, pRow, pBitmap, pColIdx->offset,
+                         POINTER_DISTANCE(pColIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
   return true;
 }
 

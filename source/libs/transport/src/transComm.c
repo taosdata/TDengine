@@ -272,7 +272,11 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
     }
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    (void)taosThreadMutexInit(&item->mtx, NULL);
+    code = taosThreadMutexInit(&item->mtx, NULL);
+    if (code) {
+      taosMemoryFree(item);
+      break;
+    }
 
     async->data = item;
     err = uv_async_init(loop, async, cb);
@@ -301,7 +305,7 @@ void transAsyncPoolDestroy(SAsyncPool* pool) {
     SAsyncItem* item = async->data;
     if (item == NULL) continue;
 
-    (void)taosThreadMutexDestroy(&item->mtx);
+    TAOS_UNUSED(taosThreadMutexDestroy(&item->mtx));
     taosMemoryFree(item);
   }
   taosMemoryFree(pool->asyncs);
@@ -328,9 +332,12 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
-  (void)taosThreadMutexLock(&item->mtx);
+  if (taosThreadMutexLock(&item->mtx) != 0) {
+    tError("failed to lock mutex");
+  }
+
   QUEUE_PUSH(&item->qmsg, q);
-  (void)taosThreadMutexUnlock(&item->mtx);
+  TAOS_UNUSED(taosThreadMutexUnlock(&item->mtx));
   int ret = uv_async_send(async);
   if (ret != 0) {
     tError("failed to send async,reason:%s", uv_err_name(ret));
@@ -393,7 +400,7 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
     return NULL;
   }
   void* ret = NULL;
-  (void)(*cVal->clone)(cVal->val, &ret);
+  TAOS_UNUSED((*cVal->clone)(cVal->val, &ret));
   return ret;
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
@@ -401,7 +408,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   if (ctx->brokenVal.clone == NULL) {
     return ret;
   }
-  (void)(*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
+  TAOS_UNUSED((*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret));
 
   *msgType = ctx->brokenVal.msgType;
 
@@ -414,6 +421,9 @@ void transReqQueueInit(queue* q) {
 }
 void* transReqQueuePush(queue* q) {
   STransReq* req = taosMemoryCalloc(1, sizeof(STransReq));
+  if (req == NULL) {
+    return NULL;
+  }
   req->wreq.data = req;
   QUEUE_PUSH(q, &req->q);
   return &req->wreq;
@@ -549,7 +559,7 @@ static void transDQTimeout(uv_timer_t* timer) {
     }
   } while (1);
   if (timeout != 0) {
-    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeout, 0));
   }
 }
 int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
@@ -614,7 +624,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
   taosMemoryFree(queue);
 }
 void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
-  (void)uv_timer_stop(queue->timer);
+  TAOS_UNUSED(uv_timer_stop(queue->timer));
 
   if (heapSize(queue->heap) <= 0) {
     taosMemoryFree(task->arg);
@@ -634,7 +644,7 @@ void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
     uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
 
-    (void)uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+    TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeout, 0));
   }
 }
 
@@ -659,7 +669,7 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 
   tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
-  (void)uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
+  TAOS_UNUSED(uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0));
   return task;
 }
 
@@ -708,7 +718,7 @@ static void transInitEnv() {
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
-  (void)uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+  TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
@@ -768,6 +778,7 @@ void transDestroyExHandle(void* handle) {
   if (!QUEUE_IS_EMPTY(&eh->q)) {
     tDebug("handle %p mem leak", handle);
   }
+  tDebug("free exhandle %p", handle);
   taosMemoryFree(handle);
 }
 
@@ -775,7 +786,7 @@ void transDestroySyncMsg(void* msg) {
   if (msg == NULL) return;
 
   STransSyncMsg* pSyncMsg = msg;
-  (void)tsem2_destroy(pSyncMsg->pSem);
+  TAOS_UNUSED(tsem2_destroy(pSyncMsg->pSem));
   taosMemoryFree(pSyncMsg->pSem);
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);

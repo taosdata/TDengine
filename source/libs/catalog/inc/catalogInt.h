@@ -334,6 +334,7 @@ typedef struct SCtgViewCache {
 typedef struct SCtgTSMACache {
   SRWLatch tsmaLock;
   SArray*  pTsmas;  // SArray<STSMACache*>
+  bool     retryFetch;
 } SCtgTSMACache;
 
 typedef struct SCtgDBCache {

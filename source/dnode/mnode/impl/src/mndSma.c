@@ -1692,7 +1692,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   STransAction dropStbUndoAction = {0};
   SMDropStbReq dropStbReq = {0};
   STrans      *pTrans =
-      mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
+      mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TSMA, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
     code = terrno;
     goto _OVER;
@@ -1974,7 +1974,7 @@ _OVER:
 static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   int32_t code = -1;
   STransAction dropStreamRedoAction = {0};
-  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "drop-tsma");
+  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TSMA, pCxt->pRpcReq, "drop-tsma");
   if (!pTrans) {
     code = terrno;
     goto _OVER;

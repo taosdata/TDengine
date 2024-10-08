@@ -1771,26 +1771,6 @@ _err:
   return code;
 }
 
-void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
-  uint8_t *p = NULL;
-  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
-  int16_t  offset = 0;
-
-  if (isLarge) {
-    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
-  } else {
-    p = (uint8_t *)&pTag->idx[pTag->nTag];
-  }
-
-  if (isLarge) {
-    offset = ((int16_t *)pTag->idx)[iTag];
-  } else {
-    offset = pTag->idx[iTag];
-  }
-
-  int32_t nt = tPutI16v(p + offset, cid);
-}
-
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
@@ -4171,12 +4151,12 @@ int32_t tValueColumnInit(SValueColumn *valCol) {
   return 0;
 }
 
-int32_t tValueColumnDestroy(SValueColumn *valCol) {
+void tValueColumnDestroy(SValueColumn *valCol) {
   valCol->type = TSDB_DATA_TYPE_NULL;
   valCol->numOfValues = 0;
   tBufferDestroy(&valCol->data);
   tBufferDestroy(&valCol->offsets);
-  return 0;
+  return;
 }
 
 void tValueColumnClear(SValueColumn *valCol) {

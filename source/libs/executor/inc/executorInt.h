@@ -553,6 +553,7 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
   int64_t       limit;
@@ -621,6 +622,7 @@ typedef struct SStreamIntervalOperatorInfo {
   int32_t             midDelIndex;
   SSHashObj*          pDeletedMap;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -676,6 +678,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                recvGetAll;
   bool                destHasPrimaryKey;
   SSHashObj*          pPkDeleted;
+  struct SOperatorInfo* pOperator;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -703,6 +706,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                recvGetAll;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -732,6 +736,7 @@ typedef struct SStreamEventAggOperatorInfo {
   SFilterInfo*        pEndCondInfo;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
@@ -756,6 +761,7 @@ typedef struct SStreamCountAggOperatorInfo {
   SSDataBlock*        pCheckpointRes;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamCountAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -823,6 +829,10 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void    cleanupExprSupp(SExprSupp* pSup);
 
+void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup,
+                                   SGroupResInfo* pGroupResInfo);
+void     cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                          SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap);
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                    const char* pkey, void* pState, SFunctionStateStore* pStore);
 void    cleanupAggSup(SAggSupporter* pAggSup);

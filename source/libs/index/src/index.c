@@ -137,8 +137,12 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
-  TAOS_UNUSED(taosThreadMutexInit(&idx->mtx, NULL));
-  TAOS_UNUSED(tsem_init(&idx->sem, 0, 0));
+  if (taosThreadMutexInit(&idx->mtx, NULL) != 0) {
+    TAOS_CHECK_GOTO(terrno, NULL, END);
+  }
+  if (tsem_init(&idx->sem, 0, 0) != 0) {
+    TAOS_CHECK_GOTO(terrno, NULL, END);
+  }
 
   idx->refId = idxAddRef(idx);
   idx->opts = *opts;
@@ -213,7 +217,10 @@ void idxReleaseRef(int64_t ref) {
 int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   // TODO(yihao): reduce the lock range
   int32_t code = 0;
-  TAOS_UNUSED(taosThreadMutexLock(&index->mtx));
+  if (taosThreadMutexLock(&index->mtx) != 0) {
+    indexError("failed to lock index mutex");
+  }
+
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
@@ -231,7 +238,9 @@ int32_t indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       }
     }
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&index->mtx));
+  if (taosThreadMutexUnlock(&index->mtx) != 0) {
+    indexError("failed to unlock index mutex");
+  }
 
   if (code != 0) {
     return code;
@@ -306,6 +315,10 @@ SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
   }
   mtq->opera = opera;
   mtq->query = taosArrayInit(4, sizeof(SIndexTermQuery));
+  if (mtq->query == NULL) {
+    taosMemoryFree(mtq);
+    return NULL;
+  }
   return mtq;
 }
 void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
@@ -349,11 +362,21 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   if (colVal != NULL && nColVal != 0) {
     len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
   } else if (colVal == NULL) {
-    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    buf = taosStrndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    if (buf == NULL) {
+      taosMemoryFree(tm->colName);
+      taosMemoryFree(tm);
+      return NULL;
+    }
     len = (int32_t)strlen(INDEX_DATA_NULL_STR);
   } else {
     static const char* emptyStr = " ";
-    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    buf = taosStrndup(emptyStr, (int32_t)strlen(emptyStr));
+    if (buf == NULL) {
+      taosMemoryFree(tm->colName);
+      taosMemoryFree(tm);
+      return NULL;
+    }
     len = (int32_t)strlen(emptyStr);
   }
 
@@ -361,7 +384,6 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   if (tm->colVal == NULL) {
     taosMemoryFree(tm->colName);
     taosMemoryFree(tm);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -463,7 +485,10 @@ static int32_t idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** resu
 
   int32_t sz = idxSerialCacheKey(&key, buf);
 
-  TAOS_UNUSED(taosThreadMutexLock(&sIdx->mtx));
+  if (taosThreadMutexLock(&sIdx->mtx) != 0) {
+    indexError("failed to lock index mutex");
+  }
+
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
   cache = (pCache == NULL) ? NULL : *pCache;
   TAOS_UNUSED(taosThreadMutexUnlock(&sIdx->mtx));
@@ -757,7 +782,9 @@ static int64_t idxGetAvailableVer(SIndex* sIdx, IndexCache* cache) {
 
   IndexTFile* tf = (IndexTFile*)(sIdx->tindex);
 
-  TAOS_UNUSED(taosThreadMutexLock(&tf->mtx));
+  if (taosThreadMutexLock(&tf->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
   TFileReader* rd = tfileCacheGet(tf->cache, &key);
   TAOS_UNUSED(taosThreadMutexUnlock(&tf->mtx));
 
@@ -801,9 +828,15 @@ static int32_t idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
-  TAOS_UNUSED(taosThreadMutexLock(&tf->mtx));
+  if (taosThreadMutexLock(&tf->mtx) != 0) {
+    indexError("failed to lock tfile mutex");
+  }
+
   code = tfileCachePut(tf->cache, &key, reader);
-  TAOS_UNUSED(taosThreadMutexUnlock(&tf->mtx));
+
+  if (taosThreadMutexUnlock(&tf->mtx) != 0) {
+    indexError("failed to unlock tfile mutex");
+  }
 
   return code;
 

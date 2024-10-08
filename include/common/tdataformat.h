@@ -115,7 +115,7 @@ typedef struct {
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
-int32_t tValueColumnDestroy(SValueColumn *valCol);
+void    tValueColumnDestroy(SValueColumn *valCol);
 void    tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);
@@ -153,7 +153,6 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 

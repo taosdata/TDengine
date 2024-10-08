@@ -28,21 +28,21 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 ### 创建参数
 创建消费者的参数较多，非常灵活的支持了各种连接类型、 Offset 提交方式、压缩、重连、反序列化等特性。各语言连接器都适用的通用基础配置项如下表所示：
 
-|         参数名称          |  类型   | 参数说明                                                                                                                      | 备注                                                                                                                                                                |
-| :-----------------------: | :-----: | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|      `td.connect.ip`      | string  | 服务端的 IP 地址                                                                                                              |                                                                                                                                                                     |
-|     `td.connect.user`     | string  | 用户名                                                                                                                        |                                                                                                                                                                     |
-|     `td.connect.pass`     | string  | 密码                                                                                                                          |                                                                                                                                                                     |
-|     `td.connect.port`     | integer | 服务端的端口号                                                                                                                |                                                                                                                                                                     |
-|        `group.id`         | string  | 消费组 ID，同一消费组共享消费进度                                                                                             | <br />**必填项**。最大长度：192。<br />每个topic最多可建立 100 个 consumer group                                                                                     |
-|        `client.id`        | string  | 客户端 ID                                                                                                                     | 最大长度：192                                                                                                                                                     |
-|    `auto.offset.reset`    |  enum   | 消费组订阅的初始位置                                                                                                          | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
-|   `enable.auto.commit`    | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit                               | 默认值为 true                                                                                                                                                       |
-| `auto.commit.interval.ms` | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒                                                                                  | 默认值为 5000                                                                                                                                                       |
-|   `msg.with.table.name`   | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true） | 默认关闭                                                                                                                                                            |
-|      `enable.replay`      | boolean | 是否开启数据回放功能                                                                                                          | 默认关闭                                                                                                                                                            |
-| `session.timeout.ms`      | integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持）                                                 | 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                                                            |
-| `max.poll.interval.ms`    | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持）                  | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                                            |
+|         参数名称          |  类型   | 参数说明                                                                                                                                          | 备注                                                                                                                                                                |
+| :-----------------------: | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|      `td.connect.ip`      | string  | 服务端的 IP 地址                                                                                                                                  |                                                                                                                                                                     |
+|     `td.connect.user`     | string  | 用户名                                                                                                                                            |                                                                                                                                                                     |
+|     `td.connect.pass`     | string  | 密码                                                                                                                                              |                                                                                                                                                                     |
+|     `td.connect.port`     | integer | 服务端的端口号                                                                                                                                    |                                                                                                                                                                     |
+|        `group.id`         | string  | 消费组 ID，同一消费组共享消费进度                                                                                                                 | <br />**必填项**。最大长度：192。<br />每个topic最多可建立 100 个 consumer group                                                                                    |
+|        `client.id`        | string  | 客户端 ID                                                                                                                                         | 最大长度：192                                                                                                                                                       |
+|    `auto.offset.reset`    |  enum   | 消费组订阅的初始位置                                                                                                                              | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|   `enable.auto.commit`    | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit                                                   | 默认值为 true                                                                                                                                                       |
+| `auto.commit.interval.ms` | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒                                                                                                      | 默认值为 5000                                                                                                                                                       |
+|   `msg.with.table.name`   | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）                     | 默认关闭                                                                                                                                                            |
+|      `enable.replay`      | boolean | 是否开启数据回放功能                                                                                                                              | 默认关闭                                                                                                                                                            |
+|   `session.timeout.ms`    | integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持）                                     | 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                           |
+|  `max.poll.interval.ms`   | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持） | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                  |
 
 
 下面是各语言连接器创建参数：
@@ -94,8 +94,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 </TabItem>
 <TabItem label="C" value="c">
-
-同通用基础配置项。
+- Websocket 连接: 因为使用 dsn，不需要 `td.connect.ip`，`td.connect.port`，`td.connect.user` 和 `td.connect.pass` 四个配置项，其余同通用配置项。  
+- 原生连接: 同通用基础配置项。
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -154,7 +154,15 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_1}}
+```
+
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_2}}
+```
+
+调用 `build_consumer` 函数尝试获取消费者实例 `tmq`。成功则打印成功日志，失败则打印失败日志。
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -283,7 +291,29 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:build_topic_list}}
+```
+
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:basic_consume_loop}}
+```
+
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:msg_process}}
+```
+
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:subscribe_3}}
+```
+
+订阅消费数据步骤：
+  1. 调用 `ws_build_topic_list` 函数创建一个主题列表 `topic_list`。
+  2. 如果 `topic_list` 为 `NULL`，表示创建失败，函数返回 `-1`。
+  3. 使用 `ws_tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
+  4. 销毁主题列表 `topic_list` 以释放资源。
+  5. 调用 `basic_consume_loop` 函数开始基本的消费循环，处理订阅的消息。
+   
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -427,7 +457,17 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:consume_repeatly}}
+```
+
+1. 通过 `ws_tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
+2. 如果获取分配信息失败，则打印错误信息并返回。
+3. 对于每个分配，使用 `ws_tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
+4. 如果设置偏移量失败，则打印错误信息。
+5. 释放分配信息数组以释放资源。
+6. 调用 `basic_consume_loop` 函数开始新的消费循环，处理消息。
+    
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -554,7 +594,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:manual_commit}}
+```    
+
+可以通过 `ws_tmq_commit_sync` 函数来手工提交消费进度。
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -662,7 +707,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/tmq_demo.c:unsubscribe_and_close}}
+```        
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持
@@ -777,7 +824,13 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </details>
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+<details>
+<summary>完整代码示例</summary> 
+```c
+{{#include docs/examples/c-ws/tmq_demo.c}}
+```            
+</details>
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

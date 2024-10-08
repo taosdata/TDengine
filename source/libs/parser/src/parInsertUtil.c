@@ -856,7 +856,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);
+      code = (NULL == taosArrayPush(pDataBlocks, &dst) ? terrno : TSDB_CODE_SUCCESS);
     }
   }
 
@@ -886,17 +886,32 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   return false;
 }
 
-int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
+int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+  int ret = 0;
   if(data == NULL) {
     uError("rawBlockBindData, data is NULL");
     return TSDB_CODE_APP_ERROR;
   }
   void* tmp =
       taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
+  SVCreateTbReq *pCreateReqTmp = NULL;
+  if (tmp == NULL && pCreateTb != NULL){
+    ret = cloneSVreateTbReq(pCreateTb, &pCreateReqTmp);
+    if (ret != TSDB_CODE_SUCCESS){
+      uError("cloneSVreateTbReq error");
+      goto end;
+    }
+  }
+
   STableDataCxt* pTableCxt = NULL;
-  int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                                          sizeof(pTableMeta->uid), pTableMeta, pCreateTb, &pTableCxt, true, false);
+  ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateReqTmp, &pTableCxt, true, false);
+  if (pCreateReqTmp != NULL) {
+    tdDestroySVCreateTbReq(pCreateReqTmp);
+    taosMemoryFree(pCreateReqTmp);
+  }
+
   if (ret != TSDB_CODE_SUCCESS) {
     uError("insGetTableDataCxt error");
     goto end;

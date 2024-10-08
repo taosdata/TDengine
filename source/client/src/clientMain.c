@@ -373,25 +373,22 @@ void taos_free_result(TAOS_RES *res) {
     SRequestObj *pRequest = (SRequestObj *)res;
     tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
-  } else if (TD_RES_TMQ_METADATA(res)) {
-    SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
-    tDeleteSTaosxRsp(&pRsp->rsp);
-    doFreeReqResultInfo(&pRsp->common.resInfo);
-    taosMemoryFree(pRsp);
-  } else if (TD_RES_TMQ(res)) {
-    SMqRspObj *pRsp = (SMqRspObj *)res;
-    tDeleteMqDataRsp(&pRsp->rsp);
-    doFreeReqResultInfo(&pRsp->common.resInfo);
-    taosMemoryFree(pRsp);
-  } else if (TD_RES_TMQ_META(res)) {
-    SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
-    tDeleteMqMetaRsp(&pRspObj->metaRsp);
-    taosMemoryFree(pRspObj);
-  } else if (TD_RES_TMQ_BATCH_META(res)) {
-    SMqBatchMetaRspObj *pBtRspObj = (SMqBatchMetaRspObj *)res;
-    tDeleteMqBatchMetaRsp(&pBtRspObj->rsp);
-    taosMemoryFree(pBtRspObj);
+    return;
   }
+  SMqRspObj *pRsp = (SMqRspObj *)res;
+  if (TD_RES_TMQ(res)) {
+    tDeleteMqDataRsp(&pRsp->dataRsp);
+    doFreeReqResultInfo(&pRsp->resInfo);
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    tDeleteSTaosxRsp(&pRsp->dataRsp);
+    doFreeReqResultInfo(&pRsp->resInfo);
+  } else if (TD_RES_TMQ_META(res)) {
+    tDeleteMqMetaRsp(&pRsp->metaRsp);
+  } else if (TD_RES_TMQ_BATCH_META(res)) {
+    tDeleteMqBatchMetaRsp(&pRsp->batchMetaRsp);
+  }
+  taosMemoryFree(pRsp);
+
 }
 
 void taos_kill_query(TAOS *taos) {
@@ -454,7 +451,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo = NULL;
-    if (msg->common.resIter == -1) {
+    if (msg->resIter == -1) {
       if (tmqGetNextResInfo(res, true, &pResultInfo) != 0) {
         return NULL;
       }
@@ -1316,9 +1313,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
-      if (code != 0){
-        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+      if (code != 0) {
+        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+                pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -1985,7 +1982,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    (void)tsem_wait(&pStmt->asyncQuerySem);
+    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
+      tscError("wait async query sem failed");
+    }
     pStmt->semWaited = true;
   }
 

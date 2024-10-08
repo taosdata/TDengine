@@ -61,6 +61,7 @@ typedef enum {
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
 #define SCH_DEFAULT_MAX_RETRY_NUM     6
 #define SCH_MIN_AYSNC_EXEC_NUM        3
+#define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
 
 typedef struct SSchDebug {
   bool lockEnable;
