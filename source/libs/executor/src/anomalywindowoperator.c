@@ -337,7 +337,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
 
-  code = taosAnalBufWriteAlgo(&analBuf, pInfo->algoName);
+  code = taosAnalBufWriteOptStr(&analBuf, "algo", pInfo->algoName);
   if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);

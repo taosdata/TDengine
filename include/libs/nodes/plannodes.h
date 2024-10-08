@@ -205,9 +205,8 @@ typedef struct SInterpFuncLogicNode {
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
-  SLogicNode  node;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
+  SLogicNode node;
+  SNodeList* pFuncs;
 } SForecastFuncLogicNode;
 
 typedef struct SGroupCacheLogicNode {
@@ -517,10 +516,9 @@ typedef struct SInterpFuncPhysiNode {
 } SInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
-  SPhysiNode  node;
-  SNodeList*  pExprs;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pFuncs;
 } SForecastFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {

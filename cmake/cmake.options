@@ -124,6 +124,12 @@ option(
     ON
 )
 
+option(
+    BUILD_WITH_ANALYSIS
+    "If build with analysis"
+    ON
+)
+
 IF(${TD_LINUX})
 
 option(
@@ -152,6 +158,12 @@ set(BUILD_S3 ON)
 set(BUILD_WITH_S3 ON)
 set(BUILD_WITH_COS OFF)
 ENDIF ()
+
+IF(${BUILD_WITH_ANALYSIS})
+    message("build with analysis")
+    set(BUILD_S3 ON)
+    set(BUILD_WITH_S3 ON)
+ENDIF()
 
 IF(${BUILD_S3})
 

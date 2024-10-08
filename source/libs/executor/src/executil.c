@@ -1796,7 +1796,8 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     SDataType*  pType = &pFuncNode->node.resType;
     const char* pName = pFuncNode->node.aliasName;
-    if (pFuncNode->funcType == FUNCTION_TYPE_FORECAST_LOW || pFuncNode->funcType == FUNCTION_TYPE_FORECAST_HIGH) {
+    if (pFuncNode->funcType == FUNCTION_TYPE_FORECAST_LOW || pFuncNode->funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+        pFuncNode->funcType == FUNCTION_TYPE_FORECAST_ROWTS) {
       pName = pFuncNode->functionName;
     }
     pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pName);

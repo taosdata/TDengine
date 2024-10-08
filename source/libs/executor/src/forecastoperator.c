@@ -484,7 +484,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   int32_t code = tsosAnalBufOpen(pBuf, 2);
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteAlgo(pBuf, pSupp->algoName);
+  code = taosAnalBufWriteOptStr(pBuf, "algo", pSupp->algoName);
   if (code != 0) goto _OVER;
 
   bool hasAlpha = taosAnalGetOptStr(pSupp->algoOpt, "alpha", NULL, 0);

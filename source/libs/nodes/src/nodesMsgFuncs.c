@@ -3814,12 +3814,6 @@ enum {
   PHY_FORECAST_FUNC_CODE_BASE_NODE = 1,
   PHY_FORECAST_FUNC_CODE_EXPR,
   PHY_FORECAST_FUNC_CODE_FUNCS,
-  PHY_FORECAST_FUNC_CODE_TIME_RANGE,
-  PHY_FORECAST_FUNC_CODE_INTERVAL,
-  PHY_FORECAST_FUNC_CODE_INTERVAL_UNIT,
-  PHY_FORECAST_FUNC_CODE_FILL_MODE,
-  PHY_FORECAST_FUNC_CODE_FILL_VALUES,
-  PHY_FORECAST_FUNC_CODE_TIME_SERIES
 };
 
 static int32_t physiForecastFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3831,9 +3825,6 @@ static int32_t physiForecastFuncNodeToMsg(const void* pObj, STlvEncoder* pEncode
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
   }
 
   return code;
@@ -3854,9 +3845,6 @@ static int32_t msgToPhysiForecastFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FORECAST_FUNC_CODE_FUNCS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
-        break;
-      case PHY_FORECAST_FUNC_CODE_TIME_RANGE:
-        code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->timeRange);
         break;
       default:
         break;

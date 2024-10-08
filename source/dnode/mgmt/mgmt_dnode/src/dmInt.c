@@ -78,11 +78,11 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
-    dError("failed to start udfd");
+    dError("failed to start udfd since %s", tstrerror(code));
   }
 
   if ((code = taosAnalInit()) != 0) {
-    dError("failed to start analysis func ver");
+    dError("failed to init analysis env since %s", tstrerror(code));
   }
 
   pOutput->pMgmt = pMgmt;

@@ -3579,7 +3579,7 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
 }
 
 bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(double);
+  pEnv->calcMemSize = sizeof(float);
   return true;
 }
 

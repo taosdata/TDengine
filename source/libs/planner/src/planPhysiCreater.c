@@ -2019,10 +2019,6 @@ static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pForecastFunc->timeRange = pFuncLogicNode->timeRange;
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pForecastFunc);
   }
 

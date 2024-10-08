@@ -34,7 +34,6 @@ typedef struct {
 } SCurlResp;
 
 static SAlgoMgmt tsAlgos = {0};
-static int32_t   taosCurlTestStr(const char *url, SCurlResp *pRsp);
 static int32_t   taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContLen);
 
 const char *taosAnalAlgoStr(EAnalAlgoType type) {
@@ -71,7 +70,7 @@ EAnalAlgoType taosAnalAlgoInt(const char *name) {
 
 int32_t taosAnalInit() {
   if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
-    uError("failed to init curl env");
+    uError("failed to init curl");
     return -1;
   }
 
@@ -202,10 +201,6 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
 }
 
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
-  if (0) {
-    return taosCurlTestStr(url, pRsp);
-  }
-
   CURL    *curl = NULL;
   CURLcode code = 0;
 
@@ -232,10 +227,6 @@ _OVER:
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen) {
-  if (0 /*strstr(url, "forecast") != NULL*/) {
-    return taosCurlTestStr(url, pRsp);
-  }
-
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
   CURLcode           code = 0;
@@ -309,98 +300,6 @@ _OVER:
   if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
   if (pCont != NULL) taosMemoryFree(pCont);
   return pJson;
-}
-
-static int32_t taosCurlTestStr(const char *url, SCurlResp *pRsp) {
-  const char *listStr =
-      "{\n"
-      "  \"details\": [\n"
-      "    {\n"
-      "      \"algo\": [\n"
-      "        {\n"
-      "          \"name\": \"arima\"\n"
-      "        },\n"
-      "        {\n"
-      "          \"name\": \"holt-winters\"\n"
-      "        }\n"
-      "      ],\n"
-      "      \"type\": \"forecast\"\n"
-      "    },\n"
-      "    {\n"
-      "      \"algo\": [\n"
-      "        {\n"
-      "          \"name\": \"k-sigma\"\n"
-      "        },\n"
-      "        {\n"
-      "          \"name\": \"iqr\"\n"
-      "        },\n"
-      "        {\n"
-      "          \"name\": \"grubbs\"\n"
-      "        },\n"
-      "        {\n"
-      "          \"name\": \"lof\"\n"
-      "        },\n"
-      "        {\n"
-      "          \"name\": \"esd\"\n"
-      "        }\n"
-      "      ],\n"
-      "      \"type\": \"anomaly-detection\"\n"
-      "    }\n"
-      "  ],\n"
-      "  \"protocol\": 0.1,\n"
-      "  \"version\": 0.1\n"
-      "}\n";
-
-  const char *statusStr =
-      "{"
-      "  \"protocol\": 0.1,"
-      "  \"status\": \"ready\""
-      "}";
-
-  const char *anomalyWindowStr =
-      "{\n"
-      "    \"rows\": 1,\n"
-      "    \"res\": [\n"
-      // "        [1577808000000, 1578153600000],\n"
-      // "        [1578153600000, 1578240000000],\n"
-      // "        [1578240000000, 1578499200000]\n"
-      "        [1577808016000, 1577808016000]\n"
-      "    ]\n"
-      "}";
-
-  const char *forecastStr =
-      "{\n"
-      "    \"rows\": 6,\n"
-      "    \"res\": [\n"
-      "        [1578220000000, 1, 21, 31],\n"
-      "        [1578230000000, 2, 22, 32],\n"
-      "        [1578240000000, 3, 23, 33],\n"
-      "        [1578250000000, 4, 24, 34],\n"
-      "        [1578260000000, 5, 25, 35],\n"
-      "        [1578280000000, 6, 26, 36]\n"
-      "    ]\n"
-      "}";
-
-  if (strstr(url, "list") != NULL) {
-    pRsp->dataLen = strlen(listStr);
-    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
-    strcpy(pRsp->data, listStr);
-  } else if (strstr(url, "status") != NULL) {
-    pRsp->dataLen = strlen(statusStr);
-    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
-    strcpy(pRsp->data, statusStr);
-  } else if (strstr(url, "anomaly-detect") != NULL) {
-    pRsp->dataLen = strlen(anomalyWindowStr);
-    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
-    strcpy(pRsp->data, anomalyWindowStr);
-  } else if (strstr(url, "forecast") != NULL) {
-    pRsp->dataLen = strlen(forecastStr);
-    pRsp->data = taosMemoryCalloc(1, pRsp->dataLen + 1);
-    strcpy(pRsp->data, forecastStr);
-  } else {
-  }
-
-  return 0;
 }
 
 static int32_t taosAnalJsonBufGetCont(const char *fileName, char **ppCont, int64_t *pContLen) {
@@ -506,10 +405,6 @@ static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
   }
 
   return taosAnalJsonBufWriteStart(pBuf);
-}
-
-static int32_t taosAnalJsonBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
-  return taosAnalJsonBufWriteOptStr(pBuf, "algo", algo);
 }
 
 static int32_t taosAnalJsonBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
@@ -714,14 +609,6 @@ void taosAnalBufDestroy(SAnalBuf *pBuf) {
 int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
     return tsosAnalJsonBufOpen(pBuf, numOfCols);
-  } else {
-    return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
-  }
-}
-
-int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo) {
-  if (pBuf->bufType == ANAL_BUF_TYPE_JSON || pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
-    return taosAnalJsonBufWriteAlgo(pBuf, algo);
   } else {
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }

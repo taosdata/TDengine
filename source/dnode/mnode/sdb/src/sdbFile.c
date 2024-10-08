@@ -21,12 +21,12 @@
 #include "tglobal.h"
 #include "wal.h"
 
-#define SDB_TABLE_SIZE_EXTRA   SDB_MAX
-#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
-
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 #define SDB_FILE_VER     1
+
+#define SDB_TABLE_SIZE_EXTRA   SDB_MAX
+#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
 
 static int32_t sdbDeployData(SSdb *pSdb) {
   int32_t code = 0;
@@ -157,6 +157,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
+  // for sdb compatibility
   for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
@@ -171,9 +172,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     if (i < SDB_MAX) {
       pSdb->maxId[i] = maxId;
     }
-  }
 
-  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
     int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
@@ -240,6 +239,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
+  // for sdb compatibility
   for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
     int64_t maxId = 0;
     if (i < SDB_MAX) {
@@ -248,9 +248,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
       return terrno;
     }
-  }
 
-  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
     int64_t ver = 0;
     if (i < SDB_MAX) {
       ver = pSdb->tableVer[i];

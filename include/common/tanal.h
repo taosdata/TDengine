@@ -50,7 +50,7 @@ typedef enum {
 
 typedef struct {
   TdFilePtr filePtr;
-  char      fileName[TSDB_FILENAME_LEN + 5];
+  char      fileName[TSDB_FILENAME_LEN + 10];
   int64_t   numOfRows;
 } SAnalColBuf;
 
@@ -73,7 +73,6 @@ int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 
 int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols);
-int32_t taosAnalBufWriteAlgo(SAnalBuf *pBuf, const char *algo);
 int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal);
 int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal);
 int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal);

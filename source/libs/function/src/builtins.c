@@ -2116,7 +2116,7 @@ static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
+static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -3673,7 +3673,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc      = functionSetup,
     .processFunc   = NULL,
     .finalizeFunc  = NULL,
-    .estimateReturnRowsFunc = interpEstReturnRows,
+    .estimateReturnRowsFunc = forecastEstReturnRows,
   },
     {
     .name = "_frowts",

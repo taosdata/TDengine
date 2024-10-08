@@ -998,8 +998,6 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
     code = rewriteExprsForSelect(pForecastFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
-  pForecastFunc->timeRange = pSelect->timeRange;
-
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pForecastFunc->pFuncs, &pForecastFunc->node.pTargets);

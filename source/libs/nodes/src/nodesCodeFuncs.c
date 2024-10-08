@@ -1281,8 +1281,6 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkForecastFuncLogicPlanFuncs = "Funcs";
-static const char* jkForecastFuncLogicPlanStartTime = "StartTime";
-static const char* jkForecastFuncLogicPlanEndTime = "EndTime";
 
 static int32_t logicForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SForecastFuncLogicNode* pNode = (const SForecastFuncLogicNode*)pObj;
@@ -1290,12 +1288,6 @@ static int32_t logicForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkForecastFuncLogicPlanFuncs, pNode->pFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkForecastFuncLogicPlanStartTime, pNode->timeRange.skey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkForecastFuncLogicPlanEndTime, pNode->timeRange.ekey);
   }
 
   return code;
@@ -1307,12 +1299,6 @@ static int32_t jsonToLogicForecastFuncNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkForecastFuncLogicPlanFuncs, &pNode->pFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkForecastFuncLogicPlanStartTime, &pNode->timeRange.skey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkForecastFuncLogicPlanEndTime, &pNode->timeRange.ekey);
   }
 
   return code;
@@ -3288,8 +3274,6 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
 
 static const char* jkForecastFuncPhysiPlanExprs = "Exprs";
 static const char* jkForecastFuncPhysiPlanFuncs = "Funcs";
-static const char* jkForecastFuncPhysiPlanStartTime = "StartTime";
-static const char* jkForecastFuncPhysiPlanEndTime = "EndTime";
 
 static int32_t physiForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SForecastFuncPhysiNode* pNode = (const SForecastFuncPhysiNode*)pObj;
@@ -3300,12 +3284,6 @@ static int32_t physiForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkForecastFuncPhysiPlanFuncs, pNode->pFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkForecastFuncPhysiPlanStartTime, pNode->timeRange.skey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkForecastFuncPhysiPlanEndTime, pNode->timeRange.ekey);
   }
 
   return code;
@@ -3320,12 +3298,6 @@ static int32_t jsonToPhysiForecastFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkForecastFuncPhysiPlanFuncs, &pNode->pFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkForecastFuncPhysiPlanStartTime, &pNode->timeRange.skey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkForecastFuncPhysiPlanEndTime, &pNode->timeRange.ekey);
   }
 
   return code;
