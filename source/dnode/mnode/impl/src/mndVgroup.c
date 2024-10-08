@@ -320,6 +320,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
   createReq.changeVersion = ++(pVgroup->syncConfChangeVer);
   createReq.encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica *pReplica = NULL;
@@ -390,7 +391,13 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
     return NULL;
   }
 
-  (void)tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
+  code = tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
+  if (code < 0) {
+    terrno = TSDB_CODE_APP_ERROR;
+    taosMemoryFree(pReq);
+    mError("vgId:%d, failed to serialize create vnode req,since %s", createReq.vgId, terrstr());
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -436,7 +443,12 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  (void)tSerializeSAlterVnodeConfigReq((char *)pReq + sizeof(SMsgHead), contLen, &alterReq);
+  if (tSerializeSAlterVnodeConfigReq((char *)pReq + sizeof(SMsgHead), contLen, &alterReq) < 0) {
+    taosMemoryFree(pReq);
+    mError("vgId:%d, failed to serialize alter vnode config req,since %s", pVgroup->vgId, terrstr());
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -514,7 +526,12 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     return NULL;
   }
 
-  (void)tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq);
+  if (tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq) < 0) {
+    mError("vgId:%d, failed to serialize alter vnode req,since %s", alterReq.vgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -587,7 +604,12 @@ static void *mndBuildCheckLearnCatchupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     return NULL;
   }
 
-  (void)tSerializeSAlterVnodeReplicaReq(pReq, contLen, &req);
+  if (tSerializeSAlterVnodeReplicaReq(pReq, contLen, &req) < 0) {
+    mError("vgId:%d, failed to serialize alter vnode req,since %s", req.vgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -611,7 +633,12 @@ static void *mndBuildDisableVnodeWriteReq(SMnode *pMnode, SDbObj *pDb, int32_t v
     return NULL;
   }
 
-  (void)tSerializeSDisableVnodeWriteReq(pReq, contLen, &disableReq);
+  if (tSerializeSDisableVnodeWriteReq(pReq, contLen, &disableReq) < 0) {
+    mError("vgId:%d, failed to serialize disable vnode write req,since %s", vgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -639,7 +666,12 @@ static void *mndBuildAlterVnodeHashRangeReq(SMnode *pMnode, int32_t srcVgId, SVg
     return NULL;
   }
 
-  (void)tSerializeSAlterVnodeHashRangeReq(pReq, contLen, &alterReq);
+  if (tSerializeSAlterVnodeHashRangeReq(pReq, contLen, &alterReq) < 0) {
+    mError("vgId:%d, failed to serialize alter vnode hashrange req,since %s", srcVgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -664,7 +696,12 @@ void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgOb
     return NULL;
   }
 
-  (void)tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
+  if (tSerializeSDropVnodeReq(pReq, contLen, &dropReq) < 0) {
+    mError("vgId:%d, failed to serialize drop vnode req,since %s", dropReq.vgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -907,7 +944,9 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
       epset.inUse = epset.numOfEps;
     }
 
-    (void)addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
+    if (addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port) != 0) {
+      mWarn("vgId:%d, failed to add ep:%s:%d into epset", pVgroup->vgId, pDnode->fqdn, pDnode->port);
+    }
     mndReleaseDnode(pMnode, pDnode);
   }
   epsetSort(&epset);
@@ -930,7 +969,9 @@ SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
       epset.inUse = epset.numOfEps;
     }
 
-    (void)addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
+    if (addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port) != 0) {
+      mWarn("vgId:%d, failed to add ep:%s:%d into epset", pVgroup->vgId, pDnode->fqdn, pDnode->port);
+    }
     mndReleaseDnode(pMnode, pDnode);
   }
 
@@ -945,6 +986,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
   int64_t curMs = taosGetTimestampMs();
+  int32_t code = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -965,26 +1007,46 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set vgId, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
 
     SName name = {0};
     char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    (void)tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+    code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+    if (code != 0) {
+      mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
     (void)tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set numOfTables, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
 
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       if (i < pVgroup->replica) {
         int16_t dnodeId = (int16_t)pVgroup->vnodeGid[i].dnodeId;
-        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
+        if (code != 0) {
+          mError("vgId:%d, failed to set dnodeId, since %s", pVgroup->vgId, tstrerror(code));
+          return code;
+        }
 
         bool       exist = false;
         bool       online = false;
@@ -1038,7 +1100,11 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
+        if (code != 0) {
+          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
+          return code;
+        }
       } else {
         colDataSetNULL(pColInfo, numOfRows);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1048,21 +1114,25 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set cacheUsage, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set numOfCachedTables, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
-
-    // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    // if (pDb == NULL || pDb->compactStartTime <= 0) {
-    //   colDataSetNULL(pColInfo, numOfRows);
-    // } else {
-    //   (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
-    // }
-
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set isTsma, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
     numOfRows++;
     sdbRelease(pSdb, pVgroup);
   }
@@ -1147,6 +1217,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
   int64_t curMs = taosGetTimestampMs();
+  int32_t code = 0;
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
@@ -1158,10 +1229,17 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       cols = 0;
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
-
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set dnodeId, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set vgId, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       // db_name
       const char *dbname = mndGetDbStr(pVgroup->dbName);
@@ -1172,7 +1250,11 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         STR_WITH_MAXSIZE_TO_VARSTR(b1, "NULL", TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       // dnode is online?
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, pGid->dnodeId);
@@ -1186,18 +1268,34 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       ESyncState syncState = (isDnodeOnline) ? pGid->syncState : TAOS_SYNC_STATE_OFFLINE;
       STR_TO_VARSTR(buf, syncStr(syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncState, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       int64_t roleTimeMs = (isDnodeOnline) ? pGid->roleTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set roleTimeMs, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       int64_t startTimeMs = (isDnodeOnline) ? pGid->startTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set startTimeMs, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
 
       numOfRows++;
       sdbRelease(pSdb, pDnode);
@@ -1270,8 +1368,10 @@ static int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgro
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
-
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status since %s at line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
+    }
     TAOS_RETURN(code);
   }
 
@@ -1332,7 +1432,10 @@ _OVER:
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status since %s at line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
+  }
 
   TAOS_RETURN(code);
 }
@@ -1445,7 +1548,7 @@ int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   int32_t   contLen = sizeof(SMsgHead);
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pHead->contLen = htonl(contLen);
@@ -1484,7 +1587,7 @@ int32_t mndAddChangeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
   SMsgHead *pHead = taosMemoryMalloc(totallen);
   if (pHead == NULL) {
     taosMemoryFree(pReq);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pHead->contLen = htonl(totallen);
@@ -1567,7 +1670,13 @@ int32_t mndAddNewVgPrepareAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVg) {
   }
 
   TAOS_CHECK_GOTO(mndTransAppendPrepareLog(pTrans, pRaw), NULL, _err);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
+  if (sdbSetRawStatus(pRaw, SDB_STATUS_CREATING) != 0) {
+    mError("vgId:%d, failed to set raw status at line:%d", pVg->vgId, __LINE__);
+  }
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status since %s at line:%d", pVg->vgId, tstrerror(code), __LINE__);
+    TAOS_RETURN(code);
+  }
   pRaw = NULL;
   TAOS_RETURN(code);
 
@@ -1824,7 +1933,11 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
           sdbFreeRaw(pRaw);
           TAOS_RETURN(code);
         }
-        (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+        code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+        if (code != 0) {
+          mError("vgId:%d, failed to set raw status since %s at line:%d", newVg.vgId, tstrerror(code), __LINE__);
+          return code;
+        }
       }
 
       TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVg, &del, true));
@@ -1850,7 +1963,6 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
           sdbFreeRaw(pRaw);
           return -1;
         }
-        (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
       }
 
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVg, &del, true) != 0) return -1;
@@ -1880,7 +1992,11 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
         sdbFreeRaw(pRaw);
         TAOS_RETURN(code);
       }
-      (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+      code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+      if (code != 0) {
+        mError("vgId:%d, failed to set raw status since %s at line:%d", newVg.vgId, tstrerror(code), __LINE__);
+        return code;
+      }
     }
 
     for (int32_t i = 0; i < newVg.replica; ++i) {
@@ -1930,7 +2046,11 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
       sdbFreeRaw(pRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status since %s at line:%d", newVg.vgId, tstrerror(code), __LINE__);
+      return code;
+    }
   }
 
   mInfo("vgId:%d, vgroup info after move, replica:%d", newVg.vgId, newVg.replica);
@@ -2005,7 +2125,11 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status since %s at line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
+    TAOS_RETURN(code);
+  }
 
   // learner
   for (int32_t i = 0; i < pVgroup->replica - 1; ++i) {
@@ -2057,7 +2181,11 @@ static int32_t mndAddDecVgroupReplicaFromTrans(SMnode *pMnode, STrans *pTrans, S
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status since %s at line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
+    TAOS_RETURN(code);
+  }
 
   TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, &delGid, true));
   for (int32_t i = 0; i < pVgroup->replica; ++i) {
@@ -2171,7 +2299,11 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
       sdbFreeRaw(pRaw);
       goto _OVER;
     }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status since %s at line:%d", newVg.vgId, tstrerror(code), __LINE__);
+      goto _OVER;
+    }
   }
 
   mInfo("vgId:%d, vgroup info after redistribute, replica:%d", newVg.vgId, newVg.replica);
@@ -2452,7 +2584,11 @@ static void *mndBuildSForceBecomeFollowerReq(SMnode *pMnode, SVgObj *pVgroup, in
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  (void)tSerializeSForceBecomeFollowerReq((char *)pReq + sizeof(SMsgHead), contLen, &balanceReq);
+  if (tSerializeSForceBecomeFollowerReq((char *)pReq + sizeof(SMsgHead), contLen, &balanceReq) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pReq);
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -2693,7 +2829,11 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status since %s at line:%d", pNewVgroup->vgId, tstrerror(code), __LINE__);
+      TAOS_RETURN(code);
+    }
   }
 
   TAOS_RETURN(code);
@@ -2776,7 +2916,12 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVgroup.vgId, tstrerror(code),
+             __LINE__);
+      TAOS_RETURN(code);
+    }
   } else if (newVgroup.replica == 3 && pNewDb->cfg.replications == 1) {
     mInfo("db:%s, vgId:%d, will remove 2 vnodes, vn:0 dnode:%d vn:1 dnode:%d vn:2 dnode:%d", pVgroup->dbName,
           pVgroup->vgId, pVgroup->vnodeGid[0].dnodeId, pVgroup->vnodeGid[1].dnodeId, pVgroup->vnodeGid[2].dnodeId);
@@ -2801,7 +2946,12 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVgroup.vgId, tstrerror(code),
+             __LINE__);
+      TAOS_RETURN(code);
+    }
 
     SVnodeGid del2 = {0};
     TAOS_CHECK_RETURN(mndRemoveVnodeFromVgroupWithoutSave(pMnode, pTrans, &newVgroup, pArray, &del2));
@@ -2823,7 +2973,12 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVgroup.vgId, tstrerror(code),
+             __LINE__);
+      TAOS_RETURN(code);
+    }
   } else {
     return -1;
   }
@@ -2841,14 +2996,19 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
       sdbFreeRaw(pVgRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVgroup.vgId, tstrerror(code),
+             __LINE__);
+      TAOS_RETURN(code);
+    }
   }
 
   TAOS_RETURN(code);
 }
 
-int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup,
-                                         SDnodeObj *pDnode) {
+int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup, SDnodeObj *pDnode,
+                                         SDnodeObj *pAnotherDnode) {
   int32_t code = 0;
   SVgObj  newVgroup = {0};
   memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
@@ -2864,7 +3024,33 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
       }
     }
     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, &newVgroup.vnodeGid[selected]));
-  } else if (newVgroup.replica == 2 || newVgroup.replica == 3) {
+  } else if (newVgroup.replica == 2) {
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
+      } else {
+        newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddCreateVnodeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+
+    for (int i = 0; i < newVgroup.replica; i++) {
+      newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+      if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
+      }
+    }
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
+    TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pAnotherDnode));
+  } else if (newVgroup.replica == 3) {
     for (int i = 0; i < newVgroup.replica; i++) {
       if (newVgroup.vnodeGid[i].dnodeId == pDnode->id) {
         newVgroup.vnodeGid[i].nodeRole = TAOS_SYNC_ROLE_LEARNER;
@@ -2881,7 +3067,6 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
     }
     TAOS_CHECK_RETURN(mndRestoreAddAlterVnodeTypeAction(pMnode, pTrans, db, &newVgroup, pDnode));
   }
-
   SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
   if (pVgRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -2892,7 +3077,11 @@ int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVgroup.vgId, tstrerror(code), __LINE__);
+    TAOS_RETURN(code);
+  }
 
   TAOS_RETURN(code);
 }
@@ -2913,7 +3102,11 @@ static int32_t mndAddVgStatusAction(STrans *pTrans, SVgObj *pVg, ESdbStatus vgSt
     goto _err;
   }
   if ((code = appendActionCb(pTrans, pRaw)) != 0) goto _err;
-  (void)sdbSetRawStatus(pRaw, vgStatus);
+  code = sdbSetRawStatus(pRaw, vgStatus);
+  if (code != 0) {
+    mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", pVg->vgId, tstrerror(code), __LINE__);
+    goto _err;
+  }
   pRaw = NULL;
   TAOS_RETURN(code);
 _err:
@@ -2931,7 +3124,11 @@ static int32_t mndAddDbStatusAction(STrans *pTrans, SDbObj *pDb, ESdbStatus dbSt
     goto _err;
   }
   if ((code = appendActionCb(pTrans, pRaw)) != 0) goto _err;
-  (void)sdbSetRawStatus(pRaw, dbStatus);
+  code = sdbSetRawStatus(pRaw, dbStatus);
+  if (code != 0) {
+    mError("db:%s, failed to set raw status to ready, error:%s, line:%d", pDb->name, tstrerror(code), __LINE__);
+    goto _err;
+  }
   pRaw = NULL;
   TAOS_RETURN(code);
 _err:
@@ -3067,7 +3264,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OVER;
     }
   }
@@ -3140,7 +3337,11 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
       sdbFreeRaw(pRaw);
       TAOS_RETURN(code);
     }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    if (code != 0) {
+      mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", newVg.vgId, tstrerror(code), __LINE__);
+      TAOS_RETURN(code);
+    }
   }
 
   mInfo("vgId:%d, vgroup info after balance, replica:%d", newVg.vgId, newVg.replica);
@@ -3366,7 +3567,11 @@ static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgrou
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  (void)tSerializeSCompactVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq);
+  if (tSerializeSCompactVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq) < 0) {
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }

@@ -150,7 +150,7 @@ void *taosProcessSchedQueue(void *scheduler) {
 
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
-      uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+      uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(terrno));
     }
     if (atomic_load_8(&pSched->stop)) {
       break;
@@ -169,7 +169,7 @@ void *taosProcessSchedQueue(void *scheduler) {
     }
 
     if ((ret = tsem_post(&pSched->emptySem)) != 0) {
-      uFatal("post %s emptySem failed(%s)", pSched->label, strerror(errno));
+      uFatal("post %s emptySem failed(%s)", pSched->label, strerror(terrno));
     }
 
     if (msg.fp)
@@ -177,7 +177,6 @@ void *taosProcessSchedQueue(void *scheduler) {
     else if (msg.tfp)
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
-
 
   return NULL;
 }
@@ -197,7 +196,7 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   }
 
   if ((ret = tsem_wait(&pSched->emptySem)) != 0) {
-    uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
+    uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(terrno));
   }
 
   if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
@@ -212,7 +211,7 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   }
 
   if ((ret = tsem_post(&pSched->fullSem)) != 0) {
-    uFatal("post %s fullSem failed(%s)", pSched->label, strerror(errno));
+    uFatal("post %s fullSem failed(%s)", pSched->label, strerror(terrno));
   }
   return ret;
 }
@@ -230,7 +229,9 @@ void taosCleanUpScheduler(void *param) {
 
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
-      (void)tsem_post(&pSched->fullSem);
+      if (tsem_post(&pSched->fullSem) != 0) {
+        uError("post %s fullSem failed(%s)", pSched->label, strerror(terrno));
+      }
     }
   }
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
@@ -240,12 +241,17 @@ void taosCleanUpScheduler(void *param) {
     }
   }
 
-  (void)tsem_destroy(&pSched->emptySem);
-  (void)tsem_destroy(&pSched->fullSem);
+  if (tsem_destroy(&pSched->emptySem) != 0) {
+    uError("failed to destroy %s emptySem", pSched->label);
+  }
+  if (tsem_destroy(&pSched->fullSem) != 0) {
+    uError("failed to destroy %s fullSem", pSched->label);
+  }
   (void)taosThreadMutexDestroy(&pSched->queueMutex);
 
   if (pSched->pTimer) {
-    (void)taosTmrStop(pSched->pTimer);
+    bool r = taosTmrStop(pSched->pTimer);
+    uTrace("stop timer:%p, result:%d", pSched->pTimer, r);
     pSched->pTimer = NULL;
   }
 

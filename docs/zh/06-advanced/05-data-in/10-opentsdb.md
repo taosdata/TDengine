@@ -17,7 +17,7 @@ OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展�
 
 在数据写入页面中点击左上角的 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![OpenTSDB-01zh-EnterDataSourcePage.png](./pic/OpenTSDB-01zh-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](./pic/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 

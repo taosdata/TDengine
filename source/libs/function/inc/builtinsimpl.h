@@ -38,6 +38,7 @@ typedef struct SSumRes {
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
   int64_t   v;
+  char      *str;
   STuplePos tuplePos;
 
   STuplePos nullTuplePos;
@@ -121,6 +122,7 @@ bool    getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t  percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t percentileFunction(SqlFunctionCtx* pCtx);
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    percentileFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
 bool    getApercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -151,6 +153,7 @@ int32_t getIrateInfoSize(int32_t pkBytes);
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx);
 
 bool              getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t           firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t           firstFunction(SqlFunctionCtx* pCtx);
 int32_t           firstFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t           lastFunction(SqlFunctionCtx* pCtx);

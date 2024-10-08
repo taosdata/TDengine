@@ -197,7 +197,12 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "db", cJSON_CreateString("")));
   }
 
-  char              *value = cJSON_PrintUnformatted(json);
+  char *value = cJSON_PrintUnformatted(json);
+  if (value == NULL) {
+    tscError("failed to print json");
+    code = TSDB_CODE_FAILED;
+    goto _end;
+  }
   MonitorSlowLogData data = {0};
   data.clusterId = pTscObj->pAppInfo->clusterId;
   data.type = SLOW_LOG_WRITE;
@@ -552,6 +557,9 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->allocatorRefId = -1;
 
   (*pRequest)->pDb = getDbOfConnection(pTscObj);
+  if (NULL == (*pRequest)->pDb) {
+    TSC_ERR_JRET(terrno);
+  }
   (*pRequest)->pTscObj = pTscObj;
   (*pRequest)->inCallback = false;
   (*pRequest)->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);

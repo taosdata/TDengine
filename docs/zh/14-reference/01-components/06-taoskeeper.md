@@ -194,7 +194,7 @@ Active: inactive (dead)
 可以访问 taosKeeper 的 `check_health` 接口来判断服务是否存活，如果服务正常则会返回 HTTP 200 状态码：
 
 ```
-$ curl -i http://127.0.0.1:6043/check_health
+curl -i http://127.0.0.1:6043/check_health
 ```
 
 返回结果：

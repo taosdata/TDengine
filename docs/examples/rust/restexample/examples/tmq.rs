@@ -83,7 +83,6 @@ async fn main() -> anyhow::Result<()> {
                     eprintln!("Failed to execute insert: {:?}", e);
                 }
                 tokio::time::sleep(Duration::from_millis(10)).await;
-                println!("Succed to execute insert 1 row");
             }
         });
     });

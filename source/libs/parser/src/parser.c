@@ -172,7 +172,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
     case TSDB_DATA_TYPE_VARBINARY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
@@ -182,7 +182,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
@@ -192,13 +192,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
                          &output)) {
-        return errno;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
@@ -351,6 +351,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
 #endif
     taosArrayDestroy(pCatalogReq->pTableTSMAs);
     taosArrayDestroy(pCatalogReq->pTSMAs);
+    taosArrayDestroy(pCatalogReq->pTableName);
   } else {
     taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
@@ -359,6 +360,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
 #endif
     taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTSMAs, destoryTablesReq);
+    taosArrayDestroyEx(pCatalogReq->pTableName, destoryTablesReq);
   }
   taosArrayDestroy(pCatalogReq->pUdf);
   taosArrayDestroy(pCatalogReq->pIndex);
@@ -460,7 +462,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
     case TSDB_DATA_TYPE_VARBINARY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
@@ -470,7 +472,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
@@ -480,13 +482,13 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
                          &output)) {
-        return errno;
+        return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;

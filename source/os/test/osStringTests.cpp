@@ -74,7 +74,7 @@ TEST(osStringTests, strsepNullInput) {
 TEST(osStringTests, strndupNormalInput) {
   const char s[] = "This is a test string.";
   int        size = strlen(s) + 1;
-  char *     s2 = strndup(s, size);
+  char *     s2 = taosStrndup(s, size);
 
   EXPECT_STREQ(s, s2);
 

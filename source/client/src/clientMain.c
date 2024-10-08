@@ -73,6 +73,8 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
+  tmqMgmtClose();
+
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -87,9 +89,6 @@ void taos_cleanup(void) {
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
-
-  tmqMgmtClose();
-
   DestroyRegexCache();
 
   tscInfo("all local resources released");
@@ -216,7 +215,7 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
     tFreeSGetUserWhiteListRsp(&wlRsp);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
@@ -1313,9 +1312,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      if (TSDB_CODE_SUCCESS != refreshMeta(pRequest->pTscObj, pRequest)) {
-        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+      code = refreshMeta(pRequest->pTscObj, pRequest);
+      if (code != 0) {
+        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+                pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -1360,6 +1360,19 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
   doAsyncQuery(pUserReq, true);
 }
 
+typedef struct SAsyncFetchParam {
+  SRequestObj      *pReq;
+  __taos_async_fn_t fp;
+  void             *param;
+} SAsyncFetchParam;
+
+static int32_t doAsyncFetch(void *pParam) {
+  SAsyncFetchParam *param = pParam;
+  taosAsyncFetchImpl(param->pReq, param->fp, param->param);
+  taosMemoryFree(param);
+  return TSDB_CODE_SUCCESS;
+}
+
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   if (res == NULL || fp == NULL) {
     tscError("taos_fetch_rows_a invalid paras");
@@ -1367,6 +1380,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
   if (!TD_RES_QUERY(res)) {
     tscError("taos_fetch_rows_a res is NULL");
+    fp(param, res, TSDB_CODE_APP_ERROR);
     return;
   }
 
@@ -1376,7 +1390,20 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     return;
   }
 
-  taosAsyncFetchImpl(pRequest, fp, param);
+  SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
+  if (!pParam) {
+    fp(param, res, terrno);
+    return;
+  }
+  pParam->pReq = pRequest;
+  pParam->fp = fp;
+  pParam->param = param;
+  int32_t code = taosAsyncExec(doAsyncFetch, pParam, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pParam);
+    fp(param, res, code);
+    return;
+  }
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
@@ -1495,8 +1522,8 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  SName tableName;
-  (void)toName(pTscObj->acctId, db, table, &tableName);
+  SName tableName = {0};
+  toName(pTscObj->acctId, db, table, &tableName);
 
   SVgroupInfo vgInfo;
   code = catalogGetTableHashVgroup(pCtg, &conn, &tableName, &vgInfo);
@@ -1951,6 +1978,14 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
+  }
+
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
+    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
+      tscError("wait async query sem failed");
+    }
+    pStmt->semWaited = true;
   }
 
   int32_t code = 0;

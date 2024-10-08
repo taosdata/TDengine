@@ -184,6 +184,7 @@ static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
 }
 
 static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
+  int32_t code = 0;
   mTrace("func:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
@@ -205,6 +206,11 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->commentSize > 0 && pNew->pComment != NULL) {
     pOld->commentSize = pNew->commentSize;
     pOld->pComment = taosMemoryMalloc(pOld->commentSize);
+    if (pOld->pComment == NULL) {
+      code = terrno;
+      taosWUnLockLatch(&pOld->lock);
+      return code;
+    }
     (void)memcpy(pOld->pComment, pNew->pComment, pOld->commentSize);
   }
 
@@ -215,6 +221,11 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->codeSize > 0 && pNew->pCode != NULL) {
     pOld->codeSize = pNew->codeSize;
     pOld->pCode = taosMemoryMalloc(pOld->codeSize);
+    if (pOld->pCode == NULL) {
+      code = terrno;
+      taosWUnLockLatch(&pOld->lock);
+      return code;
+    }
     (void)memcpy(pOld->pCode, pNew->pCode, pOld->codeSize);
   }
 
@@ -261,11 +272,15 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   if (NULL != pCreate->pComment) {
     func.commentSize = strlen(pCreate->pComment) + 1;
     func.pComment = taosMemoryMalloc(func.commentSize);
+    if (func.pComment == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
   }
   func.codeSize = pCreate->codeLen;
   func.pCode = taosMemoryMalloc(func.codeSize);
   if (func.pCode == NULL || func.pCode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
@@ -375,7 +390,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendRedolog(pTrans, pRedoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING), NULL, _OVER);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
   if (pUndoRaw == NULL) {
@@ -384,7 +399,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendUndolog(pTrans, pUndoRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY), NULL, _OVER);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
   if (pCommitRaw == NULL) {
@@ -393,7 +408,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), NULL, _OVER);
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -528,13 +543,13 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   retrieveRsp.numOfFuncs = retrieveReq.numOfFuncs;
   retrieveRsp.pFuncInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncInfo));
   if (retrieveRsp.pFuncInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
   retrieveRsp.pFuncExtraInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncExtraInfo));
   if (retrieveRsp.pFuncExtraInfos == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
@@ -563,28 +578,28 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       funcInfo.codeSize = pFunc->codeSize;
       funcInfo.pCode = taosMemoryCalloc(1, funcInfo.codeSize);
       if (funcInfo.pCode == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        terrno = terrno;
         goto RETRIEVE_FUNC_OVER;
       }
       (void)memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
       if (funcInfo.commentSize > 0) {
         funcInfo.pComment = taosMemoryCalloc(1, funcInfo.commentSize);
         if (funcInfo.pComment == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          terrno = terrno;
           goto RETRIEVE_FUNC_OVER;
         }
         (void)memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
       }
     }
     if (taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
     SFuncExtraInfo extraInfo = {0};
     extraInfo.funcVersion = pFunc->funcVersion;
     extraInfo.funcCreatedTime = pFunc->createdTime;
     if (taosArrayPush(retrieveRsp.pFuncExtraInfos, &extraInfo) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
 
@@ -594,11 +609,14 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
   int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &retrieveRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto RETRIEVE_FUNC_OVER;
   }
 
-  (void)tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
+  if ((contLen = tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp)) <= 0) {
+    code = contLen;
+    goto RETRIEVE_FUNC_OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -618,8 +636,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int32_t le
     return msg;
   }
 
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY ||
-      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY ||
+      type == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t bytes = len > 0 ? (int32_t)(len - VARSTR_HEADER_SIZE) : len;
 
     (void)snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes / 4 : bytes);
@@ -637,6 +655,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   SFuncObj *pFunc = NULL;
   int32_t   cols = 0;
+  int32_t   code = 0;
   char      buf[TSDB_TYPE_STR_MAX_LEN];
 
   while (numOfRows < rows) {
@@ -649,40 +668,51 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)b1, false), pSdb, pFunc);
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      if (code != 0) {
+        sdbRelease(pSdb, pFunc);
+        taosMemoryFree(b2);
+        TAOS_RETURN(code);
+      }
       taosMemoryFree(b2);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      (void)colDataSetVal(pColInfo, numOfRows, NULL, true);
+      TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, NULL, true), pSdb, pFunc);
+      if (code != 0) {
+        sdbRelease(pSdb, pFunc);
+        TAOS_RETURN(code);
+      }
     }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false);
-
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false), pSdb, pFunc);
     char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)b3, false), pSdb, pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false), pSdb,
+                                   pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char *language = "";
@@ -694,20 +724,31 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     varDataSetLen(varLang, strlen(language));
     strcpy(varDataVal(varLang), language);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false), pSdb, pFunc);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN
                              ? TSDB_MAX_BINARY_LEN
                              : pFunc->codeSize + VARSTR_HEADER_SIZE;
     char   *b4 = taosMemoryMalloc(varCodeLen);
+    if (b4 == NULL) {
+      code = terrno;
+      sdbRelease(pSdb, pFunc);
+      TAOS_RETURN(code);
+    }
     (void)memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
+    if (code < 0) {
+      sdbRelease(pSdb, pFunc);
+      taosMemoryFree(b4);
+      TAOS_RETURN(code);
+    }
     taosMemoryFree(b4);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false), pSdb,
+                                   pFunc);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);

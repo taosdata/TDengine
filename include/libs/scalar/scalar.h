@@ -70,6 +70,7 @@ int32_t modFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* String functions */
 int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

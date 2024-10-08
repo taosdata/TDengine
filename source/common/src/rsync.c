@@ -32,10 +32,14 @@ static void removeEmptyDir() {
       empty = false;
     }
     if (empty) taosRemoveDir(filename);
-    (void)taosCloseDir(&pDirTmp);
+    if (taosCloseDir(&pDirTmp) != 0) {
+      uError("[rsync] close dir error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
+    }
   }
 
-  (void)taosCloseDir(&pDir);
+  if (taosCloseDir(&pDir) != 0) {
+    uError("[rsync] close dir error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
+  }
 }
 
 #ifdef WINDOWS
@@ -58,7 +62,7 @@ static int32_t generateConfigFile(char* confDir) {
   TdFilePtr pFile = taosOpenFile(confDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     uError("[rsync] open conf file error, dir:%s," ERRNO_ERR_FORMAT, confDir, ERRNO_ERR_DATA);
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
 #ifdef WINDOWS
@@ -90,10 +94,10 @@ static int32_t generateConfigFile(char* confDir) {
 #endif
   );
   uDebug("[rsync] conf:%s", confContent);
-  if (taosWriteFile(pFile, confContent, strlen(confContent)) <= 0) {
+  if (taosWriteFile(pFile, confContent, strlen(confContent)) != TSDB_CODE_SUCCESS) {
     uError("[rsync] write conf file error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
     (void)taosCloseFile(&pFile);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     return code;
   }
 
@@ -297,7 +301,7 @@ int32_t downloadByRsync(const char* id, const char* path, int64_t checkpointId) 
            path, el);
   }
 
-  if (code != TSDB_CODE_SUCCESS) { // if failed, try to load it from data directory
+  if (code != TSDB_CODE_SUCCESS) {  // if failed, try to load it from data directory
 #ifdef WINDOWS
     memset(pathTransform, 0, PATH_MAX);
     changeDirFromWindowsToLinux(path, pathTransform);

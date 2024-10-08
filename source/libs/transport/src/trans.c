@@ -40,7 +40,7 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
@@ -103,7 +103,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->timeToGetConn = 10 * 1000;
   }
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
-  
+
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
@@ -113,7 +113,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  (void)transAcquireExHandle(transGetInstMgt(), refId);
+  void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
   return (void*)refId;
 _end:
@@ -124,14 +124,21 @@ _end:
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
-  (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
-  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  if (arg == NULL) {
+    return;
+  }
+  TAOS_UNUSED(transRemoveExHandle(transGetInstMgt(), (int64_t)arg));
+  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)arg));
+
   tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
+  if (arg == NULL) return;
   SRpcInfo* pRpc = (SRpcInfo*)arg;
-  (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  if (pRpc->tcphandle != NULL) {
+    (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  }
   taosMemoryFree(pRpc);
 }
 
@@ -140,6 +147,7 @@ void* rpcMallocCont(int64_t contLen) {
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
@@ -155,10 +163,13 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
   int64_t sz = contLen + TRANS_MSG_OVERHEAD;
-  st = taosMemoryRealloc(st, sz);
-  if (st == NULL) {
+  char*   nst = taosMemoryRealloc(st, sz);
+  if (nst == NULL) {
+    taosMemoryFree(st);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
+  } else {
+    st = nst;
   }
 
   return st + TRANS_MSG_OVERHEAD;
@@ -168,7 +179,7 @@ int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0|| pRid == NULL) {
+  if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
     return transSendRequest(shandle, pEpSet, pMsg, pCtx);
   } else {
     return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);

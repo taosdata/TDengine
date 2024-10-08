@@ -52,8 +52,11 @@ void walCloseRef(SWal *pWal, int64_t refId) {
     } else {
       wDebug("vgId:%d, wal close ref null, refId %" PRId64, pWal->cfg.vgId, refId);
     }
-
-    (void)taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
+    int32_t code = 0;
+    code = taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
+    if (code) {
+      wError("vgId:%d, wal remove ref failed, refId %" PRId64 ", error:%s", pWal->cfg.vgId, refId, tstrerror(code));
+    }
   }
 }
 
@@ -61,34 +64,34 @@ int32_t walSetRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
   wDebug("vgId:%d, wal ref version %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, ver, pRef->refId);
   if (pRef->refVer != ver) {
-    TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
     if (ver < pWal->vers.firstVer || ver > pWal->vers.lastVer) {
-      TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
       TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
     }
 
     pRef->refVer = ver;
-    TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+    TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 void walRefFirstVer(SWal *pWal, SWalRef *pRef) {
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pWal->mutex));
 
   pRef->refVer = pWal->vers.firstVer;
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
   wDebug("vgId:%d, wal ref version %" PRId64 " for first", pWal->cfg.vgId, pRef->refVer);
 }
 
 void walRefLastVer(SWal *pWal, SWalRef *pRef) {
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockRdlock(&pWal->mutex));
 
   pRef->refVer = pWal->vers.lastVer;
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
   wDebug("vgId:%d, wal ref version %" PRId64 " for last", pWal->cfg.vgId, pRef->refVer);
 }

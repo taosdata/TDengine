@@ -330,6 +330,7 @@ int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
@@ -347,6 +348,8 @@ void    freeDbCfgInfo(SDbCfgInfo* pInfo);
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
+
+void* getTaskPoolWorkerCb();
 
 #define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE

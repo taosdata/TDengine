@@ -164,7 +164,6 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
-extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
@@ -238,7 +237,7 @@ void    initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t up
 int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
                                int64_t checkpointId, SRpcMsg* pMsg);
 
-void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
+int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
 
 
 #ifdef __cplusplus

@@ -25,7 +25,7 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
 
   if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
@@ -71,7 +71,7 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
       taosArrayDestroy(pRsp->blockSchema);
       pRsp->blockSchema = NULL;
     }
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return 0;
@@ -150,7 +150,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     goto end;
   }
 
-  qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
+  code = qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset, pRequest);
   if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
@@ -539,7 +539,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   int32_t tlen = sizeof(SMqRspHead) + len;
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SMqRspHead* pHead = (SMqRspHead*)buf;

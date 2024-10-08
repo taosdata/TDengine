@@ -27,6 +27,17 @@ extern "C" {
 #include "os.h"
 #include "thash.h"
 
+// clang-format off
+extern int32_t tdbDebugFlag;
+
+#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
+
 // For memory -----------------
 #define tdbOsMalloc  taosMemoryMalloc
 #define tdbOsCalloc  taosMemoryCalloc
@@ -59,9 +70,16 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbReadDir                    taosReadDir
 #define tdbGetDirEntryName            taosGetDirEntryName
 #define tdbDirEntryBaseName           taosDirEntryBaseName
-#define tdbCloseDir                   taosCloseDir
-#define tdbOsRemove                   remove
-#define tdbOsFileSize(FD, PSIZE)      taosFStatFile(FD, PSIZE, NULL)
+
+static FORCE_INLINE void tdbCloseDir(TdDirPtr *ppDir) {
+  int32_t ret = taosCloseDir(ppDir);
+  if (ret) {
+    tdbError("failed to close directory, reason:%s", tstrerror(ret));
+  }
+}
+
+#define tdbOsRemove              remove
+#define tdbOsFileSize(FD, PSIZE) taosFStatFile(FD, PSIZE, NULL)
 
 /* directory */
 #define tdbOsMkdir taosMkDir

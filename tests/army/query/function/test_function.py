@@ -505,11 +505,101 @@ class TDTestCase(TBase):
         tdSql.query("select var_pop(null) from ts_4893.meters;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
-
     def test_error(self):
         tdSql.error(
             "select * from (select to_iso8601(ts, timezone()), timezone() from meters order by ts desc) limit 1000;",
             expectErrInfo="Not supported timzone format")  # TS-5340
+
+    def test_rand(self):
+        self.test_normal_query("rand")
+
+        tdSql.query("select rand();")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        self.check_result_in_range(0, 0)
+
+        tdSql.query("select rand(null);")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        self.check_result_in_range(0, 0)
+
+        tdSql.query("select rand() from (select 1) t limit 1;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        self.check_result_in_range(0, 0)
+
+        tdSql.query("select rand(id) from ts_4893.d0 limit 100;")
+        tdSql.checkRows(100)
+        tdSql.checkCols(1)
+        for i in range(len(tdSql.res)):
+            self.check_result_in_range(i, 0)
+
+        tdSql.query("select rand(id) from ts_4893.meters limit 100;")
+        tdSql.checkRows(100)
+        tdSql.checkCols(1)
+        for i in range(len(tdSql.res)):
+            self.check_result_in_range(i, 0)
+
+        tdSql.query("select rand(123), rand(123);")
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        if tdSql.res[0][0] != tdSql.res[0][1]:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, tdSql.sql, tdSql.res[0][0], tdSql.res[0][1])
+            tdLog.exit("%s(%d) failed: sql:%s data1:%s ne data2:%s" % args)
+
+    def check_result_in_range(self, row, col):
+        res = tdSql.res[row][col]
+        if res < 0 or res >= 1:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, tdSql.sql, row, col, res)
+            tdLog.exit("%s(%d) failed: sql:%s row:%s col:%s data:%s lt 0 or ge 1" % args)
+
+    def test_max(self):
+        self.test_normal_query("max")
+
+        tdSql.query("select max(null) from ts_4893.meters;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 'None')
+
+        tdSql.query("select max(id) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select max(name) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select max(current) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select max(nch1) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select max(var1) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+    def test_min(self):
+        self.test_normal_query("min")
+
+        tdSql.query("select min(null) from ts_4893.meters;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 'None')
+
+        tdSql.query("select min(id) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select min(name) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select min(current) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select min(nch1) from ts_4893.meters;")
+        tdSql.checkRows(1)
+
+        tdSql.query("select min(var1) from ts_4893.meters;")
+        tdSql.checkRows(1)
 
     # run
     def run(self):
@@ -528,6 +618,7 @@ class TDTestCase(TBase):
         self.test_sign()
         self.test_degrees()
         self.test_radians()
+        self.test_rand()
 
         # char function
         self.test_char_length()
@@ -550,6 +641,10 @@ class TDTestCase(TBase):
         # agg function
         self.test_stddev()
         self.test_varpop()
+
+        # select function
+        self.test_max()
+        self.test_min()
 
         # error function
         self.test_error()

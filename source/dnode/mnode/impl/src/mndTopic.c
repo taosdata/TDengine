@@ -302,7 +302,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   taosMemoryFreeClear(pTopic->ast);
   taosMemoryFreeClear(pTopic->physicalPlan);
   if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-  (void)taosArrayDestroy(pTopic->ntbColIds);
+  taosArrayDestroy(pTopic->ntbColIds);
   return 0;
 }
 
@@ -451,12 +451,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = taosStrdup(pCreate->sql);
+  MND_TMQ_NULL_CHECK(topicObj.sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     topicObj.ast = taosStrdup(pCreate->ast);
+    MND_TMQ_NULL_CHECK(topicObj.ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
     qDebugL("topic:%s ast %s", topicObj.name, topicObj.ast);
     MND_TMQ_RETURN_CHECK(nodesStringToNode(pCreate->ast, &pAst));
@@ -467,7 +469,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     MND_TMQ_NULL_CHECK(topicObj.ntbColIds);
     MND_TMQ_RETURN_CHECK(extractTopicTbInfo(pAst, &topicObj));
     if (topicObj.ntbUid == 0) {
-      (void)taosArrayDestroy(topicObj.ntbColIds);
+      taosArrayDestroy(topicObj.ntbColIds);
       topicObj.ntbColIds = NULL;
     }
 
@@ -482,6 +484,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     if(pCreate->ast != NULL){
       qDebugL("topic:%s ast %s", topicObj.name, pCreate->ast);
       topicObj.ast = taosStrdup(pCreate->ast);
+      MND_TMQ_NULL_CHECK(topicObj.ast);
       topicObj.astLen = strlen(pCreate->ast) + 1;
     }
   }
@@ -505,7 +508,7 @@ END:
   taosMemoryFreeClear(topicObj.physicalPlan);
   taosMemoryFreeClear(topicObj.sql);
   taosMemoryFreeClear(topicObj.ast);
-  (void)taosArrayDestroy(topicObj.ntbColIds);
+  taosArrayDestroy(topicObj.ntbColIds);
   if (topicObj.schema.nCols) {
     taosMemoryFreeClear(topicObj.schema.pSchema);
   }
@@ -567,9 +570,15 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
 
   {
     SName dbname = {0};
-    (void)tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);              // ignore error
+    int32_t ret = tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+    if (ret != 0){
+      mError("failed to parse db name:%s, ret:%d", createTopicReq.subDbName, ret);
+    }
     SName topicName = {0};
-    (void)tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE); // ignore error
+    ret = tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (ret != 0){
+      mError("failed to parse topic name:%s, ret:%d", createTopicReq.name, ret);
+    }
     auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
                 createTopicReq.sql, strlen(createTopicReq.sql));
   }
@@ -735,7 +744,10 @@ END:
   }
 
   SName name = {0};
-  (void)tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);   // ignore error
+  int32_t ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (ret != 0) {
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(ret));
+  }
   auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);

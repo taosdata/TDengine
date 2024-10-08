@@ -80,7 +80,7 @@ int32_t windowSBfAdd(SUpdateInfo* pInfo, uint64_t count) {
     QUERY_CHECK_CODE(code, lino, _error);
     void* res = taosArrayPush(pInfo->pTsSBFs, &tsSBF);
     if (!res) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -150,12 +150,12 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   int32_t      lino = 0;
   SUpdateInfo* pInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->pTsBuckets = NULL;
   pInfo->pTsSBFs = NULL;
-  pInfo->minTS = -1;
+  pInfo->minTS = INT64_MIN;
   pInfo->interval = adjustInterval(interval, precision);
   pInfo->watermark = adjustWatermark(pInfo->interval, interval, watermark);
   pInfo->numSBFs = 0;
@@ -168,7 +168,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
     pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(void*));
     if (pInfo->pTsSBFs == NULL) {
       updateInfoDestroy(pInfo);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = windowSBfAdd(pInfo, bfSize);
@@ -177,15 +177,15 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
     pInfo->pTsBuckets = taosArrayInit(DEFAULT_BUCKET_SIZE, sizeof(TSKEY));
     if (pInfo->pTsBuckets == NULL) {
       updateInfoDestroy(pInfo);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    TSKEY dumy = 0;
+    TSKEY dumy = INT64_MIN;
     for (uint64_t i = 0; i < DEFAULT_BUCKET_SIZE; ++i) {
       void* tmp = taosArrayPush(pInfo->pTsBuckets, &dumy);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -195,7 +195,7 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
   pInfo->pMap = taosHashInit(DEFAULT_MAP_CAPACITY, hashFn, true, HASH_NO_LOCK);
   if (!pInfo->pMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->maxDataVersion = 0;
@@ -203,12 +203,12 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
   pInfo->pkColType = pkType;
   pInfo->pKeyBuff = taosMemoryCalloc(1, sizeof(TSKEY) + sizeof(int64_t) + pkLen);
   if (!pInfo->pKeyBuff) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->pValueBuff = taosMemoryCalloc(1, sizeof(TSKEY) + pkLen);
   if (!pInfo->pValueBuff) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   if (pkLen != 0) {
@@ -231,11 +231,7 @@ _end:
 static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (ts < 0) {
-    code = TSDB_CODE_FAILED;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-  if (pInfo->minTS < 0) {
+  if (pInfo->minTS == INT64_MIN) {
     pInfo->minTS = (TSKEY)(ts / pInfo->interval * pInfo->interval);
   }
   int64_t index = (int64_t)((ts - pInfo->minTS) / pInfo->interval);
@@ -259,7 +255,7 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
 
     void* tmp = taosArrayPush(pInfo->pTsSBFs, &res);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -349,7 +345,7 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
   void**   pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
   uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
   TSKEY    maxTs = *(TSKEY*)taosArrayGet(pInfo->pTsBuckets, index);
-  if (ts < maxTs - pInfo->watermark) {
+  if (maxTs != INT64_MIN && ts < maxTs - pInfo->watermark) {
     // this window has been closed.
     if (pInfo->pCloseWinSBF) {
       code = tScalableBfPut(pInfo->pCloseWinSBF, pInfo->pKeyBuff, buffLen, &res);
@@ -579,7 +575,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
     void* tmp = taosArrayPush(pInfo->pTsBuckets, &ts);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -589,6 +585,8 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   int32_t sBfSize = 0;
   if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
   pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void*));
+  QUERY_CHECK_NULL(pInfo->pTsSBFs, code, lino, _error, terrno);
+
   for (int32_t i = 0; i < sBfSize; i++) {
     SScalableBf* pSBf = NULL;
     code = tScalableBfDecode(&decoder, &pSBf);
@@ -596,7 +594,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
 
     void* tmp = taosArrayPush(pInfo->pTsSBFs, &pSBf);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
@@ -633,7 +631,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   if (tDecodeI8(&decoder, &pInfo->pkColType) < 0) return -1;
 
   pInfo->pKeyBuff = taosMemoryCalloc(1, sizeof(TSKEY) + sizeof(int64_t) + pInfo->pkColLen);
+  QUERY_CHECK_NULL(pInfo->pKeyBuff, code, lino, _error, terrno);
+
   pInfo->pValueBuff = taosMemoryCalloc(1, sizeof(TSKEY) + pInfo->pkColLen);
+  QUERY_CHECK_NULL(pInfo->pValueBuff, code, lino, _error, terrno);
+
   if (pInfo->pkColLen != 0) {
     pInfo->comparePkRowFn = compareKeyTsAndPk;
     pInfo->comparePkCol = getKeyComparFunc(pInfo->pkColType, TSDB_ORDER_ASC);

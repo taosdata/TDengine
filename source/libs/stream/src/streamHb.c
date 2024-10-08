@@ -42,7 +42,7 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
   int32_t numOfExisted = taosArrayGetSize(pMsg->pUpdateNodes);
-  for (int k = 0; k < numOfExisted; ++k) {
+  for (int32_t k = 0; k < numOfExisted; ++k) {
     if (pTaskEpset->nodeId == *(int32_t*)taosArrayGet(pMsg->pUpdateNodes, k)) {
       return true;
     }
@@ -56,7 +56,7 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   streamMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
-  for (int j = 0; j < num; ++j) {
+  for (int32_t j = 0; j < num; ++j) {
     SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, j);
 
     bool exist = existInHbMsg(pMsg, pTaskEpset);
@@ -153,7 +153,6 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   if (pMsg->pTaskStatus == NULL || pMsg->pUpdateNodes == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -279,7 +278,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!waitForEnoughDuration(pMeta->pHbInfo)) {
-    streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, vgId,
+    streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, vgId,
                    "meta-hb-tmr");
 
     code = taosReleaseRef(streamMetaId, rid);
@@ -301,7 +300,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
   streamMetaRUnLock(pMeta);
 
-  streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
 
   code = taosReleaseRef(streamMetaId, rid);
@@ -314,10 +313,10 @@ int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
   *pRes = NULL;
   SMetaHbInfo* pInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
-  pInfo->hbTmr = taosTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer, &pInfo->hbTmr, 0, "stream-hb");
   pInfo->tickCounter = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;
@@ -331,7 +330,7 @@ void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
     tCleanupStreamHbMsg(&pInfo->hbMsg);
 
     if (pInfo->hbTmr != NULL) {
-      (void) taosTmrStop(pInfo->hbTmr);
+      streamTmrStop(pInfo->hbTmr);
       pInfo->hbTmr = NULL;
     }
 

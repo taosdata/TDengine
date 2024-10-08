@@ -123,7 +123,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t ver, const char *pMsg
     TAOS_CHECK_EXIT(metaCreateTSma(SMA_META(pSma), ver, pCfg));
 
     // create stable to save tsma result in dstVgId
-    (void)tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    TAOS_CHECK_EXIT(tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
     pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
@@ -170,12 +170,12 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
   if (pReq->aSubmitTbData == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pTableIndexMap = taosHashInit(numOfBlocks, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pTableIndexMap == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   // SSubmitTbData req
@@ -205,7 +205,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
         }
 
         if( taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           continue;
         }
 
@@ -232,7 +232,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
     if (!(pBuf = rpcMallocCont(len))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -277,13 +277,16 @@ static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *
 
     void *pBuf = rpcMallocCont(len + sizeof(SMsgHead));
     if (!pBuf) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SEncoder encoder;
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len);
-    (void)tEncodeSBatchDeleteReq(&encoder, pDelReq);
+    if ((code = tEncodeSBatchDeleteReq(&encoder, pDelReq)) < 0) {
+      tEncoderClear(&encoder);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     tEncoderClear(&encoder);
 
     ((SMsgHead *)pBuf)->vgId = TD_VID(pSma->pVnode);

@@ -44,7 +44,7 @@ int32_t iIntersection(SArray *in, SArray *out) {
   }
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   if (mi == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(in, i);
@@ -69,7 +69,7 @@ int32_t iIntersection(SArray *in, SArray *out) {
     }
     if (has == true) {
       if (taosArrayPush(out, &tgt) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
     }
@@ -90,6 +90,10 @@ int32_t iUnion(SArray *in, SArray *out) {
   }
 
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
+  if (mi == NULL) {
+    return terrno;
+  }
+
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
@@ -119,7 +123,7 @@ int32_t iUnion(SArray *in, SArray *out) {
         }
       }
       if (taosArrayPush(out, &mVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
     } else {
@@ -220,17 +224,17 @@ int32_t idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
   } else {
     SArray *arrs = taosArrayInit(2, sizeof(void *));
     if (arrs == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     if (taosArrayPush(arrs, &tr->total) == NULL) {
       taosArrayDestroy(arrs);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     if (taosArrayPush(arrs, &tr->add) == NULL) {
       taosArrayDestroy(arrs);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     code = iUnion(arrs, result);
     taosArrayDestroy(arrs);

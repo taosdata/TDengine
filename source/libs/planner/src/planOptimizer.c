@@ -294,6 +294,9 @@ static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*ty
   return true;
 }
 
+static bool isMinMaxFunction(int32_t funcType) {
+  return funcType == FUNCTION_TYPE_MIN || funcType == FUNCTION_TYPE_MAX;
+}
 static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
@@ -303,7 +306,8 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
+    if ((!isMinMaxFunction(pFunc->funcType) && scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) ||
+        (isMinMaxFunction(pFunc->funcType) && pFunc->hasSMA)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -1194,7 +1198,7 @@ static int32_t pdcJoinCollectColsFromParent(SJoinLogicNode* pJoin, SSHashObj* pT
     .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
   };
   if (NULL == cxt.pColHash) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   nodesWalkExpr(pJoin->pPrimKeyEqCond, pdcJoinCollectCondCol, &cxt);
@@ -2879,7 +2883,7 @@ static int32_t smaIndexOptCreateSmaScan(SScanLogicNode* pScan, STableIndexInfo* 
   pSmaScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
   if (!pSmaScan->pVgroupList) {
     nodesDestroyNode((SNode*)pSmaScan);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   code = nodesCloneList(pCols, &pSmaScan->node.pTargets);
   if (NULL == pSmaScan->node.pTargets) {
@@ -4293,27 +4297,27 @@ static void lastRowScanOptRemoveUslessTargets(SNodeList* pTargets, SNodeList* pL
 static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pColNode, int32_t funcType) {
   SFunctParam* pFuncTypeParam = taosMemoryCalloc(1, sizeof(SFunctParam));
   if (NULL == pFuncTypeParam) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pFuncTypeParam->type = funcType;
   if (NULL == pScan->pFuncTypes) {
     pScan->pFuncTypes = taosArrayInit(pScan->pScanCols->length, sizeof(SFunctParam));
     if (NULL == pScan->pFuncTypes) {
       taosMemoryFree(pFuncTypeParam);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
  
   pFuncTypeParam->pCol = taosMemoryCalloc(1, sizeof(SColumn));
   if (NULL == pFuncTypeParam->pCol) {
     taosMemoryFree(pFuncTypeParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pFuncTypeParam->pCol->colId = pColNode->colId;
   strcpy(pFuncTypeParam->pCol->name, pColNode->colName);
   if (NULL == taosArrayPush(pScan->pFuncTypes, pFuncTypeParam)) {
     taosMemoryFree(pFuncTypeParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosMemoryFree(pFuncTypeParam);
@@ -6667,7 +6671,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
 
   if (nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
     pTsmaOptCtx->queryInterval = taosMemoryCalloc(1, sizeof(SInterval));
-    if (!pTsmaOptCtx->queryInterval) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!pTsmaOptCtx->queryInterval) return terrno;
 
     SWindowLogicNode* pWindow = (SWindowLogicNode*)pTsmaOptCtx->pParent;
     pTsmaOptCtx->queryInterval->interval = pWindow->interval;
@@ -6688,7 +6692,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
   pTsmaOptCtx->pUsefulTsmas = taosArrayInit(pScan->pTsmas->size, sizeof(STSMAOptUsefulTsma));
   pTsmaOptCtx->pUsedTsmas = taosArrayInit(3, sizeof(STSMAOptUsefulTsma));
   if (!pTsmaOptCtx->pUsefulTsmas || !pTsmaOptCtx->pUsedTsmas) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   return code;
 }
@@ -6751,7 +6755,7 @@ static int32_t tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList*
       }
       found = true;
       if (NULL == taosArrayPush(pTsmaScanCols, &i)) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       break;
     }
@@ -6809,7 +6813,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
   for (int32_t i = 0; i < pTsmaOptCtx->pTsmas->size; ++i) {
     if (!pTsmaScanCols) {
       pTsmaScanCols = taosArrayInit(pTsmaOptCtx->pAggFuncs->length, sizeof(int32_t));
-      if (!pTsmaScanCols) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!pTsmaScanCols) return terrno;
     }
     if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE || pTsmaOptCtx->pScan->tableType == TSDB_NORMAL_TABLE) {
       const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, i);
@@ -6838,7 +6842,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
       if (pTsmaScanCols) {
         taosArrayDestroy(pTsmaScanCols);
       }
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   if (pTsmaScanCols) taosArrayDestroy(pTsmaScanCols);
@@ -6945,7 +6949,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // the main tsma
@@ -6958,7 +6962,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
     STSMAOptUsefulTsma usefulTsma = {
         .pTsma = pTsma, .scanRange = scanRange, .pTsmaScanCols = pUsefulTsma->pTsmaScanCols};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // add tail tsma if possible
@@ -6972,7 +6976,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
   return code;
 }
@@ -7072,7 +7076,7 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
       pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
       pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
       pValue->datum.p = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + VARSTR_HEADER_SIZE);
-      if (!pValue->literal || !pValue->datum.p) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (!pValue->literal || !pValue->datum.p) code = terrno;
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -7200,7 +7204,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
             int32_t len = sizeof(int32_t) + sizeof(SVgroupInfo) * pVgpsInfo->numOfVgroups;
             pNewScan->pVgroupList = taosMemoryCalloc(1, len);
             if (!pNewScan->pVgroupList) {
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               break;
             }
             memcpy(pNewScan->pVgroupList, pVgpsInfo, len);

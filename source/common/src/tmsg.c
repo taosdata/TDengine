@@ -4912,6 +4912,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3ChunkSize));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3KeepLocal));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->s3Compact));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->hashMethod));
 
   return 0;
 }
@@ -5002,6 +5003,11 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3ChunkSize));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3KeepLocal));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->s3Compact));
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->hashMethod));
+  } else {
+    pRsp->hashMethod = 1;  // default value
   }
 
   return 0;
@@ -5720,6 +5726,7 @@ int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->option));
   tEndEncode(&encoder);
 
 _exit:
@@ -5754,6 +5761,11 @@ int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbName));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->option));
+  } else {
+    pReq->option = 0;
+  }
 
   tEndDecode(&decoder);
 _exit:
@@ -10351,7 +10363,11 @@ int32_t tDecodeSMCreateStbRsp(SDecoder *pDecoder, SMCreateStbRsp *pRsp) {
   }
   tEndDecode(pDecoder);
 
+  return code;
+
 _exit:
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFreeClear(pRsp->pMeta);
   return code;
 }
 
@@ -12026,19 +12042,19 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
   *pRet = *pInfo;
   if (pInfo->pFuncs) {
     pRet->pFuncs = taosArrayDup(pInfo->pFuncs, NULL);
-    if (!pRet->pFuncs) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pFuncs) code = terrno;
   }
   if (pInfo->pTags && code == TSDB_CODE_SUCCESS) {
     pRet->pTags = taosArrayDup(pInfo->pTags, NULL);
-    if (!pRet->pTags) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pTags) code = terrno;
   }
   if (pInfo->pUsedCols && code == TSDB_CODE_SUCCESS) {
     pRet->pUsedCols = taosArrayDup(pInfo->pUsedCols, NULL);
-    if (!pRet->pUsedCols) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->pUsedCols) code = terrno;
   }
   if (pInfo->ast && code == TSDB_CODE_SUCCESS) {
     pRet->ast = taosStrdup(pInfo->ast);
-    if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pRet->ast) code = terrno;
   }
   if (code) {
     tFreeAndClearTableTSMAInfo(pRet);

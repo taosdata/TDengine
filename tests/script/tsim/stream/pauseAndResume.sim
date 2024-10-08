@@ -109,7 +109,7 @@ endi
 print ===== idle for 70 sec for checkpoint gen
 sleep 70000
 
-print ===== idle 60 sec completed , continue
+print ===== idle 70 sec completed , continue
 
 print ===== step 1 over
 
@@ -127,9 +127,12 @@ sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 wate
 sql_error create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
 sql create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
 
+print start to check stream status
+
 sleep 1000
 run tsim/stream/checkTaskStatus.sim
 
+print pause stream2
 sql pause stream streams2;
 
 sql insert into t1 values(1648791213001,1,12,3,1.0);

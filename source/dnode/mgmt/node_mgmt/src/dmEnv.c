@@ -47,8 +47,14 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
 }
 
 static int32_t dmInitSystem() {
-  (void)taosIgnSIGPIPE();
-  (void)taosBlockSIGPIPE();
+  if (taosIgnSIGPIPE() != 0) {
+    dError("failed to ignore SIGPIPE");
+  }
+
+  if (taosBlockSIGPIPE() != 0) {
+    dError("failed to block SIGPIPE");
+  }
+
   taosResolveCRC();
   return 0;
 }
@@ -89,9 +95,13 @@ static bool dmDataSpaceAvailable() {
 }
 
 static int32_t dmCheckDiskSpace() {
-  osUpdate();
   // availability
   int32_t code = 0;
+  code =  osUpdate();
+  if(code != 0) {
+    code = 0; // ignore the error, just log it
+    dError("failed to update os info since %s", tstrerror(code));
+  }
   if (!dmDataSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     return code;
@@ -200,7 +210,9 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
-  (void)udfcClose();
+  if (udfcClose() != 0) {
+    dError("failed to close udfc");
+  }
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();

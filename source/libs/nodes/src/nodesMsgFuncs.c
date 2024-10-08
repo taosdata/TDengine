@@ -79,7 +79,7 @@ static int32_t initTlvEncoder(STlvEncoder* pEncoder) {
   pEncoder->offset = 0;
   pEncoder->tlvCount = 0;
   pEncoder->pBuf = taosMemoryMalloc(pEncoder->allocSize);
-  return NULL == pEncoder->pBuf ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  return NULL == pEncoder->pBuf ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static void clearTlvEncoder(STlvEncoder* pEncoder) { taosMemoryFree(pEncoder->pBuf); }
@@ -96,7 +96,7 @@ static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pV
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + tlvLen);
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
   }
@@ -113,7 +113,7 @@ static int32_t tlvEncodeValueImpl(STlvEncoder* pEncoder, const void* pValue, int
   if (pEncoder->offset + len > pEncoder->allocSize) {
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize * 2);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
     pEncoder->allocSize = pEncoder->allocSize * 2;
@@ -248,7 +248,7 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
   }
@@ -513,14 +513,14 @@ static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue) {
 }
 
 static int32_t tlvDecodeCStrP(STlv* pTlv, char** pValue) {
-  *pValue = strndup(pTlv->value, pTlv->len);
-  return NULL == *pValue ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  *pValue = taosStrndup(pTlv->value, pTlv->len);
+  return NULL == *pValue ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static int32_t tlvDecodeDynBinary(STlv* pTlv, void** pValue) {
   *pValue = taosMemoryMalloc(pTlv->len);
   if (NULL == *pValue) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pValue, pTlv->value, pTlv->len);
   return TSDB_CODE_SUCCESS;
@@ -952,7 +952,7 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
       if (NULL == pNode->datum.p) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       code = tlvDecodeBinary(pTlv, pNode->datum.p);
@@ -4841,7 +4841,7 @@ static int32_t msgToSArray(STlv* pTlv, void** pObj){
         }
         pArray = taosArrayInit(capacity, elemSize);
         if (NULL == pArray) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         pArray->size = actualSize;
         if (TSDB_CODE_SUCCESS != code || pTlvTemp == NULL) {
@@ -4859,7 +4859,7 @@ static int32_t msgToSArray(STlv* pTlv, void** pObj){
   if (pDataTlv != NULL) {
     pArray = taosArrayInit(capacity, elemSize);
     if (NULL == pArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pArray->size = actualSize;
     if (TSDB_CODE_SUCCESS != code || pTlvTemp == NULL) {

@@ -84,7 +84,7 @@ int32_t tdListPrepend(SList *list, void *data) {
 int32_t tdListAppend(SList *list, const void *data) {
   SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy((void *)(node->data), data, list->eleSize);

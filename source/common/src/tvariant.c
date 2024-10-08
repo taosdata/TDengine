@@ -368,7 +368,7 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
  * @param len
  * @param type
  */
-void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type) {
+int32_t taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -426,6 +426,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
       pVar->ucs4 = taosMemoryCalloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
+      if(!pVar->ucs4) return terrno;
       (void)memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
 
@@ -446,6 +447,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
   }
 
   pVar->nType = type;
+  return 0;
 }
 
 void taosVariantDestroy(SVariant *pVar) {
