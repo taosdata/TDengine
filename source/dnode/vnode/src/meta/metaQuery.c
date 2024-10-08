@@ -1523,6 +1523,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+        taosMemoryFreeClear(info.pTagVal);
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
         return terrno;

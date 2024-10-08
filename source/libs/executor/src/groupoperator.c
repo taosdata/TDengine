@@ -76,21 +76,25 @@ static void freeGroupKey(void* param) {
 }
 
 static void destroyGroupOperatorInfo(void* param) {
-  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
-  if (pInfo == NULL) {
+  if (param == NULL) {
     return;
   }
+  SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
 
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+
+  if (pInfo->pOperator != NULL) {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    pInfo->pOperator = NULL;
+  }
+
   cleanupGroupResInfo(&pInfo->groupResInfo);
   cleanupAggSup(&pInfo->aggSup);
-  pInfo->pOperator = NULL;
   taosMemoryFreeClear(param);
 }
 

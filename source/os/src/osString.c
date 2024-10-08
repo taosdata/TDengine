@@ -63,7 +63,8 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *strndup(const char *s, int size) {
+char *taosStrndup(const char *s, int size) {
+  if (s == NULL) return NULL;
   size_t l;
   char  *s2;
   l = strlen(s);
@@ -72,6 +73,8 @@ char *strndup(const char *s, int size) {
   if (s2) {
     strncpy(s2, s, l);
     s2[l] = '\0';
+  } else {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return s2;
 }
@@ -83,6 +86,17 @@ char *stpncpy(char *dest, const char *src, int n) {
   dest += size;
   if (size == n) return dest;
   return memset(dest, '\0', n - size);
+}
+#else
+char *taosStrndup(const char *s, int size) {
+  if (s == NULL) {
+    return NULL;
+  }
+  char *p = strndup(s, size);
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
 }
 #endif
 

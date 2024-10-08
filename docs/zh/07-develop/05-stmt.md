@@ -64,7 +64,9 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/stmt_insert_demo.c}}
+```
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

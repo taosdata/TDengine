@@ -106,7 +106,7 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  TAOS_UNUSED(tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem));
+  int32_t r = tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
 #ifdef BUILD_NO_CALL
@@ -812,6 +812,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
         if (!COL_VAL_IS_NONE(pColVal)) {
           if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+            if (!pTColVal) return terrno;
             if (!COL_VAL_IS_NULL(pColVal)) {
               code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
               if (code) return code;

@@ -41,7 +41,11 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
     pReader->cond.enableRef = 0;
   }
 
-  TAOS_UNUSED(taosThreadMutexInit(&pReader->mutex, NULL));
+  terrno = taosThreadMutexInit(&pReader->mutex, NULL);
+  if (terrno) {
+    taosMemoryFree(pReader);
+    return NULL;
+  }
 
   pReader->pHead = taosMemoryMalloc(sizeof(SWalCkHead));
   if (pReader->pHead == NULL) {
@@ -309,8 +313,8 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   if (pRead->pWal->cfg.encryptAlgorithm == 1) {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
-  int64_t code = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
-  if (code < 0) {
+  int64_t ret = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
+  if (ret < 0) {
     TAOS_RETURN(terrno);
   }
 
@@ -401,7 +405,9 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&pReader->mutex));
+  if (taosThreadMutexLock(&pReader->mutex) != 0) {
+    wError("vgId:%d, failed to lock mutex", pReader->pWal->cfg.vgId);
+  }
 
   if (pReader->curVersion != ver) {
     code = walReaderSeekVer(pReader, ver);
@@ -537,7 +543,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
 
     // wDebug("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
-    TAOS_UNUSED(memcpy(pHead->head.body, newBody, plainBodyLen));
+    (void)memcpy(pHead->head.body, newBody, plainBodyLen);
 
     taosMemoryFree(newBody);
   }
@@ -546,7 +552,10 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
 }
 
 void walReadReset(SWalReader *pReader) {
-  TAOS_UNUSED(taosThreadMutexLock(&pReader->mutex));
+  if ((taosThreadMutexLock(&pReader->mutex)) != 0) {
+    wError("vgId:%d, failed to lock mutex", pReader->pWal->cfg.vgId);
+  }
+
   TAOS_UNUSED(taosCloseFile(&pReader->pIdxFile));
   TAOS_UNUSED(taosCloseFile(&pReader->pLogFile));
   pReader->curFileFirstVer = -1;

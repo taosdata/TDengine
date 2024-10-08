@@ -211,19 +211,23 @@ static EDealRes walkExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeWalk
 }
 
 void nodesWalkExpr(SNode* pNode, FNodeWalker walker, void* pContext) {
-  (void)walkExpr(pNode, TRAVERSAL_PREORDER, walker, pContext);
+  EDealRes res;
+  res = walkExpr(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
 void nodesWalkExprs(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
-  (void)walkExprs(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
+  EDealRes res;
+  res = walkExprs(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
 void nodesWalkExprPostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
-  (void)walkExpr(pNode, TRAVERSAL_POSTORDER, walker, pContext);
+  EDealRes res;
+  res = walkExpr(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
-  (void)walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
+  EDealRes res;
+  res = walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 static void checkParamIsFunc(SFunctionNode* pFunc) {
@@ -389,7 +393,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&pWin->pEndOffset, order, rewriter, pContext);
       }
       break;
-    }  
+    }
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);

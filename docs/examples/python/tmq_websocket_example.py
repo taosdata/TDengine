@@ -31,7 +31,7 @@ def prepareMeta():
 
         # create super table
         rowsAffected = conn.execute(
-            "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+            "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(64))"
         )
         assert rowsAffected == 0
 
@@ -155,6 +155,7 @@ def unsubscribe(consumer):
         print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
+        raise err
     finally:
         if consumer:
             consumer.close()
@@ -170,7 +171,6 @@ if __name__ == "__main__":
         subscribe(consumer)
         seek_offset(consumer)
         commit_offset(consumer)      
-    except Exception as err:
-        print(f"Failed to execute consumer example, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
     finally:
-        unsubscribe(consumer)
+        if consumer:
+            unsubscribe(consumer)

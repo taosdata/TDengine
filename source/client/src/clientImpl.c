@@ -1249,7 +1249,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
+void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
 
   if (pQuery->pRoot) {
@@ -1335,8 +1335,6 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
     *res = pRequest->body.resInfo.execRes.res;
     pRequest->body.resInfo.execRes.res = NULL;
   }
-
-  return pRequest;
 }
 
 static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
@@ -2443,10 +2441,9 @@ char* getDbOfConnection(STscObj* pObj) {
   (void)taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
-    p = strndup(pObj->db, tListLen(pObj->db));
+    p = taosStrndup(pObj->db, tListLen(pObj->db));
     if (p == NULL) {
-      tscError("failed to strndup db name");
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tscError("failed to taosStrndup db name");
     }
   }
 
@@ -2934,8 +2931,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     return NULL;
   }
   code = tsem_destroy(&param->sem);
-  if(TSDB_CODE_SUCCESS != code) {
-      tscError("failed to destroy semaphore since %s", tstrerror(code));
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to destroy semaphore since %s", tstrerror(code));
   }
 
   SRequestObj* pRequest = NULL;
