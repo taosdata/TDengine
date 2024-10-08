@@ -1618,7 +1618,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   RAW_NULL_CHECK(pVgHash);
   RAW_RETURN_CHECK(
       taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData)));
-  RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false, NULL, 0));
+  RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false, NULL, 0, false));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1678,7 +1678,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   RAW_NULL_CHECK(pVgHash);
   RAW_RETURN_CHECK(
       taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData)));
-  RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false, NULL, 0));
+  RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false, NULL, 0, false));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1960,35 +1960,32 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
       vgId = vg->vgId;
     }
 
-    STableMeta** pTableMeta = (STableMeta**)taosHashGet(pMetaHash, tbName, strlen(tbName));
-    if (pTableMeta == NULL) {
+    STableMeta* pTableMeta = NULL;
+    STableMeta** pTableMetaTmp = (STableMeta**)taosHashGet(pMetaHash, tbName, strlen(tbName));
+    if (pTableMetaTmp == NULL) {
       if (pCreateReqDst) {  // change stable name to get meta
         (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
       }
-      RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, pTableMeta));
-      RAW_RETURN_CHECK(taosHashPut(pMetaHash, tbName, strlen(tbName), pTableMeta, POINTER_BYTES));
-      if (pCreateReqDst) {
-        (*pTableMeta)->vgId = vgId;
-        (*pTableMeta)->uid = pCreateReqDst->uid;
-        pCreateReqDst->ctb.suid = (*pTableMeta)->suid;
+      RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
+      code = taosHashPut(pMetaHash, tbName, strlen(tbName), &pTableMeta, POINTER_BYTES);
+      if (code != 0){
+        taosMemoryFree(pTableMeta);
+        goto end;
       }
+      if (pCreateReqDst) {
+        pTableMeta->vgId = vgId;
+        pTableMeta->uid = pCreateReqDst->uid;
+        pCreateReqDst->ctb.suid = pTableMeta->suid;
+      }
+    }else{
+      pTableMeta = *pTableMetaTmp;
     }
 
-//    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
-//    RAW_NULL_CHECK(pSW);
-//    TAOS_FIELD* fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
-//    RAW_NULL_CHECK(fields);
-//
-//    for (int i = 0; i < pSW->nCols; i++) {
-//      fields[i].type = pSW->pSchema[i].type;
-//      fields[i].bytes = pSW->pSchema[i].bytes;
-//      tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
-//    }
+    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
+    RAW_NULL_CHECK(pSW);
     void* rawData = getRawDataFromRes(pRetrieve);
     char  err[ERR_MSG_LEN] = {0};
-    code = rawBlockBindData(pQuery, *pTableMeta, rawData, pCreateReqDst, NULL, 0, true, err, ERR_MSG_LEN);
-//    code = rawBlockBindData(pQuery, *pTableMeta, rawData, pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
-//    taosMemoryFree(fields);
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;

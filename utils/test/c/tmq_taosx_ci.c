@@ -79,6 +79,7 @@ static void msg_process(TAOS_RES* msg) {
         } else {
           taosFprintfFile(g_fp, result);
           taosFprintfFile(g_fp, "\n");
+          taosFsyncFile(g_fp);
         }
       }
     }

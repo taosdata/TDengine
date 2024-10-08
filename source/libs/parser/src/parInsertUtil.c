@@ -886,8 +886,8 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   return false;
 }
 
-int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
-                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* tFields,
+                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw) {
   int ret = 0;
   if(data == NULL) {
     uError("rawBlockBindData, data is NULL");
@@ -964,11 +964,16 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     goto end;
   }
   if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    if (errstr != NULL)
-      snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
+    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
+  if (tFields == NULL && numOfCols != boundInfo->numOfBound) {
+    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d not equal to num of bound cols:%d", numOfCols, boundInfo->numOfBound);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
+
   if (tFields == NULL) {
     for (int j = 0; j < boundInfo->numOfBound; j++) {
       SSchema*  pColSchema = &pSchema[j];
@@ -1006,7 +1011,13 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
         SSchema* pColSchema = &pSchema[j];
-        if (strcmp(pColSchema->name, tFields[i].name) == 0) {
+        char* fieldName = NULL;
+        if (raw) {
+          fieldName = ((SSchemaWrapper*)tFields)->pSchema[i].name;
+        } else {
+          fieldName = ((TAOS_FIELD*)tFields)[i].name;
+        }
+        if (strcmp(pColSchema->name, fieldName) == 0) {
           if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
             if (errstr != NULL)
               snprintf(errstr, errstrLen,
