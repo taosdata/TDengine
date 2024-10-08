@@ -698,7 +698,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
 
   int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
 
-  int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64;
+  int32_t len = (pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
   char*   buf = taosMemoryCalloc(1, len);
   if (!buf) {
     code = terrno;
