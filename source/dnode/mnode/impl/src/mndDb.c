@@ -1329,6 +1329,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->walFsyncPeriod = pDb->cfg.walFsyncPeriod;
   cfgRsp->hashPrefix = pDb->cfg.hashPrefix;
   cfgRsp->hashSuffix = pDb->cfg.hashSuffix;
+  cfgRsp->hashMethod = pDb->cfg.hashMethod;
   cfgRsp->walLevel = pDb->cfg.walLevel;
   cfgRsp->precision = pDb->cfg.precision;
   cfgRsp->compression = pDb->cfg.compression;
@@ -2280,6 +2281,10 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
+  if (buf == NULL) {
+    mError("db:%s, failed to malloc buffer", pDb->name);
+    return;
+  }
   int32_t code = 0;
   int32_t lino = 0;
 

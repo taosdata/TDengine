@@ -240,7 +240,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
   *res = taosMemoryMalloc(pNode->node.resType.bytes);
   if (NULL == (*res)) {
     sclError("malloc %d failed", pNode->node.resType.bytes);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   (void)memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
@@ -628,8 +628,8 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
        cell = cell->pNext) {
     pWhenThen = (SWhenThenNode *)node;
 
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
-    SCL_ERR_RET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
+    SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
     SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
@@ -646,6 +646,10 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
 
       goto _return;
     }
+    sclFreeParam(pWhen);
+    sclFreeParam(pThen);
+    taosMemoryFreeClear(pWhen);
+    taosMemoryFreeClear(pThen);
   }
 
   if (pElse) {
@@ -672,8 +676,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
-  taosMemoryFree(pWhen);
-  taosMemoryFree(pThen);
+  taosMemoryFreeClear(pWhen);
+  taosMemoryFreeClear(pThen);
 
   SCL_RET(code);
 }

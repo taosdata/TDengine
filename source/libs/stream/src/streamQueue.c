@@ -384,13 +384,13 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
   if (pTranstate->blocks == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
   void* p = taosArrayPush(pTranstate->blocks, pBlock);
   if (p == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 

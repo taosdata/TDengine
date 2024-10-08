@@ -20,6 +20,7 @@
 #include "taos_alloc.h"
 
 // Private
+#include "taos_log.h"
 #include "taos_string_builder_i.h"
 #include "taos_string_builder_t.h"
 #include "taos_test.h"
@@ -44,7 +45,7 @@ taos_string_builder_t *taos_string_builder_new(void) {
   self->init_size = TAOS_STRING_BUILDER_INIT_SIZE;
   r = taos_string_builder_init(self);
   if (r) {
-    (void)taos_string_builder_destroy(self);
+    taos_string_builder_destroy(self);
     return NULL;
   }
 
@@ -61,14 +62,12 @@ int taos_string_builder_init(taos_string_builder_t *self) {
   return 0;
 }
 
-int taos_string_builder_destroy(taos_string_builder_t *self) {
-  TAOS_TEST_PARA(self != NULL);
-  if (self == NULL) return 0;
+void taos_string_builder_destroy(taos_string_builder_t *self) {
+  TAOS_TEST_PARA_VOID(self != NULL);
   taos_free(self->str);
   self->str = NULL;
   taos_free(self);
   self = NULL;
-  return 0;
 }
 
 /**

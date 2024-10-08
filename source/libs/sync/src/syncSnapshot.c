@@ -720,7 +720,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   SSnapshotParam *pParam = &pReceiver->snapshotParam;
   data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     sError("vgId:%d, failed to realloc memory for snapshot prep due to %s. dataLen:%d", pSyncNode->vgId,
            tstrerror(code), dataLen);
     goto _exit;
@@ -916,7 +916,9 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
       }
     }
     pRcvBuf->start = seq + 1;
-    (void)syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code);
+    if (syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code) != 0) {
+      sError("failed to send snap rsp");
+    }
     pRcvBuf->entryDeleteCb(pRcvBuf->entries[seq % pRcvBuf->size]);
     pRcvBuf->entries[seq % pRcvBuf->size] = NULL;
     if (code) goto _out;
@@ -1011,7 +1013,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    (void)syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code);
+    if (syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code) != 0) sError("failed to send snap rsp");
     TAOS_RETURN(code);
   }
 
@@ -1092,7 +1094,7 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   SSnapshotParam *pParam = &pSender->snapshotParam;
   void           *data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (void)memcpy(data, pMsg->data, dataLen);
 
@@ -1298,13 +1300,13 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     sSInfo(pSender, "process end rsp");
     snapshotSenderStop(pSender, true);
-    (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+    TAOS_CHECK_GOTO(syncNodeReplicateReset(pSyncNode, &pMsg->srcId), NULL, _ERROR);
   }
 
   return 0;
 
 _ERROR:
   snapshotSenderStop(pSender, false);
-  (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+  if (syncNodeReplicateReset(pSyncNode, &pMsg->srcId) != 0) sError("failed to reset replicate");
   TAOS_RETURN(code);
 }

@@ -30,7 +30,9 @@ static int64_t m_deltaUtc = 0;
 
 void deltaToUtcInitOnce() {
   struct tm tm = {0};
-  (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
+  if (taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm) != 0) {
+    uError("failed to parse time string");
+  }
   m_deltaUtc = (int64_t)taosMktime(&tm);
   // printf("====delta:%lld\n\n", seconds);
 }
@@ -689,10 +691,10 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   int64_t numOfMonth = (unit == 'y') ? duration * 12 : duration;
   int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
 
-  struct tm tm;
-  time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  (void)taosLocalTime(&tt, &tm, NULL);
-  int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
+  struct tm  tm;
+  time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+  struct tm* ptm = taosLocalTime(&tt, &tm, NULL);
+  int32_t    mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
   int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -750,13 +752,13 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
     skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     ekey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
 
-    struct tm tm;
-    time_t    t = (time_t)skey;
-    (void)taosLocalTime(&t, &tm, NULL);
-    int32_t smon = tm.tm_year * 12 + tm.tm_mon;
+    struct tm  tm;
+    time_t     t = (time_t)skey;
+    struct tm* ptm = taosLocalTime(&t, &tm, NULL);
+    int32_t    smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
-    (void)taosLocalTime(&t, &tm, NULL);
+    ptm = taosLocalTime(&t, &tm, NULL);
     int32_t emon = tm.tm_year * 12 + tm.tm_mon;
 
     if (unit == 'y') {
@@ -778,9 +780,9 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
-    struct tm tm;
-    time_t    tt = (time_t)start;
-    (void)taosLocalTime(&tt, &tm, NULL);
+    struct tm  tm;
+    time_t     tt = (time_t)start;
+    struct tm* ptm = taosLocalTime(&tt, &tm, NULL);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;

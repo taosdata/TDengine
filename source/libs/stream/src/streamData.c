@@ -191,7 +191,7 @@ int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
   if ((*pSubmit)->submits == NULL) {
     taosFreeQitem(*pSubmit);
     *pSubmit = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pSubmit)->type = STREAM_INPUT__MERGED_SUBMIT;
