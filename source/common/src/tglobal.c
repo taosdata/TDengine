@@ -608,7 +608,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
-  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
@@ -880,7 +880,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "numOfRpcThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
     pItem->i32 = tsNumOfRpcThreads;
     pItem->stype = stype;
   }

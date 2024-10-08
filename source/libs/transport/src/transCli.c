@@ -2286,7 +2286,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
   }
 
-  int32_t nSync = pInst->supportBatch ? 4 : 8;
+  int32_t nSync = 2;  // pInst->supportBatch ? 4 : 8;
   code = transAsyncPoolCreate(pThrd->loop, nSync, pThrd, cliAsyncCb, &pThrd->asyncPool);
   if (code != 0) {
     tError("failed to init async pool since:%s", tstrerror(code));
