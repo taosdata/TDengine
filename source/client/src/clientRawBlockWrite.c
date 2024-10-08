@@ -460,8 +460,10 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       char* buf = NULL;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         buf = taosMemoryCalloc(pTagVal->nData * 2 + 2 + 3, 1);
-      } else {
+      } else if (IS_VAR_DATA_TYPE(pTagVal->type)) {
         buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+      } else {
+        buf = taosMemoryCalloc(32, 1);
       }
 
       RAW_NULL_CHECK(buf);

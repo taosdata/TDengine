@@ -158,10 +158,11 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
   if (taosFqdn != NULL) {
-    taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
+    int len = strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1;
+    taosFqdnEnvItem = taosMemoryMalloc(len);
     if (taosFqdnEnvItem != NULL) {
-      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
-      TAOS_STRCAT(taosFqdnEnvItem, taosFqdn);
+      TAOS_STRNCPY(taosFqdnEnvItem, "TAOS_FQDN=", len);
+      TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, strlen(taosFqdn));
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");

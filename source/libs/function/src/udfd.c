@@ -396,7 +396,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
   // todo: windows support
-  sprintf(plugin->libPath, "%s", "libtaospyudf.so");
+  snprintf(plugin->libPath, PATH_MAX, "%s", "libtaospyudf.so");
   plugin->libLoaded = false;
   const char *funcName[UDFD_MAX_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
                                                  "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
