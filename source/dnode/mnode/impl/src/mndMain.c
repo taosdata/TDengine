@@ -574,6 +574,8 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
     code = sdbReadFile(pMnode->pSdb);
   }
 
+  mInfo("vgId:1, mnode sdb is opened, with applied index:%" PRId64, pMnode->pSdb->commitIndex);
+
   atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
   return code;
 }
