@@ -47,6 +47,9 @@ typedef struct NodeValidationCtx {
   ValidationType      validateType;
 } NodeValidationCtx;
 
+static int32_t validateNode(SNode* pNode, NodeValidationCtx* pCtx);
+static int32_t validateNodes(SNodeList* pNodes, NodeValidationCtx* pCtx);
+
 bool setValidateCol_IgnoreSlotId(NodeValidationCtx* pCtx, bool ignoreSlotId) {
   bool ret = pCtx->validateCol.ignoreSlotId;
   pCtx->validateCol.ignoreSlotId = ignoreSlotId;
@@ -226,6 +229,76 @@ static int32_t validateFunction(SFunctionNode* pFunc, NodeValidationCtx* pCtx) {
   return pCtx->code;
 }
 
+static bool isValidUnit(int8_t unit) {
+  if (unit >= 'a' && unit <= 'y') {
+    if (unit == 'a' || unit == 'b' || unit == 'd' || unit == 'h' || unit == 'm' || unit == 'n' || unit == 's' ||
+        unit == 'u' || unit == 'w' || unit == 'y')
+      return true;
+  }
+  return false;
+}
+
+static int32_t validateValue(SValueNode* pValue, NodeValidationCtx* pCtx) {
+  if (!isValidUnit(pValue->unit)) {
+    qLogWarn();
+    return pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  return pCtx->code = TSDB_CODE_SUCCESS;
+}
+
+static bool isBinaryOp(EOperatorType opType) {
+  return (opType >= OP_TYPE_ADD && opType <= OP_TYPE_REM) || (opType >= OP_TYPE_BIT_AND && opType <= OP_TYPE_BIT_OR) ||
+         (opType >= OP_TYPE_GREATER_THAN && opType <= OP_TYPE_NMATCH) ||
+         (opType >= OP_TYPE_JSON_GET_VALUE && opType <= OP_TYPE_JSON_CONTAINS);
+}
+
+static bool isUnaryOp(EOperatorType opType) {
+  return (opType >= OP_TYPE_MINUS && opType <= OP_TYPE_MINUS) || (opType >= OP_TYPE_IS_NULL && opType < OP_TYPE_COMPARE_MAX_VALUE);
+}
+
+static int32_t validateOperator(SOperatorNode* pOperator, NodeValidationCtx* pCtx) {
+  if (isBinaryOp(pOperator->opType)) {
+    if (!pOperator->pLeft || !pOperator->pRight) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
+  if (isUnaryOp(pOperator->opType)) {
+    if (!pOperator->pLeft) {
+      qLogWarn();
+      return pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
+  if (pOperator->pLeft) {
+    pCtx->code = validateNode(pOperator->pLeft, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
+      return pCtx->code;
+    }
+  }
+  if (pOperator->pRight) {
+    pCtx->code = validateNode(pOperator->pRight, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      qLogWarn();
+      return pCtx->code;
+    }
+  }
+  return pCtx->code;
+}
+
+static int32_t validateLogicCondition(SLogicConditionNode* pLogicCond, NodeValidationCtx* pCtx) {
+  if (pLogicCond->condType >= LOGIC_COND_TYPE_MAX) {
+    qLogWarn();
+    return pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  pCtx->code = validateNodes(pLogicCond->pParameterList, pCtx);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    qLogWarn();
+    return pCtx->code;
+  }
+  return pCtx->code;
+}
+
 static EDealRes validateColumnInWalk(SNode* pNode, void* pCtxVoid) {
   NodeValidationCtx* pCtx = pCtxVoid;
   if (!pNode || !pCtx || !pCtx->pOutputDesc) {
@@ -268,9 +341,11 @@ static int32_t validateNode(SNode* pNode, NodeValidationCtx* pCtx) {
     case QUERY_NODE_COLUMN:
       return validateColumn((SColumnNode*)pNode, pCtx);
     case QUERY_NODE_VALUE:
+      return validateValue((SValueNode*)pNode, pCtx);
     case QUERY_NODE_OPERATOR:
+      return validateOperator((SOperatorNode*)pNode, pCtx);
     case QUERY_NODE_LOGIC_CONDITION:
-      break;
+      return validateLogicCondition((SLogicConditionNode*)pNode, pCtx);
     case QUERY_NODE_FUNCTION:
       return validateFunction((SFunctionNode*)pNode, pCtx);
     case QUERY_NODE_REAL_TABLE:
@@ -538,7 +613,9 @@ int32_t doValidateLastRowScanPhysiNode(SLastRowScanPhysiNode* pNode) {
   }
   // the targets of LastRowScan is copied from ScanLogicalNode, there is no slotId info in it.
   // only colId is used
+  bool oldVal = setValidateCol_IgnoreSlotId(&ctx, true);
   ctx.code = walkAndValidateColumnNodes(pNode->pTargets, ctx.pNode, &ctx);
+  oldVal = setValidateCol_IgnoreSlotId(&ctx, false);
 
   if (TSDB_CODE_SUCCESS != ctx.code) {
     qLogWarn();
@@ -546,20 +623,18 @@ int32_t doValidateLastRowScanPhysiNode(SLastRowScanPhysiNode* pNode) {
   }
 
   // validate pFuncTypes
-  if (!pNode->pFuncTypes) {
-    qLogWarn();
-    return TSDB_CODE_PLAN_VALIDATION_ERR;
-  }
-  for (int32_t i = 0; i < pNode->pFuncTypes->size; ++i) {
-    void* p = taosArrayGet(pNode->pFuncTypes, i);
-    if (!p) {
-      qLogWarn();
-      return TSDB_CODE_PLAN_VALIDATION_ERR;
-    }
-    int32_t type = *(int32_t*)p;
-    if (type <= 0 || type > FUNC_PARAM_TYPE_MAX) {
-      qLogWarn();
-      return TSDB_CODE_PLAN_VALIDATION_ERR;
+  if (pNode->pFuncTypes) {
+    for (int32_t i = 0; i < pNode->pFuncTypes->size; ++i) {
+      void* p = taosArrayGet(pNode->pFuncTypes, i);
+      if (!p) {
+        qLogWarn();
+        return TSDB_CODE_PLAN_VALIDATION_ERR;
+      }
+      int32_t type = *(int32_t*)p;
+      if (type <= 0) {
+        qLogWarn();
+        return TSDB_CODE_PLAN_VALIDATION_ERR;
+      }
     }
   }
 
