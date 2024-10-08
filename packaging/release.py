@@ -590,20 +590,23 @@ def copy_docs_to_explorer(explorer_path):
         if os.path.exists(zh_doc_zip_path):
             unzip_docs(zh_doc_zip_path, zh_doc_public_path)
         else:
-            print(f"WARN: not found docs-{release_info.CustomPrompt}.zip")
+            print(f"ERROR: not found docs-{release_info.CustomPrompt}.zip")
+            sys.exit(1)
     else:
         zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
         zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
         if os.path.exists(zh_doc_zip_path):
             unzip_docs(zh_doc_zip_path, zh_doc_public_path)
         else:
-            print("WARN: not found docs-zh.zip")
+            print("ERROR: not found docs-zh.zip")
+            sys.exit(1)
         en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
         en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
         if os.path.exists(en_doc_zip_path):
             unzip_docs(en_doc_zip_path, en_doc_public_path)
         else:
-            print("WARN: not found docs-en.zip")
+            print("ERROR: not found docs-en.zip")
+            sys.exit(1)
 
 def unzip_docs(doc_zip_path, doc_public_path):
     if os.path.exists(doc_public_path):
