@@ -277,7 +277,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pData
 
 bool    alreadyAddGroupId(char* ctbName, int64_t groupId);
 bool    isAutoTableName(char* ctbName);
-void    buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
+int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap);
 int32_t buildCtbNameByGroupId(const char* stbName, uint64_t groupId, char** pName);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
