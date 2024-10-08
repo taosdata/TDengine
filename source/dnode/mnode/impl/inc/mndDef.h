@@ -241,7 +241,7 @@ typedef struct {
 } SAnodeAlgo;
 
 typedef struct {
-  int32_t  id;
+  char     name[TSDB_ANAL_ANODE_NAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   int32_t  version;

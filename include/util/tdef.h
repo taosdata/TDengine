@@ -293,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+
+#define TSDB_ANAL_ANODE_NAME_LEN  32
 #define TSDB_ANAL_ANODE_URL_LEN   128
 #define TSDB_ANAL_ALGO_NAME_LEN   64
 #define TSDB_ANAL_ALGO_TYPE_LEN   24

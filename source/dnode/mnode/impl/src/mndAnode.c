@@ -46,7 +46,7 @@ static int32_t  mndGetAnodeStatus(SAnodeObj *pObj, char *status);
 int32_t mndInitAnode(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_ANODE,
-      .keyType = SDB_KEY_INT32,
+      .keyType = SDB_KEY_BINARY,
       .encodeFp = (SdbEncodeFp)mndAnodeActionEncode,
       .decodeFp = (SdbDecodeFp)mndAnodeActionDecode,
       .insertFp = (SdbInsertFp)mndAnodeActionInsert,
@@ -69,8 +69,8 @@ int32_t mndInitAnode(SMnode *pMnode) {
 
 void mndCleanupAnode(SMnode *pMnode) {}
 
-SAnodeObj *mndAcquireAnode(SMnode *pMnode, int32_t anodeId) {
-  SAnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_ANODE, &anodeId);
+SAnodeObj *mndAcquireAnode(SMnode *pMnode, const char *name) {
+  SAnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_ANODE, name);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_ANODE_NOT_EXIST;
   }
@@ -87,7 +87,7 @@ static SSdbRaw *mndAnodeActionEncode(SAnodeObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t rawDataLen = sizeof(SAnodeObj) + TSDB_ANODE_RESERVE_SIZE + pObj->urlLen;
+  int32_t rawDataLen = sizeof(SAnodeObj) + TSDB_ANODE_RESERVE_SIZE + pObj->urlLen + pObj->nameLen;
   for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
     SArray *algos = pObj->algos[t];
     for (int32_t a = 0; a < (int32_t)taosArrayGetSize(algos); ++a) {
@@ -101,7 +101,7 @@ static SSdbRaw *mndAnodeActionEncode(SAnodeObj *pObj) {
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pObj->id, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->name, TSDB_ANAL_ANODE_NAME_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->version, _OVER)
@@ -125,12 +125,12 @@ static SSdbRaw *mndAnodeActionEncode(SAnodeObj *pObj) {
 
 _OVER:
   if (terrno != 0) {
-    mError("anode:%d, failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    mError("anode:%s, failed to encode to raw:%p since %s", pObj->name, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("anode:%d, encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
+  mTrace("anode:%s, encode to raw:%p, row:%p", pObj->name, pRaw, pObj);
   return pRaw;
 }
 
@@ -156,7 +156,7 @@ static SSdbRow *mndAnodeActionDecode(SSdbRaw *pRaw) {
   if (pObj == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, dataPos, &pObj->id, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pObj->name, TSDB_ANAL_ANODE_NAME_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pObj->version, _OVER)
@@ -206,7 +206,7 @@ static SSdbRow *mndAnodeActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("anode:%d, failed to decode from raw:%p since %s", pObj == NULL ? 0 : pObj->id, pRaw, terrstr());
+    mError("anode:%s, failed to decode from raw:%p since %s", pObj == NULL ? 0 : pObj->name, pRaw, terrstr());
     if (pObj != NULL) {
       taosMemoryFreeClear(pObj->url);
     }
@@ -214,7 +214,7 @@ _OVER:
     return NULL;
   }
 
-  mTrace("anode:%d, decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
+  mTrace("anode:%s, decode from raw:%p, row:%p", pObj->name, pRaw, pObj);
   return pRow;
 }
 
@@ -232,18 +232,18 @@ static void mndFreeAnode(SAnodeObj *pObj) {
 }
 
 static int32_t mndAnodeActionInsert(SSdb *pSdb, SAnodeObj *pObj) {
-  mTrace("anode:%d, perform insert action, row:%p", pObj->id, pObj);
+  mTrace("anode:%s, perform insert action, row:%p", pObj->name, pObj);
   return 0;
 }
 
 static int32_t mndAnodeActionDelete(SSdb *pSdb, SAnodeObj *pObj) {
-  mTrace("anode:%d, perform delete action, row:%p", pObj->id, pObj);
+  mTrace("anode:%s, perform delete action, row:%p", pObj->name, pObj);
   mndFreeAnode(pObj);
   return 0;
 }
 
 static int32_t mndAnodeActionUpdate(SSdb *pSdb, SAnodeObj *pOld, SAnodeObj *pNew) {
-  mTrace("anode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
+  mTrace("anode:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
   int32_t numOfAlgos = pNew->numOfAlgos;
@@ -252,6 +252,7 @@ static int32_t mndAnodeActionUpdate(SSdb *pSdb, SAnodeObj *pOld, SAnodeObj *pNew
   pNew->algos = pOld->algos;
   pOld->numOfAlgos = numOfAlgos;
   pOld->algos = algos;
+
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
   taosWUnLockLatch(&pOld->lock);
@@ -302,7 +303,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   STrans *pTrans = NULL;
 
   SAnodeObj anodeObj = {0};
-  anodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_ANODE);
+  tstrncpy(anodeObj.name, pCreate->name, TSDB_ANAL_ANODE_NAME_LEN);
   anodeObj.createdTime = taosGetTimestampMs();
   anodeObj.updateTime = anodeObj.createdTime;
   anodeObj.version = 0;
@@ -327,7 +328,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to create anode:%s as anode:%d", pTrans->id, pCreate->url, anodeObj.id);
+  mInfo("trans:%d, used to create anode:%s as anode:%s", pTrans->id, pCreate->url, anodeObj.name);
 
   TAOS_CHECK_GOTO(mndSetCreateAnodeRedoLogs(pTrans, &anodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateAnodeUndoLogs(pTrans, &anodeObj), NULL, _OVER);
@@ -371,7 +372,7 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
-  mInfo("anode:%s, start to create", createReq.url);
+  mInfo("anode:%d, start to create, url:%s", createReq.name, createReq.url);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ANODE), NULL, _OVER);
 
   pObj = mndAcquireAnodeByURL(pMnode, createReq.url);
@@ -394,11 +395,11 @@ _OVER:
 }
 
 static int32_t mndUpdateAnode(SMnode *pMnode, SAnodeObj *pAnode, SRpcMsg *pReq) {
-  mInfo("anode:%d, start to update", pAnode->id);
+  mInfo("anode:%s, start to update", pAnode->name);
   int32_t   code = -1;
   STrans   *pTrans = NULL;
   SAnodeObj anodeObj = {0};
-  anodeObj.id = pAnode->id;
+  tstrncpy(anodeObj.name, pAnode->name, TSDB_ANAL_ANODE_NAME_LEN);
   anodeObj.updateTime = taosGetTimestampMs();
 
   code = mndGetAnodeAlgoList(pAnode->url, &anodeObj);
@@ -410,7 +411,7 @@ static int32_t mndUpdateAnode(SMnode *pMnode, SAnodeObj *pAnode, SRpcMsg *pReq) 
     if (terrno != 0) code = terrno;
     goto _OVER;
   }
-  mInfo("trans:%d, used to update anode:%d", pTrans->id, anodeObj.id);
+  mInfo("trans:%d, used to update anode:%s", pTrans->id, anodeObj.name);
 
   TAOS_CHECK_GOTO(mndSetCreateAnodeCommitLogs(pTrans, &anodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
@@ -461,10 +462,10 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
 
-  if (updateReq.anodeId == -1) {
+  if (updateReq.name[0] == 0) {
     code = mndUpdateAllAnodes(pMnode, pReq);
   } else {
-    pObj = mndAcquireAnode(pMnode, updateReq.anodeId);
+    pObj = mndAcquireAnode(pMnode, updateReq.name);
     if (pObj == NULL) {
       code = TSDB_CODE_MND_ANODE_NOT_EXIST;
       goto _OVER;
@@ -475,8 +476,8 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    if (updateReq.anodeId != -1) {
-      mError("anode:%d, failed to update since %s", updateReq.anodeId, tstrerror(code));
+    if (updateReq.name[0] == 0) {
+      mError("anode:%s, failed to update since %s", updateReq.name, tstrerror(code));
     }
   }
 
@@ -529,7 +530,7 @@ static int32_t mndDropAnode(SMnode *pMnode, SRpcMsg *pReq, SAnodeObj *pObj) {
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to drop anode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, used to drop anode:%s", pTrans->id, pObj->name);
   TAOS_CHECK_GOTO(mndSetDropAnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -548,15 +549,15 @@ static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDropAnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mInfo("anode:%d, start to drop", dropReq.anodeId);
+  mInfo("anode:%s, start to drop", dropReq.name);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ANODE), NULL, _OVER);
 
-  if (dropReq.anodeId <= 0) {
+  if (dropReq.name[0] == 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  pObj = mndAcquireAnode(pMnode, dropReq.anodeId);
+  pObj = mndAcquireAnode(pMnode, dropReq.name);
   if (pObj == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -568,7 +569,7 @@ static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("anode:%d, failed to drop since %s", dropReq.anodeId, tstrerror(code));
+    mError("anode:%s, failed to drop since %s", dropReq.name, tstrerror(code));
   }
 
   mndReleaseAnode(pMnode, pObj);
@@ -591,7 +592,8 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    STR_TO_VARSTR(buf, pObj->name);
+    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->url, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -646,7 +648,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         cols = 0;
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->name, false);
 
         STR_TO_VARSTR(buf, taosAnalAlgoStr(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -790,8 +792,8 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   int32_t              code = -1;
   SAnodeObj           *pObj = NULL;
   SAnalUrl             url;
-  int32_t              nameLen;
-  char                 name[TSDB_ANAL_ALGO_KEY_LEN];
+  int32_t              algoNameLen;
+  char                 algoName[TSDB_ANAL_ALGO_KEY_LEN];
   SRetrieveAnalAlgoReq req = {0};
   SRetrieveAnalAlgoRsp rsp = {0};
 
@@ -812,24 +814,51 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
       pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pAnode);
       if (pIter == NULL) break;
 
-      url.anode = pAnode->id;
+      url.nameLen = strlen(pAnode->name) + 1;
+      url.name = taosMemoryCalloc(url.nameLen, 1);
+      if (url.name == NULL) {
+        sdbRelease(pSdb, pAnode);
+        goto _OVER;
+      }
+      tstrncpy(url.name, pAnode->name, url.nameLen);
+
       for (int32_t t = 0; t < pAnode->numOfAlgos; ++t) {
         SArray *algos = pAnode->algos[t];
         url.type = t;
 
         for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
           SAnodeAlgo *algo = taosArrayGet(algos, a);
-          nameLen = snprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
+          algoNameLen = snprintf(algoName, sizeof(algoName) - 1, "%d:%s", url.type, algo->name) + 1;
 
-          SAnalUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
-          if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
-            url.url = taosMemoryMalloc(TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1);
-            url.urlLen = 1 + snprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
-                                      taosAnalAlgoUrlStr(url.type));
-            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalUrl)) != 0) {
-              taosMemoryFree(url.url);
+          SArray *pUrlArray = taosHashAcquire(rsp.hash, algoName, algoNameLen);
+          if (pUrlArray == NULL) {
+            pUrlArray = taosArrayInit(1, sizeof(SAnalUrl));
+            if (pUrlArray == NULL) {
+              taosMemoryFree(url.name);
               sdbRelease(pSdb, pAnode);
               goto _OVER;
+            }
+          }
+
+          if (taosHashPut(rsp.hash, algoName, algoNameLen, &pUrlArray, sizeof(SArray*));
+
+          url.url = taosMemoryMalloc(TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1);
+          url.urlLen = 1 + snprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
+                                    taosAnalAlgoUrlStr(url.type));
+          url.urlLen++;
+          url.createTime = pAnode->createdTime;
+          if (taosArrayPush(pUrlArray, &url) == NULL) {
+            taosMemoryFree(url.name);
+            taosMemoryFree(url.url);
+            sdbRelease(pSdb, pAnode);
+            goto _OVER;
+          }
+
+          if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalUrl)) != 0) {
+            taosMemoryFree(url.name);
+            taosMemoryFree(url.url);
+            sdbRelease(pSdb, pAnode);
+            goto _OVER;
             }
           }
         }

@@ -320,17 +320,19 @@ typedef struct SAlterDnodeStmt {
 
 typedef struct {
   ENodeType type;
+  char      name[TSDB_ANAL_ANODE_NAME_LEN];
   char      url[TSDB_ANAL_ANODE_URL_LEN];
 } SCreateAnodeStmt;
 
 typedef struct {
   ENodeType type;
-  int32_t   anodeId;
+  char      name[TSDB_ANAL_ANODE_NAME_LEN];
 } SDropAnodeStmt;
 
 typedef struct {
   ENodeType type;
-  int32_t   anodeId;
+  char      name[TSDB_ANAL_ANODE_NAME_LEN];
+  bool      updateAll;
 } SUpdateAnodeStmt;
 
 typedef struct SShowStmt {

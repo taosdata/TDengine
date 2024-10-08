@@ -3130,6 +3130,7 @@ int32_t tSerializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq *
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
   if (pReq->urlLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->url, pReq->urlLen));
@@ -3155,6 +3156,7 @@ int32_t tDeserializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
   if (pReq->urlLen > 0) {
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
@@ -3181,7 +3183,7 @@ int32_t tSerializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->anodeId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -3203,7 +3205,7 @@ int32_t tDeserializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pR
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->anodeId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   DECODESQL();
   tEndDecode(&decoder);
 

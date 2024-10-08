@@ -33,8 +33,10 @@ extern "C" {
 
 typedef struct {
   EAnalAlgoType type;
-  int32_t       anode;
+  int64_t       createTime;
+  int32_t       nameLen;
   int32_t       urlLen;
+  char         *name;
   char         *url;
 } SAnalUrl;
 

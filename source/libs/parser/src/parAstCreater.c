@@ -3016,41 +3016,42 @@ _err:
   return NULL;
 }
 
-SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pName, const SToken* pUrl) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateAnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ANODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
   (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
-SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pName) {
   CHECK_PARSER_STATUS(pCxt);
   SUpdateAnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ANODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  if (NULL != pAnode) {
-    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  if (NULL != pName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
   } else {
-    pStmt->anodeId = -1;
+    pStmt->name[0] = 0;
   }
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
-SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll) {
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pName, bool updateAll) {
   CHECK_PARSER_STATUS(pCxt);
   SUpdateAnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_ANODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  if (NULL != pAnode) {
-    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  if (NULL != pName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
   } else {
-    pStmt->anodeId = -1;
+    pStmt->name[0] = 0;
   }
   return (SNode*)pStmt;
 _err:

@@ -158,10 +158,10 @@ with_clause_opt(A) ::= WITH search_condition(B).                                
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
 
 /************************************************ create drop update anode ***************************************/
-cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
-cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
+cmd ::= CREATE ANODE NK_ID(A) NK_STRING(B).                                      { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A, &B); }
+cmd ::= UPDATE ANODE NK_ID(A).                                                    { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
 cmd ::= UPDATE ALL ANODES.                                                        { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, NULL, true); }
-cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
+cmd ::= DROP ANODE NK_ID(A).                                                      { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }

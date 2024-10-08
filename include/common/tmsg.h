@@ -2407,6 +2407,7 @@ int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* 
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
+  char    name[TSDB_ANAL_ANODE_NAME_LEN];
   int32_t urlLen;
   int32_t sqlLen;
   char*   url;
@@ -2418,7 +2419,7 @@ int32_t tDeserializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq
 void    tFreeSMCreateAnodeReq(SMCreateAnodeReq* pReq);
 
 typedef struct {
-  int32_t anodeId;
+  char    name[TSDB_ANAL_ANODE_NAME_LEN];
   int32_t sqlLen;
   char*   sql;
 } SMDropAnodeReq, SMUpdateAnodeReq;
