@@ -48,12 +48,11 @@ class TDTestCase:
         tdLog.debug(con)
         return con
 
-    def insert_common_table(self):
-        ctablename = "common_table"
+    def insert_common_table(self, ctable_name):
         self.connectstmt.execute(f"drop database if exists {self.dbname}")
         self.connectstmt.execute(f"create database if not exists {self.dbname}")
         self.connectstmt.select_db(self.dbname)
-        self.connectstmt.execute(f"create table if not exists {ctablename} ( \
+        self.connectstmt.execute(f"create table if not exists {ctable_name} ( \
                                         ts timestamp, \
                                         c1 timestamp, \
                                         c2 int, \
@@ -93,12 +92,67 @@ class TDTestCase:
             c16 = self.random_point()
             c17 = '0x' + ''.join(random.choices('0123456789abcdef', k=18))
 
-            sql = f"insert into {ctablename} (ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17) \
+            sql = f"insert into {ctable_name} (ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17) \
                     values (now, '{c1}', {c2}, {c3}, {c4}, {c5}, {c6:.2f}, {c7:.5f}, '{c8}', {c9}, {c10}, {c11}, {c12}, {c13}, '{c14}', '{c15}', '{c16}', '{c17}');"
 
             self.connectstmt.execute(sql)
 
         tdLog.debug("Insert common table successfully!")
+
+    def insert_super_table(self, stablename, subtable_name):
+        self.connectstmt.execute(f"drop database if exists {self.dbname}")
+        self.connectstmt.execute(f"create database if not exists {self.dbname}")
+        self.connectstmt.select_db(self.dbname)
+        self.connectstmt.execute(f"create stable if not exists {stablename} ( \
+                                        ts timestamp, \
+                                        c1 timestamp, \
+                                        c2 int, \
+                                        c3 int unsigned, \
+                                        c4 bigint, \
+                                        c5 bigint unsigned, \
+                                        c6 float, \
+                                        c7 double, \
+                                        c8 binary(20), \
+                                        c9 smallint, \
+                                        c10 smallint unsigned, \
+                                        c11 tinyint, \
+                                        c12 tinyint unsigned, \
+                                        c13 bool, \
+                                        c14 nchar(20), \
+                                        c15 varchar(20), \
+                                        c16 geometry(100), \
+                                        c17 varbinary(20) \
+                                    ) tags ( \
+                                        t1 int \
+                                    );")
+
+        self.connectstmt.execute(f"create table {subtable_name} using {stablename} tags(0);")
+
+        for _ in range(1000):
+            c1 = self.random_timestamp()
+            c2 = random.randint(-2147483648, 2147483647)
+            c3 = random.randint(0, 4294967295)
+            c4 = random.randint(-9223372036854775808, 9223372036854775807)
+            c5 = random.randint(0, 18446744073709551615)
+            c6 = random.uniform(-1000, 1000)
+            c7 = random.uniform(-100000, 100000)
+            c8 = '0x' + ''.join(random.choices('0123456789abcdef', k=15))
+            c9 = random.randint(-32768, 32767)
+            c10 = random.randint(0, 65535)
+            c11 = random.randint(-128, 127)
+            c12 = random.randint(0, 255)
+            c13 = random.choice([True, False])
+            c14 = self.random_string(20)
+            c15 = self.random_string(20)
+            c16 = self.random_point()
+            c17 = '0x' + ''.join(random.choices('0123456789abcdef', k=18))
+
+            sql = f"insert into {subtable_name} (ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17) \
+                    values (now, '{c1}', {c2}, {c3}, {c4}, {c5}, {c6:.2f}, {c7:.5f}, '{c8}', {c9}, {c10}, {c11}, {c12}, {c13}, '{c14}', '{c15}', '{c16}', '{c17}');"
+
+            self.connectstmt.execute(sql)
+
+        tdLog.debug("Insert super table successfully!")
 
     def random_string(self, length):
         return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
@@ -113,7 +167,7 @@ class TDTestCase:
         y = random.uniform(-90, 90)
         return f'POINT({x} {y})'
 
-    def test_common_table_temp(self, sql, types, datas):
+    def test_query_table_temp(self, sql, types, datas):
         self.connectstmt.select_db(self.dbname)
         stmt2 = self.connectstmt.statement2(sql)
         stmt2.set_columns_type(types)
@@ -139,16 +193,16 @@ class TDTestCase:
 
                 self.stmt_common.compare_result(self.connectstmt, query, stmt2.result())
 
-    def test_common_table(self):
-        sql = "select * from common_table where ts < ? and c1 < ?;"
+    def test_query_table(self, table_name):
+        sql = f"select * from {table_name} where ts < ? and c1 < ?;"
         types = [FieldType.C_TIMESTAMP, FieldType.C_TIMESTAMP]
         datas = [
             [[['2025-11-11 20:10:10'], ['2025-02-20 11:11:11']]],
             [[['2025-01-01 00:00:00'], ['2024-12-31 23:59:59']]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c2 > ? and c3 < ?;"
+        sql = f"select * from {table_name} where c2 > ? and c3 < ?;"
         types = [FieldType.C_INT, FieldType.C_INT_UNSIGNED]
         datas = [
             [[[100], [200]]],
@@ -157,9 +211,9 @@ class TDTestCase:
             [[[700], [800]]],
             [[[900], [1000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c4 >= ? and c5 <= ?;"
+        sql = f"select * from {table_name} where c4 >= ? and c5 <= ?;"
         types = [FieldType.C_BIGINT, FieldType.C_BIGINT_UNSIGNED]
         datas = [
             [[[1000000000], [5000000000]]],
@@ -168,9 +222,9 @@ class TDTestCase:
             [[[4000000000], [8000000000]]],
             [[[5000000000], [9000000000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c6 = ? and c7 = ?;"
+        sql = f"select * from {table_name} where c6 = ? and c7 = ?;"
         types = [FieldType.C_FLOAT, FieldType.C_DOUBLE]
         datas = [
             [[[1.5], [2.5]]],
@@ -179,9 +233,9 @@ class TDTestCase:
             [[[7.5], [8.5]]],
             [[[9.5], [10.5]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c14 like ?;"
+        sql = f"select * from {table_name} where c14 like ?;"
         types = [FieldType.C_NCHAR]
         datas = [
             [[["abc%"]]],
@@ -190,9 +244,9 @@ class TDTestCase:
             [[["jkl%"]]],
             [[["mno%"]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c13 = ?;"
+        sql = f"select * from {table_name} where c13 = ?;"
         types = [FieldType.C_BOOL]
         datas = [
             [[[True]]],
@@ -201,9 +255,9 @@ class TDTestCase:
             [[[False]]],
             [[[True]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c10 = ? and c12 = ?;"
+        sql = f"select * from {table_name} where c10 = ? and c12 = ?;"
         types = [FieldType.C_SMALLINT_UNSIGNED, FieldType.C_TINYINT_UNSIGNED]
         datas = [
             [[[10], [20]]],
@@ -212,9 +266,9 @@ class TDTestCase:
             [[[70], [80]]],
             [[[90], [100]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c4 < ?;"
+        sql = f"select * from {table_name} where c4 < ?;"
         types = [FieldType.C_BIGINT]
         datas = [
             [[[1000000000]]],
@@ -223,9 +277,9 @@ class TDTestCase:
             [[[4000000000]]],
             [[[5000000000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c2 = ? and c5 > ? and c9 < ?;"
+        sql = f"select * from {table_name} where c2 = ? and c5 > ? and c9 < ?;"
         types = [FieldType.C_INT, FieldType.C_BIGINT_UNSIGNED, FieldType.C_SMALLINT]
         datas = [
             [[[1], [100000], [1000]]],
@@ -234,9 +288,9 @@ class TDTestCase:
             [[[4], [400000], [4000]]],
             [[[5], [500000], [5000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c8 = ?;"
+        sql = f"select * from {table_name} where c8 = ?;"
         types = [FieldType.C_BINARY]
         datas = [
             [[["0x1234567890abcdef"]]],
@@ -245,9 +299,9 @@ class TDTestCase:
             [[["0x445566778899aabb"]]],
             [[["0xccddeeff00112233"]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c14 = ? and c2 > ?;"
+        sql = f"select * from {table_name} where c14 = ? and c2 > ?;"
         types = [FieldType.C_NCHAR, FieldType.C_INT]
         datas = [
             [[["string1"], [100]]],
@@ -256,9 +310,9 @@ class TDTestCase:
             [[["string4"], [400]]],
             [[["string5"], [500]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        # sql = "select * from common_table where c13 = false limit 10;"
+        # sql = f"select * from {table_name} where c13 = false limit 10;"
         # types = [FieldType.C_BOOL]
         # datas = [
         #     [[[False]]],
@@ -267,9 +321,9 @@ class TDTestCase:
         #     [[[False]]],
         #     [[[False]]]
         # ];
-        # self.test_common_table_temp(sql, types, datas)
+        # self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c3 > ? and c5 < ? and c10 = ?;"
+        sql = f"select * from {table_name} where c3 > ? and c5 < ? and c10 = ?;"
         types = [FieldType.C_INT_UNSIGNED, FieldType.C_BIGINT_UNSIGNED, FieldType.C_SMALLINT_UNSIGNED]
         datas = [
             [[[100], [100000000], [1000]]],
@@ -278,9 +332,9 @@ class TDTestCase:
             [[[400], [400000000], [4000]]],
             [[[500], [500000000], [5000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        # sql = "select * from common_table where c6 between ? and ?;"
+        # sql = f"select * from {table_name} where c6 between ? and ?;"
         # types = [FieldType.C_FLOAT]
         # datas = [
         #     [[[1.5], [2.5]]],
@@ -289,9 +343,9 @@ class TDTestCase:
         #     [[[7.5], [8.5]]],
         #     [[[9.5], [10.5]]]
         # ];
-        # self.test_common_table_temp(sql, types, datas)
+        # self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c14 like ? and c15 = ?;"
+        sql = f"select * from {table_name} where c14 like ? and c15 = ?;"
         types = [FieldType.C_NCHAR, FieldType.C_VARCHAR]
         datas = [
             [[["abc%"], ["string1"]]],
@@ -300,9 +354,9 @@ class TDTestCase:
             [[["jkl%"], ["string4"]]],
             [[["mno%"], ["string5"]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
-        sql = "select * from common_table where c2 = ? and c3 = ? and c10 >= ?;"
+        sql = f"select * from {table_name} where c2 = ? and c3 = ? and c10 >= ?;"
         types = [FieldType.C_INT, FieldType.C_INT_UNSIGNED, FieldType.C_SMALLINT_UNSIGNED]
         datas = [
             [[[100], [200], [1000]]],
@@ -311,7 +365,7 @@ class TDTestCase:
             [[[700], [800], [4000]]],
             [[[900], [1000], [5000]]]
         ];
-        self.test_common_table_temp(sql, types, datas)
+        self.test_query_table_temp(sql, types, datas)
 
     def run(self):
         build_path = self.stmt_common.getBuildPath()
@@ -319,8 +373,15 @@ class TDTestCase:
         host = "localhost"
         self.connectstmt = self.newcon(host, config)
 
-        self.insert_common_table()
-        self.test_common_table()
+        ctable_name = "common_table"
+        self.insert_common_table(ctable_name)
+        self.test_query_table(ctable_name)
+
+        stablename = "super_table"
+        subtable_name = "d0"
+        self.insert_super_table(stablename, subtable_name)
+        self.test_query_table(stablename)
+        self.test_query_table(subtable_name)
 
         self.connectstmt.close()
         return
