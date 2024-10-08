@@ -367,6 +367,101 @@ class TDTestCase:
         ];
         self.test_query_table_temp(sql, types, datas)
 
+    def test_query_constants_and_expressions(self):
+        self.connectstmt.execute(f"drop database if exists {self.dbname}")
+        self.connectstmt.execute(f"create database if not exists {self.dbname}")
+        self.connectstmt.select_db(self.dbname)
+
+        sql = f"select ?;"
+        types = [FieldType.C_INT]
+        datas = [
+            [[[100]]],
+            [[[300]]],
+            [[[500]]],
+            [[[700]]],
+            [[[900]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ?;"
+        types = [FieldType.C_DOUBLE]
+        datas = [
+            [[[132489.2342]]],
+            [[[23748.234]]],
+            [[[8234234.234]]],
+            [[[89234.23]]],
+            [[[234789234]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ?;"
+        types = [FieldType.C_NCHAR]
+        datas = [
+            [[['abc']]],
+            [[['hello']]],
+            [[['8923423']]],
+            [[['8234234.234']]],
+            [[['false']]],
+            [[['!!!!!@@@@@####$$$$$']]],
+            [[['中文']]],
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ? + ?;"
+        types = [FieldType.C_INT, FieldType.C_INT]
+        datas = [
+            [[[100], [200]]],
+            [[[300], [4350]]],
+            [[[500], [399]]],
+            [[[900], [2341]]],
+            [[[700], [23445344]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ? * ?;"
+        types = [FieldType.C_INT, FieldType.C_INT]
+        datas = [
+            [[[100], [200]]],
+            [[[300], [4350]]],
+            [[[500], [399]]],
+            [[[900], [2341]]],
+            [[[700], [23445344]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ? > ?;"
+        types = [FieldType.C_INT, FieldType.C_INT]
+        datas = [
+            [[[100], [200]]],
+            [[[300], [4350]]],
+            [[[500], [399]]],
+            [[[900], [2341]]],
+            [[[700], [23445344]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select ? < ?;"
+        types = [FieldType.C_INT, FieldType.C_INT]
+        datas = [
+            [[[100], [200]]],
+            [[[300], [4350]]],
+            [[[500], [399]]],
+            [[[900], [2341]]],
+            [[[700], [23445344]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
+        sql = f"select abs(?), abs(?);"
+        types = [FieldType.C_INT, FieldType.C_INT]
+        datas = [
+            [[[100], [200]]],
+            [[[-300], [-4350]]],
+            [[[500], [-399]]],
+            [[[-900], [2341]]],
+            [[[700], [-23445344]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
+
     def run(self):
         build_path = self.stmt_common.getBuildPath()
         config = build_path + "../sim/dnode1/cfg/"
@@ -382,6 +477,8 @@ class TDTestCase:
         self.insert_super_table(stablename, subtable_name)
         self.test_query_table(stablename)
         self.test_query_table(subtable_name)
+
+        self.test_query_constants_and_expressions()
 
         self.connectstmt.close()
         return
