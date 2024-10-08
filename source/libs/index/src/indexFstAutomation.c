@@ -174,7 +174,18 @@ FAutoCtx* automCtxCreate(void* data, AutomationType atype) {
     // add more search type
   }
 
-  ctx->data = (data != NULL ? taosStrdup((char*)data) : NULL);
+  // ctx->data = (data != NULL ? taosStrdup((char*)data) : NULL);
+  if (data != NULL) {
+    ctx->data = taosStrdup((char*)data);
+    if (ctx->data == NULL) {
+      startWithStateValueDestroy(sv);
+      taosMemoryFree(ctx);
+      return NULL;
+    }
+  } else {
+    ctx->data = NULL;
+  }
+
   ctx->type = atype;
   ctx->stdata = (void*)sv;
   return ctx;

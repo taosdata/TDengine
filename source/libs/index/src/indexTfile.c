@@ -45,7 +45,7 @@ static int tfileWriteFooter(TFileWriter* write);
 
 // handle file corrupt later
 static int tfileReaderLoadHeader(TFileReader* reader);
-static int tfileReaderLoadFst(TFileReader* reader);
+static int32_t tfileReaderLoadFst(TFileReader* reader);
 static int tfileReaderVerify(TFileReader* reader);
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
@@ -1022,7 +1022,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, (uint8_t*)buf, sizeof(buf), 0);
 
-  if (nread == -1) {
+  if (nread < 0) {
     indexError("actual Read: %d, to read: %d, code:0x%x, filename: %s", (int)(nread), (int)sizeof(buf), errno,
                reader->ctx->file.buf);
   } else {
@@ -1032,7 +1032,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   return 0;
 }
-static int tfileReaderLoadFst(TFileReader* reader) {
+static int32_t tfileReaderLoadFst(TFileReader* reader) {
   IFileCtx* ctx = reader->ctx;
   int       size = ctx->size(ctx);
 
@@ -1040,7 +1040,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int   fstSize = size - reader->header.fstOffset - sizeof(FILE_MAGIC_NUMBER);
   char* buf = taosMemoryCalloc(1, fstSize);
   if (buf == NULL) {
-    return -1;
+    return terrno;
   }
 
   int64_t ts = taosGetTimestampUs();
@@ -1058,7 +1058,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   taosMemoryFree(buf);
   fstSliceDestroy(&st);
 
-  return reader->fst != NULL ? 0 : -1;
+  return reader->fst != NULL ? 0 : TSDB_CODE_INDEX_INVALID_FILE;
 }
 static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   // TODO(yihao): opt later
@@ -1067,7 +1067,7 @@ static int32_t tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArr
   IFileCtx* ctx = reader->ctx;
   // add block cache
   char    block[4096] = {0};
-  int32_t nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
+  int64_t nread = ctx->readFrom(ctx, (uint8_t*)block, sizeof(block), offset);
   if (nread < sizeof(uint32_t)) {
     return TSDB_CODE_INDEX_INVALID_FILE;
   }

@@ -113,11 +113,11 @@ DSN 描述字符串基本结构如下：
 各部分意义见下表：
 
 - **driver**: 必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
-  - **taos**: 表名使用 TDengine 连接器驱动。
+  - **taos**: 使用 TDengine 连接器驱动，默认是使用 taos 驱动。
   - **tmq**: 使用 TMQ 订阅数据。
+- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
   - **http/ws**: 使用 Websocket 创建连接。
   - **https/wss**: 在 Websocket 连接方式下显示启用 SSL/TLS 连接。
-- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
 - **username/password**: 用于创建连接的用户名及密码。
 - **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，Websocket 连接默认为 `localhost:6041` 。
 - **database**: 指定默认连接的数据库名，可选参数。
@@ -522,6 +522,6 @@ Offset 结构体提供了获取当前消息所属的数据库，主题和分区�
 
 ## 附录  
 - Rust 连接器文档：https://docs.rs/taos
-- Rust 连接器项目地址: https://github.com/taosdata/rust-connector-taos  
+- Rust 连接器项目地址: https://github.com/taosdata/taos-connector-rust  
 - deadpool 连接池: https://crates.io/crates/deadpool  
 - r2d2 连接池: https://crates.io/crates/r2d2  

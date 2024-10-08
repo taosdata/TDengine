@@ -131,9 +131,6 @@ const SSTabFltFuncDef filterDict[] = {
 static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta,
                                      size_t size, const char* dbName, int64_t* pRows);
 
-static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
-                                      "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
-
 static char* SYSTABLE_SPECIAL_COL[] = {"db_name", "vgroup_id"};
 
 static int32_t        buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
@@ -2828,12 +2825,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doBlockInfoScanNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
@@ -2852,6 +2843,8 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
+    taosMemoryFree(pCond->colList);
+    taosMemoryFree(pCond->pSlotList);
     return terrno;
   }
 

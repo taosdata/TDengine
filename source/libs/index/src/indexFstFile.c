@@ -96,8 +96,8 @@ static FORCE_INLINE int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len) {
 
   return nRead;
 }
-static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset) {
-  int32_t total = 0, nread = 0;
+static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset) {
+  int64_t total = 0, nread = 0;
   int32_t blkId = offset / kBlockSize;
   int32_t blkOffset = offset % kBlockSize;
   int32_t blkLeft = kBlockSize - blkOffset;
@@ -122,7 +122,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       int32_t left = ctx->file.size - offset;
       if (left < kBlockSize) {
         nread = TMIN(left, len);
-        int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
+        int64_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
         if (bytes != nread) {
           total = TSDB_CODE_INDEX_INVALID_FILE;
           break;
@@ -148,7 +148,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         memcpy(buf + total, blk->buf + blkOffset, nread);
 
         LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
-                                         TAOS_LRU_PRIORITY_LOW, NULL);
+                                         NULL, TAOS_LRU_PRIORITY_LOW, NULL);
         if (s != TAOS_LRU_STATUS_OK) {
           return -1;
         }

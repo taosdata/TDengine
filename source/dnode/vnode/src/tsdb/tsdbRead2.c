@@ -704,7 +704,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
   pReader->cost.headFileLoadTime += (et1 - st) / 1000.0;
 
-_end:
+//_end:
   //  tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
   return code;
 }
@@ -1872,9 +1872,9 @@ static void doPinSttBlock(SSttBlockReader* pSttBlockReader) { tMergeTreePinSttBl
 
 static void doUnpinSttBlock(SSttBlockReader* pSttBlockReader) { tMergeTreeUnpinSttBlock(&pSttBlockReader->mergeTree); }
 
-static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttBlockReader,
-                                           STableBlockScanInfo* pScanInfo, SRowKey* pSttKey, STsdbReader* pReader,
-                                           bool* copied) {
+static int32_t tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttBlockReader,
+                                              STableBlockScanInfo* pScanInfo, SRowKey* pSttKey, STsdbReader* pReader,
+                                              bool* copied) {
   int32_t code = TSDB_CODE_SUCCESS;
   *copied = false;
 
