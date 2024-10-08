@@ -60,16 +60,8 @@ jobs:
 
       - name: Typos check
         run: |
+          typos --version || cargo install typos-cli
           typos src taosx-* README.md
-
-  clippy:
-    name: Clippy
-    needs: [remove_artifacts, check, check-stable]
-    runs-on: [self-hosted, linux, x64, qa, test]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          clean: false
 
       - name: Clippy check
         run: |
