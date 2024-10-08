@@ -32,6 +32,7 @@ extern int32_t tsS3PageCacheSize;
 extern int32_t tsS3UploadDelaySec;
 
 int32_t s3Init();
+int32_t s3Begin();
 void    s3End();
 int32_t s3CheckCfg();
 int32_t s3PutObjectFromFile(const char *file, const char *object);

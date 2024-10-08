@@ -44,7 +44,6 @@ typedef struct {
   int32_t (*GetObjectsByPrefix)(const char* prefix, const char* path);
   int32_t (*DeleteObjects)(const char* object_name[], int nobject);
   int32_t (*GetObjectToFile)(const char* object_name, const char* fileName);
-
 } STcs;
 
 static STcs tcs;
@@ -55,7 +54,7 @@ int32_t tcsInit() {
   STosProto proto = tsS3Ablob ? TOS_PROTO_ABLOB : TOS_PROTO_S3;
 
   if (TOS_PROTO_S3 == proto) {
-    tcs.Begin = s3Init;
+    tcs.Begin = s3Begin;
     tcs.End = s3End;
     tcs.CheckCfg = s3CheckCfg;
 
