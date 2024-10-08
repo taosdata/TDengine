@@ -1814,7 +1814,7 @@ end:
   return code;
 }
 
-static int32_t buildCreateTbMap(STaosxRsp* rsp, SHashObj* pHashObj) {
+static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
   // find schema data info
   int32_t       code = 0;
   SVCreateTbReq pCreateReq = {0};
@@ -1905,7 +1905,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   RAW_NULL_CHECK(pVgHash);
   pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pCreateTbHash);
-  RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.rsp, pCreateTbHash));
+  RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
 
   uDebug(LOG_ID_TAG " write raw metadata block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
   while (++rspObj.resIter < rspObj.dataRsp.blockNum) {
@@ -1991,7 +1991,7 @@ end:
     pIter = taosHashIterate(pCreateTbHash, pIter);
   }
   taosHashCleanup(pCreateTbHash);
-  tDeleteSTaosxRsp(&rspObj.rsp);
+  tDeleteSTaosxRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
