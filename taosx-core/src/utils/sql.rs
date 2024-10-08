@@ -119,7 +119,6 @@ async fn test_precision() {
     .unwrap();
     let mut taos = Some(taos);
 
-    let min = chrono::Utc::now();
     let t = get_current_precision(&pool, &mut taos, 0, 0, &CancellationToken::new())
         .await
         .unwrap();
@@ -543,6 +542,7 @@ pub fn sql_value_escape(value: &str) -> String {
 pub fn sql_max_var_length(batch: &RecordBatch) -> Vec<usize> {
     let mut lengths = vec![0; batch.num_columns()];
 
+    #[allow(clippy::needless_range_loop)]
     for i in 0..batch.num_columns() {
         let array = batch.column(i);
 
@@ -629,6 +629,7 @@ pub fn sql_values_from_record_batch(
                 cursor
             });
             cursor.write_all(b"(")?;
+            #[allow(clippy::needless_range_loop)]
             for col in 0..batch.num_columns() {
                 let array = &columns[col];
                 if col > 0 {

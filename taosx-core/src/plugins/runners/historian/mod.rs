@@ -58,7 +58,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let config = TaskConfig::from_dsn(dsn)?;
     let mut client = HistorianQuery::try_new(config.connect).await?;
@@ -148,6 +148,7 @@ fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<
 }
 
 /// migrate or synchronize data from historian to taos
+
 pub async fn historian_to_taos(
     from: Dsn,
     parser: Option<Parser>,

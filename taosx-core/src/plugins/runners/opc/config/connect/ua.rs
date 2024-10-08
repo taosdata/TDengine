@@ -144,8 +144,7 @@ impl UaConnectConfig {
                     return Ok(None);
                 }
 
-                if v.starts_with('@') {
-                    let file_path = &v[1..];
+                if let Some(file_path) = v.strip_prefix('@') {
                     let path = fs::canonicalize(file_path)
                         .map_err(|err| {
                             anyhow::anyhow!("{}: {} not found, cause: {}", key, file_path, err)

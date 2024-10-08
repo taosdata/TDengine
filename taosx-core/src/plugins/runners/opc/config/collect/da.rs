@@ -49,8 +49,8 @@ impl DaCollectConfig {
         };
 
         let mut tags = Vec::new();
-        for i in 0..node_vec.len() {
-            let pair = node_vec[i].split("::").collect_vec();
+        for node in node_vec {
+            let pair = node.split("::").collect_vec();
             if pair.len() != 2 {
                 let pair = pair.join("::");
                 anyhow::bail!(

@@ -262,6 +262,7 @@ pub fn get_string_from_param_or_file(
             if line_break && !result.is_empty() {
                 result.push('\n');
             }
+            #[allow(clippy::unnecessary_unwrap)]
             if append_line.is_some() && !result.is_empty() {
                 result.push_str(append_line.unwrap());
             }
@@ -288,6 +289,7 @@ pub fn get_string_from_param_or_file(
                             if line_break && !result.is_empty() {
                                 result.push('\n');
                             }
+                            #[allow(clippy::unnecessary_unwrap)]
                             if append_line.is_some() && !result.is_empty() {
                                 result.push_str(append_line.unwrap());
                             }

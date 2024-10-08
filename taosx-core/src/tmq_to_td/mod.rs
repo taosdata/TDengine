@@ -130,7 +130,9 @@ async fn write_data(
             .await
             .context("Data source raw data error")?;
         if let Err(err) = taos
-            .write_raw_meta(&unsafe { std::mem::transmute(raw) })
+            .write_raw_meta(&unsafe {
+                std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
+            })
             .await
         {
             let code = *err.code().deref();
@@ -413,7 +415,11 @@ async fn write_data(
         if actions.is_empty() {
             if target_is_v3 {
                 if let Err(err) = taos
-                    .write_raw_meta(&unsafe { std::mem::transmute(data.as_raw_data().await?) })
+                    .write_raw_meta(&unsafe {
+                        std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
+                            data.as_raw_data().await?,
+                        )
+                    })
                     .await
                 {
                     let errstr = err.to_string();
@@ -444,6 +450,7 @@ async fn write_data(
 }
 
 #[instrument(skip_all, fields(consumer.id = id))]
+
 async fn write_meta(
     id: usize,
     source: &TaosPool,
@@ -648,6 +655,7 @@ async fn write_meta(
 }
 
 type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
+
 async fn sync_msg(
     topic: &Topic,
     consumer: &Consumer,
@@ -799,6 +807,7 @@ async fn sync_msg(
 }
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
+
 async fn sync(
     topic: &Topic,
     id: usize,
@@ -1095,6 +1104,7 @@ async fn sync_interlace(
 }
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
+
 async fn sync_concurrently(
     topic: &Arc<Topic>,
     id: usize,
@@ -1371,7 +1381,7 @@ pub async fn tmq_to_td(
     tracing::debug!("Source version: {version}");
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
-    if from_params.get("group.id").is_none() {
+    if !from_params.contains_key("group.id") {
         let to_params = to.drain_params();
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
@@ -1757,8 +1767,8 @@ pub struct TableProgress {
 }
 #[instrument(skip_all)]
 pub async fn get_table_progress(
-    from: &String,
-    to: &String,
+    from: &str,
+    to: &str,
     // format db.table
     table: &str,
     start: Option<&String>,

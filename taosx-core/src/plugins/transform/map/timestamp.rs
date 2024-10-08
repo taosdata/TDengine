@@ -152,7 +152,7 @@ impl ValueBuilder for TimestampExprValueBuilder {
         let col_name = self.0.from_col_name.as_str();
         let column = record
             .column_by_name(col_name)
-            .ok_or_else(|| ValueBuilderError::ExprError(format!("column {col_name} not found")))?;
+            .ok_or_else(|| ValueBuilderError::Expr(format!("column {col_name} not found")))?;
         if self.0.delta == 0 {
             // 只包含列名，直接返回该列
             return Ok(column.clone());
@@ -161,7 +161,7 @@ impl ValueBuilder for TimestampExprValueBuilder {
             .as_any()
             .downcast_ref::<TimestampMillisecondArray>()
             .ok_or_else(|| {
-                ValueBuilderError::ExprError(format!(
+                ValueBuilderError::Expr(format!(
                     "column {col_name} type not match, expect TimestampMillisecondArray"
                 ))
             })?;

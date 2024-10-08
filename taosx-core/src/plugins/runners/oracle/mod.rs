@@ -59,7 +59,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let dsn = dsn.clone();
     tokio::task::spawn_blocking(move || get_sample_sync(dsn)).await?
@@ -143,6 +143,7 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from oracle to taos
+
 pub async fn oracle_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -477,9 +478,9 @@ mod tests {
         test_clear_data();
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_oracle_to_taos() {
+    async fn test_oracle_to_taos() {
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -493,7 +494,7 @@ mod tests {
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = oracle_to_taos(
+        oracle_to_taos(
             from,
             parser,
             transform,
@@ -505,7 +506,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
@@ -521,7 +524,7 @@ mod tests {
                 match query_result {
                     Ok((_, rows)) => {
                         for row in rows {
-                            for (_, col) in row.sql_values().iter().enumerate() {
+                            for col in row.sql_values().iter() {
                                 let col_type: &OracleType = col.oracle_type().unwrap();
                                 let col_val =
                                     generate_json_value(col, col_type, String::from("+08:00"));

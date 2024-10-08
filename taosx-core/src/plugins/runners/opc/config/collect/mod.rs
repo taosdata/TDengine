@@ -15,16 +15,16 @@ pub mod ua;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
-    OBSERVE,
-    SUBSCRIBE,
+    Observe,
+    Subscribe,
 }
 
 impl FromStr for CollectMode {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "observe" => Ok(Self::OBSERVE),
-            "subscribe" => Ok(Self::SUBSCRIBE),
+            "observe" => Ok(Self::Observe),
+            "subscribe" => Ok(Self::Subscribe),
             _ => Err(s.to_string()),
         }
     }

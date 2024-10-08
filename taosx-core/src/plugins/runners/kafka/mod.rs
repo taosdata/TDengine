@@ -230,6 +230,7 @@ fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Res
 }
 
 #[instrument(skip_all)]
+
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -378,7 +379,7 @@ pub async fn kafka_to_taos(
                 join_set.abort_all();
                 reset_metrics!();
                 if let Some(err) = err {
-                    let _ = ipc.send(()).await;
+                    let _ = ipc.send(());
                     let _ = ipc.close().await;
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
@@ -390,7 +391,7 @@ pub async fn kafka_to_taos(
             }
         }
         // send an empty tuple
-        let _ = ipc.send(()).await;
+        let _ = ipc.send(());
         // stop the connector
         tracing::info!("Kafka task Done");
         ipc.close().await?;

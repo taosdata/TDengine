@@ -550,18 +550,15 @@ fn build_runtime(
         .build()
 }
 
+type ReloadHandle = reload::Handle<
+    EnvFilter,
+    Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+>;
+
 fn init_tracing_layers(
     args: &mut Args,
     tracing_level_filter: TracingLevelFilter,
-) -> Result<
-    Option<
-        reload::Handle<
-            EnvFilter,
-            Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
-        >,
-    >,
-    anyhow::Error,
-> {
+) -> Result<Option<ReloadHandle>, anyhow::Error> {
     let mut env_filter = default_env_filter(tracing_level_filter)?;
     if let Some(loggers) = args
         .global
@@ -1025,10 +1022,7 @@ fn default_env_filter(
 fn log_level_reload(
     event: notify::Event,
     config_file: &PathBuf,
-    handle: &reload::Handle<
-        EnvFilter,
-        Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
-    >,
+    handle: &ReloadHandle,
     tracing_level_filter: tracing::level_filters::LevelFilter,
 ) {
     if !matches!(

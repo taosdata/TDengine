@@ -365,7 +365,9 @@ mod test {
 
     #[test]
     fn bound() {
-        let zero = chrono::NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
+        let zero = chrono::DateTime::from_timestamp(0, 0)
+            .map(|t| t.naive_utc())
+            .unwrap();
         let seconds_upper_bound = zero + std::time::Duration::from_secs(LOWER_BOUND_MILLIS as _);
         println!("{:?}", (zero..seconds_upper_bound));
         let millis_lower_bound = zero + std::time::Duration::from_millis(LOWER_BOUND_MILLIS as _);
@@ -380,8 +382,9 @@ mod test {
 
     #[test]
     fn bound_sample() {
-        let zero = chrono::NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
-
+        let zero = chrono::DateTime::from_timestamp(0, 0)
+            .map(|t| t.naive_utc())
+            .unwrap();
         println!("ARROW_CAST_GUESSING_BOUND_YEARS |     Lower Bound     |     Upper Bound    ");
         println!("------------------------------- | ------------------- | -------------------");
         let width: usize = "ARROW_CAST_GUESSING_BOUND_YEARS".len();

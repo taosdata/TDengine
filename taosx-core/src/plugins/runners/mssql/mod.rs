@@ -58,7 +58,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mssql query
     let mut config = MssqlConfig::from_dsn(dsn)?;
@@ -136,6 +136,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mssql to taos
+
 pub async fn mssql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -516,9 +517,9 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_mssql_to_taos() {
+    async fn test_mssql_to_taos() {
         let from = Dsn::from_str("mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true&sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -529,11 +530,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mssql_to_taos");
+        let _span = tracing::info_span!("test_mssql_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mssql_to_taos(
+        mssql_to_taos(
             from,
             parser,
             transform,
@@ -545,7 +546,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
@@ -569,7 +572,7 @@ mod tests {
                 match query_result {
                     Ok((_, rows)) => {
                         for row in rows {
-                            for (_, col) in row.into_iter().enumerate() {
+                            for col in row.into_iter() {
                                 let col_val = generate_json_value(col, String::from("+08:00"));
                                 dbg!(&col_val);
                             }

@@ -300,12 +300,12 @@ impl KafkaProducer {
 
     async fn send_messages(
         producer: &mut Producer,
-        messages: &Vec<String>,
-        topic: &String,
+        messages: &[String],
+        topic: &str,
     ) -> Result<()> {
         let records: Vec<Record<_, _>> = messages
             .iter()
-            .map(|r| Record::from_value(topic.as_str(), r.as_bytes()))
+            .map(|r| Record::from_value(topic, r.as_bytes()))
             .collect::<Vec<Record<_, _>>>();
 
         producer

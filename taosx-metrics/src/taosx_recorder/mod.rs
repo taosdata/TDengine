@@ -195,11 +195,11 @@ impl TaosXRecorderHandle {
             match value {
                 DebugValue::Counter(v) => {
                     formatting::write_type_line(&mut output, name, "counter");
-                    formatting::write_metric_line::<&str, u64>(&mut output, name, None, labels, v);
+                    formatting::write_metric_line(&mut output, name, None, labels, v);
                 }
                 DebugValue::Gauge(v) => {
                     formatting::write_type_line(&mut output, name, "gauge");
-                    formatting::write_metric_line::<&str, f64>(&mut output, name, None, labels, v);
+                    formatting::write_metric_line(&mut output, name, None, labels, v);
                 }
             }
             output.push('\n');

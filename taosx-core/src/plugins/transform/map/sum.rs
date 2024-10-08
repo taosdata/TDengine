@@ -15,7 +15,7 @@ pub struct SumValueBuilder {
 impl ValueBuilder for SumValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         if self.sum.is_empty() {
-            return Err(ValueBuilderError::SumError(
+            return Err(ValueBuilderError::Sum(
                 "sum fields must greater than 1".to_string(),
             ));
         }
@@ -38,12 +38,12 @@ impl ValueBuilder for SumValueBuilder {
 
         let expr = Expr::try_new(sum_expr, false).map_err(|err| {
             let err_msg = format!("failed to build sum expression, cause: {}", err);
-            ValueBuilderError::SumError(err_msg)
+            ValueBuilderError::Sum(err_msg)
         })?;
 
         let values = expr.eval(record, None).map_err(|err| {
             let err_msg = format!("failed to calculate sum, cause: {}", err);
-            ValueBuilderError::SumError(err_msg)
+            ValueBuilderError::Sum(err_msg)
         })?;
 
         Ok(values)

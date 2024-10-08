@@ -89,12 +89,12 @@ impl MqttConfig {
             .map_err(|err| anyhow::anyhow!("invalid topics, cause: {}", err.to_string()))?;
 
         let mut topics = HashMap::new();
-        for i in 0..topics_vec.len() {
-            let pair = topics_vec[i].split("::").collect_vec();
+        for topic in topics_vec {
+            let pair = topic.split("::").collect_vec();
             if pair.len() != 2 {
                 return Err(anyhow::anyhow!(
                     "invalid topic: {}, cause: the format of topic is name::qos",
-                    topics_vec[i]
+                    topic
                 ));
             }
             let topic = String::from(pair[0]);
@@ -296,7 +296,7 @@ impl MqttConnectConfig {
     }
 
     pub fn ssl_enabled(dsn: &Dsn) -> bool {
-        dsn.params.get("ca").is_some()
+        dsn.params.contains_key("ca")
     }
 
     pub fn ssl(&self) -> anyhow::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {

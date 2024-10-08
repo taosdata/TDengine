@@ -47,16 +47,14 @@ impl HistorianQuery {
     }
 
     pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
-        let sql;
-
-        if !tags.is_empty() && tags.len() == 1 && tags.first().unwrap() == "*" {
-            sql = "select * from Runtime.dbo.Live where TagName not like 'Sys%'".to_string();
+        let sql = if !tags.is_empty() && tags.len() == 1 && tags.first().unwrap() == "*" {
+            "select * from Runtime.dbo.Live where TagName not like 'Sys%'".to_string()
         } else {
-            sql = format!(
+            format!(
                 "select * from Runtime.dbo.Live where TagName in ({})",
                 tags.iter().map(|t| { format!("'{}'", t) }).join(",")
-            );
-        }
+            )
+        };
 
         tracing::debug!("query sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)

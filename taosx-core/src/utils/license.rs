@@ -21,10 +21,7 @@ pub fn is_cloud(to: &taos::Dsn) -> bool {
     );
     to.protocol
         .as_ref()
-        .map(|p| match p.as_str() {
-            "http" | "https" | "ws" | "wss" => true,
-            _ => false,
-        })
+        .map(|p| matches!(p.as_str(), "http" | "https" | "ws" | "wss"))
         .unwrap_or(false)
         && to.get("token").is_some()
 }

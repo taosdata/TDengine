@@ -88,9 +88,10 @@ impl Pipeline {
             .transpose()?;
 
         let batch = batch.unwrap_or_else(|| records.clone());
-        let batch = self.mutate.iter().fold(Ok(batch), |batch, mutate| {
-            batch.and_then(|batch| mutate.transform_record_batch(&batch))
-        })?;
+        let batch = self
+            .mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))?;
         if let Some(model) = self.model.as_ref() {
             model.apply(&batch)
         } else {
@@ -985,8 +986,7 @@ impl FromStr for Parser {
     type Err = ParserError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with('@') {
-            let s = &s[1..];
+        if let Some(s) = s.strip_prefix('@') {
             let s = std::fs::read_to_string(s).map_err(|error| ParserError::IoError {
                 input: s.to_string(),
                 error,
@@ -1065,9 +1065,9 @@ impl Parser {
             .map(|parse| parse.transform_record_batch(records))
             .transpose()?
             .unwrap_or_else(|| records.clone());
-        self.mutate.iter().fold(Ok(batch), |batch, mutate| {
-            batch.and_then(|batch| mutate.transform_record_batch(&batch))
-        })
+        self.mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
     fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {

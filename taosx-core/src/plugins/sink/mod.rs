@@ -510,6 +510,7 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
 }
 
 #[framed]
+
 async fn ipc_tcp_read(
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
@@ -606,7 +607,7 @@ async fn consume_lush_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: LushMessage,
-    columns: &Vec<String>,
+    columns: &[String],
     count: &mut usize,
     task: Option<i64>,
     metrics: &IpcMetrics,
@@ -709,8 +710,7 @@ async fn consume_lush_record(
                                         tag_modify.sqls.push((table_sql, false, 1u16));
                                     }
                                 } else {
-                                    let mut sql_vec = Vec::new();
-                                    sql_vec.push((table_sql, false, 1u16));
+                                    let sql_vec = vec![(table_sql, false, 1u16)];
                                     let tag_modify_message = LushMessageTagModify {
                                         sqls: sql_vec,
                                         tags: table.tags().clone().unwrap(),
@@ -2254,8 +2254,7 @@ async fn consume_point_record(
                     value_raw_type.sql_repr().clone()
                 };
 
-                let mut sql_vec = Vec::new();
-                sql_vec.push(SqlInsertion {
+                let sql_vec = vec![SqlInsertion {
                     point_insertion: point_insertion.clone(),
                     sql,
                     overflow: false,
@@ -2266,7 +2265,7 @@ async fn consume_point_record(
                         value_column_name: value_column_name.to_string(),
                         value_column_length,
                     },
-                });
+                }];
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
                 // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
@@ -3981,7 +3980,7 @@ impl IpcHandler {
         }
     }
 
-    pub async fn send<T>(&self, _: T) -> Result<(), tokio::sync::mpsc::error::SendError<()>> {
+    pub fn send<T>(&self, _: T) -> Result<(), tokio::sync::mpsc::error::SendError<()>> {
         // self.closer.send(()).await
         self.closer.notify_waiters();
         Ok(())
@@ -4011,6 +4010,7 @@ impl IpcHandler {
 }
 
 #[instrument(skip_all)]
+
 pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
@@ -4191,6 +4191,7 @@ pub async fn listen_tcp_socket(
 }
 
 #[instrument(skip_all)]
+#[allow(clippy::type_complexity)]
 pub async fn channel_based_transformer(
     target: TaosPool,
     cancel: CancellationToken,

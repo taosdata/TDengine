@@ -48,6 +48,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
         x.influxdb.agent = with_agent.as_ref().map(| a | a.0),
     )
 )]
+
 pub async fn influxdb_to_taos(
     from: Dsn,
     _actions: Vec<Action>,
@@ -126,7 +127,6 @@ pub async fn influxdb_to_taos(
     let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
 
     let mut command = tokio::process::Command::new("java");
-    let child;
 
     // generate report or not
     let enable_coverage = if let Ok(val) = std::env::var("ENABLE_COVERAGE") {
@@ -152,24 +152,24 @@ pub async fn influxdb_to_taos(
     };
 
     let connector_path = influxdb_jar_path()?;
-    if jdk_version.contains("build 1.") {
-        child = command
+    let child = if jdk_version.contains("build 1.") {
+        command
             .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped());
+            .stderr(std::process::Stdio::piped())
     } else {
-        child = command
+        command
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped());
-    }
+            .stderr(std::process::Stdio::piped())
+    };
 
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
     send_sub_process_info(child.id(), task_id, "influxdb");
@@ -253,11 +253,10 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
-    let output;
     // 不同版本不同参数
-    if INFLUXDB_V1.contains(&c.version.as_str()) {
+    let output = if INFLUXDB_V1.contains(&c.version.as_str()) {
         // 查询命令
-        output = command
+        command
             .arg("-jar")
             .arg(&path)
             .arg("-fetch")
@@ -269,9 +268,9 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .stderr(std::process::Stdio::piped())
             .output()
             .await
-            .with_context(|| "Start InfluxDB collector error")?;
+            .with_context(|| "Start InfluxDB collector error")?
     } else {
-        output = command
+        command
             .arg("-jar")
             .arg(&path)
             .arg("-fetch")
@@ -283,24 +282,22 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .stderr(std::process::Stdio::piped())
             .output()
             .await
-            .with_context(|| "Start InfluxDB collector error")?;
-    }
+            .with_context(|| "Start InfluxDB collector error")?
+    };
 
     if output.status.success() {
         let s = String::from_utf8(output.stdout.clone())?;
         if s.is_empty() {
             anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
         }
-        let mut vec = Vec::new();
-        vec.push(DataSet {
+        Ok(vec![DataSet {
             id: s,
             name: None,
             category: None,
             r#type: None,
             options: None,
             format: None,
-        });
-        Ok(vec)
+        }])
     } else {
         match output.status.code() {
             Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
@@ -392,10 +389,10 @@ async fn validate_source_influxdb(
                     x_build.unwrap().to_str().unwrap(),
                     x_version.unwrap().to_str().unwrap()
                 )
-            } else if x_build.is_some() {
-                x_build.unwrap().to_str().unwrap().to_string()
-            } else if x_version.is_some() {
-                x_version.unwrap().to_str().unwrap().to_string()
+            } else if let Some(x_build) = x_build {
+                x_build.to_str().unwrap().to_string()
+            } else if let Some(x_version) = x_version {
+                x_version.to_str().unwrap().to_string()
             } else {
                 "unknown".to_string()
             };

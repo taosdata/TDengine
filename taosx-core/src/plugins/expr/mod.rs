@@ -140,6 +140,7 @@ impl Expr {
         let mut values = Vec::with_capacity(rows);
         for rix in 0..rows {
             let mut scope = Scope::new();
+            #[allow(clippy::needless_range_loop)]
             for cix in 0..cols {
                 let field = schema.field(cix);
                 let name = field.name();

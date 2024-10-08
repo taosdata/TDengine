@@ -75,6 +75,7 @@ impl Debug for Scheduler {
 }
 
 #[instrument(skip_all, fields(worker = worker))]
+
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -667,13 +668,14 @@ pub async fn sync_add_column(
 
 impl Scheduler {
     #[framed]
+
     pub async fn new(
         source: TaosPool,
         target: TaosPool,
         query: Arc<QueryOpts>,
         opts: Arc<TargetOpts>,
         workers: u32,
-        actions: &Vec<Action>,
+        actions: &[Action],
         metrics: Arc<CoreMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
@@ -696,7 +698,7 @@ impl Scheduler {
                 query.clone(),
                 opts.clone(),
                 metrics.clone(),
-                actions.clone(),
+                actions.to_vec(),
                 source_is_v3,
                 target_is_v3,
                 with_precision,
@@ -708,7 +710,13 @@ impl Scheduler {
 
         let handle = tokio::task::spawn(async move {
             let futures = async {
-                while let Some(_) = task_set.join_next().await.transpose()?.transpose()? {}
+                while task_set
+                    .join_next()
+                    .await
+                    .transpose()?
+                    .transpose()?
+                    .is_some()
+                {}
                 anyhow::Ok(())
             };
             tokio::select! {
@@ -769,6 +777,7 @@ impl Scheduler {
     }
 }
 #[async_backtrace::framed]
+
 async fn sync_sparse_stable(
     _source: TaosPool,
     target: TaosPool,
@@ -865,12 +874,11 @@ async fn sync_sparse_stable(
                     mut sql: String,
                     mut tmp: String,
                     stable: &str,
-
                     add_tag_names: &str,
                     add_tag_values: &str,
                     tag_idx: usize,
                     max_sql_length: usize,
-                    actions: &Vec<Action>,
+                    actions: &[Action],
                     remap: Option<&Arc<HashMap<String, String>>>,
                 ) -> Result<Option<(usize, String, String)>, taos::Error> {
                     let mut contains = 0;

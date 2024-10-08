@@ -235,7 +235,7 @@ impl PointsUpdater {
     }
 }
 
-fn diff(s1: &Vec<DataSet>, s2: &Vec<DataSet>) -> Vec<DataSet> {
+fn diff(s1: &[DataSet], s2: &[DataSet]) -> Vec<DataSet> {
     s1.iter().filter(|x| !s2.contains(x)).cloned().collect()
 }
 

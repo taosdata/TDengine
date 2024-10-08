@@ -414,6 +414,7 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会根据参数决定是否忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
+
 pub async fn write(
     pool: &TaosPool,
     super_table_name: &str,

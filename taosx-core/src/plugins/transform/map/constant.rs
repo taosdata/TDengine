@@ -41,14 +41,14 @@ impl ValueBuilder for ConstantValueBuilder {
                 // TODO: support array to arrow array.
                 let value = serde_json::to_string(array).map_err(|err| {
                     let err_msg = format!("failed to serialize object, cause: {}", err);
-                    ValueBuilderError::ConstantError(err_msg)
+                    ValueBuilderError::Constant(err_msg)
                 })?;
                 Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
             }
             JsonValue::Object(value) => {
                 let value = serde_json::to_string(value).map_err(|err| {
                     let err_msg = format!("failed to serialize object, cause: {}", err);
-                    ValueBuilderError::ConstantError(err_msg)
+                    ValueBuilderError::Constant(err_msg)
                 })?;
                 Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
             }

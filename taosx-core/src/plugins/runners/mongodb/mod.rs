@@ -84,7 +84,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
     let mut config = MongoDBConfig::from_dsn(dsn)?;
@@ -160,6 +160,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mongodb to taos
+
 pub async fn mongodb_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -308,7 +309,11 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                    let value: String = v.bytes.iter().fold(String::new(), |mut output, b| {
+                        use std::fmt::Write;
+                        let _ = write!(output, "{b:02x}");
+                        output
+                    });
                     payload.insert(key.clone(), json!(format!("\\x{}", value)));
                 }
                 Bson::ObjectId(v) => {
@@ -543,9 +548,9 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_mongodb_to_taos() {
+    async fn test_mongodb_to_taos() {
         let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -556,11 +561,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mongodb_to_taos");
+        let _span = tracing::info_span!("test_mongodb_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mongodb_to_taos(
+        mongodb_to_taos(
             from,
             parser,
             transform,
@@ -572,7 +577,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
@@ -621,7 +628,11 @@ mod tests {
             subtype: BinarySubtype::Generic,
             bytes: vec![1, 2, 3],
         };
-        let res: String = binary.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        let res: String = binary.bytes.iter().fold(String::new(), |mut output, b| {
+            use std::fmt::Write;
+            let _ = write!(output, "{b:02x}");
+            output
+        });
         println!("\\x{}", res);
     }
 }

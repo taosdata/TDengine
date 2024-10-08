@@ -46,6 +46,7 @@ fn log_path() -> PathBuf {
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 #[allow(unused)]
 #[instrument(skip_all)]
+
 pub async fn pi_to_taos(
     from: Dsn,
     actions: Vec<Action>,

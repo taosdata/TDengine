@@ -106,13 +106,13 @@ pub(crate) enum StopAt {
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum StopAtError {
     #[error(transparent)]
-    DurationParseError(#[from] parse_duration::parse::Error),
+    DurationParse(#[from] parse_duration::parse::Error),
     #[error(transparent)]
-    DateTimeCalculateError(#[from] chrono::OutOfRangeError),
+    DateTimeCalculate(#[from] chrono::OutOfRangeError),
     #[error(transparent)]
-    DateTimeParseError(#[from] chrono::ParseError),
+    DateTimeParse(#[from] chrono::ParseError),
     #[error("rows parse error: {0}")]
-    RowsParseError(#[from] std::num::ParseIntError),
+    RowsParse(#[from] std::num::ParseIntError),
 }
 
 impl FromStr for StopAt {
@@ -124,23 +124,23 @@ impl FromStr for StopAt {
             "" | "0" | "now" => Ok(Self::DateTime(at)),
             s if s.starts_with('-') => {
                 let s = s.trim_start_matches('-');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
-                let duration = chrono::Duration::from_std(duration)
-                    .map_err(StopAtError::DateTimeCalculateError)?;
+                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParse)?;
+                let duration =
+                    chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.sub_assign(duration);
                 Ok(Self::DateTime(at))
             }
             s if s.starts_with('+') => {
                 let s = s.trim_start_matches('+');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
-                let duration = chrono::Duration::from_std(duration)
-                    .map_err(StopAtError::DateTimeCalculateError)?;
+                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParse)?;
+                let duration =
+                    chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.add_assign(duration);
                 Ok(Self::DateTime(at))
             }
             s if s.ends_with("rows") => {
                 let s = s.trim_end_matches("rows");
-                let rows = s.parse().map_err(StopAtError::RowsParseError)?;
+                let rows = s.parse().map_err(StopAtError::RowsParse)?;
                 Ok(Self::Rows(rows))
             }
             s => {

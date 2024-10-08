@@ -573,6 +573,7 @@ impl CsvOption {
                 if record.is_empty() {
                     continue;
                 }
+                #[allow(clippy::needless_range_loop)]
                 for i in 0..headers.len() {
                     match record.get(i) {
                         Some(s) => {

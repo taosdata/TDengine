@@ -68,7 +68,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mysql query
     let mut config = MySqlConfig::from_dsn(dsn)?;
@@ -154,6 +154,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mysql to taos
+
 pub async fn mysql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -584,7 +585,7 @@ mod tests {
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mysql_to_taos(
+        mysql_to_taos(
             from,
             parser,
             transform,
@@ -596,7 +597,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 

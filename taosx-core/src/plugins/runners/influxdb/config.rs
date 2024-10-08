@@ -110,10 +110,7 @@ impl ConnectionConfig {
         let add_dbrp = dsn
             .params
             .get("addDbrp")
-            .map(|s| match s.as_str() {
-                "true" => true,
-                _ => false,
-            })
+            .map(|s| s.as_str() == "true")
             .unwrap_or(false);
 
         let influx = ConnectionConfig {

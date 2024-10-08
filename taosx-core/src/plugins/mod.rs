@@ -102,6 +102,7 @@ pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = % mask_dsn(to)))]
+
 pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,

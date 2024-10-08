@@ -247,15 +247,10 @@ where
             Ok(ZMessage::Meta(meta))
         } else if data_type == DataType::IS_DATA {
             let mut data = Vec::new();
-            loop {
-                if let Some(raw) =
-                    <taos::RawBlock as taos::AsyncInlinable>::read_optional_inlined(&mut self.0)
-                        .await?
-                {
-                    data.push(raw);
-                } else {
-                    break;
-                }
+            while let Some(raw) =
+                <taos::RawBlock as taos::AsyncInlinable>::read_optional_inlined(&mut self.0).await?
+            {
+                data.push(raw);
             }
             Ok(ZMessage::Data(data))
         } else if data_type == DataType::IS_RAW {
@@ -322,7 +317,7 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
 
     use super::*;
 
@@ -337,7 +332,6 @@ mod tests {
         match timeout {
             Err(err) => {
                 println!("timeout: {}", err);
-                assert!(true, "timeout");
             }
             Ok(_) => {
                 unreachable!("should not reach here");
@@ -382,14 +376,14 @@ mod tests {
 
         let mut tmq = TmqBuilder::from_dsn("taos:///?group.id=c")?.build().await?;
         tmq.subscribe([db]).await?;
-        let writer = Arc::new(Mutex::new(writer));
+        let writer = Arc::new(tokio::sync::Mutex::new(writer));
 
         let rows = tmq
             .stream_with_timeout(Timeout::from_millis(500))
             .map_err(anyhow::Error::from)
             .map_ok(|(offset, message)| async {
                 let mut rows = 0;
-                let mut writer = writer.lock().unwrap();
+                let mut writer = writer.lock().await;
                 match message {
                     MessageSet::Meta(meta) => {
                         // dbg!(meta.as_json_meta().await?);
@@ -422,7 +416,7 @@ mod tests {
             })
             .try_fold(0, |sum, n| async move { Ok(n.await? + sum) })
             .await?;
-        let mut writer = writer.lock().unwrap();
+        let mut writer = writer.lock().await;
         writer.flush().await?;
         writer.shutdown().await?;
         // let mut bytes = Vec::with_capacity(10000);

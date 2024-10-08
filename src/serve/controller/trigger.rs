@@ -11,7 +11,7 @@ use serde_with::serde_as;
 use thiserror::Error;
 use utoipa::*;
 
-pub const DEFAULT_REPEAT_INTERVAL: OnceLock<Duration> = OnceLock::new();
+pub static DEFAULT_REPEAT_INTERVAL: OnceLock<Duration> = OnceLock::new();
 const DEFAULT_REPEAT_INTERVAL_FALLBACK: Duration = Duration::from_secs(5);
 
 pub fn init_repeat_interval(dur: Duration) {
@@ -134,11 +134,11 @@ impl Display for ErrorRate {
 #[derive(Debug, Error)]
 pub enum ParseErrorRateError {
     #[error("Invalid error rate: {0}. Use `count/duration` format.")]
-    InvalidFormat(String),
+    Format(String),
     #[error("Invalid count in error rate: {0} in `{1}`.")]
-    InvalidCount(std::num::ParseIntError, String),
+    Count(std::num::ParseIntError, String),
     #[error("Invalid duration in error rate: {0} in `{1}`.")]
-    InvalidDuration(parse_duration::parse::Error, String),
+    Duration(parse_duration::parse::Error, String),
 }
 
 impl FromStr for ErrorRate {
@@ -147,14 +147,14 @@ impl FromStr for ErrorRate {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = s.splitn(2, '/').collect_vec();
         if parts.len() < 2 {
-            return Err(ParseErrorRateError::InvalidFormat(s.to_string()));
+            return Err(ParseErrorRateError::Format(s.to_string()));
         }
         let (count, duration) = (parts[0], parts[1]);
         let count = count
             .parse::<u32>()
-            .map_err(|err| ParseErrorRateError::InvalidCount(err, s.to_string()))?;
+            .map_err(|err| ParseErrorRateError::Count(err, s.to_string()))?;
         let duration = parse_duration::parse(duration)
-            .map_err(|err| ParseErrorRateError::InvalidDuration(err, s.to_string()))?;
+            .map_err(|err| ParseErrorRateError::Duration(err, s.to_string()))?;
         Ok(ErrorRate(count, duration))
     }
 }
@@ -202,10 +202,7 @@ pub enum Schedule {
 }
 impl Schedule {
     pub(crate) fn is_cron_job(&self) -> bool {
-        match self {
-            Schedule::Cron(_) => true,
-            _ => false,
-        }
+        matches!(self, Schedule::Cron(_))
     }
 }
 

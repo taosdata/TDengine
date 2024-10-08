@@ -8,15 +8,14 @@ pub fn write_type_line(buffer: &mut String, name: &str, metric_type: &str) {
     buffer.push('\n');
 }
 
-pub fn write_metric_line<T, T2>(
+pub fn write_metric_line<T>(
     buffer: &mut String,
     name: &str,
     suffix: Option<&'static str>,
     labels: Vec<Label>,
-    value: T2,
+    value: T,
 ) where
     T: std::fmt::Display,
-    T2: std::fmt::Display,
 {
     buffer.push_str(name);
     if let Some(suffix) = suffix {

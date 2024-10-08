@@ -37,6 +37,7 @@ impl StructArrayBuilder {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.builder.len()
     }
@@ -295,7 +296,9 @@ impl StructArrayBuilder {
             ArrowDataType::Map(_, _) => todo!(),
             ArrowDataType::RunEndEncoded(_, _) => todo!(),
         };
-        self.index.as_mut().map(|v| *v += 1);
+        if let Some(v) = self.index.as_mut() {
+            *v += 1
+        }
 
         Ok(self)
     }

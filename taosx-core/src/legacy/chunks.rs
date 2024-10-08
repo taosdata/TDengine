@@ -86,7 +86,7 @@ mod tests {
         let start = Utc::now();
         let end = start + Duration::seconds(10);
         let unit = Duration::seconds(2);
-        let mut iter = ChunkIter::new(start, end, unit);
+        let iter = ChunkIter::new(start, end, unit);
         let mut chunks = Vec::new();
         for chunk in iter {
             chunks.push(chunk);
@@ -100,7 +100,7 @@ mod tests {
         let end = start + Duration::seconds(10);
         let range = TimeRange::new().start(start).end(end);
         let unit = Duration::seconds(2);
-        let mut iter = TimeChunks::new(range, unit);
+        let iter = TimeChunks::new(range, unit);
         let mut chunks = Vec::new();
         for chunk in iter {
             chunks.push(chunk);
@@ -113,7 +113,7 @@ mod tests {
         let range = TimeRange::new();
         let range = range.start(Utc::now());
         let unit = Duration::seconds(2);
-        let mut iter = TimeChunks::new(range, unit);
+        let iter = TimeChunks::new(range, unit);
         let mut chunks = Vec::new();
         for chunk in iter {
             chunks.push(chunk);

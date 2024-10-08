@@ -124,7 +124,7 @@ pub async fn sync_history(
     migrate_task_config.end_datetime = Some(now);
 
     let logger_tx = logger.clone();
-    let _ = tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
+    tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
 
     // create synchronize task and set sub task id
     task_config.sub_task_id = Some(format!("{SYNCHRONIZE_TASK_PREFIX}-1"));

@@ -65,7 +65,7 @@ jobs:
 
       - name: Clippy check
         run: |
-          cargo clippy --locked --workspace --all --tests --examples
+          cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
 
   build_rust:
     needs: check

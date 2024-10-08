@@ -227,7 +227,7 @@ async fn get_agent_name_by_id(controller: TaskControllerRef, agent_id: &str) -> 
 }
 
 /// 为 table 添加额外的 tag, 这些 tag 不是 metrics 自带的（即从 metrics 的 label 来的）,而是为了其它目的额外加的。
-async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut Vec<Table>) {
+async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut [Table]) {
     // 为 taosx_agent 表添加 agent_name 标签
     for table in tables.iter_mut() {
         if table.table_key.stable == "taosx_agent" {
@@ -264,17 +264,15 @@ async fn add_task_metrics_tables(
         match metrics {
             Some(metrics) => match metrics.as_ref() {
                 core_metrics::CoreMetrics::Legacy(metrics) => {
-                    tables.push(metrics.into_table(taosx_id))
+                    tables.push(metrics.gen_table(taosx_id))
                 }
                 core_metrics::CoreMetrics::TMQ(metrics) => {
-                    tables.push(metrics.into_table(taosx_id));
+                    tables.push(metrics.gen_table(taosx_id));
                     if !metrics.progress.is_empty() {
                         add_task_progress_tables(&metrics.progress, taosx_id, task_id, tables);
                     }
                 }
-                core_metrics::CoreMetrics::IPC(metrics) => {
-                    tables.push(metrics.into_table(taosx_id))
-                }
+                core_metrics::CoreMetrics::IPC(metrics) => tables.push(metrics.gen_table(taosx_id)),
             },
             None => {
                 tracing::debug!("metrics for task {} is not initialized", task_id);
@@ -557,11 +555,11 @@ fn labels2tags(labels: Vec<Label>) -> Vec<Tag> {
 }
 
 trait IntoTags {
-    fn into_tags(&self, taosx_id: String) -> Vec<Tag>;
+    fn gen_tags(&self, taosx_id: String) -> Vec<Tag>;
 }
 
 impl IntoTags for CommonMetrics {
-    fn into_tags(&self, taosx_id: String) -> Vec<Tag> {
+    fn gen_tags(&self, taosx_id: String) -> Vec<Tag> {
         let mut vec: Vec<Tag> = Vec::new();
         vec.push(Tag {
             name: "taosx_id".to_string(),
@@ -582,7 +580,7 @@ impl IntoTags for CommonMetrics {
 }
 
 trait IntoMetrics {
-    fn into_metrics(&self) -> Vec<Metric>;
+    fn gen_metrics(&self) -> Vec<Metric>;
 }
 
 macro_rules! value2metric {
@@ -595,41 +593,25 @@ macro_rules! value2metric {
 }
 
 impl IntoMetrics for CommonMetrics {
-    fn into_metrics(&self) -> Vec<Metric> {
-        let mut vec: Vec<Metric> = Vec::new();
-        vec.push(value2metric!("start_time", self.start_time.get()));
-        vec.push(value2metric!(
-            "written_rows",
-            self.written_rows.load(SeqCst)
-        ));
-        vec.push(value2metric!(
-            "written_points",
-            self.written_points.load(SeqCst)
-        ));
-        vec.push(value2metric!(
-            "execute_time",
-            self.execute_time.load(SeqCst)
-        ));
-        vec.push(value2metric!(
-            "total_written_rows",
-            self.total_written_rows.load(SeqCst)
-        ));
-        vec.push(value2metric!(
-            "total_written_points",
-            self.total_written_points.load(SeqCst)
-        ));
-        vec.push(value2metric!(
-            "total_execute_time",
-            self.total_execute_time.load(SeqCst)
-        ));
-
-        vec
+    fn gen_metrics(&self) -> Vec<Metric> {
+        vec![
+            value2metric!("start_time", self.start_time.get()),
+            value2metric!("written_rows", self.written_rows.load(SeqCst)),
+            value2metric!("written_points", self.written_points.load(SeqCst)),
+            value2metric!("execute_time", self.execute_time.load(SeqCst)),
+            value2metric!("total_written_rows", self.total_written_rows.load(SeqCst)),
+            value2metric!(
+                "total_written_points",
+                self.total_written_points.load(SeqCst)
+            ),
+            value2metric!("total_execute_time", self.total_execute_time.load(SeqCst)),
+        ]
     }
 }
 
 impl IntoMetrics for LegacyToTaosMetrics {
-    fn into_metrics(&self) -> Vec<Metric> {
-        let mut vec = self.com.into_metrics();
+    fn gen_metrics(&self) -> Vec<Metric> {
+        let mut vec = self.com.gen_metrics();
         vec.push(value2metric!(
             "read_concurrency",
             self.read_concurrency.load(SeqCst)
@@ -679,8 +661,8 @@ impl IntoMetrics for LegacyToTaosMetrics {
 }
 
 impl IntoMetrics for TmqMetrics {
-    fn into_metrics(&self) -> Vec<Metric> {
-        let mut vec = self.com.into_metrics();
+    fn gen_metrics(&self) -> Vec<Metric> {
+        let mut vec = self.com.gen_metrics();
         vec.push(value2metric!(
             "total_messages_of_meta",
             self.total_messages_of_meta.load(SeqCst)
@@ -720,8 +702,8 @@ impl IntoMetrics for TmqMetrics {
 }
 
 impl IntoMetrics for IpcMetrics {
-    fn into_metrics(&self) -> Vec<Metric> {
-        let mut vec = self.com.into_metrics();
+    fn gen_metrics(&self) -> Vec<Metric> {
+        let mut vec = self.com.gen_metrics();
         vec.push(value2metric!(
             "total_received_batches",
             self.total_received_batches.load(SeqCst)
@@ -831,20 +813,20 @@ impl IntoMetrics for IpcMetrics {
 }
 
 trait IntoTable {
-    fn into_table(&self, taosx_id: &str) -> Table;
+    fn gen_table(&self, taosx_id: &str) -> Table;
 }
 
 impl<T> IntoTable for T
 where
     T: IntoMetrics + TaskMetrics,
 {
-    fn into_table(&self, taosx_id: &str) -> Table {
+    fn gen_table(&self, taosx_id: &str) -> Table {
         Table {
             table_key: TableKey {
                 stable: self.com().stable.clone(),
-                tags: self.com().into_tags(taosx_id.to_string()),
+                tags: self.com().gen_tags(taosx_id.to_string()),
             },
-            metrics: self.into_metrics(),
+            metrics: self.gen_metrics(),
         }
     }
 }

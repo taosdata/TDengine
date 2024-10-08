@@ -34,7 +34,7 @@ impl RawDataLogger {
         let keep_raw_data = self.keep_raw_data;
         if !keep_raw_data {
             let rx = self.rx.clone();
-            tokio::spawn(async move { while let Ok(_) = rx.recv_async().await {} });
+            tokio::spawn(async move { while rx.recv_async().await.is_ok() {} });
         } else {
             let log_name = format!("{}/tasks/{}/rawdata", self.data_dir, self.task_id);
             let mut log = raw_data_log(log_name.clone(), self.keep_days);

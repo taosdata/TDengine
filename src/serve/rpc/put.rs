@@ -81,7 +81,6 @@ struct AppMetadata {
 //     let mut cache = IPC_STREAM_CACHE.write().await;
 //     cache.insert(trace_id, channel);
 // }
-
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
     agent_id: i64,

@@ -73,7 +73,11 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Binary(v) => {
-                        let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                        let value: String = v.bytes.iter().fold(String::new(), |mut output, b| {
+                            use std::fmt::Write;
+                            let _ = write!(output, "{b:02x}");
+                            output
+                        });
                         payload.insert(key.clone(), json!(format!("\\x{}", value)));
                     }
                     Bson::ObjectId(v) => {

@@ -72,6 +72,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 
 /// Run the mqtt DataIn task
 #[instrument(skip_all)]
+
 pub async fn mqtt_to_taos(
     from: Dsn,
     parser: Option<Parser>,
