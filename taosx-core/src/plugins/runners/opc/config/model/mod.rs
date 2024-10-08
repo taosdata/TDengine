@@ -387,7 +387,7 @@ impl PointConfig {
 
         // 遍历tag_values，校验tag_values中的tag_name是否合法
         if tag_values.is_some() {
-            for (tag_name, _) in tag_values.as_ref().unwrap() {
+            for tag_name in tag_values.as_ref().unwrap().keys() {
                 validate_table_column_name("tag name", tag_name)?;
             }
         }

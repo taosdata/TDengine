@@ -41,9 +41,8 @@ impl MssqlConfig {
         dsn.params.get("taskId").and_then(|s| {
             s.parse::<i64>()
                 .map(Some)
-                .map_err(|err| {
+                .inspect_err(|_err| {
                     tracing::warn!("failed to parse taskId: {}, use None", s);
-                    err
                 })
                 .unwrap_or(None)
         })

@@ -1737,7 +1737,7 @@ pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<
     let tmq = TmqBuilder::from_dsn(&from)?;
     let mut consumer = tmq.build().await?;
     consumer
-        .subscribe(&topics.iter().map(|t| t.name.to_string()).collect_vec())
+        .subscribe(topics.iter().map(|t| t.name.to_string()).collect_vec())
         .await?;
     Ok(consumer
         .assignments()

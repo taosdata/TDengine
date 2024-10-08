@@ -112,9 +112,8 @@ impl TaskConfig {
         dsn.params.get("taskId").and_then(|s| {
             s.parse::<i64>()
                 .map(Some)
-                .map_err(|err| {
-                    tracing::warn!("failed to parse taskId: {}, use None", s);
-                    err
+                .inspect_err(|err| {
+                    tracing::warn!("failed to parse taskId: {} ({err}), use None", s);
                 })
                 .unwrap_or(None)
         })

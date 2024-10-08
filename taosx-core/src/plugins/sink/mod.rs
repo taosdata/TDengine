@@ -2944,7 +2944,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
 
-    static mut ACKS: AtomicUsize = AtomicUsize::new(0);
+    let acks: AtomicUsize = AtomicUsize::new(0);
     let lush_model_config = lush_model_config.map(Arc::new);
 
     // TODO: 使用 scheduler 中的 lush_table_cache
@@ -3023,9 +3023,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     ),
                 })
                 .context("write ack error");
-            tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
+            tracing::info!(acks = acks.load(Ordering::SeqCst), "ack done");
         }
-        unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
+        acks.fetch_add(1, Ordering::SeqCst);
         metrics.add_processed_batches(1);
         drop(taos);
     }

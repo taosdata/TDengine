@@ -877,7 +877,7 @@ impl CsvSource {
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
         // let total = Arc::new(AtomicU64::new(0));
 
-        for (_, (reader, path)) in self.readers.drain(..).zip(self.paths.drain(..)).enumerate() {
+        for (reader, path) in self.readers.drain(..).zip(self.paths.drain(..)) {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();

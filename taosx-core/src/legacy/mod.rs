@@ -725,7 +725,7 @@ async fn sync_single_table_partial(
             let views = block.column_views();
             if let Some(batch_size) = target_opts.batch_size {
                 if batch_size < block.nrows() {
-                    for i in 0..(block.nrows() + batch_size - 1) / batch_size {
+                    for i in 0..block.nrows().div_ceil(batch_size) {
                         let range =
                             batch_size * i..std::cmp::min(batch_size * (i + 1), block.nrows());
                         let params: Vec<_> = views
@@ -788,7 +788,7 @@ async fn sync_single_table_partial(
                             batch_size = 1;
                         }
                         // split chunks by batch size
-                        for i in 0..(block.nrows() + batch_size - 1) / batch_size {
+                        for i in 0..block.nrows().div_ceil(batch_size) {
                             let range = batch_size * i..batch_size * (i + 1);
                             let params: Vec<_> = views
                                 .iter()
@@ -2671,7 +2671,7 @@ pub async fn update_todo_list(
 
                 // Ordinary tables
                 let mut set = taos
-                .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                 .await
                 .context("Get stable list from source error")?;
                 let mut stream = set
@@ -2697,7 +2697,7 @@ pub async fn update_todo_list(
             } else {
                 // get stable list.
                 let mut res = taos
-                .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                 .await
                 .context("Get stable list from source error")?;
                 let mut records = res.deserialize::<(u32, Option<String>, String)>();

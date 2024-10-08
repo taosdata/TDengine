@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -258,12 +258,8 @@ impl HintType {
                 }
             }
             HintType::File { value, .. } => {
-                if let Ok(path) = PathBuf::from_str(v) {
-                    value.replace(path);
-                    true
-                } else {
-                    false
-                }
+                value.replace(std::path::Path::new(v).to_path_buf());
+                true
             }
             HintType::Bool { value, .. } => {
                 if let Ok(b) = v.parse() {

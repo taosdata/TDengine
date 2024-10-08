@@ -262,7 +262,7 @@ impl Export {
         };
 
         for user in &self.users {
-            if let Err(err) = conn.exec_many(&user.to_sqls(true)).await {
+            if let Err(err) = conn.exec_many(user.to_sqls(true)).await {
                 fails
                     .passwords
                     .push(ApplyFail::new(&user.name, format!("{err:#}")));
@@ -271,7 +271,7 @@ impl Export {
             }
         }
         for privilege in &self.privileges {
-            if let Err(err) = conn.exec(&privilege.to_sql()).await {
+            if let Err(err) = conn.exec(privilege.to_sql()).await {
                 fails.privileges.push(ApplyFail::privilege(
                     &privilege.user_name,
                     privilege.target(),

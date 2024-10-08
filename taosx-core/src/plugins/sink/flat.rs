@@ -174,7 +174,7 @@ async fn write_stable_with_sql(
 ) -> Result<usize, FlatWriteError> {
     let sql = records.sql();
     tracing::trace!("write stable with sql: {}", sql);
-    let res = if sql.find(|c| c == '\0').is_some() {
+    let res = if sql.find('\0').is_some() {
         tracing::warn!("SQL contains null character, remove it");
         let sql: String = sql.chars().filter(|c| *c != '\0').collect();
         exec_sql_with_connection_retries(

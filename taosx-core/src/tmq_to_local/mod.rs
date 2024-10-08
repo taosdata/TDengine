@@ -375,7 +375,7 @@ pub async fn tmq_to_local(
     let (consumers_tx, mut consumers_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let mut files_manager = Vec::new();
-    for (_, topic) in config.topics.iter().enumerate() {
+    for topic in config.topics.iter() {
         if jobs == 0 && topic.vgroups == 0 {
             anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
         }

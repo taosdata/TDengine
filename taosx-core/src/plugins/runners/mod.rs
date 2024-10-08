@@ -356,6 +356,7 @@ impl ServerCertVerifier for NoCertificateVerification {
 }
 
 /// get string vector from dsn's key. if value starts with @, read file.
+///
 /// the first line in file will be skipped, the rest will be read as a string per line, replace `,` with `::` and push to vector
 /// if value not starts with @, the value will split by `,` and push to vector
 pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {

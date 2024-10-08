@@ -27,19 +27,19 @@ fn shadow_build() {
         };
         let content = std::fs::read_to_string(&readme)
             .unwrap()
-            .replace("taos", &cus_prompt)
-            .replace("TDengine", &cus_name);
+            .replace("taos", cus_prompt)
+            .replace("TDengine", cus_name);
 
         let service_template = manifest_dir.join("src").join("systemd.service");
         let service = std::fs::read_to_string(&service_template)
-            .expect(&format!("{}", service_template.display()))
+            .unwrap_or_else(|_| panic!("{}", service_template.display()))
             .replace(DEFAULT_CUS_PROMPT, cus_prompt)
             .replace(DEFAULT_CUS_NAME, cus_name);
         if !target_dir.exists() {
             std::fs::create_dir_all(&target_dir).unwrap();
         }
         std::fs::write(
-            &target_dir.join(format!("{cus_prompt}x-agent.service")),
+            target_dir.join(format!("{cus_prompt}x-agent.service")),
             service,
         )
         .unwrap();
