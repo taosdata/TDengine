@@ -61,22 +61,49 @@ static void azDumpCfgByEp(int8_t epIndex) {
   // clang-format on
 }
 
+static int32_t azListBucket(char const *bucketname) {
+  int32_t           code = 0;
+  const std::string delimiter = "/";
+  std::string       accountName = tsS3AccessKeyId[0];
+  std::string       accountKey = tsS3AccessKeySecret[0];
+  std::string       accountURL = tsS3Hostname[0];
+  accountURL = "https://" + accountURL;
+
+  try {
+    auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
+
+    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+
+    BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
+
+    std::string containerName = bucketname;
+    auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+
+    Azure::Storage::Blobs::ListBlobsOptions options;
+    options.Prefix = "s3";
+
+    (void)fprintf(stderr, "objects:\n");
+    // std::set<std::string> listBlobs;
+    for (auto pageResult = containerClient.ListBlobs(options); pageResult.HasPage(); pageResult.MoveToNextPage()) {
+      for (const auto &blob : pageResult.Blobs) {
+        (void)fprintf(stderr, "%s\n", blob.Name.c_str());
+      }
+    }
+  } catch (const Azure::Core::RequestFailedException &e) {
+    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+           e.ReasonPhrase.c_str());
+    // uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 int32_t azCheckCfg() {
   int32_t code = 0, lino = 0;
-
-  // TODO:
-  int8_t i = 0;
-
-  if (!tsS3Enabled) {
-    (void)fprintf(stderr, "s3 not configured.\n");
-    TAOS_RETURN(code);
-  }
-
-  code = azBegin();
-  if (code != 0) {
-    (void)fprintf(stderr, "failed to initialize s3.\n");
-    TAOS_RETURN(code);
-  }
+  int8_t  i = 0;
 
   // for (; i < tsS3EpNum; i++) {
   (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
@@ -129,8 +156,8 @@ int32_t azCheckCfg() {
 
   // list buckets
   (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName);
-  // TODO:
   // code = s3ListBucketByEp(tsS3BucketName, i);
+  code = azListBucket(tsS3BucketName);
   if (code != 0) {
     (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
     TAOS_CHECK_GOTO(code, &lino, _next);
@@ -174,7 +201,7 @@ _next:
   (void)fprintf(stdout, "=================================================================\n");
   //}
 
-  azEnd();
+  // azEnd();
 
   TAOS_RETURN(code);
 }

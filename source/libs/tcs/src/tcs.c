@@ -93,7 +93,36 @@ int32_t tcsInit() {
 
 void tcsUninit() { tcs.End(); }
 
-int32_t tcsCheckCfg() { return tcs.CheckCfg(); }
+int32_t tcsCheckCfg() {
+  int32_t code = 0;
+
+  if (!tsS3Enabled) {
+    (void)fprintf(stderr, "s3 not configured.\n");
+    TAOS_RETURN(code);
+  }
+
+  code = tcsInit();
+  if (code != 0) {
+    (void)fprintf(stderr, "failed to initialize s3.\n");
+    TAOS_RETURN(code);
+  }
+
+  code = s3Begin();
+  if (code != 0) {
+    (void)fprintf(stderr, "failed to begin s3.\n");
+    TAOS_RETURN(code);
+  }
+
+  code = tcs.CheckCfg();
+  if (code != 0) {
+    (void)fprintf(stderr, "failed to check s3.\n");
+    TAOS_RETURN(code);
+  }
+
+  tcsUninit();
+
+  return code;
+}
 
 int32_t tcsPutObjectFromFileOffset(const char* file, const char* object_name, int64_t offset, int64_t size) {
   return tcs.PutObjectFromFileOffset(file, object_name, offset, size);
