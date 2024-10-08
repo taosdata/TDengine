@@ -742,6 +742,20 @@ char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
 
 static int isdst_now = 0;
 
+static void parseTimeStr(char *p, char to[5]) {
+  for (int i = 0; i < 5; ++i) {
+    if (strlen(p) > i) {
+      to[i] = p[i];
+    } else {
+      to[i] = '0';
+    }
+  }
+  if (strlen(p) == 2) {
+    to[1] = '0';
+    to[2] = p[1];
+  }
+}
+
 void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight,
                            enum TdTimezone *tsTimezone) {
   if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
@@ -790,7 +804,9 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         memcpy(&winStr[3], pp, ppp - pp);
         indexStr = ppp - pp + 3;
       }
-      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
+      char to[5];
+      parseTimeStr(p, to);
+      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (to[0] == '+' ? '+' : '-'), to[1], to[2], to[3], to[4]);
       *tsTimezone = -taosStr2Int32(p, NULL, 10);
     } else {
       *tsTimezone = 0;
@@ -798,7 +814,9 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
   }
   _putenv(winStr);
   _tzset();
-  strcpy(outTimezoneStr, inTimezoneStr);
+  if (outTimezoneStr != inTimezoneStr) {
+    strcpy(outTimezoneStr, inTimezoneStr);
+  }
   *outDaylight = 0;
 
 #elif defined(_TD_DARWIN_64)

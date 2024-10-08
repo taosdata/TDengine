@@ -826,6 +826,7 @@ void ctgDequeue(SCtgCacheOperation **op) {
 }
 
 int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
@@ -847,7 +848,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
-    CTG_RET(TSDB_CODE_CTG_EXIT);
+    CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
 
   gCtgMgmt.queue.tail->next = node;
@@ -872,10 +873,15 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    taosMemoryFree(operation);
+    tsem_destroy(&operation->rspSem);
+    taosMemoryFreeClear(operation);
   }
-
   return TSDB_CODE_SUCCESS;
+_return:
+  if (syncOp) {
+    tsem_destroy(&operation->rspSem);
+  }
+  return code;
 }
 
 int32_t ctgDropDbCacheEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId) {
