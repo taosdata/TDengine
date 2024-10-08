@@ -541,6 +541,7 @@ args = ["fmt", "--check", "--all"]
 command = "cargo"
 args = [
   "clippy",
+  "--locked",
   "--workspace",
   "--tests",
   "--examples",
