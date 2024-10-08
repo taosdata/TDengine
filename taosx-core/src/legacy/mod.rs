@@ -186,6 +186,7 @@ impl TimeRange {
         self.start.is_none() && self.end.is_none()
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_chunks(&self, duration: Duration) -> Vec<Self> {
         let duration = if duration.is_zero() {
             chrono::Duration::days(1)
@@ -217,6 +218,7 @@ impl TimeRange {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_chunks_iter(&self, duration: Duration) -> TimeChunks {
         let duration = if duration.is_zero() {
             chrono::Duration::days(1)

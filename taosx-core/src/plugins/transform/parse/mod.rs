@@ -309,15 +309,7 @@ pub trait ArrayForTaos: Array {
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::List(_) => taos::Ty::VarChar,
-            arrow::datatypes::DataType::FixedSizeList(_, _) => todo!(),
-            arrow::datatypes::DataType::LargeList(_) => todo!(),
-            arrow::datatypes::DataType::Struct(_) => todo!(),
-            arrow::datatypes::DataType::Union(_, _) => todo!(),
-            arrow::datatypes::DataType::Dictionary(_, _) => todo!(),
-            arrow::datatypes::DataType::Decimal128(_, _) => todo!(),
-            arrow::datatypes::DataType::Decimal256(_, _) => todo!(),
-            arrow::datatypes::DataType::Map(_, _) => todo!(),
-            arrow::datatypes::DataType::RunEndEncoded(_, _) => todo!(),
+            _ => todo!(),
         }
     }
 

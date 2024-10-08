@@ -24,6 +24,7 @@ use arrow::{
     error::ArrowError,
     record_batch::RecordBatch,
 };
+use arrow_compute_ext::RecordBatchExt;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
@@ -1107,9 +1108,11 @@ impl Parser {
 
         let json_batches = Parser::to_json_valid_batches(&batches);
 
-        let json = arrow::json::writer::record_batches_to_json_rows(
-            json_batches.iter().collect_vec().as_slice(),
-        )?;
+        let json: Vec<_> = json_batches
+            .iter()
+            .map(|batch| batch.to_json_rows())
+            .flatten_ok()
+            .try_collect()?;
 
         let mut data = vec![];
         for table in &self.model {
@@ -2113,6 +2116,7 @@ pub trait TransformExt {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error>;
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Invalid written method: {0}")]

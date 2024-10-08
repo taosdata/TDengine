@@ -84,7 +84,7 @@ pub mod flat;
 pub mod ipc_metric;
 pub mod lush;
 
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const RPC_ACK_REQUEST: u8 = 0;
 pub const RPC_ACK_RECEIVED: u8 = 1;
@@ -93,7 +93,7 @@ pub const RPC_ACK_DROPPED: u8 = 3;
 pub const RPC_ACK_STREAM_END: u8 = 0xFE;
 pub const RPC_ACK_DECODE_ERROR: u8 = 0xFF;
 
-#[derive(FromZeroes, FromBytes, AsBytes)]
+#[derive(FromBytes, Immutable, KnownLayout, IntoBytes)]
 #[repr(C, packed)]
 pub struct MessageMetadata {
     /// Ack count.
@@ -116,7 +116,12 @@ pub struct MessageMetadata {
 impl MessageMetadata {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        zerocopy::AsBytes::as_bytes(self)
+        unsafe {
+            std::slice::from_raw_parts(
+                self as *const Self as *const u8,
+                std::mem::size_of::<Self>(),
+            )
+        }
     }
 
     #[inline]
@@ -416,7 +421,7 @@ async fn ipc_tcp_forward(
                     Ok(rsp) => {
                         tracing::trace!("Response ok");
                         use zerocopy::FromBytes;
-                        if let Some(metadata) = MessageMetadata::ref_from(&rsp.app_metadata) {
+                        if let Ok(metadata) = MessageMetadata::ref_from_bytes(&rsp.app_metadata) {
                             let ack = metadata.ack();
                             let count = metadata.count;
                             match ack {

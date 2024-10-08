@@ -13,32 +13,34 @@ exclude = ["crates/transform/parsers/hebeipower"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
-chrono-tz = { version = "0.8.3" }
-shadow-rs = { version = "0.33.0" }
+chrono-tz = { version = "0.10.0" }
+shadow-rs = { version = "0.35.0" }
 itertools = { version = "0.13.0" }
 
-clap = { version = "4.4.7", features = ["default", "derive"] }
+clap = { version = "4.5.19", features = ["default", "derive"] }
 
-regex = { version = "1.9" }
-arrow = { version = "50.0.0", features = ["chrono-tz", "ipc_compression"] }
-arrow-flight = { version = "50.0.0" }
-arrow-schema = { version = "50.0.0", features = ["serde"] }
+regex = { version = "1.11.0" }
+arrow = { version = "53.1.0", features = ["chrono-tz", "ipc_compression"] }
+arrow-flight = { version = "53.1.0" }
+arrow-schema = { version = "53.1.0", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
+dashmap = "6.1.0"
 faststr = { version = "0.2.19", features = ["serde"] }
 rayon = { version = "1" }
-parquet = "50.0.0"
-metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
-metrics-tracing-context = "0.15.0"
-tonic = "0.10"
-zerocopy = { version = "0.7.34", features = ["derive"] }
+parquet = "53.1.0"
+metrics-exporter-prometheus = { version = "0.15.3", default-features = false }
+metrics-tracing-context = "0.16.0"
+tonic = "0.12.3"
+zerocopy = { version = "0.8.3", features = ["derive"] }
 
-metrics = "0.22.0"
-metrics-util = "0.16.0"
+metrics = "0.23.0"
+metrics-util = "0.17.0"
 bytes = "1.4.0"
-sysinfo = "0.30.5"
+sysinfo = "0.32.0"
 
-serde_with = { version = "3", features = ["chrono"] }
+serde_with = { version = "3.11", features = ["chrono"] }
+serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 
 taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "6870c18bf8fb2d41cc246a97ca00026ece2885be", features = [
     "ansi",
@@ -78,28 +80,28 @@ faststr = { workspace = true }
 zerocopy = { workspace = true }
 
 shadow-rs = { workspace = true }
-strum = { version = "0.25", features = ["derive"] }
+strum = { version = "0.26.3", features = ["derive"] }
 multi_index_map = "0.11.0"
 semver = "1.0.22"
 humantime = "2.1"
-scc = { version = "2", features = ["serde"] }
+scc = { version = "2.2.0", features = ["serde"] }
 
-twelf = { version = "0.13.0", default-features = false, features = [
+twelf = { version = "0.15.0", default-features = false, features = [
     "toml",
     "env",
     "clap",
 ] }
 
-async-compression = { version = "*", features = ["all"] }
-async-trait = "0.1"
+async-compression = { version = "0.4.13", features = ["all"] }
+async-trait = "0.1.83"
 bitflags = "2"
 chrono = { workspace = true }
 clap = { workspace = true, features = ["default", "derive", "env"] }
-clap-verbosity-flag = "2.0.0"
-config = "0.13.2"
+clap-verbosity-flag = "2.2.2"
+config = "0.14.0"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
-dashmap = "5.4.0"
+dashmap = { workspace = true }
 futures = "0.3"
 itertools = { version = "0.13.0" }
 lazy_static = "1.4"
@@ -126,16 +128,16 @@ tokio = { version = "1.39.3", features = [
     "fs",
 ] }
 tokio-util = { version = "0.7" }
-toml = "0.8.5"
+toml = "0.8.19"
 zstd = "0.13.0"
 csv = "1.2"
 
 actix-cors = "0.7.0"
 actix-web = "4"
-actix-ws = "0.2.5"
-actix-multipart = "0.6.0"
-actix-files = "0.6.2"
-base64 = "0.21.2"
+actix-ws = "0.3.0"
+actix-multipart = "0.7.2"
+actix-files = "0.6.6"
+base64 = "0.22.1"
 cfg-if = "1.0.0"
 uuid = { version = "1.4.0", features = [
     "v4",
@@ -146,7 +148,7 @@ uuid = { version = "1.4.0", features = [
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "4.2.0", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
 
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
@@ -157,7 +159,7 @@ tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
 const_format = "0.2.30"
 metrics = { workspace = true }
 metrics-util = { workspace = true }
-metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
+metrics-exporter-prometheus = { version = "0.15.3", default-features = false, features = [
     "push-gateway",
 ] }
 metrics-tracing-context = { workspace = true }
@@ -167,14 +169,14 @@ async-backtrace = "0.2.2"
 dotenv = "0.15.0"
 
 flume = "0.11.0"
-futures-util = "0.3"
+futures-util = "0.3.31"
 r2d2 = "0.8.10"
 serde_with.workspace = true
 tokio-cron-scheduler = { git = "https://github.com/zitsen/tokio-cron-scheduler.git" }
 
 bitvec = "1"
-mimalloc = { version = "0.1.39", default-features = false, optional = true }
-tempfile = "3"
+mimalloc = { version = "0.1.43", default-features = false, optional = true }
+tempfile = "3.13.0"
 
 bytes = { workspace = true }
 jsonwebtoken = "9.1.0"
@@ -189,27 +191,27 @@ tracing-subscriber = { version = "0.3", features = [
 tracing = { version = "0.1", features = ["log"] }
 atty = "0.2.14"
 file-rotate = "0.7.5"
-opentelemetry = { version = "0.21.0" }
-opentelemetry_sdk = { version = "0.21.0" }
-opentelemetry-otlp = { version = "0.14.0" }
-tracing-opentelemetry = { version = "0.22.0" }
-tracing-actix-web = "0.7"
+opentelemetry = { version = "*" }
+opentelemetry_sdk = { version = "*" }
+opentelemetry-otlp = { version = "*" }
+tracing-opentelemetry = { version = "0.27.0" }
+tracing-actix-web = "0.7.13"
 console-subscriber = { version = "0.4.0", optional = true }
-reqwest = { version = "0.12.7", features = ["json"] }
+reqwest = { version = "0.12.8", features = ["json"] }
 taosx-ipc = { path = "./taosx-ipc" }
 md5 = "0.7.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-metrics = { path = "./taosx-metrics" }
-gethostname = "0.4.3"
+gethostname = "0.5.0"
 prettytable = "0.10.0"
 
 taoslog.workspace = true
 http.workspace = true
 notify = "6.1.1"
 
-parse-size = "=1.0.0"
+parse-size = "~1.0.0"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.6.0", optional = true }
@@ -226,9 +228,6 @@ sqlx = { version = "0.7", features = ["sqlite", "chrono", "mysql"] }
 dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
-
-[dev-dependencies]
-tower = "0.4"
 
 [features]
 default = ["native-tls", "mimalloc"]
@@ -268,6 +267,7 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+tracing-opentelemetry = { git = "https://github.com/ymgyt/tracing-opentelemetry", branch = "bump-otel"}
 
 [lints]
 workspace = true

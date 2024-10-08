@@ -204,6 +204,7 @@ impl AckReaderBuilder {
                     Field::new("context", DataType::Binary, true),
                 ];
                 let schema = Schema::new(fields).with_metadata(self.metadata.clone());
+                let reader = std::io::BufReader::new(reader);
                 AckReader {
                     ack: self.ack,
                     schema: Some(schema),

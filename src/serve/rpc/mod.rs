@@ -20,7 +20,7 @@ use arrow_flight::{
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
 };
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
@@ -1130,6 +1130,13 @@ impl FlightService for FlightServiceImpl {
         _request: Request<Empty>,
     ) -> Result<Response<Self::ListActionsStream>, Status> {
         Err(Status::unimplemented("Implement list_actions"))
+    }
+
+    async fn poll_flight_info(
+        &self,
+        _request: tonic::Request<FlightDescriptor>,
+    ) -> std::result::Result<tonic::Response<PollInfo>, tonic::Status> {
+        Err(Status::unimplemented("Implement poll_flight_info"))
     }
 }
 
