@@ -332,8 +332,8 @@ int32_t taosGetFqdn(char *fqdn) {
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
   // hints.ai_family = AF_INET;
-  strcpy(fqdn, hostname);
-  strcpy(fqdn + strlen(hostname), ".local");
+  tstrncpy(fqdn, hostname, TSDB_FQDN_LEN);
+  tstrncpy(fqdn + strlen(hostname), ".local", TSDB_FQDN_LEN - strlen(hostname));
 #else  // linux
 
 #endif  // linux
@@ -361,7 +361,7 @@ int32_t taosGetFqdn(char *fqdn) {
     break;
   }
 
-  (void)strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
 
   freeaddrinfo(result);
 
@@ -375,7 +375,7 @@ int32_t taosGetFqdn(char *fqdn) {
     // fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
     return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
   }
-  strcpy(fqdn, result->ai_canonname);
+  tstrncpy(fqdn, result->ai_canonname, TD_FQDN_LEN);
   freeaddrinfo(result);
 
 #endif
@@ -384,7 +384,7 @@ int32_t taosGetFqdn(char *fqdn) {
 }
 
 void tinet_ntoa(char *ipstr, uint32_t ip) {
-  (void)sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 
 int32_t taosIgnSIGPIPE() {

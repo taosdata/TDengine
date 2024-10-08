@@ -151,7 +151,7 @@ int32_t taosMulMkDir(const char *dirname) {
   }
   if (temp[1] == ':') pos += 3;
 #else
-  (void)strcpy(temp, dirname);
+  tstrncpy(temp, dirname, sizeof(temp));
 #endif
 
   if (taosDirExist(temp)) return code;
@@ -216,7 +216,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   }
   if (temp[1] == ':') pos += 3;
 #else
-  (void)strcpy(temp, dirname);
+  tstrncpy(temp, dirname, sizeof(temp));
 #endif
 
   if (taosDirExist(temp)) {
@@ -440,8 +440,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
     return NULL;
   }
 
-  strcpy(szFind, dirname);
-  strcat(szFind, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
+  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
 
   pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
   if (INVALID_HANDLE_VALUE == pDir->hFind) {

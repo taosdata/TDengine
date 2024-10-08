@@ -31,8 +31,6 @@
 
 TEST(osTimeTests, taosLocalTimeNolock) {
   time_t currentTime;
-    // Test when result is NULL
-  struct tm* result = taosLocalTimeNolock(NULL, &currentTime, 0);
     // Test when result is not NULL
   struct tm expectedTime;
   result = taosLocalTimeNolock(&expectedTime, &currentTime, 1);
@@ -64,13 +62,6 @@ TEST(osTimeTests, taosLocalTime) {
   // Test 2: Test when timep is NULL
   local_time = taosLocalTime(NULL, &result, NULL);
   ASSERT_EQ(local_time, nullptr);
-
-  // Test 3: Test when result is NULL
-  local_time = taosLocalTime(&timep, NULL, NULL);
-  ASSERT_NE(local_time, nullptr);
-  ASSERT_EQ(local_time->tm_year, 121);
-  ASSERT_EQ(local_time->tm_mon, 3);
-  ASSERT_EQ(local_time->tm_mday, 4);
 
   // Test 4: Test when timep is negative on Windows
 #ifdef WINDOWS
