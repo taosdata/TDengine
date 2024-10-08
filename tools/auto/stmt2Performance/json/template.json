@@ -1,0 +1,56 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 5,
+    "create_table_thread_count": 1,
+    "thread_bind_vgroup": "yes",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 2000,
+    "prepared_rand": 100000,
+    "escape_character": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "dbrate",
+                "drop": "yes",
+                "vgroups": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "childtable_prefix": "d",
+                    "insert_mode": "@STMT_MODE",
+                    "interlace_rows": @INTERLACE_MODE,
+                    "insert_rows": 100000,
+                    "timestamp_step": 1,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "auto_create_table": "yes",
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc"},
+                        { "type": "double",      "name": "dc"},
+                        { "type": "tinyint",     "name": "ti"},
+                        { "type": "smallint",    "name": "si"},
+                        { "type": "int",         "name": "ic"},
+                        { "type": "bigint",      "name": "bi"},
+                        { "type": "utinyint",    "name": "uti"},
+                        { "type": "usmallint",   "name": "usi"},
+                        { "type": "uint",        "name": "ui"},
+                        { "type": "ubigint",     "name": "ubi"},
+                        { "type": "binary",      "name": "bin", "len": 32},
+                        { "type": "nchar",       "name": "nch", "len": 64}                        
+                    ],
+                    "tags": [
+                        {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1}
+                    ]
+                }
+            ]
+        }
+    ]
+}
