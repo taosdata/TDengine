@@ -316,6 +316,11 @@ enable = true
         cols = dbc.getQueryResult() #  id,end_point,vnodes,cores,status,role,create_time,offline reason
         return {c[1]:c[4] for c in cols} # {'xxx:6030':'ready', 'xxx:6130':'ready'}
 
+    def _getSnodes(self, dbc):
+        dbc.query("select * from information_schema.ins_snodes")
+        cols = dbc.getQueryResult() #  id,end_point,create_time
+        return {c[1]:c[2] for c in cols} # {'xxx:6030':'time'}
+
     def createDnode(self, dbt: DbTarget):
         """
         With a connection to the "first" EP, let's create a dnode for someone else who
@@ -330,6 +335,22 @@ enable = true
             return
 
         sql = "CREATE DNODE \"{}\"".format(dbt.getEp())
+        dbc.execute(sql)
+        dbc.close()
+
+    def createSnode(self, dbt: DbTarget):
+        """
+        Create snode on dnode 1
+        """
+        dbc = DbConn.createNative(self.getDbTarget())
+        dbc.open()
+
+        if dbt.getEp() in self._getSnodes(dbc):
+            Logging.info("Skipping Snode creation for: {}".format(dbt))
+            dbc.close()
+            return
+
+        sql = "CREATE SNODE ON DNODE 1;"
         dbc.execute(sql)
         dbc.close()
 
@@ -776,6 +797,7 @@ class ServiceManager:
                 if not ti.isFirst():
                     tFirst = self._getFirstInstance()
                     tFirst.createDnode(ti.getDbTarget())
+                    tFirst.createSnode(ti.getDbTarget())
                 ti.printFirst10Lines()
                 # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines
 
