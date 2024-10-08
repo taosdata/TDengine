@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+      - 3.0
 
 jobs:
   web:
@@ -69,6 +70,12 @@ jobs:
           cd server/
           cargo universal2
 
+      - name: clippy
+        run: cargo clippy -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
+
       - name: build archive
         run: |
           cd target/universal2-apple-darwin/release/
@@ -108,6 +115,12 @@ jobs:
           path: |
             target
           key: ${{ runner.os }}-cargo-target
+
+      - name: clippy
+        run: cargo clippy -p taos-explorer -- --no-deps -Dwarnings 
+
+      - name: test
+        run: cargo test
 
       - name: build package
         run: cargo build --release
@@ -156,6 +169,12 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-target
 
+      - name: clippy
+        run: cargo clippy -p taos-explorer -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
+
       - name: build package
         run: cargo build --release --target x86_64-unknown-linux-gnu
 
@@ -200,6 +219,12 @@ jobs:
           path: |
             target
           key: ${{ runner.os }}-cargo-target-aarch64
+
+      - name: clippy
+        run: cargo clippy -p taos-explorer -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
 
       - name: Build package
         uses: actions-rs/cargo@v1

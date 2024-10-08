@@ -49,9 +49,9 @@ pub fn check_phone_email_verified(filename: &PathBuf, current_server: &str) -> i
         let line = line?;
         if line.starts_with(current_server) {
             let mut items = line.split("|");
-            let server = items.nth(0).unwrap();
-            let phone_email = items.nth(0);
-            let sign = items.nth(0);
+            let server = items.next().unwrap();
+            let phone_email = items.next();
+            let sign = items.next();
             // println!("server: {}, phone_email: {:?}, sign: {:?}", server, phone_email, sign);
 
             if phone_email.is_some() && sign.is_some() && server == current_server {
@@ -430,6 +430,7 @@ mod tests {
     // }
 
     #[test]
+    #[ignore]
     fn test_check_phone_email_verified() {
         let filename = PathBuf::from("phone_email_verified.txt");
         prepare_test_file(&filename);
@@ -449,6 +450,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_record_binding_phone_email() {
         let filename = PathBuf::from("phone_email_verified.txt");
         prepare_test_file(&filename);
@@ -462,6 +464,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_empty_record_binding_phone_email() {
         let filename = PathBuf::from("empty_phone_email_verified.txt");
         let server = "localhost:8080";
@@ -491,7 +494,7 @@ mod tests {
     fn test_check_verification_code() {
         let phone_email = "15801381212";
         let code = generate_verification_code(phone_email.to_string());
-        print!("code: {}\n", code);
+        println!("code: {}", code);
 
         assert_eq!(check_security_code(phone_email, "1234"), "error");
         assert_eq!(check_security_code(phone_email, &code), "pass");

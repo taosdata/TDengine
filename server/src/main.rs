@@ -71,7 +71,7 @@ struct UserPool {
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
 
 fn clear_pool(dsn: &Dsn, username: String) {
-    let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
+    let map = TAOS_POOL.get_or_init(scc::HashMap::new);
     let mut dsn_simple = dsn.clone();
     dsn_simple.username = Some(username);
     dsn_simple.password = None;
@@ -80,7 +80,7 @@ fn clear_pool(dsn: &Dsn, username: String) {
 }
 
 async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, String> {
-    let map = TAOS_POOL.get_or_init(|| scc::HashMap::new());
+    let map = TAOS_POOL.get_or_init(scc::HashMap::new);
     let mut dsn_simple = dsn.clone();
     dsn_simple.password = None;
 
@@ -211,7 +211,7 @@ async fn main() -> anyhow::Result<()> {
     let mut layers = Vec::with_capacity(2);
     let appender = RollingFileAppender::builder(
         path.unwrap(),
-        &format!("{}explorer", env!("CUS_PROMPT")),
+        format!("{}explorer", env!("CUS_PROMPT")),
         *INSTANCE_ID.get().unwrap(),
     )
     .compress(compress.unwrap())
@@ -753,8 +753,8 @@ async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, Strin
     let sql = "select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster";
     match args.query_by_root(sql).await {
         Ok(ok) => {
-            if let Some(taosd_info) = ok.data.get(0) {
-                let cluster_id = taosd_info.get(0);
+            if let Some(taosd_info) = ok.data.first() {
+                let cluster_id = taosd_info.first();
                 let taosd_version = taosd_info.get(1);
 
                 if cluster_id.is_some() && taosd_version.is_some() {
@@ -977,20 +977,18 @@ async fn modify_password(
 
     let sql = get_body_from_payload(payload).await.unwrap();
     let tz = query.get("tz");
-    let response = match args.query(header, &sql, tz).await {
+
+    match args.query(header, &sql, tz).await {
         Ok(ok) => {
             // 清除 username 对应的 user_pool
-            let _ = args.build_dsn(header).and_then(|dsn| {
+            let _ = args.build_dsn(header).map(|dsn| {
                 clear_pool(&dsn, username.to_string());
-                Ok(())
             });
 
             HttpResponse::Ok().json(ok)
         }
         Err(err) => HttpResponse::InternalServerError().json(err),
-    };
-
-    response
+    }
 }
 
 #[instrument(skip_all)]
@@ -1572,9 +1570,7 @@ impl Args {
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
         let dsn = self.build_dsn(header)?;
-        let conn = get_connection(&dsn)
-            .await
-            .map_err(|err| RestErrResponse::new(err))?;
+        let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {
@@ -1833,7 +1829,7 @@ mod tests {
         );
         assert_eq!(matches.get_one("log.level"), Some(&log::LevelFilter::Info));
         assert_eq!(matches.get_one("log.compress"), Some(&true));
-        assert_eq!(matches.get_one("log.rotationCount"), Some(&3usize));
+        assert_eq!(matches.get_one("log.rotationCount"), Some(&3u16));
         assert_eq!(
             matches.get_one("log.rotationSize"),
             Some(&"3GB".to_string())
