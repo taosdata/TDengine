@@ -628,26 +628,26 @@ pub fn sql_values_from_record_batch(
                 }
                 cursor
             });
-            cursor.write(&[b'('])?;
+            cursor.write_all(b"(")?;
             for col in 0..batch.num_columns() {
                 let array = &columns[col];
                 if col > 0 {
-                    cursor.write(&[b','])?;
+                    cursor.write_all(b",")?;
                 }
                 if array.is_null(row) {
-                    cursor.write(b"NULL")?;
+                    cursor.write_all(b"NULL")?;
                     continue;
                 }
                 match columns[col].data_type() {
                     arrow_schema::DataType::Null => {
-                        cursor.write(b"NULL")?;
+                        cursor.write_all(b"NULL")?;
                     }
                     arrow_schema::DataType::Boolean => {
                         let array = array
                             .as_any()
                             .downcast_ref::<arrow::array::BooleanArray>()
                             .unwrap();
-                        cursor.write(if array.value(row) { b"true" } else { b"false" })?;
+                        cursor.write_all(if array.value(row) { b"true" } else { b"false" })?;
                     }
                     arrow_schema::DataType::Int8 => {
                         let array = array
@@ -712,7 +712,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -724,7 +724,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -736,7 +736,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -868,7 +868,7 @@ pub fn sql_values_from_record_batch(
                     }
                 }
             }
-            cursor.write(b")")?;
+            cursor.write_all(b")")?;
             rows += 1;
             cursor.flush()?;
             if cursor.position() > 900_000 {

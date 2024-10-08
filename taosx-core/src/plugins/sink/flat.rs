@@ -559,8 +559,8 @@ pub async fn flat_write_with_raw_block(
                                                             cancel,
                                                         )
                                                         .await;
-                                                        continue;
                                                     }
+                                                    continue;
                                                 } else if code == 0x260D {
                                                     // Tags number not matched
                                                     // add Tag

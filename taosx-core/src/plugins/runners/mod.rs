@@ -417,11 +417,9 @@ mod tests {
         let server = thread::spawn(|| {
             let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
 
-            for stream in listener.incoming() {
-                let _ = stream.unwrap();
+            if let Some(Ok(_stream)) = listener.incoming().next() {
                 println!("connection established!");
                 thread::sleep(Duration::from_secs(5));
-                break;
             }
         });
 

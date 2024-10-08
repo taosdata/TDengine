@@ -117,7 +117,7 @@ impl Pipeline {
                     if columns.is_empty() {
                         return Err(Error::EmptyTableColumns(table.name.clone()));
                     }
-                    for dup in columns.iter().duplicates() {
+                    if let Some(dup) = columns.iter().duplicates().next() {
                         return Err(Error::DuplicatedColumns(dup.clone()));
                     }
                 }
@@ -126,7 +126,7 @@ impl Pipeline {
                     if table.using.as_ref().is_none() {
                         return Err(Error::STableNameRequired);
                     }
-                    for dup in tags.iter().duplicates() {
+                    if let Some(dup) = tags.iter().duplicates().next() {
                         return Err(Error::DuplicatedTags(dup.clone()));
                     }
                 }
@@ -1273,7 +1273,7 @@ impl Parser {
                 if columns.is_empty() {
                     return Err(Error::EmptyTableColumns(table.name.clone()));
                 }
-                for dup in columns.iter().duplicates() {
+                if let Some(dup) = columns.iter().duplicates().next() {
                     return Err(Error::DuplicatedColumns(dup.clone()));
                 }
             }
@@ -1282,7 +1282,7 @@ impl Parser {
                 if table.using.as_ref().is_none() {
                     return Err(Error::STableNameRequired);
                 }
-                for dup in tags.iter().duplicates() {
+                if let Some(dup) = tags.iter().duplicates().next() {
                     return Err(Error::DuplicatedTags(dup.clone()));
                 }
             }

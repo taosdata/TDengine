@@ -333,7 +333,7 @@ impl TaskConfig {
                         err.to_string()
                     )
                 })?;
-                if sample_data_limit <= 0 {
+                if sample_data_limit == 0 {
                     bail!("sample_data_limit must be greater than 0");
                 }
                 Ok(sample_data_limit)

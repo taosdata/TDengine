@@ -4076,9 +4076,7 @@ pub async fn listen_tcp_socket(
                     let opc_model_config = opc_model_config.clone();
                     let lush_model_config = lush_model_config.clone();
                     let parser = parser.clone();
-                    let connector = connector;
                     let transferred = transferred.clone();
-                    let task_id = task_id;
                     let notifier = notifier.clone();
                     let notify = notified.clone();
                     let batch_counter = batch_counter.clone();

@@ -1395,26 +1395,20 @@ pub async fn sync_normal_table_schema(
 
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
 
-    loop {
-        tracing::info!(sql, name, "sync normal table");
-        if let Err(err) = to.exec(&sql).await {
-            let code: i32 = err.code().into();
+    tracing::info!(sql, name, "sync normal table");
+    if let Err(err) = to.exec(&sql).await {
+        let code: i32 = err.code().into();
 
-            match code {
-                0x000B => {
-                    break;
-                }
-                0x2600 | 0x2601 => {
-                    sync_normal_table_schema_fallback(from, name, actions, remap, to).await?;
-                    break;
-                }
-                _ => {
-                    Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
-                    break;
-                }
+        match code {
+            0x000B => {
+                warn!("Cannot create table: {name} since {:#}", err);
             }
-        } else {
-            break;
+            0x2600 | 0x2601 => {
+                sync_normal_table_schema_fallback(from, name, actions, remap, to).await?;
+            }
+            _ => {
+                Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
+            }
         }
     }
     Ok(())

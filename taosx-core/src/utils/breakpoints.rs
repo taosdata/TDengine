@@ -179,10 +179,10 @@ pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>
     let mut file = std::fs::File::create(export_file)?;
     for item in db.iter() {
         let (key, value) = item?;
-        file.write(&key)?;
-        file.write(b",")?;
-        file.write(&value)?;
-        file.write(b"\n")?;
+        file.write_all(&key)?;
+        file.write_all(b",")?;
+        file.write_all(&value)?;
+        file.write_all(b"\n")?;
     }
     let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv";
     Ok(Some(relative_path))
@@ -207,7 +207,7 @@ pub fn export_breakpoints_to_compressed_csv(task_id: &str) -> anyhow::Result<Opt
     let compressed_data = encoder.finish()?;
     let export_file = breakpoint_db_path.with_extension("csv.gz");
     let mut file = std::fs::File::create(export_file)?;
-    file.write(&compressed_data)?;
+    file.write_all(&compressed_data)?;
     let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv.gz";
     Ok(Some(relative_path))
 }
