@@ -112,7 +112,6 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteDataEnd(pBuf);
   if (code != 0) return code;
 
-#if 1
   int32_t len = strlen(pSupp->algoOpt);
   int64_t every = (pSupp->maxTs - pSupp->minTs) / (pSupp->numOfRows + 1);
   int64_t start = pSupp->maxTs + every;
@@ -129,8 +128,10 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
     code = taosAnalBufWriteOptInt(pBuf, "every", every);
     if (code != 0) return code;
   }
-#endif
 
+  code = taosAnalBufWriteOptStr(pBuf, "option", pSupp->algoOpt);
+  if (code != 0) return code;
+  
   code = taosAnalBufClose(pBuf);
   return code;
 }
@@ -310,21 +311,6 @@ static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBl
   code = forecastEnsureBlockCapacity(pResBlock, 1);
   QUERY_CHECK_CODE(code, lino, _end);
 
-#if 0
-  SColumnInfoData* pHigh = taosArrayGet(pResBlock->pDataBlock, pSupp->resHighSlot);
-  SColumnInfoData* pTs = taosArrayGet(pResBlock->pDataBlock, pSupp->resTsSlot);
-  SColumnInfoData* pVal = taosArrayGet(pResBlock->pDataBlock, pSupp->resValSlot);
-
-  float high = 12;
-  code = colDataSetVal(pHigh, pResBlock->info.rows, (char*)&high, false);
-  int64_t ts = 1538548696800;
-  code = colDataSetVal(pTs, pResBlock->info.rows, (char*)&ts, false);
-  int32_t v = 13;
-  code = colDataSetVal(pVal, pResBlock->info.rows, (const char*)&v, false);
-
-  pResBlock->info.rows += 1;
-#endif
-
   code = forecastAnalysis(pSupp, pResBlock);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -503,16 +489,16 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptStr(pBuf, "algo", pSupp->algoName);
   if (code != 0) goto _OVER;
 
+  bool returnConf = (pSupp->resHighSlot == -1 || pSupp->resLowSlot == -1);
+  code = taosAnalBufWriteOptStr(pBuf, "return_conf", returnConf ? "true" : "false");
+  if (code != 0) goto _OVER;
+
   bool hasAlpha = taosAnalGetOptStr(pSupp->algoOpt, "alpha", NULL, 0);
   if (!hasAlpha) {
     qInfo("forecast alpha not found from %s, use default:%f", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_ALPHA);
     code = taosAnalBufWriteOptFloat(pBuf, "alpha", ANAL_FORECAST_DEFAULT_ALPHA);
     if (code != 0) goto _OVER;
   }
-
-  bool returnConf = (pSupp->resHighSlot == -1 || pSupp->resLowSlot == -1);
-  code = taosAnalBufWriteOptStr(pBuf, "return_conf", returnConf ? "true" : "false");
-  if (code != 0) goto _OVER;
 
   char tmpOpt[32] = {0};
   bool hasParam = taosAnalGetOptStr(pSupp->algoOpt, "param", tmpOpt, sizeof(tmpOpt));
@@ -533,7 +519,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   if (!hasRows) {
     pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
     qInfo("forecast rows not found from %s, use default:%d", pSupp->algoOpt, pSupp->optRows);
-    code = taosAnalBufWriteOptInt(pBuf, "rows", pSupp->optRows);
+    code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
     if (code != 0) goto _OVER;
   }
 

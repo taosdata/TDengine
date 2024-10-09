@@ -155,7 +155,7 @@ bool taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValu
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) {
   int32_t code = 0;
   char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
-  int32_t nameLen = snprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
+  int32_t nameLen = 1 + snprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
 
   taosThreadMutexLock(&tsAlgos.lock);
   SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
@@ -555,7 +555,7 @@ static int32_t taosAnalJsonBufWriteEnd(SAnalBuf *pBuf) {
   int32_t code = taosAnalJsonBufWriteOptInt(pBuf, "rows", pBuf->pCols[0].numOfRows);
   if (code != 0) return code;
 
-  return taosAnalJsonBufWriteStr(pBuf, "\"protocol\": 0.1\n}", 0);
+  return taosAnalJsonBufWriteStr(pBuf, "\"protocol\": 1.0\n}", 0);
 }
 
 int32_t taosAnalJsonBufClose(SAnalBuf *pBuf) {
@@ -596,7 +596,7 @@ void taosAnalBufDestroy(SAnalBuf *pBuf) {
       SAnalColBuf *pCol = &pBuf->pCols[i];
       if (pCol->fileName[0] != 0) {
         if (pCol->filePtr != NULL) (void)taosCloseFile(&pCol->filePtr);
-        // taosRemoveFile(pCol->fileName);
+        taosRemoveFile(pCol->fileName);
         pCol->fileName[0] = 0;
       }
     }

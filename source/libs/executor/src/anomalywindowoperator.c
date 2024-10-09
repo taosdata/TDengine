@@ -328,8 +328,10 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
 
-  int64_t ts = 0;  // taosGetTimestampMs();
-  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "/tmp/tdengine-anom-%" PRId64 "-%" PRId64, ts, pSupp->groupId);
+  int64_t ts = 0;
+  // int64_t ts = taosGetTimestampMs();
+  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%" PRId64, tsTempDir, ts,
+           pSupp->groupId);
   code = tsosAnalBufOpen(&analBuf, 2);
   if (code != 0) goto _OVER;
 
@@ -389,6 +391,9 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteDataEnd(&analBuf);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteOptStr(&analBuf, "option", pInfo->anomalyOpt);
   if (code != 0) goto _OVER;
 
   code = taosAnalBufClose(&analBuf);
