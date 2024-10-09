@@ -414,16 +414,16 @@ sql select case when f1 then 3 when ts then ts end from tba1;
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 1664176501000 then
+if $data00 != @2022-09-26 15:15:01.000@ then
  return -1
 endi
-if $data10 != 3 then
+if $data10 != @1970-01-01 08:00:00.003@ then
  return -1
 endi
-if $data20 != 3 then
+if $data20 != @1970-01-01 08:00:00.003@ then
  return -1
 endi
-if $data30 != 1664176504000 then
+if $data30 != @2022-09-26 15:15:04.0@ then
  return -1
 endi
 
@@ -830,16 +830,16 @@ sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != a then
+if $data00 != @1970-01-01 08:00:00.000@ then
  return -1
 endi
-if $data10 != 0 then
+if $data10 != @1970-01-01 08:00:00.000@ then
  return -1
 endi
-if $data20 != 11 then
+if $data20 != @1970-01-01 08:00:00.011@ then
  return -1
 endi
-if $data30 != 1664176504 then
+if $data30 != @2022-09-26 15:15:04.000@ then
  return -1
 endi
 

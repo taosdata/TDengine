@@ -3187,22 +3187,31 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
 }
 
 static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
-  if (commonType->type == TSDB_DATA_TYPE_NULL) {//0
+  if (commonType->type == TSDB_DATA_TYPE_NULL) { // 0  null type
     *commonType = *newType;
     return true;
   }
-
   if (newType->type == TSDB_DATA_TYPE_NULL) {
     return true;
   }
 
+  // type equal
   if (commonType->type == newType->type) {
-    if(commonType->bytes <= newType->bytes)
+    if (commonType->bytes <= newType->bytes) {
+      *commonType = *newType;
+    }
+    return true;
+  }
+  // 15 ~ 21 these types are not compatible with other types？
+  if (commonType->type == TSDB_DATA_TYPE_TIMESTAMP || (commonType->type >= TSDB_DATA_TYPE_JSON && commonType->type <= TSDB_DATA_TYPE_MAX)) {
+    return true;
+  }
+  if (newType->type == TSDB_DATA_TYPE_TIMESTAMP || (newType->type >=  TSDB_DATA_TYPE_JSON && newType->type <= TSDB_DATA_TYPE_MAX)) {
     *commonType = *newType;
     return true;
   }
 
-  // Numeric types between 1 and 5 (BOOL to BIGINT)
+  // type 1 ~ 5
   if ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_BIGINT) &&
       (newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_BIGINT)) {
     if (newType->type > commonType->type) {
@@ -3211,7 +3220,28 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
     return true;
   }
 
-  // Unsigned numeric types between 11 and 14 (UTINYINT to UBIGINT)
+  // type 6
+  if ((commonType->type == TSDB_DATA_TYPE_FLOAT &&
+       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_INT))) ||
+      (newType->type == TSDB_DATA_TYPE_FLOAT &&
+       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_INT)))) {
+    *commonType = (commonType->type == TSDB_DATA_TYPE_FLOAT) ? *commonType : *newType;
+    return true;
+  }
+  //type 7
+  if ((commonType->type == TSDB_DATA_TYPE_DOUBLE &&
+       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_BIGINT) ||
+        newType->type == TSDB_DATA_TYPE_FLOAT ||
+        newType->type == TSDB_DATA_TYPE_DOUBLE)) ||
+      (newType->type == TSDB_DATA_TYPE_DOUBLE &&
+       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_BIGINT) ||
+        commonType->type == TSDB_DATA_TYPE_FLOAT ||
+        commonType->type == TSDB_DATA_TYPE_DOUBLE))) {
+    *commonType = (commonType->type == TSDB_DATA_TYPE_DOUBLE) ? *commonType : *newType;
+    return true;
+  }
+
+  // type 11 ~ 14
   if ((commonType->type >= TSDB_DATA_TYPE_UTINYINT && commonType->type <= TSDB_DATA_TYPE_UBIGINT) &&
       (newType->type >= TSDB_DATA_TYPE_UTINYINT && newType->type <= TSDB_DATA_TYPE_UBIGINT)) {
     if (newType->type > commonType->type) {
@@ -3219,14 +3249,15 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
     }
     return true;
   }
+
   bool commonIsNumeric = ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_DOUBLE) ||
                           (commonType->type >= TSDB_DATA_TYPE_UTINYINT && commonType->type <= TSDB_DATA_TYPE_UBIGINT));
   bool newIsNumeric = ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_DOUBLE) ||
                        (newType->type >= TSDB_DATA_TYPE_UTINYINT && newType->type <= TSDB_DATA_TYPE_UBIGINT));
 
-  bool commonIsString = (commonType->type == TSDB_DATA_TYPE_VARCHAR || commonType->type == TSDB_DATA_TYPE_NCHAR);
-  bool newIsString = (newType->type == TSDB_DATA_TYPE_VARCHAR || newType->type == TSDB_DATA_TYPE_NCHAR);
-
+  bool commonIsString = (commonType->type == TSDB_DATA_TYPE_VARCHAR || commonType->type == TSDB_DATA_TYPE_NCHAR || commonType->type == TSDB_DATA_TYPE_BINARY);
+  bool newIsString = (newType->type == TSDB_DATA_TYPE_VARCHAR || newType->type == TSDB_DATA_TYPE_NCHAR || commonType->type == TSDB_DATA_TYPE_BINARY);
+  // num and string
   if ((commonIsNumeric && newIsString) || (commonIsString && newIsNumeric)) {
     if (commonIsString) {
       return true;
@@ -3235,22 +3266,23 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
       return true;
     }
   }
-  if ((commonType->type == TSDB_DATA_TYPE_VARCHAR && newType->type == TSDB_DATA_TYPE_NCHAR)) {
-    *commonType = *newType;
-    return true;
-  }
-  if ((commonType->type == TSDB_DATA_TYPE_NCHAR && newType->type == TSDB_DATA_TYPE_VARCHAR)) {
-    commonType->bytes = commonType->bytes < newType->bytes ? newType->bytes : commonType->bytes;
+  //char and nchar
+  if (commonIsString && newIsString) {
+    if (commonType->type == TSDB_DATA_TYPE_NCHAR || newType->type == TSDB_DATA_TYPE_NCHAR) {
+      *commonType = (commonType->type == TSDB_DATA_TYPE_NCHAR) ? *commonType : *newType; // nchar first
+    } else {
+      if (commonType->bytes < newType->bytes) {
+        *commonType = *newType;
+      }
+    }
     return true;
   }
   return false;
 }
 
-
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
   bool   allNullThen = true;
   SNode* pNode = NULL;
-  SDataType commonType = {.bytes = 0, .precision = 0, .scale = 0, .type = 0};
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
     SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
     if (NULL == pCaseWhen->pCase && !isCondition(pWhenThen->pWhen)) {
@@ -3268,14 +3300,14 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
     }
     allNullThen = false;
     if (!selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType)) {
-      pCxt->errCode =  DEAL_RES_ERROR;
+      pCxt->errCode = DEAL_RES_ERROR;
       return DEAL_RES_ERROR;
     }
   }
 
   SExprNode* pElseExpr = (SExprNode*)pCaseWhen->pElse;
-  if (!selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType)) {
-    pCxt->errCode =  DEAL_RES_ERROR;
+  if (pElseExpr && !selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType)) {
+    pCxt->errCode = DEAL_RES_ERROR;
     return DEAL_RES_ERROR;
   }
 
