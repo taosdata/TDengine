@@ -47,8 +47,6 @@ typedef int32_t (*range_cmpr_fn)(const SSessionKey* pWin1, const SSessionKey* pW
 
 typedef int (*__session_compare_fn_t)(const void* pWin, const void* pDatas, int pos);
 
-typedef int (*__session_compare_fn_t)(const void* pWin, const void* pDatas, int pos);
-
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
                             void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId, int8_t type,
                             struct SStreamFileState** ppFileState);
