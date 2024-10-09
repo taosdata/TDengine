@@ -325,7 +325,6 @@ jobs:
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, generate_report]
-    # needs: [deploy_with_docker, run_test]
     if: success()
     steps:
       - name: Force stop taosx-agent & taosx
@@ -339,7 +338,6 @@ jobs:
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, generate_report, clean_up]
-    # needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, clean_up]
     if: failure()
     steps:
       - name: Send Feishu Message
