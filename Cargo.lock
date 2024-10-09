@@ -6881,7 +6881,7 @@ dependencies = [
 [[package]]
 name = "taoslog"
 version = "0.1.0"
-source = "git+https://github.com/taosdata/taoslog-rs.git?rev=99f5c62#99f5c62ebb331ab14f9518c4ae60e4cc697fbef3"
+source = "git+https://github.com/taosdata/taoslog-rs.git?rev=e69fe96053b74e097fc78859ca058b369aecabe7#e69fe96053b74e097fc78859ca058b369aecabe7"
 dependencies = [
  "actix-web",
  "arrow-schema",
@@ -6939,7 +6939,6 @@ dependencies = [
  "futures",
  "futures-util",
  "gethostname",
- "http 0.2.12",
  "humantime",
  "itertools 0.13.0",
  "jemalloc_pprof",
@@ -7095,7 +7094,6 @@ dependencies = [
  "futures-util",
  "glob",
  "half",
- "http 0.2.12",
  "humantime",
  "itertools 0.13.0",
  "kafka",

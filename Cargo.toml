@@ -42,10 +42,9 @@ sysinfo = "0.32.0"
 serde_with = { version = "3.11", features = ["chrono"] }
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "99f5c62", features = [
+taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "e69fe96053b74e097fc78859ca058b369aecabe7", features = [
     "ansi",
 ] }
-http = "0.2.12"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -208,7 +207,6 @@ gethostname = "0.5.0"
 prettytable = "0.10.0"
 
 taoslog.workspace = true
-http.workspace = true
 notify = "6.1.1"
 
 parse-size = "~1.0.0"
@@ -267,7 +265,7 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
-tracing-opentelemetry = { git = "https://github.com/ymgyt/tracing-opentelemetry", branch = "bump-otel"}
+tracing-opentelemetry = { git = "https://github.com/ymgyt/tracing-opentelemetry", branch = "bump-otel" }
 
 [lints]
 workspace = true
