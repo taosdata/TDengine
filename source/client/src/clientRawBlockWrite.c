@@ -458,15 +458,17 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
       char* buf = NULL;
+      int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
-        buf = taosMemoryCalloc(pTagVal->nData * 2 + 2 + 3, 1);
+        bufSize = pTagVal->nData * 2 + 2 + 3;
       } else {
-        buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+        bufSize = pTagVal->nData + 3;
       }
+      buf = taosMemoryCalloc(bufSize, 1);
 
       RAW_NULL_CHECK(buf);
       if (!buf) goto end;
-      if (dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
+      if (dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
         goto end;
       }
@@ -736,13 +738,15 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
         } else {
+          int64_t bufSize = 0;
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal * 2 + 2 + 3, 1);
+            bufSize = vAlterTbReq.nTagVal * 2 + 2 + 3;
           } else {
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
+            bufSize = vAlterTbReq.nTagVal + 3;
           }
+          buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
-          if (dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) !=
+          if (dataConverToStr(buf, bufSize, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) !=
               TSDB_CODE_SUCCESS) {
             taosMemoryFree(buf);
             goto end;
