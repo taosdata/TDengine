@@ -646,4 +646,30 @@ void mndDumpSdb() {
   mInfo("dump sdb info success");
 }
 
+void mndDeleteTrans() {
+  mInfo("start to dump sdb info to sdb.json");
+
+  char path[PATH_MAX * 2] = {0};
+  (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
+
+  SMsgCb msgCb = {0};
+  msgCb.reportStartupFp = reportStartup;
+  msgCb.sendReqFp = sendReq;
+  msgCb.sendSyncReqFp = sendSyncReq;
+  msgCb.sendRspFp = sendRsp;
+  msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
+  tmsgSetDefault(&msgCb);
+
+  (void)walInit(NULL);
+  (void)syncInit();
+
+  SMnodeOpt opt = {.msgCb = msgCb};
+  SMnode   *pMnode = mndOpen(path, &opt);
+  if (pMnode == NULL) return;
+
+  (void)sdbWriteFileForDump(pMnode->pSdb);
+
+  mInfo("dump sdb info success");
+}
+
 #pragma GCC diagnostic pop
