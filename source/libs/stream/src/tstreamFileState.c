@@ -458,7 +458,8 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
   }
 
   if (pFileState->searchBuff) {
-    clearFlushedRowBuff(pFileState, pFlushList, pFileState->curRowCount, true);
+    code = clearFlushedRowBuff(pFileState, pFlushList, pFileState->curRowCount, true);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   flushSnapshot(pFileState, pFlushList, false);
@@ -712,11 +713,13 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
     goto _end;
   }
 
-  recoverStateRowBuff(pFileState, pPos);
+  code = recoverStateRowBuff(pFileState, pPos);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   (*pVal) = pPos->pRowBuff;
   if (!pPos->needFree) {
     code = tdListPrepend(pFileState->usedBuffs, &pPos);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -1023,11 +1026,13 @@ int32_t getFunctionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t key
 
 int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pFileState->maxTs != INT64_MIN) {
     int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
                        ? INT64_MIN
                        : pFileState->maxTs - pFileState->deleteMark;
-    deleteExpiredCheckPoint(pFileState, mark);
+    code = deleteExpiredCheckPoint(pFileState, mark);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   SStreamStateCur* pCur = streamStateFillSeekToLast_rocksdb(pFileState->pFileStore);
@@ -1065,6 +1070,10 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   }
   streamStateFreeCur(pCur);
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -1082,7 +1091,8 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     (*ppPos)->beFlushed = false;
     (*pWinCode) = TSDB_CODE_SUCCESS;
     if ((*ppPos)->pRowBuff == NULL) {
-      recoverStateRowBuff(pFileState, *ppPos);
+      code = recoverStateRowBuff(pFileState, *ppPos);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }

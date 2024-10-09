@@ -1263,9 +1263,13 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
       if (pColData == NULL) {
         SPoint dummy = {0};
         dummy.val = taosMemoryCalloc(1, 1);
-        taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &dummy);
+        void* tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &dummy);
+        QUERY_CHECK_NULL(tmpRes, code, lino, _end, terrno);
+
         dummy.val = taosMemoryCalloc(1, 1);
-        taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &dummy);
+        tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &dummy);
+        QUERY_CHECK_NULL(tmpRes, code, lino, _end, terrno);
+
         continue;
       }
       SPoint value = {0};
