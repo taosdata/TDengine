@@ -22,6 +22,8 @@
 
 #define ANAL_ALGO_SPLIT ","
 
+#ifdef USE_ANAL
+
 typedef struct {
   int64_t       ver;
   SHashObj     *hash;  // algoname:algotype -> SAnalUrl
@@ -180,7 +182,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   if (contLen == 0 || nmemb == 0 || pCont == NULL) {
     pRsp->dataLen = 0;
     pRsp->data = NULL;
-    uError("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
+    uError("curl response is received, len:%" PRId64, pRsp->dataLen);
     return 0;
   }
 
@@ -704,3 +706,34 @@ static int32_t taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContL
     return TSDB_CODE_ANAL_BUF_INVALID_TYPE;
   }
 }
+
+#else
+
+int32_t taosAnalInit() { return 0; }
+void    taosAnalCleanup() {}
+SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf) { return NULL; }
+
+int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
+bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return 0; }
+bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) { return 0; }
+int64_t taosAnalGetVersion() { return 0; }
+void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) { return 0; }
+
+int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols) { return 0; }
+int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal) { return 0; }
+int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal) { return 0; }
+int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal) { return 0; }
+int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) { return 0; }
+int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf) { return 0; }
+int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex) { return 0; }
+int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) { return 0; }
+int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex) { return 0; }
+int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf) { return 0; }
+int32_t taosAnalBufClose(SAnalBuf *pBuf) { return 0; }
+void    taosAnalBufDestroy(SAnalBuf *pBuf) { return 0; }
+
+const char   *taosAnalAlgoStr(EAnalAlgoType algoType) { return 0; }
+EAnalAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }
+const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType) { return 0; }
+
+#endif

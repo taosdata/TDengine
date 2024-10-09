@@ -584,6 +584,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SAnodeObj *pObj = NULL;
   char       buf[TSDB_ANAL_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
+  int32_t    code = 0;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -591,11 +592,13 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    if (code != 0) goto _end;
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->url, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    if (code != 0) goto _end;
 
     status[0] = 0;
     if (mndGetAnodeStatus(pObj, status) == 0) {
@@ -604,20 +607,25 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       STR_TO_VARSTR(buf, "offline");
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+    code = colDataSetVal(pColInfo, numOfRows, buf, false);
+    if (code != 0) goto _end;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    if (code != 0) goto _end;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
+    if (code != 0) goto _end;
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
 
-  pShow->numOfRows += numOfRows;
+_end:
+  if (code != 0) sdbRelease(pSdb, pObj);
 
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -633,6 +641,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
   char       buf[TSDB_ANAL_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
+  int32_t    code = 0;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -646,15 +655,18 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         cols = 0;
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+        if (code != 0) goto _end;
 
         STR_TO_VARSTR(buf, taosAnalAlgoStr(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
 
         STR_TO_VARSTR(buf, algo->name);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        (void)colDataSetVal(pColInfo, numOfRows, buf, false);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
 
         numOfRows++;
       }
@@ -663,8 +675,10 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     sdbRelease(pSdb, pObj);
   }
 
-  pShow->numOfRows += numOfRows;
+_end:
+  if (code != 0) sdbRelease(pSdb, pObj);
 
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
