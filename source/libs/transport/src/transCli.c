@@ -1929,7 +1929,7 @@ _exception:
 
   code = (pThrd->notifyExceptCb)(pThrd, pReq, &resp);
   if (code != 0) {
-    tGWarn("%s failed to notify user since %s", pInst->label, tstrerror(code));
+    tWarn("%s failed to notify user since %s", pInst->label, tstrerror(code));
   }
   return;
 }
