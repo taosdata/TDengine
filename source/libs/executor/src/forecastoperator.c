@@ -26,6 +26,8 @@
 #include "tfill.h"
 #include "ttime.h"
 
+#ifdef USE_ANAL
+
 typedef struct {
   char     algoName[TSDB_ANAL_ALGO_NAME_LEN];
   char     algoUrl[TSDB_ANAL_ALGO_URL_LEN];
@@ -641,7 +643,7 @@ _error:
   return code;
 }
 
-void destroyForecastInfo(void* param) {
+static void destroyForecastInfo(void* param) {
   SForecastOperatorInfo* pInfo = (SForecastOperatorInfo*)param;
 
   blockDataDestroy(pInfo->pRes);
@@ -650,3 +652,12 @@ void destroyForecastInfo(void* param) {
   taosAnalBufDestroy(&pInfo->forecastSupp.analBuf);
   taosMemoryFreeClear(param);
 }
+
+#else
+
+int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                   SOperatorInfo** pOptrInfo) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+#endif

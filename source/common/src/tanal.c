@@ -15,14 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "tanal.h"
-#include <curl/curl.h>
 #include "tmsg.h"
 #include "ttypes.h"
 #include "tutil.h"
 
-#define ANAL_ALGO_SPLIT ","
-
 #ifdef USE_ANAL
+#include <curl/curl.h>
+#define ANAL_ALGO_SPLIT ","
 
 typedef struct {
   int64_t       ver;
@@ -717,7 +716,7 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
 bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return 0; }
 bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) { return 0; }
 int64_t taosAnalGetVersion() { return 0; }
-void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) { return 0; }
+void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) {}
 
 int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols) { return 0; }
 int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal) { return 0; }
@@ -730,7 +729,7 @@ int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colTyp
 int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex) { return 0; }
 int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf) { return 0; }
 int32_t taosAnalBufClose(SAnalBuf *pBuf) { return 0; }
-void    taosAnalBufDestroy(SAnalBuf *pBuf) { return 0; }
+void    taosAnalBufDestroy(SAnalBuf *pBuf) {}
 
 const char   *taosAnalAlgoStr(EAnalAlgoType algoType) { return 0; }
 EAnalAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }

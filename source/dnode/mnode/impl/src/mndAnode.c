@@ -24,6 +24,8 @@
 #include "tanal.h"
 #include "tjson.h"
 
+#ifdef USE_ANAL
+
 #define TSDB_ANODE_VER_NUMBER   1
 #define TSDB_ANODE_RESERVE_SIZE 64
 
@@ -876,3 +878,10 @@ _OVER:
   tFreeRetrieveAnalAlgoRsp(&rsp);
   TAOS_RETURN(code);
 }
+
+#else
+
+int32_t mndInitAnode(SMnode *pMnode) { return 0; }
+void    mndCleanupAnode(SMnode *pMnode) {}
+
+#endif
