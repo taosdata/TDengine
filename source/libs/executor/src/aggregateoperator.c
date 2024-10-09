@@ -159,8 +159,8 @@ void destroyAggOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
 
   if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);
@@ -624,6 +624,42 @@ void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp
         pCtx[j].fpSet.cleanup(&pCtx[j]);
       }
     }
+  }
+}
+
+void cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                  SGroupResInfo* pGroupResInfo) {
+  int32_t         numOfExprs = pSup->numOfExprs;
+  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
+  bool            needCleanup = false;
+
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    needCleanup |= pCtx[j].needCleanup;
+  }
+  if (!needCleanup) {
+    return;
+  }
+
+  for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
+    SResultRow*        pRow = NULL;
+    SResKeyPos*        pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+    SFilePage*         page = getBufPage(pBuf, pPos->pos.pageId);
+    if (page == NULL) {
+      qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
+      continue;
+    }
+    pRow = (SResultRow*)((char*)page + pPos->pos.offset);
+
+
+    for (int32_t j = 0; j < numOfExprs; ++j) {
+      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
+      if (pCtx[j].fpSet.cleanup) {
+        pCtx[j].fpSet.cleanup(&pCtx[j]);
+      }
+    }
+    releaseBufPage(pBuf, page);
   }
 }
 

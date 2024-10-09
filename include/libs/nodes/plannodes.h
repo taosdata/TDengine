@@ -216,6 +216,11 @@ typedef struct SInterpFuncLogicNode {
   SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
+typedef struct SForecastFuncLogicNode {
+  SLogicNode node;
+  SNodeList* pFuncs;
+} SForecastFuncLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode  node;
   bool        grpColsMayBeNull;  
@@ -286,7 +291,8 @@ typedef enum EWindowType {
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
   WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT
+  WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -327,6 +333,8 @@ typedef struct SWindowLogicNode {
   int64_t          windowCount;
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
+  SNode*           pAnomalyExpr;
+  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -522,6 +530,12 @@ typedef struct SInterpFuncPhysiNode {
 } SInterpFuncPhysiNode;
 
 typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;
+
+typedef struct SForecastFuncPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pFuncs;
+} SForecastFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
@@ -719,6 +733,12 @@ typedef struct SCountWinodwPhysiNode {
 } SCountWinodwPhysiNode;
 
 typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
+
+typedef struct SAnomalyWindowPhysiNode {
+  SWindowPhysiNode window;
+  SNode*           pAnomalyKey;
+  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+} SAnomalyWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

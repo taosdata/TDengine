@@ -871,6 +871,9 @@ void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExpr
                                    SGroupResInfo* pGroupResInfo);
 void     cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                           SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap);
+void     cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                      SGroupResInfo* pGroupResInfo);
+
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                    const char* pkey, void* pState, SFunctionStateStore* pStore);
 void    cleanupAggSup(SAggSupporter* pAggSup);

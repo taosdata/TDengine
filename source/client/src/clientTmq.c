@@ -826,7 +826,7 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
     for (int32_t j = 0; j < numOfVgroups; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (pVg == NULL) {
-        code = TSDB_CODE_INVALID_PARA;
+        code = terrno;
         goto END;
       }
 
