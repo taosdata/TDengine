@@ -423,7 +423,7 @@ endi
 if $data20 != @1970-01-01 08:00:00.003@ then
  return -1
 endi
-if $data30 != @2022-09-26 15:15:04.0@ then
+if $data30 != @2022-09-26 15:15:04.000@ then
  return -1
 endi
 
