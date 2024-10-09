@@ -39,6 +39,7 @@ import requests
 import gc
 import taos
 import taosws
+import taosrest
 from taos.tmq import *
 
 from .shared.types import TdColumns, TdTags
@@ -1517,10 +1518,8 @@ class Task():
         dbName = self._db.getName()
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
-        except taos.error.ProgrammingError as err:
-            # print("-----!!!!!------err.errno", err.errno)
+        except (taos.error.ProgrammingError, taosrest.errors.Error, taosrest.errors.ConnectError) as err:
             errno2 = Helper.convertErrno(err.errno)
-            # print("-----!!!!!------errno2", errno2)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
@@ -1556,9 +1555,7 @@ class Task():
                 self._aborted = True
         except taosws.Error as err:
             errmsg = err.args[0].split()[0]
-            print("-----!!!!!------errmsg", errmsg)
             errno2 = int(errmsg[1:-1], 16)
-            print("-----!!!!!------errno2", errno2)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
@@ -3003,7 +3000,6 @@ class TdSuperTable:
         """
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
         stCols = dbc.getQueryResult()
-        # print("----stCols", stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
         return ret
 
@@ -4015,7 +4011,7 @@ class TaskDropSuperTable(StateTransitionTask):
                     self.execWtSql(wt, "drop table {}.{}".
                                    format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
-                    # correcting for strange error number scheme                    
+                    # correcting for strange error number scheme
                     errno2 = Helper.convertErrno(err.errno)
                     if (errno2 in [0x362]):  # mnode invalid table name
                         isSuccess = False

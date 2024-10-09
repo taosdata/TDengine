@@ -386,10 +386,10 @@ enable = true
 
     def stop(self):
         print("self._subProcess----", self._subProcess)
-        print("self._taosAdapterSubProcess----", self._taosAdapterSubProcess)
         self._subProcess.stop()
         if Config.getConfig().connector_type == "rest":
             if os.path.exists(self.getTaosadapterExecFile()):
+                print("self._taosAdapterSubProcess----", self._taosAdapterSubProcess)
                 self._taosAdapterSubProcess.stop()
         self._subProcess = None
         self._taosAdapterSubProcess = None

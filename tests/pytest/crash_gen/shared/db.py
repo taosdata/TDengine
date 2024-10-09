@@ -11,6 +11,7 @@ from taos.error import SchemalessError
 
 import taos
 import taosws
+import taosrest
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
@@ -218,101 +219,19 @@ class DbConn:
 
 
 class DbConnRest(DbConn):
-    REST_PORT_INCREMENT = 11
-
-    def __init__(self, dbTarget: DbTarget):
-        super().__init__(dbTarget)
-        self._type = self.TYPE_REST
-        restPort = dbTarget.port + 11
-        self._url = "http://{}:{}/rest/sql".format(
-            dbTarget.hostAddr, dbTarget.port + self.REST_PORT_INCREMENT)
-        self._result = None
-
-    def openByType(self):  # Open connection
-        pass  # do nothing, always open
-
-    def close(self):
-        if (not self.isOpen):
-            raise RuntimeError("Cannot clean up database until connection is open")
-        # Do nothing for REST
-        Logging.debug("[DB] REST Database connection closed")
-        self.isOpen = False
-
-    def _doSql(self, sql):
-        self._lastSql = sql # remember this, last SQL attempted
-        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
-        time_cost = -1
-        time_start = time.time()
-        try:
-            r = requests.post(self._url,
-                data = sql,
-                auth = HTTPBasicAuth('root', 'taosdata'))
-        except:
-            print("REST API Failure (TODO: more info here)")
-            self.sql_exec_spend(-2)
-            raise
-        finally:
-            time_cost = time.time()- time_start
-            self.sql_exec_spend(time_cost)
-        rj = r.json()
-
-        if ('code' not in rj):  # error without code
-            raise RuntimeError("REST error return without code")
-
-        returnCode = rj['code']  # May need to massage this in the future
-        if returnCode != 0:  # better be this
-            return returnCode
-            raise RuntimeError(
-                "sql: {} - Unexpected REST return: {} ".format(
-                    sql, r.text))
-
-        nRows = rj['rows'] if ('rows' in rj) else 0
-        self._result = rj
-        return nRows
-
-    def execute(self, sql):
-        if (not self.isOpen):
-            raise RuntimeError(
-                "Cannot execute database commands until connection is open")
-        Logging.debug("[SQL-REST] Executing SQL: {}".format(sql))
-        nRows = self._doSql(sql)
-        Logging.debug(
-            "[SQL-REST] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
-        return nRows
-
-
-    def query(self, sql):  # return rows affected
-        return self.execute(sql)
-
-    def getQueryResult(self):
-        # print("----self._result", self._result)
-        return self._result['data']
-
-    def getResultRows(self):
-        # print(self._result)
-        raise RuntimeError("TBD") # TODO: finish here to support -v under -c rest
-        # return self._tdSql.queryRows
-
-    def getResultCols(self):
-        # print(self._result)
-        raise RuntimeError("TBD")
-
-    # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
-
-class DbConnWS(DbConn):
     # Class variables
     _lock = threading.Lock()
     # _connInfoDisplayed = False # TODO: find another way to display this
     totalConnections = 0 # Not private
     totalRequests = 0
     time_cost = -1
-    WS_PORT_INCREMENT = 11
+    REST_PORT_INCREMENT = 11
 
-    def __init__(self, dbTarget: DbTarget):
+    def __init__(self, dbTarget):
         super().__init__(dbTarget)
         self._type = self.TYPE_WS
         self._conn = None
-        self.wsPort = dbTarget.port + self.WS_PORT_INCREMENT
+        self._restPort = dbTarget.port + self.REST_PORT_INCREMENT
         self._result = None
 
     @classmethod
@@ -337,7 +256,208 @@ class DbConnWS(DbConn):
             # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
             # self._cursor = self._conn.cursor()
             # Record the count in the class
-            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_WS, self.wsPort) # making DB connection
+            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_REST, self._restPort) # making DB connection
+            cls.totalConnections += 1
+
+        self._tdSql.execute('reset query cache')
+        # self._cursor.execute('use db') # do this at the beginning of every
+
+        # Open connection
+        # self._tdSql = MyTDSql()
+        # self._tdSql.init(self._cursor)
+
+    def close(self):
+        if (not self.isOpen):
+            raise RuntimeError("Cannot clean up database until connection is open")
+        self._tdSql.close()
+        # Decrement the class wide counter
+        cls = self.__class__ # Get the class, to access class variables
+        with cls._lock:
+            cls.totalConnections -= 1
+
+        Logging.debug("[DB] Database connection closed")
+        self.isOpen = False
+
+    def execute(self, sql):
+        if (not self.isOpen):
+            traceback.print_stack()
+            raise CrashGenError(
+                "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
+        Logging.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
+        time_cost = -1
+        nRows = 0
+        time_start = time.time()
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
+        try:
+            nRows= self._tdSql.execute(sql)
+        except Exception as e:
+            self.sql_exec_spend(-2)
+        finally:
+            time_cost =  time.time() - time_start
+            self.sql_exec_spend(time_cost)
+
+        cls = self.__class__
+        cls.totalRequests += 1
+        Logging.debug(
+            "[SQL] Execution Result, nRows = {}, SQL = {}".format(
+                nRows, sql))
+        return nRows
+
+    def query(self, sql):  # return rows affected
+        if (not self.isOpen):
+            traceback.print_stack()
+            raise CrashGenError(
+                "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
+        Logging.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
+        nRows = self._tdSql.query(sql)
+        cls = self.__class__
+        cls.totalRequests += 1
+        Logging.debug(
+            "[SQL] Query Result, nRows = {}, SQL = {}".format(
+                nRows, sql))
+        return nRows
+        # results are in: return self._tdSql.queryResult
+
+    def getQueryResult(self):
+        return self._tdSql.queryResult
+
+    def getResultRows(self):
+        return self._tdSql.queryRows
+
+    def getResultCols(self):
+        return self._tdSql.queryCols
+
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
+
+    # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
+
+# class DbConnRest.bak(DbConn):
+#     REST_PORT_INCREMENT = 11
+
+#     def __init__(self, dbTarget: DbTarget):
+#         super().__init__(dbTarget)
+#         self._type = self.TYPE_REST
+#         restPort = dbTarget.port + 11
+#         self._url = "http://{}:{}/rest/sql".format(
+#             dbTarget.hostAddr, dbTarget.port + self.REST_PORT_INCREMENT)
+#         self._result = None
+
+#     def openByType(self):  # Open connection
+#         pass  # do nothing, always open
+
+#     def close(self):
+#         if (not self.isOpen):
+#             raise RuntimeError("Cannot clean up database until connection is open")
+#         # Do nothing for REST
+#         Logging.debug("[DB] REST Database connection closed")
+#         self.isOpen = False
+
+#     def _doSql(self, sql):
+#         self._lastSql = sql # remember this, last SQL attempted
+#         self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
+#         time_cost = -1
+#         time_start = time.time()
+#         try:
+#             r = requests.post(self._url,
+#                 data = sql,
+#                 auth = HTTPBasicAuth('root', 'taosdata'))
+#         except:
+#             print("REST API Failure (TODO: more info here)")
+#             self.sql_exec_spend(-2)
+#             raise
+#         finally:
+#             time_cost = time.time()- time_start
+#             self.sql_exec_spend(time_cost)
+#         rj = r.json()
+#         print("------rj-------", rj)
+
+#         if ('code' not in rj):  # error without code
+#             raise RuntimeError("REST error return without code")
+
+#         returnCode = rj['code']  # May need to massage this in the future
+#         if returnCode != 0:  # better be this
+#             raise RuntimeError(f"sql: {sql} - Unexpected REST return code: {returnCode}, full response: {r.text}")  # Properly raise an exception with a message
+#             return returnCode
+#             raise RuntimeError(
+#                 "sql: {} - Unexpected REST return: {} ".format(
+#                     sql, r.text))
+
+#         nRows = rj['rows'] if ('rows' in rj) else 0
+#         self._result = rj
+#         return nRows
+
+#     def execute(self, sql):
+#         if (not self.isOpen):
+#             raise RuntimeError(
+#                 "Cannot execute database commands until connection is open")
+#         Logging.debug("[SQL-REST] Executing SQL: {}".format(sql))
+#         nRows = self._doSql(sql)
+#         Logging.debug(
+#             "[SQL-REST] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
+#         return nRows
+
+#     def query(self, sql):  # return rows affected
+#         return self.execute(sql)
+
+#     def getQueryResult(self):
+#         # print("----self._result", self._result)
+#         return self._result['data']
+
+#     def getResultRows(self):
+#         # print(self._result)
+#         raise RuntimeError("TBD") # TODO: finish here to support -v under -c rest
+#         # return self._tdSql.queryRows
+
+#     def getResultCols(self):
+#         # print(self._result)
+#         raise RuntimeError("TBD")
+
+#     # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
+
+
+class DbConnWS(DbConn):
+    # Class variables
+    _lock = threading.Lock()
+    # _connInfoDisplayed = False # TODO: find another way to display this
+    totalConnections = 0 # Not private
+    totalRequests = 0
+    time_cost = -1
+    WS_PORT_INCREMENT = 11
+
+    def __init__(self, dbTarget: DbTarget):
+        super().__init__(dbTarget)
+        self._type = self.TYPE_WS
+        self._conn = None
+        self._wsPort = dbTarget.port + self.WS_PORT_INCREMENT
+        self._result = None
+
+    @classmethod
+    def resetTotalRequests(cls):
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
+            cls.totalRequests = 0
+
+    def openByType(self):  # Open connection
+        # global gContainer
+        # tInst = tInst or gContainer.defTdeInstance # set up in ClientManager, type: TdeInstance
+        # cfgPath = self.getBuildPath() + "/test/cfg"
+        # cfgPath  = tInst.getCfgDir()
+        # hostAddr = tInst.getHostAddr()
+
+        cls = self.__class__ # Get the class, to access class variables
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
+            dbTarget = self._dbTarget
+            # if not cls._connInfoDisplayed:
+            #     cls._connInfoDisplayed = True # updating CLASS variable
+            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))
+            # Make the connection
+            # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
+            # self._cursor = self._conn.cursor()
+            # Record the count in the class
+            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_WS, self._wsPort) # making DB connection
             cls.totalConnections += 1
 
         self._tdSql.execute('reset query cache')
@@ -424,12 +544,12 @@ class MyTDSql:
     # lqEndTime = 0.0 # Not needed, as we have the two above already
 
     def __init__(self, hostAddr, cfgPath, connType='native-c', port=6030):
+        self.url = f"http://{hostAddr}:{port}"
         # Make the DB connection
         if connType == 'native-c':
             self._conn = taos.connect(host=hostAddr, config=cfgPath)
-        elif connType == 'rest':
-            pass
-            # self._conn = taos.connect(host=hostAddr, config=cfgPath)
+        elif connType == 'rest-api':
+            self._conn = taosrest.connect(url=self.url)
         else:
             self._conn = taosws.connect(host=hostAddr, port=port)
         self._cursor = self._conn.cursor()
