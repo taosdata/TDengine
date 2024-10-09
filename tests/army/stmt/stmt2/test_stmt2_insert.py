@@ -707,20 +707,18 @@ class TDTestCase:
             self.connectstmt.execute("drop database if exists %s" % self.dbname)
             self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
             self.connectstmt.select_db(self.dbname)
-            self.connectstmt.execute("create table if not exists %s(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
-                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
-                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100)) tags (t1 timestamp, t2 bool,\
-                t3 tinyint, t4 tinyint, t5 smallint, t6 int, t7 bigint, t8 tinyint unsigned, t9 smallint unsigned, \
-                t10 int unsigned, t11 bigint unsigned, t12 float, t13 double, t14 binary(100), t15 nchar(100), t16 timestamp)"% stablename)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint) tags (t1 timestamp, t2 bool, t3 tinyint)" % stablename)
 
-            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) \
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?,?) values (?,?,?)")
 
+            ret = stmt2.get_fields(TAOS_FIELD_TBNAME)
+            assert ret[0] == 1
+            ret = None
 
             # bind data
             tbnames = ["t1"]
             tags    = [
-                [1601481600000, True, False, 2, 3, 4, 5, 6, 7, 8, 9, 10.1, 10.11, "hello", "stmt", 1626861392589]
+                [1601481600000, True, 1]
             ]
 
             # prepare data
@@ -730,21 +728,7 @@ class TDTestCase:
                     # student
                     [1626861392589111],
                     [True],
-                    [-128],
-                    [0],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    [3],
-                    ["abc"],
-                    ["涛思数据"],
-                    [1626861392591],
-                    ["涛思数据16"]
+                    [-128]
                 ]
             ]
 
@@ -756,10 +740,15 @@ class TDTestCase:
             # columns type for stable
             stmt2.bind_param_with_tables([table1])
             ret = stmt2.get_fields(TAOS_FIELD_TBNAME)
-            stmt2.execute()
-            stmt2._stmt2
-        
+            assert ret[0] == 1
 
+            stmt2 = self.connectstmt.statement2(f"insert into t2 using {stablename} tags (?,?,?) values (?,?,?)")
+
+            ret = stmt2.get_fields(TAOS_FIELD_TBNAME)
+            assert ret[0] == 0
+
+            stmt2.bind_param(['t2'], tags, datas1)
+            assert ret[0] == 0
 
             tdLog.info("Case [test_stmt2_td31647] PASS")
         except Exception as err:
@@ -776,8 +765,8 @@ class TDTestCase:
             stmt2 = self.connectstmt.statement2(f"insert into {stablename} (tbname, location, groupId, ts, current, voltage, phase) values(?,?,?,?,?,?,?”)")
 
             # bind data
-            tbnames = ['t1']
-            tags    = None
+            # tbnames = ['t1']
+            # tags    = None
 
             # prepare data
             datas1 = [
@@ -1550,25 +1539,25 @@ class TDTestCase:
         self.connectstmt=self.newcon(host,config)
 
         # 1. tc for common table
-        # self.test_stmt2_set_tbname_tag()
-        # self.test_stmt2_insert_common_table_with_bind_tablename_data()   # pass
-        # self.test_stmt2_insert_common_table_with_bind_data()  # pass
+        self.test_stmt2_set_tbname_tag()
+        self.test_stmt2_insert_common_table_with_bind_tablename_data()   # pass
+        self.test_stmt2_insert_common_table_with_bind_data()  # pass
         
         # 2. tc for super table
-        # self.test_stmt2_insert_super_table_with_bind_ctablename_tags_data()   # pass
-        # self.test_stmt2_insert_super_table_with_bind_tags_data()   # pass
-        # self.test_stmt2_insert_super_table_with_bind_data()   # pass
-        # self.test_stmt2_insert_super_table_auto_single_table_muti_rows_muti_cols()  # pass
-        # self.test_stmt2_insert_super_table_auto_single_table_single_rows_muti_cols()  # pass
-        # self.test_stmt2_insert_super_table_auto_single_table_muti_rows_single_cols()  # pass
+        self.test_stmt2_insert_super_table_with_bind_ctablename_tags_data()   # pass
+        self.test_stmt2_insert_super_table_with_bind_tags_data()   # pass
+        self.test_stmt2_insert_super_table_with_bind_data()   # pass
+        self.test_stmt2_insert_super_table_auto_single_table_muti_rows_muti_cols()  # pass
+        self.test_stmt2_insert_super_table_auto_single_table_single_rows_muti_cols()  # pass
+        self.test_stmt2_insert_super_table_auto_single_table_muti_rows_single_cols()  # pass
         # self.test_stmt2_not_support_normal_value_in_sql()  # 
 
         self.test_stmt2_tag_number_not_match()  # pass
 
         
         # 3. bug fix
-        # self.test_stmt2_td31428()  # pass
-        # self.test_stmt2_td31647()  # 等待python支持该功能验证
+        self.test_stmt2_td31428()  # pass
+        self.test_stmt2_td31647()  # 等待python支持该功能验证
 
         if self.connectstmt:
             self.connectstmt.close()
