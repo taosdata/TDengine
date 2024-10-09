@@ -4,12 +4,16 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'crates/**'
       - 'plugins/**'
       - 'src/**'
       - 'taosx-agent/**'
       - 'taosx-core/**'
       - 'taosx-ipc/**'
       - 'taosx-metrics/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
 
 env:
   RELEASE_HOST: 192.168.1.45
