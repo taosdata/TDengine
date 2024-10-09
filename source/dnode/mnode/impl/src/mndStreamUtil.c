@@ -1497,13 +1497,13 @@ bool mndStreamNodeIsUpdated(SMnode *pMnode) {
   return updated;
 }
 
-bool mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
+int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
   SSdb      *pSdb = pMnode->pSdb;
   void      *pIter = NULL;
   SSnodeObj *pObj = NULL;
 
   if (pSrcDb->cfg.replications == 1) {
-    return true;
+    return TSDB_CODE_SUCCESS;
   } else {
     while (1) {
       pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
@@ -1513,11 +1513,11 @@ bool mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
 
       sdbRelease(pSdb, pObj);
       sdbCancelFetch(pSdb, pIter);
-      return true;
+      return TSDB_CODE_SUCCESS;
     }
 
     mError("snode not existed when trying to create stream in db with multiple replica");
-    return false;
+    return TSDB_CODE_SNODE_NOT_DEPLOYED;
   }
 }
 

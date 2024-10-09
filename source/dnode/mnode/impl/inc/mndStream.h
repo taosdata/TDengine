@@ -133,7 +133,7 @@ int32_t  mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgr
 
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj** pStream);
 bool    mndStreamNodeIsUpdated(SMnode *pMnode);
-bool    mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
+int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
 
 int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t mndProcessStreamHb(SRpcMsg *pReq);

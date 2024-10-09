@@ -813,10 +813,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  bool snodeCheckSucc = mndCheckForSnode(pMnode, pSourceDb);
+  code = mndCheckForSnode(pMnode, pSourceDb);
   mndReleaseDb(pMnode, pSourceDb);
-  if (!snodeCheckSucc) {
-    code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+  if (code != 0) {
     goto _OVER;
   }
 
