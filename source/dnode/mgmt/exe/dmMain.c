@@ -56,6 +56,7 @@ static struct {
 #endif
   bool         dumpConfig;
   bool         dumpSdb;
+  bool         deleteTrans;
   bool         generateGrant;
   bool         memDbg;
   bool         printAuth;
@@ -183,6 +184,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
+    } else if (strcmp(argv[i], "-dTxn") == 0) {
+      global.deleteTrans = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if(i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -363,6 +366,21 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     mndDumpSdb();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
+  if (global.deleteTrans) {
+    TdFilePtr pFile = dmCheckRunning(tsDataDir);
+    if (pFile == NULL) {
+      printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s", terrstr());
+      return -1;
+    }
+
+    mndDeleteTrans();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
