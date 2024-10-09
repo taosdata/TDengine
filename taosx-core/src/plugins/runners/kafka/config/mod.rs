@@ -8,6 +8,7 @@ use tracing::debug;
 
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
+use crate::utils;
 
 pub mod connect;
 
@@ -89,7 +90,7 @@ impl KafkaTaskConfig {
             .get("fetch_max_wait_time")
             .map(String::as_str)
             .map(|s| {
-                let result = parse_duration::parse(s);
+                let result = utils::parse_duration(s);
                 match result {
                     Ok(d) => Ok(Some(d)),
                     Err(e) => Err(anyhow::anyhow!(
@@ -161,7 +162,7 @@ impl KafkaTaskConfig {
             .get("connection_idle_timeout")
             .map(String::as_str)
             .map(|s| {
-                let result = parse_duration::parse(s);
+                let result = utils::parse_duration(s);
                 match result {
                     Ok(d) => Ok(Some(d)),
                     Err(e) => Err(anyhow::anyhow!(
@@ -179,7 +180,7 @@ impl KafkaTaskConfig {
             .get("commit_interval")
             .map(String::as_str)
             .map(|s| {
-                let result = parse_duration::parse(s);
+                let result = utils::parse_duration(s);
                 match result {
                     Ok(d) => Ok(Some(d)),
                     Err(e) => Err(anyhow::anyhow!(
@@ -221,7 +222,7 @@ impl KafkaTaskConfig {
             return Ok(-1);
         }
 
-        let result = parse_duration::parse(timeout);
+        let result = utils::parse_duration(timeout);
         match result {
             Ok(d) => Ok(d.as_millis() as i64),
             Err(e) => Err(anyhow::anyhow!(

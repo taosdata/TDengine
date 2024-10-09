@@ -8,6 +8,7 @@ use itertools::Itertools;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use taosx_core::utils;
 use thiserror::Error;
 use utoipa::*;
 
@@ -138,7 +139,7 @@ pub enum ParseErrorRateError {
     #[error("Invalid count in error rate: {0} in `{1}`.")]
     Count(std::num::ParseIntError, String),
     #[error("Invalid duration in error rate: {0} in `{1}`.")]
-    Duration(parse_duration::parse::Error, String),
+    Duration(fundu::ParseError, String),
 }
 
 impl FromStr for ErrorRate {
@@ -153,7 +154,7 @@ impl FromStr for ErrorRate {
         let count = count
             .parse::<u32>()
             .map_err(|err| ParseErrorRateError::Count(err, s.to_string()))?;
-        let duration = parse_duration::parse(duration)
+        let duration = utils::parse_duration(duration)
             .map_err(|err| ParseErrorRateError::Duration(err, s.to_string()))?;
         Ok(ErrorRate(count, duration))
     }
@@ -176,8 +177,8 @@ serde_with::serde_conv!(
     OptionHumanDuration,
     Option<Duration>,
     |duration: &Option<Duration>| duration.map(|duration| format!("{:?}", duration)),
-    |value: Option<String>| -> Result<_, parse_duration::parse::Error> {
-        value.map(|value| parse_duration::parse(&value)).transpose()
+    |value: Option<String>| -> Result<_, fundu::ParseError> {
+        value.map(|value| utils::parse_duration(&value)).transpose()
     }
 );
 #[test]

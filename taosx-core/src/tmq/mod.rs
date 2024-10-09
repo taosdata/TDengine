@@ -8,7 +8,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
-use crate::dsv::DataSourceValidation;
+use crate::{dsv::DataSourceValidation, utils};
 
 pub mod tmq_metric;
 
@@ -106,7 +106,7 @@ pub(crate) enum StopAt {
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum StopAtError {
     #[error(transparent)]
-    DurationParse(#[from] parse_duration::parse::Error),
+    DurationParse(#[from] fundu::ParseError),
     #[error(transparent)]
     DateTimeCalculate(#[from] chrono::OutOfRangeError),
     #[error(transparent)]
@@ -124,7 +124,7 @@ impl FromStr for StopAt {
             "" | "0" | "now" => Ok(Self::DateTime(at)),
             s if s.starts_with('-') => {
                 let s = s.trim_start_matches('-');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParse)?;
+                let duration = utils::parse_duration(s).map_err(StopAtError::DurationParse)?;
                 let duration =
                     chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.sub_assign(duration);
@@ -132,7 +132,7 @@ impl FromStr for StopAt {
             }
             s if s.starts_with('+') => {
                 let s = s.trim_start_matches('+');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParse)?;
+                let duration = utils::parse_duration(s).map_err(StopAtError::DurationParse)?;
                 let duration =
                     chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.add_assign(duration);

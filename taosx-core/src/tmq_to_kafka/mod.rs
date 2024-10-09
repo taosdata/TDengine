@@ -16,6 +16,8 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 
+use crate::utils;
+
 pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Result<()> {
     let sinker = KafkaSinker::new(from, to).await?;
     sinker.sink(cancel).await?;
@@ -215,7 +217,7 @@ impl KafkaProducer {
             .remove("batch_size")
             .unwrap_or("1".to_string())
             .parse()?;
-        let ack_timeout: u64 = parse_duration::parse(
+        let ack_timeout: u64 = utils::parse_duration(
             dsn.params
                 .remove("ack_timeout")
                 .unwrap_or("1".to_string())

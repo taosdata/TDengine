@@ -6,6 +6,7 @@ use taos::*;
 pub mod breakpoints;
 pub mod constants;
 pub mod dsn;
+pub mod duration;
 pub mod files;
 pub mod interval;
 pub mod license;
@@ -17,6 +18,8 @@ pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod timeout;
 pub mod trace;
+
+pub use duration::parse_duration;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {

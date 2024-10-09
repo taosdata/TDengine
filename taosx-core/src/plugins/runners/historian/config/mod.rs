@@ -1,4 +1,5 @@
 use crate::plugins::config::AdvancedOptions;
+use crate::utils;
 use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
 use std::fmt::{Display, Formatter};
@@ -240,7 +241,7 @@ impl TaskConfig {
             .params
             .get("timeWindow")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse timeWindow: {}, cause: {}",
                         s.to_string(),
@@ -267,7 +268,7 @@ impl TaskConfig {
             .params
             .get("retrieveInterval")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse retrieveInterval: {}, cause: {}",
                         s.to_string(),
@@ -298,7 +299,7 @@ impl TaskConfig {
             .params
             .get("tolerance")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse tolerance: {}, cause: {}",
                         s.to_string(),

@@ -12,6 +12,8 @@ use taos::{
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
+use crate::utils;
+
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 const SQL_CURRENT_DATABASE: &str = "select database()";
@@ -164,7 +166,7 @@ pub async fn get_minimum_timestamp(
                             .unwrap_or((precision, keep.as_str()))
                     })
                     .and_then(|(precision, keep1)| {
-                        parse_duration::parse(keep1).ok().map(|d| (precision, d))
+                        utils::parse_duration(keep1).ok().map(|d| (precision, d))
                     })
                     .map(|(_precision, d)| {
                         chrono::Utc::now() - d

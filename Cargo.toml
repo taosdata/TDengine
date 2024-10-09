@@ -46,6 +46,8 @@ taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "e69fe9605
     "ansi",
 ] }
 
+fundu = "2.0.1"
+
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
 version = "0.12"
@@ -107,7 +109,7 @@ lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
 parquet = { workspace = true }
-parse_duration = "2.1"
+fundu.workspace = true
 regex = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"

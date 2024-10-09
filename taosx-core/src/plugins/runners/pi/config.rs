@@ -1,4 +1,4 @@
-use crate::utils::dsn::DsnParamGetter;
+use crate::utils::{self, dsn::DsnParamGetter};
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use taos::Dsn;
@@ -386,7 +386,7 @@ impl PiConfig {
         dsn.params
             .get("MaxBackfillRangeDays")
             .map(|s| {
-                let result = parse_duration::parse(s);
+                let result = utils::parse_duration(s);
                 match result {
                     Ok(d) => Ok(Some(d.as_secs().div_ceil(60) as u32)),
                     Err(e) => Err(anyhow!("invalid max_backfill_range: {}, cause: {}", s, e)),

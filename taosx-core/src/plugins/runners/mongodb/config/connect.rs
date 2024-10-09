@@ -1,4 +1,4 @@
-use crate::get_data_dir;
+use crate::{get_data_dir, utils};
 use std::time::Duration;
 use taos::Dsn;
 
@@ -90,7 +90,7 @@ impl ConnectConfig {
             .params
             .get("local_threshold")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse local_threshold: {}, cause: {}",
                         s.to_string(),
