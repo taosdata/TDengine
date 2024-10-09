@@ -327,7 +327,6 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   } else if (IS_NULL_TYPE(paraType)) {
     paraType = TSDB_DATA_TYPE_BIGINT;
   }
-  pFunc->hasSMA = !IS_VAR_DATA_TYPE(paraType);
   int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
