@@ -3673,7 +3673,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -6753,22 +6753,22 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "async-trait",
  "bytes",
  "futures",
- "log",
  "shadow-rs 0.33.0",
  "taos-optin",
  "taos-query",
  "taos-ws",
+ "tracing",
 ]
 
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -6781,7 +6781,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6791,7 +6791,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6813,7 +6813,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6830,7 +6830,6 @@ dependencies = [
  "futures",
  "itertools 0.13.0",
  "lazy_static",
- "log",
  "mdsn",
  "nom",
  "num_enum 0.7.3",
@@ -6848,13 +6847,14 @@ dependencies = [
  "taos-error",
  "thiserror",
  "tokio",
+ "tracing",
  "url",
 ]
 
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git#e9948ba4e2a992b3674acd807df70d951c7556f0"
+source = "git+https://github.com/taosdata/taos-connector-rust.git#4278aea0728744f0afce7b2f1bb10024c3a19cea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6864,7 +6864,6 @@ dependencies = [
  "flume",
  "futures",
  "itertools 0.13.0",
- "log",
  "once_cell",
  "parse_duration",
  "scc",
@@ -6882,14 +6881,14 @@ dependencies = [
 [[package]]
 name = "taoslog"
 version = "0.1.0"
-source = "git+https://github.com/taosdata/taoslog-rs.git?rev=99f5c62#99f5c62ebb331ab14f9518c4ae60e4cc697fbef3"
+source = "git+https://github.com/taosdata/taoslog-rs.git?rev=e69fe96053b74e097fc78859ca058b369aecabe7#e69fe96053b74e097fc78859ca058b369aecabe7"
 dependencies = [
  "actix-web",
  "arrow-schema",
  "chrono",
  "flate2",
  "flume",
- "http 1.1.0",
+ "http 0.2.12",
  "nu-ansi-term 0.50.1",
  "parking_lot 0.12.3",
  "rayon",
@@ -6940,7 +6939,6 @@ dependencies = [
  "futures",
  "futures-util",
  "gethostname",
- "http 0.2.12",
  "humantime",
  "itertools 0.13.0",
  "jemalloc_pprof",
@@ -7096,7 +7094,6 @@ dependencies = [
  "futures-util",
  "glob",
  "half",
- "http 0.2.12",
  "humantime",
  "itertools 0.13.0",
  "kafka",
@@ -7567,7 +7564,7 @@ dependencies = [
 [[package]]
 name = "tokio-tungstenite"
 version = "0.23.1"
-source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=19822e0#19822e01bff35630dbe95752c815f973e60c4b80"
+source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
 dependencies = [
  "futures-util",
  "log",
@@ -8337,7 +8334,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

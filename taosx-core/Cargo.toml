@@ -168,7 +168,6 @@ mongodb = { version = "3.0.0", features = [
 rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
 
 taoslog.workspace = true
-http.workspace = true
 bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
 
