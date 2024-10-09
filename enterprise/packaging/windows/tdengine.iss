@@ -42,6 +42,8 @@ CloseApplications=force
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
