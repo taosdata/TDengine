@@ -149,7 +149,7 @@ impl IpcDataType {
             IpcDataType::Int64 => DataType::Int64,
             IpcDataType::Float32 => DataType::Float32,
             IpcDataType::Float64 => DataType::Float64,
-            IpcDataType::Timestamp(time_unit) => DataType::Timestamp(time_unit.clone(), None),
+            IpcDataType::Timestamp(time_unit) => DataType::Timestamp(*time_unit, None),
             IpcDataType::VarChar(_) => DataType::Utf8,
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
@@ -259,29 +259,17 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::Float16 => IpcDataType::Float32,
             ArrowDataType::Float32 => IpcDataType::Float32,
             ArrowDataType::Float64 => IpcDataType::Float64,
-            ArrowDataType::Timestamp(unit, _) => IpcDataType::Timestamp(unit.clone()),
+            ArrowDataType::Timestamp(unit, _) => IpcDataType::Timestamp(*unit),
             ArrowDataType::Binary => IpcDataType::VarChar(128),
             ArrowDataType::Utf8 => IpcDataType::VarChar(128),
             ArrowDataType::FixedSizeBinary(len) => IpcDataType::VarChar(*len as _),
             ArrowDataType::LargeBinary => IpcDataType::VarChar(4096),
             ArrowDataType::LargeUtf8 => IpcDataType::VarChar(4096),
             ArrowDataType::Null => IpcDataType::Null,
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
             ArrowDataType::List(_) => IpcDataType::VarChar(4096),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
-            ArrowDataType::Dictionary(_, _) => todo!(),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            _ => {
+                panic!("unsupported arrow data type: {:?}", value);
+            }
         }
     }
 }

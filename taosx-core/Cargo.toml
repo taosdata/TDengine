@@ -19,6 +19,7 @@ parquet = { workspace = true }
 rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip"] }
 zerocopy = { workspace = true }
+dashmap = { workspace = true }
 
 dlopen2 = "0.7.0"
 
@@ -42,7 +43,7 @@ clap = { workspace = true, features = ["default", "derive"] }
 config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
-dashmap = "5.4.0"
+
 flate2 = { version = "1.0" }
 futures = { version = "0.3", features = ["thread-pool"] }
 itertools = { workspace = true }

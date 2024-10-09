@@ -511,6 +511,7 @@ impl<R: Read> Deref for IpcReader<R> {
 
 impl<R: Read> IpcReader<R> {
     pub fn new(reader: R) -> Result<Self, ArrowError> {
+        let reader = BufReader::new(reader);
         let reader = StreamReader::try_new(reader, None)?;
         let schema = reader.schema();
         let parser = IpcParser::new(schema);
@@ -1616,9 +1617,8 @@ pub fn record_batch_to_column_view(
                     Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
                     Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
                 };
-                let column =
-                    arrow::compute::cast(column, &DataType::Timestamp(precision.clone(), None))
-                        .expect("timestamp to timestamp cast should always success");
+                let column = arrow::compute::cast(column, &DataType::Timestamp(precision, None))
+                    .expect("timestamp to timestamp cast should always success");
                 match precision {
                     arrow::datatypes::TimeUnit::Second => {
                         unreachable!("TDengine does not support second precision")

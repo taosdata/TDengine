@@ -159,7 +159,7 @@ impl CastOptions<'_> {
     }
 }
 
-impl<'r, 'a> From<&'r CastOptions<'a>> for arrow::compute::CastOptions<'r> {
+impl<'r> From<&'r CastOptions<'_>> for arrow::compute::CastOptions<'r> {
     fn from(options: &'r CastOptions) -> arrow::compute::CastOptions<'r> {
         arrow::compute::CastOptions {
             safe: options.safe,
@@ -202,7 +202,7 @@ pub fn cast_with_options(
                 let array = arrow::compute::cast(&array, &Timestamp(TimeUnit::Second, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
-                let array = arrow::compute::cast(&array, &Timestamp(unit.clone(), tz))?;
+                let array = arrow::compute::cast(&array, &Timestamp(*unit, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
@@ -269,14 +269,11 @@ pub fn cast_with_options(
             if cast_options.timestamp_options.guess_timestamp_precision {
                 let array = arrow::compute::cast(
                     &array,
-                    &Timestamp(
-                        guess_precision_in_array(&array).unwrap_or_else(|| unit.clone()),
-                        tz,
-                    ),
+                    &Timestamp(guess_precision_in_array(&array).unwrap_or(*unit), tz),
                 )?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
-                let array = cast(&array, &Timestamp(unit.clone(), tz))?;
+                let array = cast(&array, &Timestamp(*unit, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
@@ -365,9 +362,7 @@ mod test {
 
     #[test]
     fn bound() {
-        let zero = chrono::DateTime::from_timestamp(0, 0)
-            .map(|t| t.naive_utc())
-            .unwrap();
+        let zero = chrono::DateTime::from_timestamp(0, 0).expect("zero timestamp");
         let seconds_upper_bound = zero + std::time::Duration::from_secs(LOWER_BOUND_MILLIS as _);
         println!("{:?}", (zero..seconds_upper_bound));
         let millis_lower_bound = zero + std::time::Duration::from_millis(LOWER_BOUND_MILLIS as _);
@@ -382,9 +377,7 @@ mod test {
 
     #[test]
     fn bound_sample() {
-        let zero = chrono::DateTime::from_timestamp(0, 0)
-            .map(|t| t.naive_utc())
-            .unwrap();
+        let zero = chrono::DateTime::from_timestamp(0, 0).unwrap();
         println!("ARROW_CAST_GUESSING_BOUND_YEARS |     Lower Bound     |     Upper Bound    ");
         println!("------------------------------- | ------------------- | -------------------");
         let width: usize = "ARROW_CAST_GUESSING_BOUND_YEARS".len();
