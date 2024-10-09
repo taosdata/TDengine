@@ -1892,6 +1892,11 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
   return false;
 }
 
+static void tmqFreeMeta(void *data){
+  STableMeta* pTableMeta = *(STableMeta**)data;
+  taosMemoryFree(pTableMeta);
+}
+
 static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t dataLen) {
   if (taos == NULL || data == NULL) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL", taos, data);
@@ -1943,7 +1948,7 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
   if (pMetaHash == NULL){
     pMetaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(pMetaHash);
-    taosHashSetFreeFp(pMetaHash, taosMemoryFree);
+    taosHashSetFreeFp(pMetaHash, tmqFreeMeta);
   }
   struct SCatalog* pCatalog = NULL;
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
@@ -2005,13 +2010,13 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
     RAW_NULL_CHECK(rawData);
 
     STableMeta* pTableMeta = NULL;
-    STableMeta** pTableMetaTmp = (STableMeta**)taosHashGet(pMetaHash, suid, POINTER_BYTES);
+    STableMeta** pTableMetaTmp = (STableMeta**)taosHashGet(pMetaHash, suid, LONG_BYTES);
     if (pTableMetaTmp == NULL || needRefreshMeta(rawData, *pTableMetaTmp, pSW)) {
       if (pCreateReqDst) {  // change stable name to get meta
         (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
       }
       RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
-      code = taosHashPut(pMetaHash, suid, POINTER_BYTES, &pTableMeta, POINTER_BYTES);
+      code = taosHashPut(pMetaHash, suid, LONG_BYTES, &pTableMeta, POINTER_BYTES);
       if (code != 0){
         taosMemoryFree(pTableMeta);
         goto end;
