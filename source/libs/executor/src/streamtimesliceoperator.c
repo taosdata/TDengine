@@ -1662,7 +1662,8 @@ static int32_t doDeleteTimeSliceResult(SStreamAggSupporter* pAggSup, SSDataBlock
       if (key.ts > endCalTs) {
         break;
       }
-      (void)tSimpleHashRemove(pUpdatedMap, &key, sizeof(SWinKey));
+      int32_t tmpRes = tSimpleHashRemove(pUpdatedMap, &key, sizeof(SWinKey));
+      qTrace("delete stream interp result at line %d res: %s", __func__, __LINE__, tstrerror(tmpRes));
 
       pAggSup->stateStore.streamStateDel(pAggSup->pState, &key);
       if (winCode != TSDB_CODE_SUCCESS) {
