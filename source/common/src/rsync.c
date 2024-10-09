@@ -209,8 +209,8 @@ int32_t startRsync() {
   code = system(cmd);
   if (code != 0) {
     uError("[rsync] cmd:%s start server failed, code:%d," ERRNO_ERR_FORMAT, cmd, code, ERRNO_ERR_DATA);
-    (void)dumpRsyncLog();
     code = TAOS_SYSTEM_ERROR(errno);
+    (void)dumpRsyncLog();
   } else {
     uInfo("[rsync] cmd:%s start server successful", cmd);
   }

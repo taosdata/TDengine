@@ -151,7 +151,7 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 
 // checkpoint backup
 char    tsSnodeAddress[TSDB_FQDN_LEN] = {0};
-int32_t tsRsyncPort = 873;
+int32_t tsRsyncPort = 6873;
 #ifdef WINDOWS
 char tsCheckpointBackupDir[PATH_MAX] = "C:\\TDengine\\data\\backup\\checkpoint\\";
 #else
