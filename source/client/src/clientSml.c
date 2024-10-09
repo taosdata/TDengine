@@ -393,7 +393,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
     tinfo->tags = taosArrayDup(info->preLineTagKV, NULL);
     if (tinfo->tags == NULL) {
       smlDestroyTableInfo(&tinfo);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (size_t i = 0; i < taosArrayGetSize(info->preLineTagKV); i++) {
       SSmlKv *kv = (SSmlKv *)taosArrayGet(info->preLineTagKV, i);
@@ -561,7 +561,7 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
   if (strlen(oneTable->childTableName) == 0) {
     SArray *dst = taosArrayDup(oneTable->tags, NULL);
     if (dst == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (oneTable->sTableNameLen >= TSDB_TABLE_NAME_LEN) {
       uError("SML:smlSetCTableName super table name is too long");
@@ -957,7 +957,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
   for (; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     if (kv == NULL) {
-      code = TSDB_CODE_SML_INVALID_DATA;
+      code = terrno;
       goto END;
     }
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
@@ -1053,7 +1053,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
     SField *pField = taosArrayGet(pColumns, i);
     if (pField == NULL) {
-      code = TSDB_CODE_SML_INVALID_DATA;
+      code = terrno;
       goto end;
     }
     SFieldWithOptions fieldWithOption = {0};
