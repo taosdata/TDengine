@@ -77,6 +77,7 @@ typedef struct {
 typedef struct {
   int32_t      vnodeNum;
   int32_t      opened;
+  int32_t      dropped;
   int32_t      failed;
   bool         updateVnodesList;
   int32_t      threadIndex;

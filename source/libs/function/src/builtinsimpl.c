@@ -3186,7 +3186,8 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     code = colDataSetVal(pCol, pBlock->info.rows, res, false);
     if (TSDB_CODE_SUCCESS != code) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(res);
+      return code;
     }
     code = setSelectivityValue(pCtx, pBlock, &pRes->pos, pBlock->info.rows);
   }
