@@ -95,31 +95,35 @@ class TDTestCase:
         self.connectstmt.statement2('select * from common_table;', option=option)
 
     def test_func_prepare(self):
-        stmt = self.connectstmt.statement2()
+        stmt2 = self.connectstmt.statement2()
 
         try:
-            stmt.prepare('')
-            stmt.prepare('123')
-            stmt.prepare('-123')
-            stmt.prepare('3.14')
-            stmt.prepare('-3.14')
-            stmt.prepare('abc')
-            stmt.prepare('hello')
-            stmt.prepare(';')
-            stmt.prepare(',;')
-            stmt.prepare('select * from common_table;')
-            stmt.prepare('selct * from common_table where ts > 1;')
-            stmt.prepare('selct * from common_table where ts > ?;')
-            stmt.prepare('selct * from ? where ts > ?;')
-            stmt.prepare('selct * frm ? where ts > ?;')
-            stmt.prepare('select count(*) from common_table;')
+            stmt2.prepare('')
+            stmt2.prepare('123')
+            stmt2.prepare('-123')
+            stmt2.prepare('3.14')
+            stmt2.prepare('-3.14')
+            stmt2.prepare('abc')
+            stmt2.prepare('hello')
+            stmt2.prepare(';')
+            stmt2.prepare(',;')
+            stmt2.prepare('select * from common_table;')
+            stmt2.prepare('selct * from common_table where ts > 1;')
+            stmt2.prepare('selct * from common_table where ts > ?;')
+            stmt2.prepare('selct * from ? where ts > ?;')
+            stmt2.prepare('selct * frm ? where ts > ?;')
+            stmt2.prepare('select count(*) from common_table;')
         except Exception as err:
             tdLog.exit(f"An unexpected error occurred, err: {err}")
 
-        # try:
-        #     stmt.prepare(None)
-        # except Exception as err:
-        #     print(err)
+        try:
+            datas = [[[1]]]
+            types = [FieldType.C_INT]
+            stmt2.prepare(f"sele now() - ?;")
+            stmt2.set_columns_type(types)
+            stmt2.bind_param(None, None, datas)
+        except Exception as err:
+            tdLog.info(f"[test_func_prepare] Expected error occurs, err: {err}")
 
     def test_func_bind_param(self):
         stable_name = "stmt_stable"
@@ -206,9 +210,7 @@ class TDTestCase:
         except Exception as err:
             tdLog.info(f"[test_func_bind_param] Expected error occurs, err: {err}")
 
-        # types = [FieldType.C_INT]
-        # stmt2 = self.connectstmt.statement2(f"select * from {stable_name} where a = 1;")
-        # stmt2.set_columns_type(types)
+        # stmt2 = self.connectstmt.statement2(f"select * from ? where a = 1;")
         # stmt2.bind_param([stable_name], None, None)
         # stmt2.execute()
 
