@@ -71,7 +71,7 @@ char *taosStrndup(const char *s, int size) {
   if (l > size) l = size;
   s2 = malloc(l + 1);
   if (s2) {
-    strncpy(s2, s, l);
+    tstrncpy(s2, s, l + 1);
     s2[l] = '\0';
   } else {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

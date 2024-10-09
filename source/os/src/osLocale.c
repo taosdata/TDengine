@@ -137,7 +137,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     char *revisedCharset = taosCharsetReplace(str);
 
     if (NULL == revisedCharset) {
-      (void)tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
+      tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
     } else {
       tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
 
