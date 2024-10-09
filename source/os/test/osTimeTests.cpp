@@ -33,7 +33,7 @@ TEST(osTimeTests, taosLocalTimeNolock) {
   time_t currentTime;
     // Test when result is not NULL
   struct tm expectedTime;
-  result = taosLocalTimeNolock(&expectedTime, &currentTime, 1);
+  struct tm* result = taosLocalTimeNolock(&expectedTime, &currentTime, 1);
   EXPECT_EQ(expectedTime.tm_year, result->tm_year);
   EXPECT_EQ(expectedTime.tm_mon, result->tm_mon);
   EXPECT_EQ(expectedTime.tm_mday, result->tm_mday);
