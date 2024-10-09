@@ -16,8 +16,6 @@
 #ifndef _STREAM_FILE_STATE_H_
 #define _STREAM_FILE_STATE_H_
 
-#include "os.h"
-
 #include "storageapi.h"
 #include "tarray.h"
 #include "tdef.h"
