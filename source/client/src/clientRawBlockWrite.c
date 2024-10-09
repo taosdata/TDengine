@@ -1918,7 +1918,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
     if (!tbName) {
       SET_ERROR_MSG("block tbname is null");
-      code = TSDB_CODE_TMQ_INVALID_MSG;
+      code = terrno;
       goto end;
     }
 
