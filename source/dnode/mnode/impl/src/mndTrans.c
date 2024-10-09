@@ -589,7 +589,7 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
 
 void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   SSdb *pSdb = pMnode->pSdb;
-  mInfo("vgId:1, trans:%d, release transaction:%s", pTrans->id, pTrans->opername);
+  mInfo("vgId:1, trans:%d, release transaction", pTrans->id);
   sdbRelease(pSdb, pTrans);
 }
 
