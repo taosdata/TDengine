@@ -143,4 +143,6 @@ echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
 echo "querySmaOptimize       1"                  >> $TAOS_CFG
 echo "checkpointInterval     60"                 >> $TAOS_CFG
+echo "rsyncPort              9873"               >> $TAOS_CFG
+echo "checkpointBackupDir    $LOG_DIR"           >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  
