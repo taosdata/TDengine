@@ -115,8 +115,12 @@ typedef SOCKET  EpollFd;
 #define __PDP_ENDIAN    PDP_ENDIAN
 #endif
 
-typedef int32_t  SocketFd;
+#ifndef SocketFd
+typedef int32_t SocketFd;
+#endif
+#ifndef EpollFd
 typedef SocketFd EpollFd;
+#endif
 
 typedef struct TdSocketServer *TdSocketServerPtr;
 typedef struct TdSocket       *TdSocketPtr;
