@@ -1102,7 +1102,6 @@ static void cliDestroy(uv_handle_t* handle) {
   if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) {
     return;
   }
-
   SCliConn* conn = handle->data;
   SCliThrd* pThrd = conn->hostThrd;
   cliResetConnTimer(conn);
@@ -1221,6 +1220,11 @@ static void cliHandleException(SCliConn* conn) {
   if (conn->list) {
     conn->list->totaSize -= 1;
     conn->list = NULL;
+  }
+
+  if (conn->task != NULL) {
+    transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
+    conn->task = NULL;
   }
 
   if (conn->registered) {
@@ -3667,8 +3671,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   int32_t stateNum = taosHashGetSize(pConn->pQTable);
   int32_t totalReqs = reqsNum + reqsSentOut;
 
-  if (((totalReqs >= pInst->shareConnLimit / 2) && (stateNum >= pInst->shareConnLimit)) ||
-      totalReqs >= pInst->shareConnLimit) {
+  if (totalReqs >= pInst->shareConnLimit) {
     if (pConn->list == NULL && pConn->dstAddr != NULL) {
       pConn->list = taosHashGet((SHashObj*)pThrd->pool, pConn->dstAddr, strlen(pConn->dstAddr));
       if (pConn->list != NULL) {
