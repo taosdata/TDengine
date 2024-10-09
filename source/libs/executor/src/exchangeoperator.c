@@ -532,8 +532,10 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
 
   int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
-  asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
-  *pRpcHandle = -1;
+  if (pRpcHandle != NULL) {
+    asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+    *pRpcHandle = -1;
+  }
 
   if (!pSourceDataInfo) {
     return terrno;
