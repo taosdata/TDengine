@@ -336,7 +336,7 @@ char*   jobTaskStatusStr(int32_t status);
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);

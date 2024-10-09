@@ -161,7 +161,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     int len = strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1;
     taosFqdnEnvItem = taosMemoryMalloc(len);
     if (taosFqdnEnvItem != NULL) {
-      TAOS_STRNCPY(taosFqdnEnvItem, "TAOS_FQDN=", len);
+      tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
       TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, strlen(taosFqdn));
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {

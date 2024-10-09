@@ -345,20 +345,19 @@ static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-int32_t formatDurationOrKeep(char* buffer, int32_t timeInMinutes) {
-    if (buffer == NULL) {
+int32_t formatDurationOrKeep(char* buffer, int64_t bufSize, int32_t timeInMinutes) {
+    if (buffer == NULL || bufSize <= 0) {
         return 0;
     }
-    int lMaxLen = 32;
     int32_t len = 0;
     if (timeInMinutes % 1440 == 0) {
-        int32_t days = timeInMinutes / 1440;
-        len = snprintf(buffer, lMaxLen,"%dd", days);
+      int32_t days = timeInMinutes / 1440;
+      len = snprintf(buffer, bufSize, "%dd", days);
     } else if (timeInMinutes % 60 == 0) {
-        int32_t hours = timeInMinutes / 60;
-        len = snprintf(buffer, lMaxLen,"%dh", hours);
+      int32_t hours = timeInMinutes / 60;
+      len = snprintf(buffer, bufSize, "%dh", hours);
     } else {
-        len = snprintf(buffer, lMaxLen,"%dm", timeInMinutes);
+      len = snprintf(buffer, bufSize, "%dm", timeInMinutes);
     }
     return len;
 }
@@ -405,10 +404,10 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   char keep1Str[128] = {0};
   char keep2Str[128] = {0};
 
-  int32_t lenDuration = formatDurationOrKeep(durationStr, pCfg->daysPerFile);
-  int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pCfg->daysToKeep0);
-  int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pCfg->daysToKeep1);
-  int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pCfg->daysToKeep2);
+  int32_t lenDuration = formatDurationOrKeep(durationStr, sizeof(durationStr), pCfg->daysPerFile);
+  int32_t lenKeep0 = formatDurationOrKeep(keep0Str, sizeof(keep0Str), pCfg->daysToKeep0);
+  int32_t lenKeep1 = formatDurationOrKeep(keep1Str, sizeof(keep1Str), pCfg->daysToKeep1);
+  int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pCfg->daysToKeep2);
 
   if (IS_SYS_DBNAME(dbName)) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
@@ -542,16 +541,16 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
-    snprintf(type, 32, "%s", tDataTypes[pSchema->type].name);
+    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      snprintf(type + strlen(type), 32 - strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      snprintf(type + strlen(type), 32 - strlen(type), "(%d)",
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
                (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, 32 - (VARSTR_HEADER_SIZE + *len), "%s`%s` %s",
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, sizeof(type) - (VARSTR_HEADER_SIZE + *len), "%s`%s` %s",
                      ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
@@ -614,11 +613,17 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
       char    type = pTagVal->type;
       int32_t tlen = 0;
 
+      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
+      if (leftSize <= 0) {
+        qError("no enough space to store tag value, leftSize:%" PRId64, leftSize);
+        code = TSDB_CODE_APP_ERROR;
+        TAOS_CHECK_ERRNO(code);
+      }
       if (IS_VAR_DATA_TYPE(type)) {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, pTagVal->pData, pTagVal->nData, &tlen);
         TAOS_CHECK_ERRNO(code);
       } else {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
         TAOS_CHECK_ERRNO(code);
       }
       *len += tlen;

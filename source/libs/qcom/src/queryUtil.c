@@ -313,42 +313,41 @@ void destroyQueryExecRes(SExecResult* pRes) {
   }
 }
 // clang-format on
-#define MAX_NUMERICAL_LENGTH (32)
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "null");
+      n = snprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, (*(int8_t*)buf) ? "true" : "false");
+      n = snprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%d", *(int8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%d", *(int16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%d", *(int32_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%" PRId64, *(int64_t*)buf);
+      n = snprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -395,19 +394,19 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%d", *(uint8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%d", *(uint16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%u", *(uint32_t*)buf);
+      n = snprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = snprintf(str, MAX_NUMERICAL_LENGTH, "%" PRIu64, *(uint64_t*)buf);
+      n = snprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
