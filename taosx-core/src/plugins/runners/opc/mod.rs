@@ -35,6 +35,7 @@ use super::get_data_dir;
 pub mod config;
 mod point_updater;
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum OpcType {

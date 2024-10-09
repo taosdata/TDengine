@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     any::{Any, TypeId},
     borrow::Cow,
@@ -146,25 +147,9 @@ impl ListOfStructBuilder {
                     .unwrap()
                     .append_null();
             }
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
-            ArrowDataType::FixedSizeBinary(_) => todo!(),
-            ArrowDataType::LargeBinary => todo!(),
-            ArrowDataType::LargeUtf8 => todo!(),
-            ArrowDataType::List(_) => todo!(),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
-            ArrowDataType::Dictionary(_, _) => todo!(),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            _ => {
+                panic!("Unsupported data type: {dt:?}");
+            }
         };
         self.index.replace(idx + 1);
 
@@ -308,25 +293,11 @@ impl ListOfStructBuilder {
                     t => panic!("Unsupported binary input type: {t:?}, {value:?}"),
                 }
             }
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
-            ArrowDataType::FixedSizeBinary(_) => todo!(),
-            ArrowDataType::LargeBinary => todo!(),
-            ArrowDataType::LargeUtf8 => todo!(),
-            ArrowDataType::List(_) => todo!(),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
-            ArrowDataType::Dictionary(_, _) => todo!(),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            _ => {
+                return Err(ArrowError::NotYetImplemented(format!(
+                    "Unsupported data type: {dt:?}"
+                )))
+            }
         };
         if let Some(v) = self.index.as_mut() {
             *v += 1
@@ -365,7 +336,6 @@ impl ListOfStructBuilder {
             }};
         }
         match dt {
-            ArrowDataType::Null => unreachable!(),
             ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
             ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
             ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
@@ -475,25 +445,11 @@ impl ListOfStructBuilder {
                     t => panic!("Unsupported binary input type: {t:?}, {value:?}, use &Vec<String>, &Vec<&str>, &[&str] or &[&[u8]]"),
                 }
             }
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
-            ArrowDataType::FixedSizeBinary(_) => todo!(),
-            ArrowDataType::LargeBinary => todo!(),
-            ArrowDataType::LargeUtf8 => todo!(),
-            ArrowDataType::List(_) => todo!(),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
-            ArrowDataType::Dictionary(_, _) => todo!(),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            _ => {
+                return Err(ArrowError::NotYetImplemented(format!(
+                    "Unsupported data type: {dt:?}"
+                )))
+            }
         };
         self.index.replace(idx + 1);
         Ok(self)

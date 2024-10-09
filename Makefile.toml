@@ -5,15 +5,9 @@ skip_core_tasks = true
 default_to_workspace = false
 
 [env]
-VER_NUMBER = { script = [
-  "git tag |grep ver-|sed s/ver-//|sort -V|tail -n1",
-], condition = { env_not_set = [
-  "VER_NUMBER",
-] } }
+VER_NUMBER = { script = ["git tag |grep ver-|sed s/ver-//|sort -V|tail -n1"], condition = { env_not_set = ["VER_NUMBER"] } }
 UPX_DIR = "./target/deploy/upx/"
-BUILD_PROFILE = { value = "release", condition = { env_not_set = [
-  "BUILD_PROFILE",
-] } }
+BUILD_PROFILE = { value = "release", condition = { env_not_set = ["BUILD_PROFILE"] } }
 
 [tasks.build]
 command = "cargo"
@@ -21,17 +15,13 @@ args = ["build", "--profile", "${BUILD_PROFILE}"]
 
 [tasks.dump-env]
 script = """
-echo $VER_NUMBER
+echo VER_NUMBER=$VER_NUMBER
+echo BUILD_PROFILE=$BUILD_PROFILE
 """
-
-#[tasks.cargo-update]
-#command = "cargo"
-#args = ["update"]
 
 [tasks.taosx]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
-#dependencies = ["cargo-update"]
 
 [tasks.taosx.windows]
 command = "cargo"
@@ -45,12 +35,10 @@ args = [
   "--features",
   "optin,native-tls",
 ]
-#dependencies = ["cargo-update"]
 
 [tasks.taosx-agent]
 command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
-#dependencies = ["cargo-update"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
@@ -490,7 +478,6 @@ else
   upx_run target/${profile}/taosx target/deploy/taosx
 end
 """
-
 
 [tasks.deploy-taosx.windows]
 script_runner = "@duckscript"

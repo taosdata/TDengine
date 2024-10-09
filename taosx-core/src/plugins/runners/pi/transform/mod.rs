@@ -607,6 +607,7 @@ impl Display for PIElementModelConfig {
 }
 
 /// 配置文件 schema 定义部分第 2 列的类型
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
     TAG,

@@ -13,7 +13,7 @@ use notify::{
     event::{DataChange, ModifyKind},
     Watcher,
 };
-use opentelemetry::trace::Tracer;
+use opentelemetry::trace::TracerProvider;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, FromInto};
 use serve::monitor::MonitorCfg;
@@ -634,11 +634,11 @@ fn init_tracing_layers(
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
-        let tracer = opentelemetry_otlp::new_pipeline()
+        let provider = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
             .with_trace_config(
-                opentelemetry_sdk::trace::config()
+                opentelemetry_sdk::trace::Config::default()
                     .with_sampler(opentelemetry_sdk::trace::Sampler::AlwaysOn)
                     .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
                     .with_max_events_per_span(64)
@@ -649,9 +649,9 @@ fn init_tracing_layers(
                     ])),
             )
             .install_simple()?;
-        tracer.in_span("init", |_cx| _cx.attach());
+        let tracer = provider.tracer("taosx");
         // Create a tracing layer with the configured tracer
-        let telemetry = tracing_opentelemetry::layer::<_>()
+        let telemetry = tracing_opentelemetry::layer()
             .with_tracer(tracer)
             .with_filter(
                 EnvFilter::builder()
