@@ -1200,8 +1200,8 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
     STaskDispatcherFixed* pDispatch = &pTask->outputInfo.fixedDispatcher;
 
     STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pDispatch->nodeId, .taskId = pDispatch->taskId};
-    void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
-    if (px == NULL) { // pause the stream task, if memory not enough
+    void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+    if (px == NULL) {  // pause the stream task, if memory not enough
       code = terrno;
     }
   } else {
@@ -1212,8 +1212,8 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
       }
 
       STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
-      void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
-      if (px == NULL) { // pause the stream task, if memory not enough
+      void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+      if (px == NULL) {  // pause the stream task, if memory not enough
         code = terrno;
         break;
       }
@@ -1287,11 +1287,11 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
 static int32_t uploadCheckpointToS3(const char* id, const char* path) {
   int32_t code = 0;
   int32_t nBytes = 0;
-
+  /*
   if (tcsInit() != 0) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
-
+  */
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) {
     return terrno;
