@@ -665,7 +665,7 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
 
   if (HAS_ROW_DATA(pCurPoint->pRightRow)) {
     pFillSup->cur.key = pCurPoint->pRightRow->key;
-    pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
+    pFillSup->cur.pRowVal = (SResultCellData*)pCurPoint->pRightRow->pRowVal;
     if (HAS_NON_ROW_DATA(pCurPoint->pLeftRow)) {
       pPrevPoint->key.groupId = groupId;
       int32_t preVLen = 0;
@@ -677,10 +677,10 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
         setPointBuff(pPrevPoint, pFillSup);
         if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
           pFillSup->prev.key = pPrevPoint->pRightRow->key;
-          pFillSup->prev.pRowVal = pPrevPoint->pRightRow->pRowVal;
+          pFillSup->prev.pRowVal = (SResultCellData*)pPrevPoint->pRightRow->pRowVal;
         } else {
           pFillSup->prev.key = pPrevPoint->pLeftRow->key;
-          pFillSup->prev.pRowVal = pPrevPoint->pLeftRow->pRowVal;
+          pFillSup->prev.pRowVal = (SResultCellData*)pPrevPoint->pLeftRow->pRowVal;
         }
         pFillSup->prevOriginKey = pFillSup->prev.key;
         pFillSup->prev.key = adustPrevTsKey(pPrevPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
@@ -691,7 +691,7 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
 
   if (HAS_ROW_DATA(pCurPoint->pLeftRow)) {
     pFillSup->prev.key = pCurPoint->pLeftRow->key;
-    pFillSup->prev.pRowVal = pCurPoint->pLeftRow->pRowVal;
+    pFillSup->prev.pRowVal = (SResultCellData*)pCurPoint->pLeftRow->pRowVal;
     pFillSup->prevOriginKey = pFillSup->prev.key;
     pFillSup->prev.key = adustPrevTsKey(pCurPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
     if (HAS_NON_ROW_DATA(pCurPoint->pRightRow)) {
@@ -705,10 +705,10 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
         setPointBuff(pNextPoint, pFillSup);
         if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
           pFillSup->next.key = pNextPoint->pLeftRow->key;
-          pFillSup->next.pRowVal = pNextPoint->pLeftRow->pRowVal;
+          pFillSup->next.pRowVal = (SResultCellData*)pNextPoint->pLeftRow->pRowVal;
         } else {
           pFillSup->next.key = pNextPoint->pRightRow->key;
-          pFillSup->next.pRowVal = pNextPoint->pRightRow->pRowVal;
+          pFillSup->next.pRowVal = (SResultCellData*)pNextPoint->pRightRow->pRowVal;
         }
         pFillSup->nextOriginKey = pFillSup->next.key;
         pFillSup->next.key = adustEndTsKey(pNextPoint->key.ts, pFillSup->next.key, &pFillSup->interval);
@@ -747,7 +747,7 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
   if (tmpRes == TSDB_CODE_SUCCESS) {
     setPointBuff(pCurPoint, pFillSup);
     pFillSup->cur.key = pCurPoint->pRightRow->key;
-    pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
+    pFillSup->cur.pRowVal = (SResultCellData*)pCurPoint->pRightRow->pRowVal;
   } else {
     pFillSup->cur.key = pCurPoint->key.ts + 1;
   }
@@ -764,10 +764,10 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
     setPointBuff(pPrevPoint, pFillSup);
     if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
       pFillSup->prev.key = pPrevPoint->pRightRow->key;
-      pFillSup->prev.pRowVal = pPrevPoint->pRightRow->pRowVal;
+      pFillSup->prev.pRowVal = (SResultCellData*)pPrevPoint->pRightRow->pRowVal;
     } else {
       pFillSup->prev.key = pPrevPoint->pLeftRow->key;
-      pFillSup->prev.pRowVal = pPrevPoint->pLeftRow->pRowVal;
+      pFillSup->prev.pRowVal = (SResultCellData*)pPrevPoint->pLeftRow->pRowVal;
     }
     pFillSup->prev.key = adustPrevTsKey(pPrevPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
   }
@@ -782,10 +782,10 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
     setPointBuff(pNextPoint, pFillSup);
     if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
       pFillSup->next.key = pNextPoint->pLeftRow->key;
-      pFillSup->next.pRowVal = pNextPoint->pLeftRow->pRowVal;
+      pFillSup->next.pRowVal = (SResultCellData*)pNextPoint->pLeftRow->pRowVal;
     } else {
       pFillSup->next.key = pNextPoint->pRightRow->key;
-      pFillSup->next.pRowVal = pNextPoint->pRightRow->pRowVal;
+      pFillSup->next.pRowVal = (SResultCellData*)pNextPoint->pRightRow->pRowVal;
     }
     pFillSup->next.key = adustEndTsKey(pNextPoint->key.ts, pFillSup->next.key, &pFillSup->interval);
 
@@ -1224,7 +1224,7 @@ static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKE
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
-    SResultCellData* pCell = getSliceResultCell(pRowVal->pRowVal, i);
+    SResultCellData* pCell = getSliceResultCell((SResultCellData*)pRowVal->pRowVal, i);
     if (!colDataIsNull_s(pColData, rowId)) {
       pCell->isNull = false;
       pCell->type = pColData->info.type;

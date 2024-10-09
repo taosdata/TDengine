@@ -31,8 +31,8 @@ extern "C" {
 #define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
 
 typedef struct SSliceRowData {
-  TSKEY                  key;
-  struct SResultCellData pRowVal[1];
+  TSKEY key;
+  char  pRowVal[];
 } SSliceRowData;
 
 typedef struct SSlicePoint {
