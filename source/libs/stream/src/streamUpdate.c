@@ -615,7 +615,7 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   pInfo->pMap = taosHashInit(mapSize, hashFn, true, HASH_NO_LOCK);
   uint64_t uid = 0;
   void*    pVal = NULL;
-  int32_t  valSize = 0;
+  uint32_t  valSize = 0;
   for (int32_t i = 0; i < mapSize; i++) {
     if (tDecodeU64(&decoder, &uid) < 0) return -1;
     if (tDecodeBinary(&decoder, (uint8_t**)&pVal, &valSize) < 0) return -1;
