@@ -397,16 +397,16 @@ sql select case when f1 then f1 when f1 + 1 then f1 + 1 else f1 is null end from
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 1 then
+if $data00 != 1.000000000 then
  return -1
 endi
-if $data10 != 1 then
+if $data10 != 1.000000000 then
  return -1
 endi
-if $data20 != 5 then
+if $data20 != 5.000000000 then
  return -1
 endi
-if $data30 != 1 then
+if $data30 != 1.000000000 then
  return -1
 endi
 
