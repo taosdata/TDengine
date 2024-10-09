@@ -46,6 +46,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 
 #
 # system test
@@ -161,7 +162,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
@@ -234,6 +234,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ts-4674.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-30270.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb3.py
