@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use crate::plugins::config::AdvancedOptions;
 use crate::runners::mongodb::config::connect::ConnectConfig;
+use crate::{plugins::config::AdvancedOptions, utils};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use core::result::Result::Ok;
 use mongodb::bson::{Bson, Document};
@@ -193,7 +193,7 @@ impl TaskConfig {
             .params
             .get("interval")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse interval: {}, cause: {}",
                         s.to_string(),
@@ -218,7 +218,7 @@ impl TaskConfig {
             .params
             .get("delay")
             .map(|s| {
-                let delay = parse_duration::parse(s).map_err(|err| {
+                let delay = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse delay: {}, cause: {}",
                         s.to_string(),

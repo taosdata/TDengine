@@ -50,7 +50,7 @@ itertools = { workspace = true }
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-parse_duration = "2.1"
+fundu.workspace = true
 scc = { version = "2", features = ["serde"] }
 semver = { version = "1.0.22" }
 serde = { version = "1", features = ["derive"] }

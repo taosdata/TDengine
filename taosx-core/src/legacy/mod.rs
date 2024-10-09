@@ -24,7 +24,7 @@ use tracing::{debug, info, instrument, warn, Instrument};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::{breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
+    utils::{self, breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
     Action,
 };
 
@@ -75,20 +75,20 @@ impl TableOpts {
         self
     }
 
-    pub fn from_params(dsn: &mut Dsn) -> Result<Self, parse_duration::parse::Error> {
+    pub fn from_params(dsn: &mut Dsn) -> Result<Self, fundu::ParseError> {
         let mut opts = Self::new();
         if let Some(value) = dsn
             .remove("retro")
             .or(dsn.remove("restro"))
             .or(dsn.remove("retrospect"))
         {
-            opts.restro = parse_duration::parse(&value)?;
+            opts.restro = utils::parse_duration(&value)?;
         }
         if let Some(value) = dsn.remove("interval") {
-            opts.interval = parse_duration::parse(&value)?;
+            opts.interval = utils::parse_duration(&value)?;
         }
         if let Some(value) = dsn.remove("excursion") {
-            opts.excursion = parse_duration::parse(&value)?;
+            opts.excursion = utils::parse_duration(&value)?;
         }
         Ok(opts)
     }
@@ -1903,7 +1903,7 @@ impl SourceOpts {
             opts.query.time_range.end.replace(value);
         }
         if let Some(value) = dsn.remove("unit") {
-            let value = parse_duration::parse(&value).map_err(|err| {
+            let value = utils::parse_duration(&value).map_err(|err| {
                 anyhow::format_err!(
                     "Can not parse duration for `unit` from value: {value} (Error: {err})"
                 )
@@ -1912,7 +1912,7 @@ impl SourceOpts {
         }
 
         if let Some(value) = dsn.remove("smooth-init") {
-            let value = parse_duration::parse(&value).map_err(|err| {
+            let value = utils::parse_duration(&value).map_err(|err| {
                 anyhow::format_err!(
                     "Can not parse duration for `smooth-init` from value: {value} (Error: {err})"
                 )
@@ -1959,7 +1959,7 @@ impl SourceOpts {
 
         // schema_polling_interval
         if let Some(value) = dsn.remove("schema-polling-interval") {
-            let value = parse_duration::parse(&value).map_err(|err| {
+            let value = utils::parse_duration(&value).map_err(|err| {
                 anyhow::format_err!(
                     "Can not parse duration for `schema-polling-interval` from value: {value} (Error: {err})"
                 )
@@ -1971,7 +1971,7 @@ impl SourceOpts {
         }
         // schema_polling_wait_before_end
         if let Some(value) = dsn.remove("schema-polling-wait-before-end") {
-            let value = parse_duration::parse(&value).map_err(|err| {
+            let value = utils::parse_duration(&value).map_err(|err| {
                 anyhow::format_err!(
                     "Can not parse duration for `schema-polling-wait-before-end` from value: {value} (Error: {err})"
                 )
@@ -2161,7 +2161,7 @@ impl TargetOpts {
                 .with_context(|| format!("invalid blocks-chunk-size value: {value}"))?;
         }
         if let Some(value) = to_dsn.remove("interval") {
-            let value = parse_duration::parse(&value)?;
+            let value = utils::parse_duration(&value)?;
             opts.interval.replace(value);
         }
         if let Some(value) = to_dsn.remove("max-sql-length") {
@@ -2184,7 +2184,7 @@ impl TargetOpts {
         }
 
         if let Some(value) = to_dsn.remove("timeout-per-table") {
-            let value = parse_duration::parse(&value)?;
+            let value = utils::parse_duration(&value)?;
             opts.timeout_per_table.replace(value);
         }
         if let Some(v) = to_dsn.remove("update-tags") {

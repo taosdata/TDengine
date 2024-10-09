@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use taos::Dsn;
+use taosx_core::utils;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -250,7 +251,7 @@ impl HintType {
                 }
             }
             HintType::Duration { value, .. } => {
-                if let Ok(duration) = parse_duration::parse(v) {
+                if let Ok(duration) = utils::parse_duration(v) {
                     value.replace(format!("{:?}", duration));
                     true
                 } else {
