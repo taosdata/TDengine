@@ -3809,13 +3809,13 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   if (TSDB_CODE_SUCCESS != tctx.code) {
-    taosArrayDestroy(group);
+    taosArrayDestroyEx(group, filterFreeGroup);
     code = tctx.code;
     goto _return;
   }
   code = filterConvertGroupFromArray(info, group);
   if (TSDB_CODE_SUCCESS != code) {
-    taosArrayDestroy(group);
+    taosArrayDestroyEx(group, filterFreeGroup);
     goto _return;
   }
   taosArrayDestroy(group);
