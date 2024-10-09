@@ -4049,37 +4049,39 @@ void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 #define MQ_DATA_RSP_VERSION 100
 
 typedef struct {
-  SMqRspHead   head;
-  STqOffsetVal reqOffset;
-  STqOffsetVal rspOffset;
-  int32_t      blockNum;
-  int8_t       withTbName;
-  int8_t       withSchema;
-  SArray*      blockDataLen;
-  SArray*      blockData;
-  SArray*      blockTbName;
-  SArray*      blockSchema;
-} SMqDataRspCommon;
+  struct {
+    SMqRspHead   head;
+    STqOffsetVal rspOffset;
+    STqOffsetVal reqOffset;
+    int32_t      blockNum;
+    int8_t       withTbName;
+    int8_t       withSchema;
+    SArray*      blockDataLen;
+    SArray*      blockData;
+    SArray*      blockTbName;
+    SArray*      blockSchema;
+  };
 
-typedef struct {
-  SMqDataRspCommon common;
-  int64_t          sleepTime;
+  union{
+    struct{
+      int64_t          sleepTime;
+    };
+    struct{
+      int32_t          createTableNum;
+      SArray*          createTableLen;
+      SArray*          createTableReq;
+    };
+  };
+
 } SMqDataRsp;
 
-int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const void* pRsp);
-int32_t tDecodeMqDataRsp(SDecoder* pDecoder, void* pRsp);
-void    tDeleteMqDataRsp(void* pRsp);
+int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pObj);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 
-typedef struct {
-  SMqDataRspCommon common;
-  int32_t          createTableNum;
-  SArray*          createTableLen;
-  SArray*          createTableReq;
-} STaosxRsp;
-
-int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const void* pRsp);
-int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
-void    tDeleteSTaosxRsp(void* pRsp);
+int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+void    tDeleteSTaosxRsp(SMqDataRsp* pRsp);
 
 typedef struct SMqBatchMetaRsp {
   SMqRspHead   head;  // not serialize
@@ -4164,6 +4166,7 @@ typedef struct {
 
 typedef struct {
   SArray* topicPrivileges;  // SArray<STopicPrivilege>
+  int32_t debugFlag;
 } SMqHbRsp;
 
 typedef struct {

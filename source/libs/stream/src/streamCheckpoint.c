@@ -903,7 +903,7 @@ static int32_t doChkptStatusCheck(SStreamTask* pTask) {
     return -1;
   }
 
-  if ((pTmrInfo->launchChkptId != pActiveInfo->activeId) || (pActiveInfo->activeId == 0)) {
+  if (pTmrInfo->launchChkptId != pActiveInfo->activeId) {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
            ", quit, ref:%d",
