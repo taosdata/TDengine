@@ -1181,13 +1181,13 @@ static void notifyAndDestroyReq(SCliConn* pConn, SCliReq* pReq, int32_t code) {
   }
 }
 
-static FORCE_INLINE void destroyReqInQueue(SCliConn* conn, queue* set) {
+static FORCE_INLINE void destroyReqInQueue(SCliConn* conn, queue* set, int32_t code) {
   while (!QUEUE_IS_EMPTY(set)) {
     queue* el = QUEUE_HEAD(set);
     QUEUE_REMOVE(el);
 
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
-    notifyAndDestroyReq(conn, pReq, 0);
+    notifyAndDestroyReq(conn, pReq, code);
   }
 }
 static FORCE_INLINE int32_t destroyAllReqs(SCliConn* conn) {
@@ -1202,7 +1202,7 @@ static FORCE_INLINE int32_t destroyAllReqs(SCliConn* conn) {
   transQueueRemoveByFilter(&conn->reqsSentOut, filterAllReq, NULL, &set, -1);
   transQueueRemoveByFilter(&conn->reqsToSend, filterAllReq, NULL, &set, -1);
 
-  destroyReqInQueue(conn, &set);
+  destroyReqInQueue(conn, &set, 0);
   return 0;
 }
 static void cliHandleException(SCliConn* conn) {
@@ -3654,7 +3654,7 @@ static int8_t cliConnRemoveTimeoutMsg(SCliConn* pConn) {
     return 0;
   }
   tDebug("%s conn %p do remove timeout msg", pInst->label, pConn);
-  destroyReqInQueue(pConn, &set);
+  destroyReqInQueue(pConn, &set, TSDB_CODE_RPC_TIMEOUT);
   return 1;
 }
 static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
