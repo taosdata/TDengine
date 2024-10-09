@@ -3220,22 +3220,26 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
     return true;
   }
 
-  // type 6
+  // type 6, float >= float, bool, tinyint, smallint, utinyint, usmallint
   if ((commonType->type == TSDB_DATA_TYPE_FLOAT &&
-       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_INT))) ||
+       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type < TSDB_DATA_TYPE_INT) || 
+       newType->type == TSDB_DATA_TYPE_UTINYINT || newType->type == TSDB_DATA_TYPE_USMALLINT))||
       (newType->type == TSDB_DATA_TYPE_FLOAT &&
-       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_INT)))) {
+       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type < TSDB_DATA_TYPE_INT) ||
+       commonType->type == TSDB_DATA_TYPE_UTINYINT || commonType->type == TSDB_DATA_TYPE_USMALLINT))) {
     *commonType = (commonType->type == TSDB_DATA_TYPE_FLOAT) ? *commonType : *newType;
     return true;
   }
-  //type 7
+  //type 7, double >= double bool, tinyint, smallint, int, utinyint, usmallint, uint,
   if ((commonType->type == TSDB_DATA_TYPE_DOUBLE &&
-       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type <= TSDB_DATA_TYPE_BIGINT) ||
-        newType->type == TSDB_DATA_TYPE_FLOAT ||
+       ((newType->type >= TSDB_DATA_TYPE_BOOL && newType->type < TSDB_DATA_TYPE_BIGINT) ||
+        newType->type == TSDB_DATA_TYPE_FLOAT || 
+        (newType->type >= TSDB_DATA_TYPE_UTINYINT && newType->type < TSDB_DATA_TYPE_UBIGINT) || 
         newType->type == TSDB_DATA_TYPE_DOUBLE)) ||
       (newType->type == TSDB_DATA_TYPE_DOUBLE &&
-       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type <= TSDB_DATA_TYPE_BIGINT) ||
+       ((commonType->type >= TSDB_DATA_TYPE_BOOL && commonType->type < TSDB_DATA_TYPE_BIGINT) ||
         commonType->type == TSDB_DATA_TYPE_FLOAT ||
+        (commonType->type >= TSDB_DATA_TYPE_UTINYINT && commonType->type < TSDB_DATA_TYPE_UBIGINT) ||
         commonType->type == TSDB_DATA_TYPE_DOUBLE))) {
     *commonType = (commonType->type == TSDB_DATA_TYPE_DOUBLE) ? *commonType : *newType;
     return true;
