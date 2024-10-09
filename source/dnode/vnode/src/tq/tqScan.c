@@ -77,6 +77,14 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
       tqError("failed to push tbName to blockTbName:%s", tbName);
       continue;
     }
+    int64_t suid = 0;
+    if(mr.me.type == TSDB_CHILD_TABLE){
+      suid = mr.me.ctbEntry.suid;
+    }
+    if(taosArrayPush(pRsp->blockSuid, &suid) == NULL){
+      tqError("failed to push suid to blockSuid:%"PRId64, suid);
+      continue;
+    }
   }
   metaReaderClear(&mr);
   return 0;
@@ -210,36 +218,26 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
 
     if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
       if (pRsp->withTbName) {
-        if (pOffset->type == TMQ_OFFSET__LOG) {
-          int64_t uid = pExec->pTqReader->lastBlkUid;
-          if (tqAddTbNameToRsp(pTq, uid, pRsp, 1) < 0) {
-            tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);
-            continue;
-          }
-        } else {
-          char* tbName = taosStrdup(qExtractTbnameFromTask(task));
-          if (tbName == NULL) {
-            tqError("vgId:%d, failed to add tbname to rsp msg, null", pTq->pVnode->config.vgId);
-            return terrno;
-          }
-          if (taosArrayPush(pRsp->blockTbName, &tbName) == NULL){
-            tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);
-            continue;
-          }
+        char* tbName = taosStrdup(qExtractTbnameFromTask(task));
+        if (tbName == NULL) {
+          tqError("vgId:%d, failed to add tbname to rsp msg, null", pTq->pVnode->config.vgId);
+          return terrno;
+        }
+        if (taosArrayPush(pRsp->blockTbName, &tbName) == NULL){
+          tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);
+          continue;
+        }
+        int64_t suid = qExtractSuidFromTask(task);
+        if (taosArrayPush(pRsp->blockSuid, &suid) == NULL){
+          tqError("vgId:%d, failed to add suid to rsp msg", pTq->pVnode->config.vgId);
+          continue;
         }
       }
       if (pRsp->withSchema) {
-        if (pOffset->type == TMQ_OFFSET__LOG) {
-          if (tqAddBlockSchemaToRsp(pExec, pRsp) != 0){
-            tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
-            continue;
-          }
-        } else {
-          SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
-          if(taosArrayPush(pRsp->blockSchema, &pSW) == NULL){
-            tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
-            continue;
-          }
+        SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
+        if(taosArrayPush(pRsp->blockSchema, &pSW) == NULL){
+          tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
+          continue;
         }
       }
 
@@ -249,12 +247,9 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
         continue;
       }
       pRsp->blockNum++;
-      if (pOffset->type == TMQ_OFFSET__LOG) {
-        continue;
-      } else {
-        rowCnt += pDataBlock->info.rows;
-        if (rowCnt <= tmqRowSize) continue;
-      }
+      rowCnt += pDataBlock->info.rows;
+      if (rowCnt <= tmqRowSize) continue;
+
     }
 
     // get meta

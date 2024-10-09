@@ -1856,6 +1856,42 @@ static threadlocal SHashObj*     pCreateTbHash = NULL;
 static threadlocal SHashObj*     pNameHash = NULL;
 static threadlocal SHashObj*     pMetaHash = NULL;
 
+static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW){
+  char* p = (char*)rawData;
+  // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each
+  // column length |
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(uint64_t);
+  int8_t* fields = p;
+
+  if (pSW->nCols != pTableMeta->tableInfo.numOfColumns) {
+    return true;
+  }
+  for (int i = 0; i < pSW->nCols; i++) {
+    int j = 0;
+    for (; j < pTableMeta->tableInfo.numOfColumns; j++) {
+      SSchema* pColSchema = &pTableMeta->schema[j];
+      char*    fieldName = pSW->pSchema[i].name;
+
+      if (strcmp(pColSchema->name, fieldName) == 0) {
+        if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+          return true;
+        }
+        break;
+      }
+    }
+    fields += sizeof(int8_t) + sizeof(int32_t);
+
+    if (j == pTableMeta->tableInfo.numOfColumns)
+      return true;
+  }
+  return false;
+}
+
 static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t dataLen) {
   if (taos == NULL || data == NULL) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL", taos, data);
@@ -1905,7 +1941,7 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
     RAW_NULL_CHECK(pNameHash);
   }
   if (pMetaHash == NULL){
-    pMetaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    pMetaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(pMetaHash);
     taosHashSetFreeFp(pMetaHash, taosMemoryFree);
   }
@@ -1930,6 +1966,9 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
 
     const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
     RAW_NULL_CHECK(tbName);
+
+    int64_t* suid = taosArrayGet(rspObj.dataRsp.blockSuid, rspObj.resIter);
+    RAW_NULL_CHECK(suid);
 
     uDebug(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
@@ -1960,14 +1999,19 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
       vgId = vg->vgId;
     }
 
+    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
+    RAW_NULL_CHECK(pSW);
+    void* rawData = getRawDataFromRes(pRetrieve);
+    RAW_NULL_CHECK(rawData);
+
     STableMeta* pTableMeta = NULL;
-    STableMeta** pTableMetaTmp = (STableMeta**)taosHashGet(pMetaHash, tbName, strlen(tbName));
-    if (pTableMetaTmp == NULL) {
+    STableMeta** pTableMetaTmp = (STableMeta**)taosHashGet(pMetaHash, suid, POINTER_BYTES);
+    if (pTableMetaTmp == NULL || needRefreshMeta(rawData, *pTableMetaTmp, pSW)) {
       if (pCreateReqDst) {  // change stable name to get meta
         (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
       }
       RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
-      code = taosHashPut(pMetaHash, tbName, strlen(tbName), &pTableMeta, POINTER_BYTES);
+      code = taosHashPut(pMetaHash, suid, POINTER_BYTES, &pTableMeta, POINTER_BYTES);
       if (code != 0){
         taosMemoryFree(pTableMeta);
         goto end;
@@ -1981,9 +2025,6 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
       pTableMeta = *pTableMetaTmp;
     }
 
-    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
-    RAW_NULL_CHECK(pSW);
-    void* rawData = getRawDataFromRes(pRetrieve);
     char  err[ERR_MSG_LEN] = {0};
     code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
     if (code != TSDB_CODE_SUCCESS) {

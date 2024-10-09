@@ -1212,6 +1212,11 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.tbName;
 }
 
+const int64_t qExtractSuidFromTask(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.suid;
+}
+
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return &pTaskInfo->streamInfo.btMetaRsp;
@@ -1494,6 +1499,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       tstrncpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName, TSDB_TABLE_NAME_LEN);
+      pTaskInfo->streamInfo.suid = mtInfo.suid;
       tDeleteSchemaWrapper(pTaskInfo->streamInfo.schema);
       pTaskInfo->streamInfo.schema = mtInfo.schema;
 
