@@ -32,7 +32,7 @@ extern "C" {
 
 typedef struct SSliceRowData {
   TSKEY                  key;
-  struct SResultCellData pRowVal[0];
+  struct SResultCellData pRowVal[1];
 } SSliceRowData;
 
 typedef struct SSlicePoint {
