@@ -1404,18 +1404,6 @@ dependencies = [
 
 [[package]]
 name = "config-derive"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfc37fc17408c2b76ce16ef36bb52e59f6fb686f9093ae1432cd64084d8afc03"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "config-derive"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c547326a30684f853601fb959cc8ecbd0d72abbdd27ba634850a918fa29afc4"
@@ -2004,15 +1992,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dirs"
-version = "5.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2020,18 +1999,6 @@ checksum = "b98cf8ebf19c3d1b223e151f99a4f9f0690dca41414773390fc824184ac833e1"
 dependencies = [
  "cfg-if",
  "dirs-sys-next",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -4410,12 +4377,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "option-ext"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
 name = "oracle"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5588,7 +5549,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rust-embed-utils",
- "shellexpand",
  "syn 2.0.77",
  "walkdir",
 ]
@@ -6196,15 +6156,6 @@ checksum = "09fa9338aed9a1df411814a5b2252f7cd206c55ae9bf2fa763f8de84603aa60c"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "shellexpand"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da03fa3b94cc19e3ebfc88c4229c49d8f08cdbd1228870a45f0ffdf84988e14b"
-dependencies = [
- "dirs",
 ]
 
 [[package]]
@@ -7013,9 +6964,9 @@ dependencies = [
  "tracing-actix-web",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "twelf 0.15.0",
+ "twelf",
  "utoipa",
- "utoipa-swagger-ui 7.1.0",
+ "utoipa-swagger-ui",
  "uuid",
  "zerocopy 0.8.3",
  "zstd 0.13.2",
@@ -7057,7 +7008,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
- "twelf 0.13.0",
+ "twelf",
  "uuid",
 ]
 
@@ -7171,7 +7122,7 @@ dependencies = [
  "tracing-core",
  "tracing-subscriber",
  "utoipa",
- "utoipa-swagger-ui 4.0.0",
+ "utoipa-swagger-ui",
  "uuid",
  "winapi",
  "zerocopy 0.8.3",
@@ -7853,29 +7804,12 @@ dependencies = [
 
 [[package]]
 name = "twelf"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a836d0756567d778d3139f3c695e5636bdf63fdbf969aebd6ebbedc142c5b74c"
-dependencies = [
- "clap",
- "config-derive 0.13.0",
- "envy",
- "log",
- "serde",
- "serde_json",
- "shellexpand",
- "thiserror",
- "toml 0.5.11",
-]
-
-[[package]]
-name = "twelf"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16de46d08a9d3a25e0a65bb70090797b970bd1e95d72872567ba8d02c0b03bdf"
 dependencies = [
  "clap",
- "config-derive 0.15.0",
+ "config-derive",
  "envy",
  "log",
  "serde",
@@ -8075,22 +8009,6 @@ dependencies = [
 
 [[package]]
 name = "utoipa-swagger-ui"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "154517adf0d0b6e22e8e1f385628f14fcaa3db43531dc74303d3edef89d6dfe5"
-dependencies = [
- "actix-web",
- "mime_guess",
- "regex",
- "rust-embed",
- "serde",
- "serde_json",
- "utoipa",
- "zip 0.6.6",
-]
-
-[[package]]
-name = "utoipa-swagger-ui"
 version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "943e0ff606c6d57d410fd5663a4d7c074ab2c5f14ab903b9514565e59fa1189e"
@@ -8104,7 +8022,7 @@ dependencies = [
  "serde_json",
  "url",
  "utoipa",
- "zip 1.1.4",
+ "zip",
 ]
 
 [[package]]
@@ -8721,18 +8639,6 @@ name = "zeroize"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
-
-[[package]]
-name = "zip"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "760394e246e4c28189f19d488c058bf16f564016aefac5d32bb1f3b51d5e9261"
-dependencies = [
- "byteorder",
- "crc32fast",
- "crossbeam-utils",
- "flate2",
-]
 
 [[package]]
 name = "zip"
