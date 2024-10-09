@@ -207,7 +207,7 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SDbCfgReq dbCfgReq = {0};
-  strncpy(dbCfgReq.db, input, sizeof(dbCfgReq.db) - 1);
+  tstrncpy(dbCfgReq.db, input, TSDB_DB_FNAME_LEN);
 
   int32_t bufLen = tSerializeSDbCfgReq(NULL, 0, &dbCfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -231,7 +231,7 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SUserIndexReq indexReq = {0};
-  strncpy(indexReq.indexFName, input, sizeof(indexReq.indexFName) - 1);
+  tstrncpy(indexReq.indexFName, input, TSDB_INDEX_FNAME_LEN);
 
   int32_t bufLen = tSerializeSUserIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -293,7 +293,7 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   }
 
   SGetUserAuthReq req = {0};
-  strncpy(req.user, input, sizeof(req.user) - 1);
+  tstrncpy(req.user, input, TSDB_USER_LEN);
 
   int32_t bufLen = tSerializeSGetUserAuthReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -316,7 +316,7 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   }
 
   STableIndexReq indexReq = {0};
-  strncpy(indexReq.tbFName, input, sizeof(indexReq.tbFName) - 1);
+  tstrncpy(indexReq.tbFName, input, TSDB_TABLE_FNAME_LEN);
 
   int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -342,8 +342,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   SBuildTableInput *pInput = input;
   STableCfgReq      cfgReq = {0};
   cfgReq.header.vgId = pInput->vgId;
-  strncpy(cfgReq.dbFName, pInput->dbFName, sizeof(cfgReq.dbFName) - 1);
-  strncpy(cfgReq.tbName, pInput->tbName, sizeof(cfgReq.tbName) - 1);
+  tstrncpy(cfgReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
+  tstrncpy(cfgReq.tbName, pInput->tbName, TSDB_TABLE_NAME_LEN);
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -367,7 +367,7 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
   }
 
   SViewMetaReq req = {0};
-  strncpy(req.fullname, input, sizeof(req.fullname) - 1);
+  tstrncpy(req.fullname, input, TSDB_VIEW_FNAME_LEN);
 
   int32_t bufLen = tSerializeSViewMetaReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -392,7 +392,7 @@ int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int3
   }
 
   STableTSMAInfoReq req = {0};
-  strncpy(req.name, input, sizeof(req.name) - 1);
+  tstrncpy(req.name, input, TSDB_TABLE_FNAME_LEN);
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
   void *  pBuf = (*mallcFp)(bufLen);
@@ -417,7 +417,7 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
 
   STableTSMAInfoReq req = {0};
   req.fetchingWithTsmaName = true;
-  strncpy(req.name, input, sizeof(req.name) - 1);
+  tstrncpy(req.name, input, TSDB_TABLE_FNAME_LEN);
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
   void *  pBuf = (*mallcFp)(bufLen);

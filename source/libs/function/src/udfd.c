@@ -617,7 +617,7 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
   }
   udfNew->refCount = 1;
   udfNew->lastFetchTime = taosGetTimestampMs();
-  strncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
 
   udfNew->state = UDF_STATE_INIT;
   if (uv_mutex_init(&udfNew->lock) != 0) return TSDB_CODE_UDF_UV_EXEC_FAILURE;
@@ -997,7 +997,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   udfdGetFuncBodyPath(udf, path);
   bool fileExist = !(taosStatFile(path, NULL, NULL, NULL) < 0);
   if (fileExist) {
-    strncpy(udf->path, path, PATH_MAX);
+    tstrncpy(udf->path, path, PATH_MAX);
     fnInfo("udfd func body file. reuse existing file %s", path);
     return TSDB_CODE_SUCCESS;
   }
@@ -1017,7 +1017,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
-  strncpy(udf->path, path, PATH_MAX);
+  tstrncpy(udf->path, path, PATH_MAX);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1612,7 +1612,7 @@ int32_t udfdInitResidentFuncs() {
   char *token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
     char func[TSDB_FUNC_NAME_LEN + 1] = {0};
-    strncpy(func, token, TSDB_FUNC_NAME_LEN);
+    tstrncpy(func, token, TSDB_FUNC_NAME_LEN);
     fnInfo("udfd add resident function %s", func);
     if(taosArrayPush(global.residentFuncs, func) == NULL)
     {
