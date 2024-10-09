@@ -476,6 +476,8 @@ void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray
   pIter->pBrinBlockList = pList;
 }
 
+static int32_t readx = 0;
+
 int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
   *pRecord = NULL;
 
@@ -492,6 +494,9 @@ int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
 
     tBrinBlockClear(&pIter->block);
     int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
+    readx += 1;
+    tsdbDebug("tsdbDataFileReadBinBlock func load times:%d", readx);
+
     if (code != TSDB_CODE_SUCCESS) {
       tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
       return code;
