@@ -320,6 +320,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
+        vError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+               " maxKey %" PRId64 " row key %" PRId64,
+               TD_VID(pVnode), submitTbData.uid, now, minKey, maxKey, ((TSKEY *)colData.pData)[iRow]);
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         goto _exit;
       }
@@ -340,6 +343,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       pCoder->pos += pRow->len;
 
       if (pRow->ts < minKey || pRow->ts > maxKey) {
+        vError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+               " maxKey %" PRId64 " row key %" PRId64,
+               TD_VID(pVnode), submitTbData.uid, now, minKey, maxKey, pRow->ts);
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         goto _exit;
       }
