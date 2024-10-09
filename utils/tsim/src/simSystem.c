@@ -27,7 +27,7 @@ char     simScriptDir[PATH_MAX] = {0};
 extern bool simExecSuccess;
 
 int32_t simInitCfg() {
-  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, NULL, 1);
+  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, NULL, LOG_MODE_TAOSC);
   taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1);
 
   SConfig *pCfg = taosGetCfg();

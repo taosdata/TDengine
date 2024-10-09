@@ -155,6 +155,12 @@ int32_t dmRunDnode(SDnode *pDnode) {
     return code;
   }
 
+  int64_t dndStarted = taosGetTimestampMs();
+  if (dndStarted == 0) {
+    ++dndStarted;
+  }
+  atomic_store_64(&tsDndStarted, dndStarted);
+
   while (1) {
     if (pDnode->stop) {
       dInfo("The daemon is about to stop");

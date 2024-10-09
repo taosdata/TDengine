@@ -19,7 +19,6 @@
 
 SShellObj shell = {0};
 
-
 void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGTERM);
   taosIgnSignal(SIGHUP);
@@ -48,6 +47,9 @@ int main(int argc, char *argv[]) {
   shell.args.timeout = SHELL_WS_TIMEOUT;
   shell.args.cloud = true;
   shell.args.local = false;
+#endif
+#ifdef TD_ACORE
+  tsAcoreOS = true;
 #endif
 
 #if 0
@@ -111,7 +113,7 @@ int main(int argc, char *argv[]) {
 
   // support port feature
   shellAutoInit();
-  int32_t ret = shellExecute();
+  int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
   return ret;
 }

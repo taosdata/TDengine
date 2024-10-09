@@ -264,7 +264,7 @@ TEST_F(StreamTest, plan_Test) {
   SNode *     pAst = NULL;
   SQueryPlan *pPlan = NULL;
 
-  if (taosCreateLog("taoslog", 10, "/etc/taos", NULL, NULL, NULL, NULL, 1) != 0) {
+  if (taosCreateLog("taoslog", 10, "/etc/taos", NULL, NULL, NULL, NULL, LOG_MODE_TAOSC) != 0) {
     // ignore create log failed, only print
     (void) printf(" WARING: Create failed:%s. configDir\n", strerror(errno));
   }

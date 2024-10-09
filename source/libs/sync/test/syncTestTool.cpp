@@ -351,7 +351,7 @@ int main(int argc, char** argv) {
 
   char logFile[256];
   snprintf(logFile, sizeof(logFile), "/tmp/%s-replicaNum%d-myIndex%d.log", gDir, replicaNum, myIndex);
-  taosInitLog(logFile, 100, false);
+  taosInitLog(logFile, 100, LOG_MODE_TAOSD);
   sTrace("logFile : %s", logFile);
 
   gSnapshotLastApplyIndex = lastApplyIndex;

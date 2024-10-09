@@ -111,6 +111,13 @@ typedef struct {
 #endif
 } SShellObj;
 
+#ifdef TD_ACORE
+typedef struct {
+  TdThread pid;
+  int32_t  stat;  // < 0: start failed, 0: init(not start), 1: start successfully
+} SDaemonObj;
+#endif
+
 typedef struct {
   char    *buffer;
   char    *command;
@@ -128,7 +135,7 @@ int32_t shellParseArgs(int32_t argc, char* argv[]);
 int32_t shellReadCommand(char* command);
 
 // shellEngine.c
-int32_t shellExecute();
+int32_t shellExecute(int argc, char *argv[]);
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);

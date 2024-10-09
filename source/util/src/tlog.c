@@ -215,7 +215,7 @@ int32_t taosInitSlowLog() {
   return 0;
 }
 
-int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
+int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   int32_t code = osUpdate();
   if (code != 0) {
@@ -223,7 +223,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   }
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
-  if (tsc){
+  if (mode & LOG_MODE_TAOSC) {
     TAOS_CHECK_RETURN(taosInitSlowLog());
   }
   TAOS_CHECK_RETURN(taosStartLog());
@@ -656,7 +656,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     }
   }
 
-  if (dflag & DEBUG_SCREEN) {
+  if (tsLogEmbedded && (dflag & DEBUG_SCREEN)) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
     if (write(1, buffer, (uint32_t)len) < 0) {

@@ -98,6 +98,7 @@ int32_t tsArbSetAssignedTimeoutSec = 30;
 int64_t tsDndStart = 0;
 int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
+int64_t tsDndStarted = 0;
 
 // dnode misc
 uint32_t tsEncryptionKeyChksum = 0;
@@ -272,6 +273,9 @@ int32_t tsTtlFlushThreshold = 100;   /* maximum number of dirty items in memory.
                                       * if -1, flush will not be triggered by write-ops
                                       */
 int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
+
+// misc
+bool tsAcoreOS = false;
 
 // internal
 int32_t tsTransPullupInterval = 2;
@@ -1650,11 +1654,15 @@ int32_t taosSetReleaseCfg(SConfig *pCfg);
 
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 
+static int8_t tsLogCreated = 0;
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+                      const char *envFile, char *apolloUrl, SArray *pArgs, ELogMode mode) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
   SConfig *pCfg = NULL;
+
+  if (atomic_val_compare_exchange_8(&tsLogCreated, 0, 1) != 0) return 0;
 
   if (tsCfg == NULL) {
     TAOS_CHECK_GOTO(osDefaultInit(), &lino, _exit);
@@ -1662,12 +1670,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   TAOS_CHECK_GOTO(cfgInit(&pCfg), &lino, _exit);
 
-  if (tsc) {
-    tsLogEmbedded = 0;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    tsLogEmbedded = 1;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+  tsLogEmbedded = (mode & LOG_MODE_TAOSC) ? 0 : 1;
+  TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosAddServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1681,10 +1687,8 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if (tsc) {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosSetServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1697,7 +1701,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
+  if ((code = taosInitLog(logname, logFileNum, mode)) != 0) {
     (void)printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }

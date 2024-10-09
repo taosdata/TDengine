@@ -125,7 +125,7 @@ typedef struct SRpcInit {
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
-  int8_t notWaitAvaliableConn;  // 1: wait to get, 0: no wait  
+  int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
   void   *parent;
 } SRpcInit;
 
@@ -181,6 +181,13 @@ int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
 
+#ifdef TD_ACORE
+enum transMsgType {
+  MSG_TYPE_CLIENT = 1,
+  MSG_TYPE_SVR = 2,
+  NSG_TYPE_SVR_STATUS = 3,
+}
+#endif
 #ifdef __cplusplus
 }
 #endif

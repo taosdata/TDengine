@@ -67,7 +67,7 @@ class PlannerEnv : public testing::Environment {
     taosRemoveDir(path);
     ASSERT_EQ(TSDB_CODE_SUCCESS,taosMkDir(path));
     tstrncpy(tsLogDir, path, PATH_MAX);
-    if (taosInitLog("taoslog", 1, false) != 0) {
+    if (taosInitLog("taoslog", 1, LOG_MODE_TAOSD) != 0) {
       std::cout << "failed to init log file" << std::endl;
     }
   }

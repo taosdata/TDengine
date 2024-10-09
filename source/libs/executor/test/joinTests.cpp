@@ -2884,7 +2884,7 @@ void jtInitLogFile() {
   qDebugFlag = 159;
   TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, LOG_MODE_TAOSD) < 0) {
     JT_PRINTF("failed to open log file in directory:%s\n", tsLogDir);
   }
 }

@@ -34,7 +34,7 @@ static int32_t parseArgs(int32_t argc, char *argv[]) {
 static int32_t initLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", "udfc");
-  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
+  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, LOG_MODE_TAOSD);
 }
 
 int scalarFuncTest() {
