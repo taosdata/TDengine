@@ -308,6 +308,7 @@ function run_thread() {
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
             echo "=========================log============================"
             cat "$case_log_file"
+            cat "/var/lib/taos/backup/checkpoint/rsync.log"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
             if [ -n "${web_server}" ]; then
