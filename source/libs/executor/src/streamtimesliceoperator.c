@@ -1807,7 +1807,8 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
         continue;
       }
       default:
-        ASSERTS(false, "invalid SSDataBlock type");
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
     }
 
     doStreamTimeSliceImpl(pOperator, pBlock);

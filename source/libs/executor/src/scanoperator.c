@@ -2375,7 +2375,6 @@ static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* p
     }
 
     STimeWindow scanRange = {0};
-    ASSERT(mode == STREAM_DELETE_RESULT || mode == STREAM_DELETE_DATA);
     code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, pInfo->pFillSup, &pInfo->interval, startData[i], endData[i], groupId,
                                 &scanRange);
     QUERY_CHECK_CODE(code, lino, _end);
