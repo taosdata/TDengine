@@ -81,11 +81,8 @@ typedef SOCKET eventfd_t;
 #endif
 #elif defined(_TD_DARWIN_64)
 #define TAOS_EPOLL_WAIT_TIME 500
-typedef int32_t SOCKET;
 #else
 #define TAOS_EPOLL_WAIT_TIME 500
-typedef int32_t SOCKET;
-typedef SOCKET  EpollFd;
 #define EpollClose(pollFd)   taosCloseSocket(pollFd)
 #endif
 
@@ -115,12 +112,8 @@ typedef SOCKET  EpollFd;
 #define __PDP_ENDIAN    PDP_ENDIAN
 #endif
 
-#ifndef SocketFd
 typedef int32_t SocketFd;
-#endif
-#ifndef EpollFd
 typedef SocketFd EpollFd;
-#endif
 
 typedef struct TdSocketServer *TdSocketServerPtr;
 typedef struct TdSocket       *TdSocketPtr;
