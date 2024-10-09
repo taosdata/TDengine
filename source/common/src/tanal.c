@@ -713,8 +713,8 @@ void    taosAnalCleanup() {}
 SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf) { return NULL; }
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
-bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return 0; }
-bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) { return 0; }
+bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return true; }
+bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) { return true; }
 int64_t taosAnalGetVersion() { return 0; }
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) {}
 
