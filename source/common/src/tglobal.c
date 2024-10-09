@@ -617,8 +617,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 256);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "shareConnLimit", tsShareConnLimit, 1, 256, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
-  tsReadTimeout = TRANGE(tsReadTimeout, 0, 24 * 3600);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsShareConnLimit, 0, 24 * 3600, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsReadTimeout, 64, 24 * 3600, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
   TAOS_CHECK_RETURN(
@@ -901,8 +901,8 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "readTimeout");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsShareConnLimit = TRANGE(tsShareConnLimit, 64, 24 * 3600);
-    pItem->i32 = tsShareConnLimit;
+    tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600);
+    pItem->i32 = tsReadTimeout;
     pItem->stype = stype;
   }
 
