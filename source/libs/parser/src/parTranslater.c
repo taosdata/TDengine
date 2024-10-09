@@ -10245,8 +10245,8 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[], int32_t defaultNum) {
-  for (int32_t i = 0; i < defaultNum; i++) {
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[]) {
+  for (int32_t i = 0; defaultName[i] != NULL; i++) {
     if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
       snprintf(aliasName, len, "%s", defaultName[i]);
       return;
@@ -10285,8 +10285,8 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
   }
   strcpy(pFunc->functionName, "_irowts");
   strcpy(pFunc->node.userAlias, "_irowts");
-  char* defaultName[] = {"_irowts"};
-  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
+  char* defaultName[] = {"_irowts", NULL};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
@@ -10324,8 +10324,8 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
   }
   strcpy(pFunc->functionName, "_wstart");
   strcpy(pFunc->node.userAlias, "_irowts");
-  char* defaultName[] = {"_wstart", "ts"};
-  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
+  char* defaultName[] = {"_wstart", "ts", NULL};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
