@@ -191,8 +191,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   if (pRsp->data != NULL) {
     (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
-    uInfo("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
-    // uInfo("curl response is received, len:%" PRId64, pRsp->dataLen);
+    uDebug("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
     return pRsp->dataLen;
   } else {
     pRsp->dataLen = 0;
@@ -216,7 +215,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 100);
 
-  uInfo("curl get request will sent, url:%s", url);
+  uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);
@@ -248,7 +247,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf);
 
-  uInfo("curl post request will sent, url:%s len:%d", url, bufLen);
+  uDebug("curl post request will sent, url:%s len:%d", url, bufLen);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);

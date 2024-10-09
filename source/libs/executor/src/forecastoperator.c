@@ -76,7 +76,7 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
   int32_t   lino = 0;
   SAnalBuf* pBuf = &pSupp->analBuf;
 
-  qInfo("block:%d, %p rows:%" PRId64, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
+  qDebug("block:%d, %p rows:%" PRId64, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
   pSupp->numOfBlocks++;
 
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
@@ -119,14 +119,14 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   int64_t start = pSupp->maxTs + every;
   bool    hasStart = taosAnalGetOptStr(pSupp->algoOpt, "start", NULL, 0);
   if (!hasStart) {
-    uInfo("forecast start not found from %s, use %" PRId64, pSupp->algoOpt, start);
+    qDebug("forecast start not found from %s, use %" PRId64, pSupp->algoOpt, start);
     code = taosAnalBufWriteOptInt(pBuf, "start", start);
     if (code != 0) return code;
   }
 
   bool hasEvery = taosAnalGetOptStr(pSupp->algoOpt, "every", NULL, 0);
   if (!hasEvery) {
-    uInfo("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
+    qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
     code = taosAnalBufWriteOptInt(pBuf, "every", every);
     if (code != 0) return code;
   }
@@ -350,7 +350,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       code = forecastCacheBlock(pSupp, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      qInfo("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
+      qDebug("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
       forecastAggregateBlocks(pSupp, pResBlock);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
@@ -361,18 +361,18 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     if (pResBlock->info.rows > 0) {
       (*ppRes) = pResBlock;
-      qInfo("group:%" PRId64 ", return to upstream, blocks:%d", pResBlock->info.id.groupId, numOfBlocks);
+      qDebug("group:%" PRId64 ", return to upstream, blocks:%d", pResBlock->info.id.groupId, numOfBlocks);
       return code;
     }
   }
 
   if (numOfBlocks > 0) {
-    qInfo("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
+    qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
     forecastAggregateBlocks(pSupp, pResBlock);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  qInfo("all groups finished, cost:%" PRId64 "us", cost);
+  qDebug("all groups finished, cost:%" PRId64 "us", cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -497,7 +497,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
 
   bool hasAlpha = taosAnalGetOptStr(pSupp->algoOpt, "alpha", NULL, 0);
   if (!hasAlpha) {
-    qInfo("forecast alpha not found from %s, use default:%f", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_ALPHA);
+    qDebug("forecast alpha not found from %s, use default:%f", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_ALPHA);
     code = taosAnalBufWriteOptFloat(pBuf, "alpha", ANAL_FORECAST_DEFAULT_ALPHA);
     if (code != 0) goto _OVER;
   }
@@ -505,14 +505,14 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   char tmpOpt[32] = {0};
   bool hasParam = taosAnalGetOptStr(pSupp->algoOpt, "param", tmpOpt, sizeof(tmpOpt));
   if (!hasParam) {
-    qInfo("forecast param not found from %s, use default:%s", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PARAM);
+    qDebug("forecast param not found from %s, use default:%s", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PARAM);
     code = taosAnalBufWriteOptStr(pBuf, "param", ANAL_FORECAST_DEFAULT_PARAM);
     if (code != 0) goto _OVER;
   }
 
   bool hasPeriod = taosAnalGetOptInt(pSupp->algoOpt, "period", NULL);
   if (!hasPeriod) {
-    qInfo("forecast period not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PERIOD);
+    qDebug("forecast period not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PERIOD);
     code = taosAnalBufWriteOptInt(pBuf, "period", ANAL_FORECAST_DEFAULT_PERIOD);
     if (code != 0) goto _OVER;
   }
@@ -520,7 +520,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
   if (!hasRows) {
     pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
-    qInfo("forecast rows not found from %s, use default:%d", pSupp->algoOpt, pSupp->optRows);
+    qDebug("forecast rows not found from %s, use default:%d", pSupp->algoOpt, pSupp->optRows);
     code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
     if (code != 0) goto _OVER;
   }
@@ -534,7 +534,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   if (returnConf) {
     bool hasConf = taosAnalGetOptStr(pSupp->algoOpt, "conf", NULL, 0);
     if (!hasConf) {
-      qInfo("forecast conf not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_CONF);
+      qDebug("forecast conf not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_CONF);
       code = taosAnalBufWriteOptInt(pBuf, "conf", ANAL_FORECAST_DEFAULT_CONF);
       if (code != 0) goto _OVER;
     }
@@ -630,7 +630,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
 
   *pOptrInfo = pOperator;
 
-  qInfo("forecast env is initialized, option:%s", pSupp->algoOpt);
+  qDebug("forecast env is initialized, option:%s", pSupp->algoOpt);
   return TSDB_CODE_SUCCESS;
 
 _error:
