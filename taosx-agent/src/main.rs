@@ -430,9 +430,11 @@ impl Args {
                 opts.merge_from(LogOpts::default());
             }
             None => {
-                let mut opts = LogOpts::default();
-                opts.level = Some(level_filter);
-                opts.path = log_home;
+                let opts = LogOpts {
+                    level: Some(level_filter),
+                    path: log_home,
+                    ..Default::default()
+                };
                 log = Some(opts);
             }
         }

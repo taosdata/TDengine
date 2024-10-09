@@ -67,7 +67,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create postgres query
     let mut config = PostgresConfig::from_dsn(dsn)?;
@@ -151,6 +151,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from postgres to taos
+
 pub async fn postgres_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -624,11 +625,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_postgres_to_taos");
+        let _span = tracing::info_span!("test_postgres_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = postgres_to_taos(
+        postgres_to_taos(
             from,
             parser,
             transform,
@@ -640,7 +641,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 

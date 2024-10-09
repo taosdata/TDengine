@@ -35,13 +35,13 @@ impl PostgresQuery {
     }
 
     async fn connect(
-        host: &String,
+        host: &str,
         port: u16,
-        subject: &String,
-        username: &String,
-        password: &String,
-        application_name: &String,
-        ssl_mode: &String,
+        subject: &str,
+        username: &str,
+        password: &str,
+        application_name: &str,
+        ssl_mode: &str,
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
@@ -54,7 +54,7 @@ impl PostgresQuery {
             .password(password)
             .database(subject)
             .application_name(application_name);
-        match ssl_mode.as_str() {
+        match ssl_mode {
             "DISABLE" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Disable);
                 Ok(PgPool::connect_with(options).await?)
@@ -127,6 +127,7 @@ impl PostgresQuery {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn select_by_stream<'a>(
         &mut self,
         sql: &'a str,

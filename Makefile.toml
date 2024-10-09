@@ -532,3 +532,24 @@ else
   upx_run target/${profile}/taosx-agent.exe target/deploy/taosx-agent.exe
 end
 """
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--check", "--all"]
+
+[tasks.clippy]
+command = "cargo"
+args = [
+  "clippy",
+  "--locked",
+  "--workspace",
+  "--tests",
+  "--examples",
+  "--all",
+  "--",
+  "--no-deps",
+  "-Dwarnings",
+]
+
+[tasks.pre-commit]
+dependencies = ["fmt", "clippy"]

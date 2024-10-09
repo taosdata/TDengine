@@ -571,6 +571,7 @@ fn generate_group_id(from: &Dsn, to: &Dsn) -> String {
 }
 
 #[instrument(skip_all)]
+
 async fn backup(
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,

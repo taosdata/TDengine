@@ -52,6 +52,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 
 /// OpentsDB DSN example: "opentsdb://127.0.0.1:4242/?beginTime=2023-05-01&endTime="
 #[instrument(skip_all)]
+
 pub async fn opentsdb_to_taos(
     from: Dsn,
     _actions: Vec<Action>,
@@ -133,7 +134,6 @@ pub async fn opentsdb_to_taos(
     let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
 
     let mut command = tokio::process::Command::new("java");
-    let child;
 
     // generate report or not
     let enable_coverage = if let Ok(val) = std::env::var("ENABLE_COVERAGE") {
@@ -158,23 +158,23 @@ pub async fn opentsdb_to_taos(
         vec!["-jar"]
     };
 
-    if jdk_version.contains("build 1.") {
-        child = command
+    let child = if jdk_version.contains("build 1.") {
+        command
             .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped());
+            .stderr(std::process::Stdio::piped())
     } else {
-        child = command
+        command
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped());
-    }
+            .stderr(std::process::Stdio::piped())
+    };
 
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
@@ -283,16 +283,15 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 if s.is_empty() {
                     anyhow::bail!("OpenTSDB connector returns OK, but result is nothing");
                 }
-                let mut vec = Vec::new();
-                vec.push(DataSet {
+
+                Ok(vec![DataSet {
                     id: s,
                     name: None,
                     category: None,
                     r#type: None,
                     options: None,
                     format: None,
-                });
-                Ok(vec)
+                }])
             } else {
                 match output.status.code() {
                     Some(101) => anyhow::bail!("Failed to connect, ip or port error"),

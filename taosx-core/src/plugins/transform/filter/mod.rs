@@ -23,8 +23,8 @@ impl TransformExt for Filter {
         &self,
         records: &arrow::record_batch::RecordBatch,
     ) -> Result<arrow::record_batch::RecordBatch, super::Error> {
-        let result = self.0.iter().fold(Ok(records.clone()), |result, filter| {
-            result.and_then(|result| filter.filter_records(&result))
+        let result = self.0.iter().try_fold(records.clone(), |result, filter| {
+            filter.filter_records(&result)
         });
         Ok(result.unwrap().clone())
     }

@@ -180,7 +180,7 @@ pub(crate) async fn send_task_metrics(
 ) -> Result<HttpResponse, Error> {
     let match_info = req.match_info();
     let task_id = match_info.get("task_id").unwrap();
-    let task_id = i64::from_str_radix(task_id, 10);
+    let task_id = task_id.parse::<i64>();
     if let Err(err) = task_id {
         return Err(Error::from(Failed::from_error(err)));
     }

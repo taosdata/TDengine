@@ -30,109 +30,287 @@ impl RecordFilter for MatchRecordFilter {
         let result = self
             .r#match
             .iter()
-            .fold(Ok(records.clone()), |result, map| {
-                result.and_then(|result| {
-                    // 每一行是否符合筛选条件
-                    let mut filter: Vec<bool> = vec![];
-                    // 根据名称获取列
-                    match result.column_by_name(map.0) {
-                        Some(column) => {
-                            // 匹配规则
-                            let value = map.1;
-                            // 判断列的数据类型
-                            match column.data_type() {
-                                arrow::datatypes::DataType::Boolean => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<BooleanArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_boolean() {
-                                                if data.unwrap() == value.as_bool().unwrap() {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
+            .try_fold(records.clone(), |result, map| {
+                // 每一行是否符合筛选条件
+                let mut filter: Vec<bool> = vec![];
+                // 根据名称获取列
+                match result.column_by_name(map.0) {
+                    Some(column) => {
+                        // 匹配规则
+                        let value = map.1;
+                        // 判断列的数据类型
+                        match column.data_type() {
+                            arrow::datatypes::DataType::Boolean => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<BooleanArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_boolean() {
+                                            if data.unwrap() == value.as_bool().unwrap() {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Int8 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Int8Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as i8 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Int16 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Int16Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as i16 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Int32 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Int32Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as i32 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Int64 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Int64Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::UInt8 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<UInt8Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as u8 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::UInt16 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<UInt16Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as u16 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::UInt32 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<UInt32Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as u32 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::UInt64 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<UInt64Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_i64() {
+                                            if data.unwrap() == value.as_i64().unwrap() as u64 {
+                                                filter.push(true);
+                                            } else {
+                                                filter.push(false);
+                                            }
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Float16 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Float16Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_f64() {
+                                            if data.unwrap().to_f32()
+                                                == value.as_f64().unwrap() as f32
                                             {
                                                 filter.push(true);
                                             } else {
                                                 filter.push(false);
                                             }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Int8 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Int8Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as i8 {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Float32 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Float32Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_f64() {
+                                            if data.unwrap() == value.as_f64().unwrap() as f32 {
                                                 filter.push(true);
                                             } else {
                                                 filter.push(false);
                                             }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Int16 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Int16Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as i16 {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Float64 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<Float64Array>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        if value.is_f64() {
+                                            if data.unwrap() == value.as_f64().unwrap() {
                                                 filter.push(true);
                                             } else {
                                                 filter.push(false);
                                             }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Int32 => {
+                                        } else if data.unwrap().to_string().as_str()
+                                            == value.as_str().unwrap()
+                                        {
+                                            filter.push(true);
+                                        } else {
+                                            filter.push(false);
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Timestamp(unit, None) => match unit {
+                                arrow::datatypes::TimeUnit::Second => {
                                     column
                                         .as_any()
-                                        .downcast_ref::<Int32Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as i32 {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
-                                                filter.push(true);
-                                            } else {
-                                                filter.push(false);
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Int64 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Int64Array>()
+                                        .downcast_ref::<TimestampSecondArray>()
                                         .unwrap()
                                         .iter()
                                         .for_each(|data| {
@@ -151,15 +329,15 @@ impl RecordFilter for MatchRecordFilter {
                                             }
                                         });
                                 }
-                                arrow::datatypes::DataType::UInt8 => {
+                                arrow::datatypes::TimeUnit::Millisecond => {
                                     column
                                         .as_any()
-                                        .downcast_ref::<UInt8Array>()
+                                        .downcast_ref::<TimestampMillisecondArray>()
                                         .unwrap()
                                         .iter()
                                         .for_each(|data| {
                                             if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as u8 {
+                                                if data.unwrap() == value.as_i64().unwrap() {
                                                     filter.push(true);
                                                 } else {
                                                     filter.push(false);
@@ -173,15 +351,15 @@ impl RecordFilter for MatchRecordFilter {
                                             }
                                         });
                                 }
-                                arrow::datatypes::DataType::UInt16 => {
+                                arrow::datatypes::TimeUnit::Microsecond => {
                                     column
                                         .as_any()
-                                        .downcast_ref::<UInt16Array>()
+                                        .downcast_ref::<TimestampMicrosecondArray>()
                                         .unwrap()
                                         .iter()
                                         .for_each(|data| {
                                             if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as u16 {
+                                                if data.unwrap() == value.as_i64().unwrap() {
                                                     filter.push(true);
                                                 } else {
                                                     filter.push(false);
@@ -195,15 +373,15 @@ impl RecordFilter for MatchRecordFilter {
                                             }
                                         });
                                 }
-                                arrow::datatypes::DataType::UInt32 => {
+                                arrow::datatypes::TimeUnit::Nanosecond => {
                                     column
                                         .as_any()
-                                        .downcast_ref::<UInt32Array>()
+                                        .downcast_ref::<TimestampNanosecondArray>()
                                         .unwrap()
                                         .iter()
                                         .for_each(|data| {
                                             if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as u32 {
+                                                if data.unwrap() == value.as_i64().unwrap() {
                                                     filter.push(true);
                                                 } else {
                                                     filter.push(false);
@@ -217,349 +395,167 @@ impl RecordFilter for MatchRecordFilter {
                                             }
                                         });
                                 }
-                                arrow::datatypes::DataType::UInt64 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<UInt64Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_i64() {
-                                                if data.unwrap() == value.as_i64().unwrap() as u64 {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
-                                                filter.push(true);
-                                            } else {
-                                                filter.push(false);
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Float16 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Float16Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_f64() {
-                                                if data.unwrap().to_f32()
-                                                    == value.as_f64().unwrap() as f32
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
-                                                filter.push(true);
-                                            } else {
-                                                filter.push(false);
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Float32 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Float32Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_f64() {
-                                                if data.unwrap() == value.as_f64().unwrap() as f32 {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
-                                                filter.push(true);
-                                            } else {
-                                                filter.push(false);
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Float64 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<Float64Array>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            if value.is_f64() {
-                                                if data.unwrap() == value.as_f64().unwrap() {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            } else if data.unwrap().to_string().as_str()
-                                                == value.as_str().unwrap()
-                                            {
-                                                filter.push(true);
-                                            } else {
-                                                filter.push(false);
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Timestamp(unit, None) => match unit {
-                                    arrow::datatypes::TimeUnit::Second => {
-                                        column
-                                            .as_any()
-                                            .downcast_ref::<TimestampSecondArray>()
-                                            .unwrap()
-                                            .iter()
-                                            .for_each(|data| {
-                                                if value.is_i64() {
-                                                    if data.unwrap() == value.as_i64().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                } else if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            });
-                                    }
-                                    arrow::datatypes::TimeUnit::Millisecond => {
-                                        column
-                                            .as_any()
-                                            .downcast_ref::<TimestampMillisecondArray>()
-                                            .unwrap()
-                                            .iter()
-                                            .for_each(|data| {
-                                                if value.is_i64() {
-                                                    if data.unwrap() == value.as_i64().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                } else if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            });
-                                    }
-                                    arrow::datatypes::TimeUnit::Microsecond => {
-                                        column
-                                            .as_any()
-                                            .downcast_ref::<TimestampMicrosecondArray>()
-                                            .unwrap()
-                                            .iter()
-                                            .for_each(|data| {
-                                                if value.is_i64() {
-                                                    if data.unwrap() == value.as_i64().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                } else if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            });
-                                    }
-                                    arrow::datatypes::TimeUnit::Nanosecond => {
-                                        column
-                                            .as_any()
-                                            .downcast_ref::<TimestampNanosecondArray>()
-                                            .unwrap()
-                                            .iter()
-                                            .for_each(|data| {
-                                                if value.is_i64() {
-                                                    if data.unwrap() == value.as_i64().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                } else if data.unwrap().to_string().as_str()
-                                                    == value.as_str().unwrap()
-                                                {
-                                                    filter.push(true);
-                                                } else {
-                                                    filter.push(false);
-                                                }
-                                            });
-                                    }
-                                },
-                                arrow::datatypes::DataType::Binary => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<BinaryArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            match regex::Regex::new(value.as_str().unwrap()) {
-                                                Ok(regex) => {
-                                                    if regex.is_match(
-                                                        String::from_utf8(data.unwrap().to_vec())
-                                                            .unwrap()
-                                                            .as_str(),
-                                                    ) {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    if String::from_utf8(data.unwrap().to_vec())
+                            },
+                            arrow::datatypes::DataType::Binary => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<BinaryArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        match regex::Regex::new(value.as_str().unwrap()) {
+                                            Ok(regex) => {
+                                                if regex.is_match(
+                                                    String::from_utf8(data.unwrap().to_vec())
                                                         .unwrap()
-                                                        .as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                                        .as_str(),
+                                                ) {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
                                                 }
                                             }
-                                        });
-                                }
-                                arrow::datatypes::DataType::FixedSizeBinary(_) => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<FixedSizeBinaryArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            match regex::Regex::new(value.as_str().unwrap()) {
-                                                Ok(regex) => {
-                                                    if regex.is_match(
-                                                        String::from_utf8(data.unwrap().to_vec())
-                                                            .unwrap()
-                                                            .as_str(),
-                                                    ) {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    if String::from_utf8(data.unwrap().to_vec())
-                                                        .unwrap()
-                                                        .as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
+                                            Err(_) => {
+                                                if String::from_utf8(data.unwrap().to_vec())
+                                                    .unwrap()
+                                                    .as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
                                                 }
                                             }
-                                        });
-                                }
-                                arrow::datatypes::DataType::LargeBinary => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<LargeBinaryArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            match regex::Regex::new(value.as_str().unwrap()) {
-                                                Ok(regex) => {
-                                                    if regex.is_match(
-                                                        String::from_utf8(data.unwrap().to_vec())
-                                                            .unwrap()
-                                                            .as_str(),
-                                                    ) {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    if String::from_utf8(data.unwrap().to_vec())
-                                                        .unwrap()
-                                                        .as_str()
-                                                        == value.as_str().unwrap()
-                                                    {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::Utf8 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<StringArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            match regex::Regex::new(value.as_str().unwrap()) {
-                                                Ok(regex) => {
-                                                    if regex.is_match(data.unwrap()) {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    if data.unwrap() == value.as_str().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                            }
-                                        });
-                                }
-                                arrow::datatypes::DataType::LargeUtf8 => {
-                                    column
-                                        .as_any()
-                                        .downcast_ref::<LargeStringArray>()
-                                        .unwrap()
-                                        .iter()
-                                        .for_each(|data| {
-                                            match regex::Regex::new(value.as_str().unwrap()) {
-                                                Ok(regex) => {
-                                                    if regex.is_match(data.unwrap()) {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    if data.unwrap() == value.as_str().unwrap() {
-                                                        filter.push(true);
-                                                    } else {
-                                                        filter.push(false);
-                                                    }
-                                                }
-                                            }
-                                        });
-                                }
-                                _ => todo!(),
+                                        }
+                                    });
                             }
-                        }
-                        None => {
-                            // 没有符合的列则默认全部保留
-                            let num = records.num_rows();
-                            for _ in 1..num {
-                                filter.push(true);
+                            arrow::datatypes::DataType::FixedSizeBinary(_) => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<FixedSizeBinaryArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        match regex::Regex::new(value.as_str().unwrap()) {
+                                            Ok(regex) => {
+                                                if regex.is_match(
+                                                    String::from_utf8(data.unwrap().to_vec())
+                                                        .unwrap()
+                                                        .as_str(),
+                                                ) {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                            Err(_) => {
+                                                if String::from_utf8(data.unwrap().to_vec())
+                                                    .unwrap()
+                                                    .as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                        }
+                                    });
                             }
+                            arrow::datatypes::DataType::LargeBinary => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<LargeBinaryArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        match regex::Regex::new(value.as_str().unwrap()) {
+                                            Ok(regex) => {
+                                                if regex.is_match(
+                                                    String::from_utf8(data.unwrap().to_vec())
+                                                        .unwrap()
+                                                        .as_str(),
+                                                ) {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                            Err(_) => {
+                                                if String::from_utf8(data.unwrap().to_vec())
+                                                    .unwrap()
+                                                    .as_str()
+                                                    == value.as_str().unwrap()
+                                                {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::Utf8 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<StringArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        match regex::Regex::new(value.as_str().unwrap()) {
+                                            Ok(regex) => {
+                                                if regex.is_match(data.unwrap()) {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                            Err(_) => {
+                                                if data.unwrap() == value.as_str().unwrap() {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                        }
+                                    });
+                            }
+                            arrow::datatypes::DataType::LargeUtf8 => {
+                                column
+                                    .as_any()
+                                    .downcast_ref::<LargeStringArray>()
+                                    .unwrap()
+                                    .iter()
+                                    .for_each(|data| {
+                                        match regex::Regex::new(value.as_str().unwrap()) {
+                                            Ok(regex) => {
+                                                if regex.is_match(data.unwrap()) {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                            Err(_) => {
+                                                if data.unwrap() == value.as_str().unwrap() {
+                                                    filter.push(true);
+                                                } else {
+                                                    filter.push(false);
+                                                }
+                                            }
+                                        }
+                                    });
+                            }
+                            _ => todo!(),
                         }
-                    };
-                    let filter = BooleanArray::from(filter);
-                    arrow::compute::filter_record_batch(&result, &filter)
-                })
+                    }
+                    None => {
+                        // 没有符合的列则默认全部保留
+                        let num = records.num_rows();
+                        filter.extend(vec![true; num - 1]);
+                    }
+                };
+                let filter = BooleanArray::from(filter);
+                arrow::compute::filter_record_batch(&result, &filter)
             });
         Ok(result.unwrap().clone())
     }

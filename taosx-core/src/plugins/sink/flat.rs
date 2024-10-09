@@ -103,7 +103,7 @@ impl Records {
         self.stable.as_deref()
     }
 }
-impl<'a> AsRef<str> for Records {
+impl AsRef<str> for Records {
     fn as_ref(&self) -> &str {
         self.sql.as_str()
     }
@@ -1207,6 +1207,7 @@ async fn consume_flat_record_with_sink(
 
 #[framed]
 #[instrument(skip_all)]
+
 pub async fn ipc_flat_stream_worker_vgroup(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1301,11 +1302,10 @@ pub async fn ipc_flat_stream_worker_vgroup(
                                 ),
                             };
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
-                            if ipc_error_strategy.will_stop() {
-                                Err(err).context("write batch error")?;
-                            } else if notifier
-                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
-                                .is_err()
+                            if ipc_error_strategy.will_stop()
+                                || notifier
+                                    .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                    .is_err()
                             {
                                 Err(err).context("write batch error")?;
                             }
@@ -1384,6 +1384,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
 #[framed]
 #[instrument(skip_all)]
+
 pub async fn ipc_flat_stream_worker_vgroup_sequential(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1460,11 +1461,10 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                             ),
                         };
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
-                        if ipc_error_strategy.will_stop() {
-                            Err(err).context("write batch error")?;
-                        } else if notifier
-                            .send(crate::TaskNotify::Error(format!("{:#}", err)))
-                            .is_err()
+                        if ipc_error_strategy.will_stop()
+                            || notifier
+                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                .is_err()
                         {
                             Err(err).context("write batch error")?;
                         }
@@ -1521,6 +1521,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
 
 #[framed]
 #[instrument(skip_all, fields(precision = %target_precision))]
+
 pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1867,7 +1868,7 @@ mod tests {
             VarBinary(_) => {
                 let mut builder = StringBuilder::new();
                 for _ in 0..len {
-                    builder.append_value("\\x0102030405060708090a0b0c0d0e0f10".to_string());
+                    builder.append_value("\\x0102030405060708090a0b0c0d0e0f10");
                 }
                 Arc::new(builder.finish())
             }

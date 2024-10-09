@@ -34,13 +34,13 @@ impl MySqlQuery {
     }
 
     async fn connect(
-        host: &String,
+        host: &str,
         port: u16,
-        subject: &String,
-        username: &String,
-        password: &String,
-        charset: &String,
-        ssl_mode: &String,
+        subject: &str,
+        username: &str,
+        password: &str,
+        charset: &str,
+        ssl_mode: &str,
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
@@ -54,7 +54,7 @@ impl MySqlQuery {
             .database(subject)
             .charset(charset)
             .timezone(time_zone);
-        match ssl_mode.as_str() {
+        match ssl_mode {
             "DISABLED" => {
                 options = options.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
                 Ok(MySqlPool::connect_with(options).await?)
@@ -156,6 +156,7 @@ impl MySqlQuery {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn select_by_stream<'a>(
         &mut self,
         sql: &'a str,

@@ -630,11 +630,7 @@ impl LushInsertAttrs {
     pub fn to_sql(&self, table_name: Option<&str>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
             let tags = self.tags.as_ref().unwrap();
-            let table = if table_name.is_none() {
-                &self.name
-            } else {
-                table_name.unwrap()
-            };
+            let table = table_name.unwrap_or(&self.name);
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
             let values = tags.iter().map(|(_, value)| value.to_sql_value()).join(",");
             Some(format!(
@@ -1040,8 +1036,8 @@ impl LushMessageInsert {
     /// return (sqls to executes, )
     pub fn generate_insert_sql_from_tablename<'b>(
         &self,
-        data: &Vec<ColumnView>,
-        columns: &'b Vec<String>,
+        data: &[ColumnView],
+        columns: &'b [String],
     ) -> Option<(Vec<String>, HashMap<&'b String, IpcDataType>)> {
         let index = self
             .records

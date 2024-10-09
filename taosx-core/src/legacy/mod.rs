@@ -124,10 +124,7 @@ impl Limit {
     // }
 
     pub fn is_none(&self) -> bool {
-        match (self.limit, self.offset) {
-            (0 | u32::MAX, None) => true,
-            _ => false,
-        }
+        matches!((self.limit, self.offset), (0 | u32::MAX, None))
     }
 }
 
@@ -592,7 +589,7 @@ async fn sync_single_table_partial(
     stable: &Option<Arc<String>>,
     table: &Arc<String>,
     to: &Taos,
-    actions: &Vec<Action>,
+    actions: &[Action],
     opts: &QueryOpts,
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
@@ -660,7 +657,7 @@ async fn sync_single_table_partial(
                 target.clone(),
                 TableTodo::new(new_table_name.clone(), stable.clone()),
             ),
-            actions: actions.clone(),
+            actions: actions.to_vec(),
             target_opts: target_opts.clone(),
             metrics_arc: metrics_arc.clone(),
             remap: remap.map(Clone::clone),
@@ -1497,7 +1494,7 @@ async fn sync_schema(
     }
 
     // wait for all stable tasks done
-    while let Some(_) = readers.try_next().await?.transpose()? {}
+    while readers.try_next().await?.transpose()?.is_some() {}
 
     if !todo.stables.is_empty() {
         info!(tables, "STables syncing done");
@@ -1940,7 +1937,8 @@ impl SourceOpts {
                 let f = std::fs::File::open(&file[1..])?;
                 let buf = std::io::BufReader::new(f);
                 use std::io::prelude::*;
-                tables.extend(buf.lines().filter_map(|l| l.ok()));
+                #[allow(clippy::lines_filter_map_ok)]
+                tables.extend(buf.lines().filter_map(Result::ok));
             }
 
             if !tables.is_empty() {
@@ -1992,6 +1990,7 @@ impl SourceOpts {
                 let f = std::fs::File::open(&file[1..])?;
                 let buf = std::io::BufReader::new(f);
                 use std::io::prelude::*;
+                #[allow(clippy::lines_filter_map_ok)]
                 tables.extend(buf.lines().filter_map(|l| l.ok()));
             }
             if !tables.is_empty() {
@@ -2207,20 +2206,16 @@ impl TargetOpts {
                 value
                     .split(",")
                     .filter_map(|s| {
-                        if s.starts_with('@') {
-                            Some(
-                                std::fs::File::open(&s[1..])
-                                    .context("open remap file error")
-                                    .map(|f| {
-                                        csv_lib::ReaderBuilder::new()
-                                            .has_headers(false)
-                                            .flexible(true)
-                                            .from_reader(f)
-                                    }),
-                            )
-                        } else {
-                            None
-                        }
+                        s.strip_prefix('@').map(|s| {
+                            std::fs::File::open(s)
+                                .context("open remap file error")
+                                .map(|f| {
+                                    csv_lib::ReaderBuilder::new()
+                                        .has_headers(false)
+                                        .flexible(true)
+                                        .from_reader(f)
+                                })
+                        })
                     })
                     .map_ok(|mut buf| {
                         let iter = buf.records();
@@ -3640,7 +3635,7 @@ fn database_options_3to2(options: &str) -> Option<String> {
     Option::Some(result)
 }
 
-fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
+fn process_option_pair(option: &str, option_value: &str) -> String {
     match option {
         "BUFFER" => {
             let value_result = String::from(option_value).parse::<u32>();

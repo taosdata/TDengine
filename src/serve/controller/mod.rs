@@ -225,21 +225,22 @@ pub enum AgentAction {
 //     }
 // }
 
+type TaskMap = HashMap<
+    i64,
+    (
+        tokio::task::JoinHandle<Result<(), anyhow::Error>>,
+        CancellationToken,
+    ),
+>;
+
 pub(crate) struct TaskController {
     pub pool: SqlitePool,
-    pub tasks: RwLock<
-        HashMap<
-            i64,
-            (
-                tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-                CancellationToken,
-            ),
-        >,
-    >,
+    pub tasks: RwLock<TaskMap>,
     pub secret: RwLock<Option<Bytes>>,
     /// An Agent-to-Tasks-Vector hashmap.
     // pub agent_tasks: RwLock<HashMap<i64, AgentTasks>>,
     // An Task-to-Assignments-Vector hashmap.
+    #[allow(clippy::type_complexity)]
     pub offsets: RwLock<HashMap<i64, Arc<DashMap<String, Vec<Assignment>>>>>,
     // pub agent_workers: RwLock<HashMap<i64, AgentWorker>>
     // tasks: Mutex<Vec<Task>>,
@@ -829,7 +830,7 @@ impl TaskController {
 
     pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
         tracing::info!("list tasks");
-        let condition = filter.to_sql_conditions()?;
+        let condition = filter.gen_sql_conditions()?;
         let mut tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
@@ -2755,8 +2756,8 @@ impl TaskDetail {
         let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        if lang.is_some() {
-            match lang.unwrap().as_str() {
+        if let Some(lang) = lang {
+            match lang.as_str() {
                 "zh" => TaskDetail {
                     from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
                     from_detail: DATA_SOURCE_DEFINITIONS_CN
@@ -3210,7 +3211,7 @@ pub struct TaskDecorator {
 }
 
 impl TaskFilter {
-    pub fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
+    pub fn gen_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
         use std::fmt::Write;
         let mut sql = String::new();
         if !self.with_deleted.unwrap_or_default() {

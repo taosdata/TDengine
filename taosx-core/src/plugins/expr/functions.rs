@@ -52,6 +52,7 @@ pub fn add_or_set(lhs: Dynamic, rhs: Dynamic) -> Dynamic {
                 }
             }
             (lt, rt) if lt == t_s || rt == t_s => Dynamic::from(format!("{}{}", lhs, rhs)),
+            #[allow(clippy::nonminimal_bool)]
             (lt, rt) if (lt == t_f && rt == t_i) || (rt == t_f && rt == t_i) => {
                 Dynamic::from(lhs.cast::<FLOAT>() + rhs.cast::<FLOAT>())
             }

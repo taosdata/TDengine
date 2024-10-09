@@ -189,7 +189,7 @@ pub async fn migrate_history_by_subtable(
         });
     }
     let futures = async {
-        while let Some(_) = migrate_join_set.join_next().await.transpose()? {}
+        while migrate_join_set.join_next().await.transpose()?.is_some() {}
         anyhow::Ok(())
     };
 

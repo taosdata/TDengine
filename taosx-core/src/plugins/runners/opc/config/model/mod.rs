@@ -410,11 +410,11 @@ fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<I
             if val.is_empty() {
                 return Ok(None);
             }
-            let value_type = IpcDataType::from_str(val);
-            if value_type.is_err() {
-                bail!("invalid column data type: {}", val)
-            } else {
-                Ok(Some(value_type.unwrap()))
+            match IpcDataType::from_str(val) {
+                Err(_e) => {
+                    bail!("invalid column data type: {}", val)
+                }
+                Ok(value_type) => Ok(Some(value_type)),
             }
         })
         .unwrap_or(Ok(None))

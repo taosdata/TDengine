@@ -51,7 +51,7 @@ impl OpcType {
     /// opc+ua:// -> OPCUA
     /// opc+da:// -> OPCDA
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let fake = dsn.params.get("fake").is_some();
+        let fake = dsn.params.contains_key("fake");
         if fake {
             return Ok(Self::FAKE);
         }
@@ -128,6 +128,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 
 /// OPC dataIn task
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
+
 pub async fn opc_to_taos(
     from: Dsn,
     _actions: Vec<Action>,
@@ -326,7 +327,7 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
-fn csv_string_record_from_iter<'a, I>(iter: I) -> String
+fn csv_string_record_from_iter<I>(iter: I) -> String
 where
     I: IntoIterator<Item = String>,
 {
@@ -384,8 +385,8 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
-fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<IpcDataType>) -> String {
-    let mut stable = stable_expr.clone();
+fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDataType>) -> String {
+    let mut stable = stable_expr.to_string();
     if stable_expr.contains(".") {
         stable = stable.replace(".", "_");
     }

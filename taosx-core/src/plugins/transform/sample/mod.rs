@@ -111,7 +111,7 @@ impl DsSampleIn {
     }
 
     fn to_schema_by_first_input(
-        input: &Vec<LinkedHashMap<String, serde_json::Value>>,
+        input: &[LinkedHashMap<String, serde_json::Value>],
         schema: Option<arrow::datatypes::Schema>,
     ) -> Option<arrow::datatypes::Schema> {
         if input.is_empty() {

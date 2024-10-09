@@ -56,6 +56,9 @@ features = ["ws", "optin", "deadpool"]
 version = "1.8.0"
 rust-version = "1.78.0"
 
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+
 [package]
 name = "taosx"
 version.workspace = true
@@ -265,3 +268,6 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+
+[lints]
+workspace = true

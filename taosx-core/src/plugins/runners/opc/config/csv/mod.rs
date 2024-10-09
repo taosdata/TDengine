@@ -280,8 +280,7 @@ impl CsvParser {
         let model_config = CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone()).await?;
         model_config.validate()?;
 
-        if csv_file.starts_with("@") {
-            let file_path = &csv_file[1..];
+        if let Some(file_path) = csv_file.strip_prefix("@") {
             let mut file = File::create(file_path).await?;
             file.write_all(new_csv.as_bytes()).await?;
         } else {
@@ -293,8 +292,7 @@ impl CsvParser {
 
     /// 如果 csv 以 @ 开头， 从文件中读， 否则从字符串中读
     pub async fn open_csv(csv: String) -> anyhow::Result<AsyncReader<File>> {
-        let rdr = if csv.starts_with("@") {
-            let file_path = &csv[1..];
+        let rdr = if let Some(file_path) = csv.strip_prefix("@") {
             Self::load_csv_with_path(file_path).await?
         } else {
             Self::load_csv_with_string(&csv, true).await?
@@ -586,8 +584,7 @@ impl CsvParser {
             .first()
             .ok_or(anyhow::anyhow!("csv_file not found"))?;
 
-        if csv.starts_with("@") {
-            let file_path = &csv[1..];
+        if let Some(file_path) = csv.strip_prefix("@") {
             let content = tokio::fs::read_to_string(file_path)
                 .await
                 .map_err(|err| anyhow::anyhow!("failed to read csv file: {}", err))?;

@@ -239,8 +239,7 @@ mod tests {
         use taos::{Inlinable, InlinableWrite};
 
         let header = Header::new("1.6.0", "3.3.0.0", "abc".to_string());
-        let mut bytes = Vec::new();
-        bytes.resize(32, 0);
+        let mut bytes = vec![0; 32];
 
         let len = bytes.as_mut_slice().write_inlinable(&header).unwrap();
         assert!(len > 0);

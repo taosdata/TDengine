@@ -449,6 +449,7 @@ impl ReplicaConfig {
             return Ok(None);
         }
 
+        #[allow(clippy::mutable_key_type)]
         let replicas = replicas
             .into_iter()
             .map(ReplicaTaskInner::parse)
@@ -512,6 +513,7 @@ impl ReplicaConfig {
             return Ok(vec![]);
         }
 
+        #[allow(clippy::mutable_key_type)]
         let replicas = replicas
             .into_iter()
             .map(ReplicaTaskInner::parse)
@@ -1238,7 +1240,7 @@ mod tests {
         rep2.subscribe(["rep2".to_string()]).await.unwrap();
 
         let replica_runner = |consumer: taos::Consumer, target: &'static str| async move {
-            let taos = taos::TaosBuilder::from_dsn(&format!("taos:///{}", target))?
+            let taos = taos::TaosBuilder::from_dsn(format!("taos:///{}", target))?
                 .build()
                 .await?;
             let mut stream = consumer.stream_with_timeout(taos::Timeout::from_millis(1000));
@@ -1250,7 +1252,10 @@ mod tests {
                 match message {
                     MessageSet::Data(data) => {
                         let raw = data.as_raw_data().await?;
-                        taos.write_raw_meta(unsafe { &transmute(raw) }).await?;
+                        taos.write_raw_meta(unsafe {
+                            &transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
+                        })
+                        .await?;
                     }
                     MessageSet::Meta(data) => {
                         println!("{target}: {:?}", data.as_json_meta().await?);

@@ -203,8 +203,8 @@ impl OPCConfig {
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
         let debug = dsn.params.get("debug");
-        if debug.is_some() {
-            return Ok(debug.unwrap().parse::<bool>().unwrap_or(false));
+        if let Some(debug) = debug {
+            return Ok(debug.parse::<bool>().unwrap_or(false));
         }
 
         Ok(dsn

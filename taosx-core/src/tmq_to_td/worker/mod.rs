@@ -236,7 +236,7 @@ impl WriteOptions {
         metrics.add_messages_of_data(1);
         Ok(RawMessage::data_only(
             self.next_mid(),
-            unsafe { std::mem::transmute(raw) },
+            unsafe { std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw) },
             vec,
         ))
         // } else {

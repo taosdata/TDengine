@@ -101,9 +101,8 @@ impl ParserObject {
         if !result.is_null() {
             return Err("parser_mutate failed".to_string());
         }
-        let parsed_data = unsafe {
-            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
-        };
+        let parsed_data =
+            unsafe { String::from_raw_parts(output_p, output_l as usize, output_l as usize) };
         Ok(parsed_data)
     }
 }
@@ -128,44 +127,41 @@ lazy_static! {
         let lib_path = plugin_path.join("parsers");
 
         if let Ok(entries) = fs::read_dir(lib_path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() {
-                        let plugin_container = unsafe { Container::load(path) }.map(
-                            |container: Container<PluginLib>| {
-                                let parser_name = container.parser_name();
-                                let parser_name =
-                                    unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }
-                                        .unwrap_or("");
-                                let parser_version = container.parser_version();
-                                let parser_version =
-                                    unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
-                                        .unwrap_or("");
-                                tracing::debug!("load plugin: {parser_name}");
-                                ParserContainer {
-                                    container,
-                                    lib_version: parser_version.to_string(),
-                                    lib_name: parser_name.to_string(),
-                                    lib_id: entry.file_name().to_str().unwrap().to_string(),
-                                }
-                            },
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let plugin_container =
+                        unsafe { Container::load(path) }.map(|container: Container<PluginLib>| {
+                            let parser_name = container.parser_name();
+                            let parser_name =
+                                unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }
+                                    .unwrap_or("");
+                            let parser_version = container.parser_version();
+                            let parser_version =
+                                unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
+                                    .unwrap_or("");
+                            tracing::debug!("load plugin: {parser_name}");
+                            ParserContainer {
+                                container,
+                                lib_version: parser_version.to_string(),
+                                lib_name: parser_name.to_string(),
+                                lib_id: entry.file_name().to_str().unwrap().to_string(),
+                            }
+                        });
+
+                    if plugin_container.is_err() {
+                        tracing::error!("load plugin failed: {:#?}", plugin_container.err());
+                        continue;
+                    }
+
+                    let plugin_container = plugin_container.unwrap();
+                    if plugin_container.lib_name.is_empty() {
+                        tracing::error!("plugin load from file {:?} has no name", entry.path());
+                    } else {
+                        plugin_map.insert(
+                            plugin_container.lib_name.clone(),
+                            Arc::new(plugin_container),
                         );
-
-                        if plugin_container.is_err() {
-                            tracing::error!("load plugin failed: {:#?}", plugin_container.err());
-                            continue;
-                        }
-
-                        let plugin_container = plugin_container.unwrap();
-                        if plugin_container.lib_name.is_empty() {
-                            tracing::error!("plugin load from file {:?} has no name", entry.path());
-                        } else {
-                            plugin_map.insert(
-                                plugin_container.lib_name.clone(),
-                                Arc::new(plugin_container),
-                            );
-                        }
                     }
                 }
             }

@@ -44,7 +44,7 @@ impl UaCollectConfig {
                     .map_err(|_err| anyhow::anyhow!("invalid collect_mode: {}", v))
             })
             .transpose()?
-            .unwrap_or(CollectMode::OBSERVE))
+            .unwrap_or(CollectMode::Observe))
     }
 
     async fn parse_nodes(dsn: &Dsn) -> anyhow::Result<Vec<UANodeConfig>> {
@@ -68,14 +68,14 @@ impl UaCollectConfig {
         };
 
         let mut ua_node_config_vec = Vec::new();
-        for i in 0..node_vec.len() {
-            tracing::info!("Nodes[{i}]: {}", node_vec[i]);
-            if let Some((id, _)) = node_vec[i].split_once("::") {
+        for node in node_vec {
+            tracing::info!("Node: {}", node);
+            if let Some((id, _)) = node.split_once("::") {
                 ua_node_config_vec.push(UANodeConfig { id: id.to_string() });
             } else {
-                tracing::warn!("Nodes[{i}]: {} is not regular(with \"::\")", node_vec[i]);
+                tracing::warn!("Node: {} is not regular(with \"::\")", node);
                 ua_node_config_vec.push(UANodeConfig {
-                    id: node_vec[i].to_string(),
+                    id: node.to_string(),
                 });
             }
         }
@@ -118,15 +118,15 @@ mod tests {
     fn test_parse_collect_mode() {
         let dsn = Dsn::from_str("opcua://").unwrap();
         let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(mode, CollectMode::OBSERVE);
+        assert_eq!(mode, CollectMode::Observe);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=observe").unwrap();
         let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(mode, CollectMode::OBSERVE);
+        assert_eq!(mode, CollectMode::Observe);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=subscribe").unwrap();
         let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(mode, CollectMode::SUBSCRIBE);
+        assert_eq!(mode, CollectMode::Subscribe);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=xxx").unwrap();
         let mode = UaCollectConfig::parse_collect_mode(&dsn);

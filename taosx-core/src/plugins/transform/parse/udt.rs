@@ -44,8 +44,8 @@ fn check_same_type(field_type: &str, value_type: &str) -> bool {
 enum ArrowDataField {
     I64(Field, Vec<Option<i64>>),
     F64(Field, Vec<Option<f64>>),
-    BOOL(Field, Vec<Option<bool>>),
-    STRING(Field, Vec<Option<String>>),
+    Bool(Field, Vec<Option<bool>>),
+    String(Field, Vec<Option<String>>),
 }
 
 impl ArrowDataField {
@@ -64,12 +64,12 @@ impl ArrowDataField {
             "bool" => {
                 let values = init_data_array(v.as_bool().unwrap(), data_size);
                 let field = init_data_field(name, DataType::Boolean, "bool");
-                Some(ArrowDataField::BOOL(field, values))
+                Some(ArrowDataField::Bool(field, values))
             }
             "string" => {
                 let values = init_data_array(v.into_string().unwrap().to_string(), data_size);
                 let field = init_data_field(name, DataType::Utf8, "string");
-                Some(ArrowDataField::STRING(field, values))
+                Some(ArrowDataField::String(field, values))
             }
             _ => {
                 warn!("udt unknown type: {:?}", v.type_name());
@@ -100,7 +100,7 @@ impl ArrowDataField {
                     return false;
                 }
             }
-            ArrowDataField::BOOL(field, array) => {
+            ArrowDataField::Bool(field, array) => {
                 if check_same_type(
                     field.metadata().get("from_cast").unwrap(),
                     value.type_name(),
@@ -110,7 +110,7 @@ impl ArrowDataField {
                     return false;
                 }
             }
-            ArrowDataField::STRING(field, array) => {
+            ArrowDataField::String(field, array) => {
                 if check_same_type(
                     field.metadata().get("from_cast").unwrap(),
                     value.type_name(),
@@ -136,12 +136,12 @@ impl ArrowDataField {
                     array.push(None);
                 }
             }
-            ArrowDataField::BOOL(_, array) => {
+            ArrowDataField::Bool(_, array) => {
                 if array.len() < size {
                     array.push(None);
                 }
             }
-            ArrowDataField::STRING(_, array) => {
+            ArrowDataField::String(_, array) => {
                 if array.len() < size {
                     array.push(None);
                 }
@@ -331,11 +331,11 @@ impl Parse for Udt {
                     r_fields.push(field);
                     r_arrays.push(Arc::new(Float64Array::from(array)));
                 }
-                ArrowDataField::BOOL(field, array) => {
+                ArrowDataField::Bool(field, array) => {
                     r_fields.push(field);
                     r_arrays.push(Arc::new(BooleanArray::from(array)));
                 }
-                ArrowDataField::STRING(field, array) => {
+                ArrowDataField::String(field, array) => {
                     r_fields.push(field);
                     r_arrays.push(Arc::new(StringArray::from(array)));
                 }

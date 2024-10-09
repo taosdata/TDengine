@@ -376,6 +376,7 @@ impl FlightServiceImpl {
         rx
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn subscribe_agent_action_flight(
         &self,
         agent_id: AgentId,
@@ -438,7 +439,7 @@ impl FlightServiceImpl {
     }
 
     fn replay_metrics_events_from_agent(metrics_events: MetricsEvents) {
-        for event in metrics_events.events().to_owned() {
+        for event in metrics_events.events().iter().cloned() {
             let labels = event.labels.into_labels();
             match event.operation {
                 taosx_metrics::MetricOperation::IncrementCounter(value) => {
@@ -1114,7 +1115,6 @@ impl FlightService for FlightServiceImpl {
                 Ok(Response::new(Box::pin(futures::stream::iter([Ok(
                     arrow_flight::Result {
                         body: message.into(),
-                        ..Default::default()
                     },
                 )]))))
             }
@@ -1254,8 +1254,8 @@ impl RpcConfig {
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
-            .max_decoding_message_size(std::usize::MAX)
-            .max_encoding_message_size(std::usize::MAX);
+            .max_decoding_message_size(usize::MAX)
+            .max_encoding_message_size(usize::MAX);
         if let Some(tcp) = self.tcp {
             Server::builder()
                 .max_frame_size(max_frame_size)
