@@ -422,13 +422,16 @@ void cliConnMayUpdateTimer(SCliConn* conn, int64_t timeout) {
 }
 
 void destroyCliConnQTable(SCliConn* conn) {
-  int32_t code = 0;
-  void*   pIter = taosHashIterate(conn->pQTable, NULL);
+  SCliThrd* thrd = conn->hostThrd;
+  int32_t   code = 0;
+  void*     pIter = taosHashIterate(conn->pQTable, NULL);
   while (pIter != NULL) {
     int64_t*   qid = taosHashGetKey(pIter, NULL);
     STransCtx* ctx = pIter;
     transCtxCleanup(ctx);
     pIter = taosHashIterate(conn->pQTable, pIter);
+
+    TAOS_UNUSED(taosHashRemove(thrd->pIdConnTable, qid, sizeof(*qid)));
 
     transReleaseExHandle(transGetRefMgt(), *qid);
     transRemoveExHandle(transGetRefMgt(), *qid);
@@ -996,6 +999,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
 
   char addr[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(addr, ip, port);
+  conn->hostThrd = pThrd;
   conn->dstAddr = taosStrdup(addr);
   conn->ipStr = taosStrdup(ip);
   conn->port = port;
@@ -1003,7 +1007,6 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _failed);
   }
 
-  conn->hostThrd = pThrd;
   conn->status = ConnNormal;
   conn->broken = false;
   QUEUE_INIT(&conn->q);
