@@ -1,5 +1,10 @@
+use std::sync::OnceLock;
+
+static DURATION_PARSER: OnceLock<fundu::DurationParser> = OnceLock::new();
+
 pub fn parse_duration(string: &str) -> Result<std::time::Duration, fundu::ParseError> {
-    fundu::DurationParser::with_all_time_units()
+    DURATION_PARSER
+        .get_or_init(fundu::DurationParser::with_all_time_units)
         .parse(string)
         // unwrap is safe here because negative durations aren't allowed in the default
         // configuration of the DurationParser
