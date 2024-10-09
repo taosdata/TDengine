@@ -134,6 +134,7 @@ struct tmq_t {
   // poll info
   int64_t pollCnt;
   int64_t totalRows;
+  int8_t  pollFlag;
 
   // timer
   tmr_h       hbLiveTimer;
@@ -287,7 +288,6 @@ typedef struct {
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
 volatile int32_t        tmqInitRes = 0;               // initialize rsp code
 static   SMqMgmt        tmqMgmt = {0};
-static   int8_t         pollFlag = 0;
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
@@ -977,7 +977,8 @@ void tmqSendHbReq(void* param, void* tmrId) {
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
-  req.pollFlag = atomic_load_8(&pollFlag);
+  req.pollFlag = atomic_load_8(&tmq->pollFlag);
+  tqDebugC("consumer:0x%" PRIx64 " send hb, pollFlag:%d", tmq->consumerId, req.pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   if (req.topics == NULL) {
     goto END;
@@ -1057,13 +1058,13 @@ void tmqSendHbReq(void* param, void* tmrId) {
   if (code != 0) {
     tqErrorC("tmqSendHbReq asyncSendMsgToServer failed");
   }
-  (void)atomic_val_compare_exchange_8(&pollFlag, 1, 0);
+  (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 1, 0);
 
 END:
   tDestroySMqHbReq(&req);
   if (tmrId != NULL) {
     bool ret = taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
-    tqDebugC("reset timer fo tmq hb:%d", ret);
+    tqDebugC("consumer:0x%" PRIx64 " reset timer for tmq hb:%d, pollFlag:%d", tmq->consumerId, ret, tmq->pollFlag);
   }
   int32_t ret = taosReleaseRef(tmqMgmt.rsetId, refId);
   if (ret != 0){
@@ -1422,7 +1423,7 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
       tqDebugC("consumer:0x%" PRIx64 " retrieve ep from mnode in 1s", pTmq->consumerId);
       bool ret = taosTmrReset(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(pTmq->refId), tmqMgmt.timer,
                               &pTmq->epTimer);
-      tqDebugC("reset timer fo tmq ask ep:%d", ret);
+      tqDebugC("reset timer for tmq ask ep:%d", ret);
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
       tmq_commit_cb* pCallbackFn = (pTmq->commitCb != NULL) ? pTmq->commitCb : defaultCommitCbFn;
       asyncCommitAllOffsets(pTmq, pCallbackFn, pTmq->commitCbUserParam);
@@ -1430,7 +1431,7 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
                pTmq->autoCommitInterval / 1000.0);
       bool ret = taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, (void*)(pTmq->refId), tmqMgmt.timer,
                               &pTmq->commitTimer);
-      tqDebugC("reset timer fo commit:%d", ret);
+      tqDebugC("reset timer for commit:%d", ret);
     } else {
       tqErrorC("consumer:0x%" PRIx64 " invalid task type:%d", pTmq->consumerId, *pTaskType);
     }
@@ -1640,6 +1641,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->status = TMQ_CONSUMER_STATUS__INIT;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
+  pTmq->pollFlag = 0;
 
   // set conf
   tstrncpy(pTmq->clientId, conf->clientId, TSDB_CLIENT_ID_LEN);
@@ -2441,7 +2443,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     return NULL;
   }
 
-  (void)atomic_val_compare_exchange_8(&pollFlag, 0, 1);
+  (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 0, 1);
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);

@@ -239,6 +239,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
   MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user));
   atomic_store_32(&pConsumer->hbStatus, 0);
+  mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d %d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
     atomic_store_32(&pConsumer->pollStatus, 0);
   }
