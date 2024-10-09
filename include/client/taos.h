@@ -389,7 +389,7 @@ DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
 DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES *res);
 DLL_EXPORT const char *tmq_err2str(int32_t code);
 
-/* ------------------------------ TAOSX -----------------------------------*/
+/* ------------------------------ TAOSX INTERFACE -----------------------------------*/
 typedef struct tmq_raw_data {
   void    *raw;
   uint32_t raw_len;
