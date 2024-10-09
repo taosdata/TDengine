@@ -89,14 +89,14 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
-static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
+void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->win.ekey = ts;
   pRowSup->prevTs = ts;
   pRowSup->numOfRows += 1;
   pRowSup->groupId = groupId;
 }
 
-static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
+void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
                                      uint64_t groupId) {
   pRowSup->startRowIndex = rowIndex;
   pRowSup->numOfRows = 0;
