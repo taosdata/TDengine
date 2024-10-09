@@ -1886,6 +1886,9 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   }
 
   pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.name);
+  if (pSma == NULL) {
+    mInfo("tsma:%s, not exists in sma:%s, terrno:%s", createReq.name, pSma->name, terrstr());
+  }
   if (pSma && createReq.igExists) {
     mInfo("tsma:%s, already exists in sma:%s, ignore exist is set", createReq.name, pSma->name);
     code = 0;

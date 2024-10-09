@@ -241,10 +241,11 @@ void dumpSma(SSdb *pSdb, SJson *json) {
   int32_t lino = 0;
   void  *pIter = NULL;
   SJson *items = tjsonAddArrayToObject(json, "smas");
+  ESdbStatus objStatus = 0;
 
   while (1) {
     SSmaObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pObj);
+    pIter = sdbFetchAll(pSdb, SDB_SMA, pIter, (void **)&pObj, &objStatus, false);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
@@ -270,6 +271,7 @@ void dumpSma(SSdb *pSdb, SJson *json) {
                         _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(objStatus)), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);
   }
 _OVER:
