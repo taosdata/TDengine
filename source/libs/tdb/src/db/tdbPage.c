@@ -102,7 +102,9 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
     tdbOsFree(pPage->apOvfl[iOvfl]);
   }
 
-  TDB_DESTROY_PAGE_LOCK(pPage);
+  if (TDB_DESTROY_PAGE_LOCK(pPage) != 0) {
+    tdbError("tdb/page-destroy: destroy page lock failed.");
+  }
 
   ptr = pPage->pData;
   xFree(arg, ptr);
