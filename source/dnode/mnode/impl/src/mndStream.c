@@ -801,12 +801,23 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   if (createReq.sql != NULL) {
-    sqlLen = strlen(createReq.sql);
-    sql = taosMemoryMalloc(sqlLen + 1);
+    sql = taosStrdup(createReq.sql);
     TSDB_CHECK_NULL(sql, code, lino, _OVER, terrno);
+  }
 
-    memset(sql, 0, sqlLen + 1);
-    memcpy(sql, createReq.sql, sqlLen);
+  SDbObj *pSourceDb = mndAcquireDb(pMnode, createReq.sourceDB);
+  if (pSourceDb == NULL) {
+    code = terrno;
+    mInfo("stream:%s failed to create, acquire source db %s failed, code:%s", createReq.name, createReq.sourceDB,
+          tstrerror(code));
+    goto _OVER;
+  }
+
+  bool snodeCheckSucc = mndCheckForSnode(pMnode, pSourceDb);
+  mndReleaseDb(pMnode, pSourceDb);
+  if (!snodeCheckSucc) {
+    code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+    goto _OVER;
   }
 
   // build stream obj from request
