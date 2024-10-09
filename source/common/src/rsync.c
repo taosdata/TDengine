@@ -137,6 +137,53 @@ void stopRsync() {
   taosMsleep(500);  // sleep 500 ms to wait for the completion of kill operation.
 }
 
+#include "tutil.h"
+
+static int32_t dumpRsyncLog() {
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, PATH_MAX, "%srsync.log", tsCheckpointBackupDir);
+
+  int32_t code = 0, lino = 0;
+  char*   cp_body = NULL;
+
+  TdFilePtr fd = taosOpenFile(filepath, TD_FILE_READ);
+  if (!fd) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+
+  int64_t size = -1;
+  TAOS_CHECK_GOTO(taosStatFile(filepath, &size, NULL, NULL), &lino, _exit);
+
+  cp_body = taosMemoryMalloc(size + 1);
+  if (!cp_body) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+
+  int64_t n = taosReadFile(fd, cp_body, size);
+  if (n < 0) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  } else if (n != size) {
+    TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
+  }
+  (void)taosCloseFile(&fd);
+  cp_body[size] = '\0';
+
+  // return cos_cp_parse_body(cp_body, checkpoint);
+  uInfo("rsynclog: %s", cp_body);
+
+_exit:
+  if (code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (fd) {
+    (void)taosCloseFile(&fd);
+  }
+  if (cp_body) {
+    taosMemoryFree(cp_body);
+  }
+  TAOS_RETURN(code);
+}
+
 int32_t startRsync() {
   int32_t code = 0;
   if (taosMulMkDir(tsCheckpointBackupDir) != 0) {
@@ -162,6 +209,7 @@ int32_t startRsync() {
   code = system(cmd);
   if (code != 0) {
     uError("[rsync] cmd:%s start server failed, code:%d," ERRNO_ERR_FORMAT, cmd, code, ERRNO_ERR_DATA);
+    (void)dumpRsyncLog();
     code = TAOS_SYSTEM_ERROR(errno);
   } else {
     uInfo("[rsync] cmd:%s start server successful", cmd);
