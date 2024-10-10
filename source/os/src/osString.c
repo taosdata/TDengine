@@ -710,3 +710,18 @@ int32_t taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size) {
   
   return 0;
 }
+
+int64_t tsnprintf(char *dst, int64_t size, const char *format, ...) {
+    if (size <= 0 || size > SIZE_MAX) return 0;
+
+    int64_t ret;
+    va_list args;
+    va_start(args, format);
+    ret = vsnprintf(dst, size, format, args);
+    va_end(args );
+    if (ret >= size) {
+        return size - 1;
+    } else {
+        return ret;
+    }
+}

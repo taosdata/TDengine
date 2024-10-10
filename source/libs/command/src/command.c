@@ -510,20 +510,24 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 #define LTYPE_LEN (32 + 60)  // 60 byte for compress info
     char type[LTYPE_LEN];
     snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
+    int typeLen  = strlen(type);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      snprintf(type + strlen(type), LTYPE_LEN - strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+      snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      snprintf(type + strlen(type), LTYPE_LEN - strlen(type), "(%d)",
+      snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
                (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
     if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
-      snprintf(type + strlen(type), LTYPE_LEN - strlen(type), " ENCODE \'%s\'",
+      typeLen = strlen(type);
+      snprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
                columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
-      snprintf(type + strlen(type), LTYPE_LEN - strlen(type), " COMPRESS \'%s\'",
+      typeLen = strlen(type);
+      snprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",
                columnCompressStr(COMPRESS_L2_TYPE_U32(pCfg->pSchemaExt[i].compress)));
-      snprintf(type + strlen(type), LTYPE_LEN - strlen(type), " LEVEL \'%s\'",
+      typeLen = strlen(type);
+      snprintf(type + typeLen, LTYPE_LEN - typeLen, " LEVEL \'%s\'",
                columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
     if (!(pSchema->flags & COL_IS_KEY)) {
@@ -694,7 +698,7 @@ void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* 
 
     if (nSma < pCfg->numOfColumns && nSma > 0) {
       bool smaOn = false;
-      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                        " SMA(");
       for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
         if (IS_BSMA_ON(pCfg->pSchemas + i)) {

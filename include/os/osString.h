@@ -59,12 +59,13 @@ typedef enum { M2C = 0, C2M } ConvType;
 
 #endif
 
-#define tstrncpy(dst, src, size)   \
-  do {                             \
+#define tstrncpy(dst, src, size)         \
+  do {                                   \
     (void)strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;           \
+    (dst)[(size) - 1] = 0;               \
   } while (0)
 
+int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
 #define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
 #define TAOS_STRCAT(_dst, _src) ((void)strcat(_dst, _src))
