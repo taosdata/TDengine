@@ -97,7 +97,7 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
   SqlFunctionCtx *pCtx = pSup->pCtx;
   int32_t        *offset = pSup->rowEntryInfoOffset;
-  SResultRow     *pResultRow = (SResultRow*)outBuf;
+  SResultRow     *pResultRow  = NULL;
   size_t          processedSize = 0;
   int32_t         code = TSDB_CODE_SUCCESS;
   if (inBuf == NULL) {
@@ -112,6 +112,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
     qError("failed to allocate memory for output buffer, size:%zu", *outBufSize);
     return terrno;
   }
+  pResultRow = (SResultRow*)*outBuf;
   (void)memcpy(pResultRow, inBuf, sizeof(SResultRow));
   inBuf += sizeof(SResultRow);
   processedSize += sizeof(SResultRow);
@@ -146,7 +147,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
       qError("failed to reallocate memory for output buffer, size:%zu", *outBufSize + leftLen);
       return terrno;
     }
-    (void)memcpy(outBuf + processedSize, inBuf, leftLen);
+    (void)memcpy(*outBuf + processedSize, inBuf, leftLen);
     inBuf += leftLen;
     processedSize += leftLen;
     *outBufSize += leftLen;
@@ -182,15 +183,16 @@ int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, 
     return terrno;
   }
 
+  char *pBuf = *outBuf;
   pResultRow->version = FUNCTION_RESULT_INFO_VERSION;
-  (void)memcpy(outBuf, pResultRow, sizeof(SResultRow));
-  outBuf += sizeof(SResultRow);
+  (void)memcpy(pBuf, pResultRow, sizeof(SResultRow));
+  pBuf += sizeof(SResultRow);
   for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
-    *(int32_t *) outBuf = offset[i];
-    outBuf += sizeof(int32_t);
     size_t len = sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
-    (void)memcpy(outBuf, getResultEntryInfo(pResultRow, i, offset), len);
-    outBuf += len;
+    *(int32_t *) pBuf = (int32_t)len;
+    pBuf += sizeof(int32_t);
+    (void)memcpy(pBuf, getResultEntryInfo(pResultRow, i, offset), len);
+    pBuf += len;
   }
 
   // mark if col is null for top/bottom result(saveTupleData)
@@ -198,13 +200,13 @@ int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, 
               sizeof(SResultRowEntryInfo) +
               pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
 
-  (void)memcpy(outBuf, pos, pSup->numOfExprs * sizeof(bool));
+  (void)memcpy(pBuf, pos, pSup->numOfExprs * sizeof(bool));
 
   if (rowSize < inBufSize) {
     // stream stores extra data after result row
     size_t leftLen = inBufSize - rowSize;
-    (void)memcpy(outBuf, inBuf + rowSize, leftLen);
-    outBuf += leftLen;
+    (void)memcpy(pBuf, inBuf + rowSize, leftLen);
+    pBuf += leftLen;
   }
   return TSDB_CODE_SUCCESS;
 }
