@@ -8163,6 +8163,7 @@ int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, privilege->noPrivilege));
   }
 
+  if (tEncodeI32(&encoder, pRsp->debugFlag) < 0) return -1;
   tEndEncode(&encoder);
 
 _exit:
@@ -8195,6 +8196,10 @@ int32_t tDeserializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, data->topic));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &data->noPrivilege));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pRsp->debugFlag) < 0) return -1;
   }
   tEndDecode(&decoder);
 
@@ -10681,7 +10686,7 @@ int32_t tDecodeMqMetaRsp(SDecoder *pDecoder, SMqMetaRsp *pRsp) {
 
 void tDeleteMqMetaRsp(SMqMetaRsp *pRsp) { taosMemoryFree(pRsp->metaRsp); }
 
-int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRspCommon *pRsp) {
+int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
 
@@ -10711,19 +10716,20 @@ _exit:
   return code;
 }
 
-int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const void *pRsp) {
+int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeMqDataRspCommon(pEncoder, pRsp));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, ((SMqDataRsp *)pRsp)->sleepTime));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->sleepTime));
   return 0;
 }
 
-int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRspCommon *pRsp) {
+int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeSTqOffsetVal(pDecoder, &pRsp->reqOffset));
   TAOS_CHECK_EXIT(tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->blockNum));
+
   if (pRsp->blockNum != 0) {
     if ((pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -10787,17 +10793,16 @@ _exit:
   return code;
 }
 
-int32_t tDecodeMqDataRsp(SDecoder *pDecoder, void *pRsp) {
+int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeMqDataRspCommon(pDecoder, pRsp));
   if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &((SMqDataRsp *)pRsp)->sleepTime));
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->sleepTime));
   }
 
   return 0;
 }
 
-static void tDeleteMqDataRspCommon(void *rsp) {
-  SMqDataRspCommon *pRsp = rsp;
+static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
@@ -10810,15 +10815,13 @@ static void tDeleteMqDataRspCommon(void *rsp) {
   tOffsetDestroy(&pRsp->rspOffset);
 }
 
-void tDeleteMqDataRsp(void *rsp) { tDeleteMqDataRspCommon(rsp); }
+void tDeleteMqDataRsp(SMqDataRsp *rsp) { tDeleteMqDataRspCommon(rsp); }
 
-int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const void *rsp) {
+int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tEncodeMqDataRspCommon(pEncoder, rsp));
-
-  const STaosxRsp *pRsp = (const STaosxRsp *)rsp;
+  TAOS_CHECK_EXIT(tEncodeMqDataRspCommon(pEncoder, pRsp));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->createTableNum));
   if (pRsp->createTableNum) {
     for (int32_t i = 0; i < pRsp->createTableNum; i++) {
@@ -10831,13 +10834,11 @@ _exit:
   return code;
 }
 
-int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, void *rsp) {
+int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
 
-  TAOS_CHECK_EXIT(tDecodeMqDataRspCommon(pDecoder, rsp));
-
-  STaosxRsp *pRsp = (STaosxRsp *)rsp;
+  TAOS_CHECK_EXIT(tDecodeMqDataRspCommon(pDecoder, pRsp));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->createTableNum));
   if (pRsp->createTableNum) {
     if ((pRsp->createTableLen = taosArrayInit(pRsp->createTableNum, sizeof(int32_t))) == NULL) {
@@ -10864,10 +10865,9 @@ _exit:
   return code;
 }
 
-void tDeleteSTaosxRsp(void *rsp) {
-  tDeleteMqDataRspCommon(rsp);
+void tDeleteSTaosxRsp(SMqDataRsp *pRsp) {
+  tDeleteMqDataRspCommon(pRsp);
 
-  STaosxRsp *pRsp = (STaosxRsp *)rsp;
   taosArrayDestroy(pRsp->createTableLen);
   pRsp->createTableLen = NULL;
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);

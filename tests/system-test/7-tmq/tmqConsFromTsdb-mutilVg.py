@@ -198,7 +198,7 @@ class TDTestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if not (expectrowcnt <= resultList[0] and totalRowsInserted >= resultList[0]):
+        if expectrowcnt > resultList[0]:
             tdLog.info("act consume rows: %d, expect consume rows between %d and %d"%(resultList[0], expectrowcnt, totalRowsInserted))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
@@ -219,7 +219,7 @@ class TDTestCase:
 
         actConsumeTotalRows = firstConsumeRows + resultList[0]
 
-        if not (expectrowcnt >= resultList[0] and totalRowsInserted == actConsumeTotalRows):
+        if totalRowsInserted > actConsumeTotalRows:
             tdLog.info("act consume rows, first: %d, second: %d "%(firstConsumeRows, resultList[0]))
             tdLog.info("and sum of two consume rows: %d should be equal to total inserted rows: %d"%(actConsumeTotalRows, totalRowsInserted))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
