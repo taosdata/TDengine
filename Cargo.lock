@@ -2253,6 +2253,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-guard"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21ef72acf95ec3d7dbf61275be556299490a245f017cf084bd23b4f68cf9407c"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "file-rotate"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7086,6 +7096,7 @@ dependencies = [
  "either",
  "encoding_rs",
  "faststr",
+ "file-guard",
  "file-rotate",
  "flate2",
  "flume",

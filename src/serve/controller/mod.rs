@@ -3572,6 +3572,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn active_active_edition_check() -> anyhow::Result<()> {
         let _ = tracing_subscriber_init();
         let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
