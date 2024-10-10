@@ -148,7 +148,7 @@ static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_
         memcpy(buf + total, blk->buf + blkOffset, nread);
 
         LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
-                                         TAOS_LRU_PRIORITY_LOW, NULL);
+                                         NULL, TAOS_LRU_PRIORITY_LOW, NULL);
         if (s != TAOS_LRU_STATUS_OK) {
           return -1;
         }

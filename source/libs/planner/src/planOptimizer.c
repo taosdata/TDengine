@@ -294,9 +294,6 @@ static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*ty
   return true;
 }
 
-static bool isMinMaxFunction(int32_t funcType) {
-  return funcType == FUNCTION_TYPE_MIN || funcType == FUNCTION_TYPE_MAX;
-}
 static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
@@ -306,8 +303,7 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if ((!isMinMaxFunction(pFunc->funcType) && scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) ||
-        (isMinMaxFunction(pFunc->funcType) && pFunc->hasSMA)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -2384,6 +2380,8 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       pFuncList = ((SInterpFuncLogicNode*)pLogicNode)->pFuncs;
       break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      pFuncList = ((SForecastFuncLogicNode*)pLogicNode)->pFuncs;
     default:
       break;
   }

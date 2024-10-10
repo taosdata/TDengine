@@ -51,7 +51,12 @@ typedef enum { M2C = 0, C2M } ConvType;
 #define strtod      STR_TO_LD_FUNC_TAOS_FORBID
 #define strtold     STR_TO_D_FUNC_TAOS_FORBID
 #define strtof      STR_TO_F_FUNC_TAOS_FORBID
+
+#ifdef strndup
+#undef strndup
+#endif
 #define strndup     STR_TO_F_FUNC_TAOS_FORBID
+
 #endif
 
 #define tstrncpy(dst, src, size)   \
@@ -63,6 +68,7 @@ typedef enum { M2C = 0, C2M } ConvType;
 #define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
 #define TAOS_STRCAT(_dst, _src) ((void)strcat(_dst, _src))
+#define TAOS_STRNCAT(_dst, _src, len) ((void)strncat(_dst, _src, len))
 
 char   *tstrdup(const char *src);
 int32_t taosUcs4len(TdUcs4 *ucs4);

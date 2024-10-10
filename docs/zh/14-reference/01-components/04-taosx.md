@@ -239,39 +239,44 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 - `plugins_home`：外部数据源连接器所在目录。
 - `data_dir`：数据文件存放目录。
-- `logs_home`：日志文件存放目录，`taosX` 日志文件的前缀为 `taosx.log`，外部数据源有自己的日志文件名前缀。
-- `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。
-- `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。
+- `instanceId`：当前 taosX 服务的实例 ID，如果同一台机器上启动了多个 taosX 实例，必须保证各个实例的实例 ID 互不相同。
+- `logs_home`：日志文件存放目录，`taosX` 日志文件的前缀为 `taosx.log`，外部数据源有自己的日志文件名前缀。已弃用，请使用 `log.path` 代替。
+- `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。已弃用，请使用 `log.level` 代替。
+- `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。已弃用，请使用 `log.keepDays` 代替。
 - `jobs`：每个运行时的最大线程数。在服务模式下，线程总数为 `jobs*2`，默认线程数为`当前服务器内核*2`。
 - `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。
 - `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
+- `serve.request_timeout`：全局接口 API 超时时间。
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
+- `log.path`：日志文件存放的目录。
+- `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
+- `log.compress`：日志文件滚动后的文件是否进行压缩。
+- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
+- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
+- `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
+- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
+- `log.watching`：是否对日志文件中 `log.loggers` 配置内容的变更进行监听并尝试重载。
+- `log.loggers`：指定模块的日志输出级别，格式为 `"modname" = "level"`，同时适配 tracing 库语法，可以根据 `modname[span{field=value}]=level`，其中 `level` 为日志级别。
 
 如下所示：
 
 ```toml
-# plugins home
-#plugins_home = "/usr/local/taos/plugins" # on linux/macOS
-#plugins_home = "C:\\TDengine\\plugins" # on windows
-
 # data dir
 #data_dir = "/var/lib/taos/taosx" # on linux/macOS
 #data_dir = "C:\\TDengine\\data\\taosx" # on windows
 
-# logs home
-#logs_home = "/var/log/taos" # on linux/macOS
-#logs_home = "C:\\TDengine\\log" # on windows
-
-# log level: off/error/warn/info/debug/trace
-#log_level = "info"
-
-# log keep days
-#log_keep_days = 30
-
-# number of jobs, default to 0, will use `jobs` number of works for TMQ
+# number of threads used for tokio workers, default to 0 (means cores * 2)
 #jobs = 0
+
+# enable OpenTelemetry tracing and metrics exporter
+#otel = false
+
+# server instance id
+#
+# The instanceId of each instance is unique on the host
+# instanceId = 16
 
 [serve]
 # listen to ip:port address
@@ -280,13 +285,66 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 # database url
 #database_url = "sqlite:taosx.db"
 
+# default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
+#request_timeout = 30
+
 [monitor]
 # FQDN of taosKeeper service, no default value
 #fqdn = "localhost"
-# port of taosKeeper service, default 6043
+
+# Port of taosKeeper service, default 6043
 #port = 6043
-# how often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
+
+# How often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
 #interval = 10
+
+
+# log configuration
+[log]
+# All log files are stored in this directory
+#
+#path = "/var/log/taos" # on linux/macOS
+#path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+#level = "info"
+
+# Compress archived log files or not
+#
+#compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+#
+#rotationCount = 30
+
+# Rotate when the log file reaches this size
+#
+#rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+#
+#reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+#keepDays = 30
+
+# Watching the configuration file for log.loggers changes, default to true.
+#
+#watching = true
+
+# Customize the log output level of modules, and changes will be applied after modifying the file when log.watching is enabled
+#
+# ## Examples:
+#
+# crate = "error"
+# crate::mod1::mod2 = "info"
+# crate::span[field=value] = "warn"
+#
+[log.loggers]
+#"actix_server::accept" = "warn"
+#"taos::query" = "warn"
 ```
 
 ### 启动

@@ -64,7 +64,6 @@ static int32_t streamTaskSetReady(SStreamTask* pTask) {
 
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   SStreamScanHistoryReq req;
-  int32_t code = 0;
   initScanHistoryReq(pTask, &req, igUntreated);
 
   int32_t len = sizeof(SStreamScanHistoryReq);
@@ -173,7 +172,7 @@ int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask) {
     code = streamTaskStartScanHistory(pTask);
   }
 
-  // NOTE: there will be an deadlock if launch fill history here.
+  // NOTE: there will be a deadlock if launch fill history here.
   // start the related fill-history task, when current task is ready
   //  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
   //    streamLaunchFillHistoryTask(pTask);
@@ -219,7 +218,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 
   stDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", idStr, hStreamId, hTaskId);
 
-  // Set the execute conditions, including the query time window and the version range
+  // Set the execution conditions, including the query time window and the version range
   streamMetaRLock(pMeta);
   SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));
   streamMetaRUnLock(pMeta);
