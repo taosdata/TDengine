@@ -963,11 +963,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
-  if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
-    ret = TSDB_CODE_INVALID_PARA;
-    goto end;
-  }
+//  if (tFields != NULL && numFields > boundInfo->numOfBound) {
+//    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
+//    ret = TSDB_CODE_INVALID_PARA;
+//    goto end;
+//  }
   if (tFields == NULL && numOfCols != boundInfo->numOfBound) {
     if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d not equal to num of bound cols:%d", numOfCols, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
@@ -1037,6 +1037,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             pStart += numOfRows * sizeof(int32_t);
           } else {
             pStart += BitmapLen(numOfRows);
+//            for(int k = 0; k < numOfRows; k++) {
+//              if(!colDataIsNull_f(offset, k) && pColSchema->type == TSDB_DATA_TYPE_INT){
+//                printf("colName:%s,val:%d", fieldName, *(int32_t*)(pStart + k * sizeof(int32_t)));
+//              }
+//            }
           }
           char* pData = pStart;
 

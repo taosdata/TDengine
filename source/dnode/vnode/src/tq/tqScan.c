@@ -77,14 +77,16 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
       tqError("failed to push tbName to blockTbName:%s", tbName);
       continue;
     }
-    int64_t suid = 0;
-    if(mr.me.type == TSDB_CHILD_TABLE){
-      suid = mr.me.ctbEntry.suid;
-    }
-    if(taosArrayPush(pRsp->blockSuid, &suid) == NULL){
-      tqError("failed to push suid to blockSuid:%"PRId64, suid);
-      continue;
-    }
+//    int64_t suid = 0;
+//    if(mr.me.type == TSDB_CHILD_TABLE){
+//      suid = mr.me.ctbEntry.suid;
+//    }else{
+//      suid = mr.me.uid;
+//    }
+//    if(taosArrayPush(pRsp->blockSuid, &suid) == NULL){
+//      tqError("failed to push suid to blockSuid:%"PRId64, suid);
+//      continue;
+//    }
   }
   metaReaderClear(&mr);
   return 0;
@@ -227,11 +229,11 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
           tqError("vgId:%d, failed to add tbname to rsp msg", pTq->pVnode->config.vgId);
           continue;
         }
-        int64_t suid = qExtractSuidFromTask(task);
-        if (taosArrayPush(pRsp->blockSuid, &suid) == NULL){
-          tqError("vgId:%d, failed to add suid to rsp msg", pTq->pVnode->config.vgId);
-          continue;
-        }
+//        int64_t suid = qExtractSuidFromTask(task);
+//        if (taosArrayPush(pRsp->blockSuid, &suid) == NULL){
+//          tqError("vgId:%d, failed to add suid to rsp msg", pTq->pVnode->config.vgId);
+//          continue;
+//        }
       }
       if (pRsp->withSchema) {
         SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
