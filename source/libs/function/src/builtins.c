@@ -3698,7 +3698,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
-#endif
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
@@ -3709,6 +3708,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
+#endif
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
