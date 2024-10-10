@@ -23,6 +23,7 @@
 #include "jemalloc/jemalloc.h"
 #endif
 #include "dmUtil.h"
+#include "tcs.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -325,10 +326,9 @@ static int32_t dmCheckS3() {
   int32_t  code = 0;
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfgS3(pCfg, 0, true);
-#if defined(USE_S3)
-  extern int32_t s3CheckCfg();
 
-  code = s3CheckCfg();
+#if defined(USE_S3)
+  code = tcsCheckCfg();
 #endif
   return code;
 }
