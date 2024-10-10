@@ -414,16 +414,16 @@ sql select case when f1 then 3 when ts then ts end from tba1;
 if $rows != 4 then 
   return -1
 endi
-if $data00 != @2022-09-26 15:15:01.000@ then
+if $data00 != @22-09-26 15:15:01.000@ then
  return -1
 endi
-if $data10 != @1970-01-01 08:00:00.003@ then
+if $data10 != @70-01-01 08:00:00.003@ then
  return -1
 endi
-if $data20 != @1970-01-01 08:00:00.003@ then
+if $data20 != @70-01-01 08:00:00.003@ then
  return -1
 endi
-if $data30 != @2022-09-26 15:15:04.000@ then
+if $data30 != @22-09-26 15:15:04.000@ then
  return -1
 endi
 
@@ -657,16 +657,16 @@ sql select case when f1 is not null then case when f1 <= 0 then f1 else f1 * 10 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 0 then
+if $data00 != 0.000000000 then
  return -1
 endi
-if $data10 != 10 then
+if $data10 != 10.000000000 then
  return -1
 endi
-if $data20 != 50 then
+if $data20 != 50.000000000 then
  return -1
 endi
-if $data30 != -1 then
+if $data30 != -1.000000000 then
  return -1
 endi
 
@@ -830,16 +830,16 @@ sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != @1970-01-01 08:00:00.000@ then
+if $data00 != @70-01-01 08:00:00.000@ then
  return -1
 endi
-if $data10 != @1970-01-01 08:00:00.000@ then
+if $data10 != @70-01-01 08:00:00.000@ then
  return -1
 endi
-if $data20 != @1970-01-01 08:00:00.011@ then
+if $data20 != @70-01-01 08:00:00.011@ then
  return -1
 endi
-if $data30 != @2022-09-26 15:15:04.000@ then
+if $data30 != @22-09-26 15:15:04.000@ then
  return -1
 endi
 
@@ -1043,19 +1043,19 @@ sql select distinct tbname, case t1 when t2 then t1 else t1 + 100 end from sta o
 if $rows != 5 then 
   return -1
 endi
-if $data01 != 0 then
+if $data01 != 0.000000000 then
  return -1
 endi
-if $data11 != 1 then
+if $data11 != 1.000000000 then
  return -1
 endi
 if $data21 != NULL then
  return -1
 endi
-if $data31 != 101 then
+if $data31 != 101.000000000 then
  return -1
 endi
-if $data41 != 103 then
+if $data41 != 103.000000000 then
  return -1
 endi
 
