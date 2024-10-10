@@ -1518,7 +1518,7 @@ class Task():
         dbName = self._db.getName()
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
-        except (taos.error.ProgrammingError, taosrest.errors.Error, taosrest.errors.ConnectError) as err:
+        except (taos.error.ProgrammingError, taos.error.StatementError, taosrest.errors.Error, taosrest.errors.ConnectError) as err:
             errno2 = Helper.convertErrno(err.errno)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
