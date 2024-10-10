@@ -170,6 +170,7 @@ rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
 taoslog.workspace = true
 bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
+file-guard = "0.2.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

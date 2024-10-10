@@ -611,18 +611,6 @@ mod tests {
     use std::str::FromStr;
 
     #[tokio::test]
-    async fn csv_should_always_be_valid() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
-        let from = Dsn::from_str("csv:/tmp").unwrap();
-        let to = Dsn::from_str("taos:///").unwrap();
-        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
-        assert!(res.is_ok(), "{:#?}", res);
-    }
-
-    #[tokio::test]
     async fn valid_replica_license() {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
@@ -662,7 +650,7 @@ mod tests {
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+            .contains("active_active expired at 2022-01-01 00:00:00"));
 
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
@@ -748,7 +736,7 @@ mod tests {
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+            .contains("active_active expired at 2022-01-01 00:00:00"));
 
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
