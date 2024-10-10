@@ -485,11 +485,6 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
 static void keepPrevInfo(SStreamTaskSM* pSM) {
   STaskStateTrans* pTrans = pSM->pActiveTrans;
 
-  // we only keep the latest pause state
-  if (pSM->prev.state.state == TASK_STATUS__PAUSE && pSM->current.state == TASK_STATUS__PAUSE) {
-    return;
-  }
-
   pSM->prev.state = pSM->current;
   pSM->prev.evt = pTrans->event;
 }
@@ -527,10 +522,13 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
-  keepPrevInfo(pSM);
+  // repeat pause will not overwrite the previous pause state
+  if (pSM->current.state != TASK_STATUS__PAUSE || pTrans->next.state != TASK_STATUS__PAUSE) {
+    keepPrevInfo(pSM);
 
-  pSM->current = pTrans->next;
-  pSM->pActiveTrans = NULL;
+    pSM->current = pTrans->next;
+    pSM->pActiveTrans = NULL;
+  }
 
   // todo remove it
   // todo: handle the error code
