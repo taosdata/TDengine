@@ -49,7 +49,7 @@
 #define STREAM_SESSION_OP_CHECKPOINT_NAME  "StreamSessionOperator_Checkpoint"
 #define STREAM_STATE_OP_CHECKPOINT_NAME    "StreamStateOperator_Checkpoint"
 
-#define MAX_STREAM_HISTORY_RESULT          100000000
+#define MAX_STREAM_HISTORY_RESULT          20000000
 
 typedef struct SStateWindowInfo {
   SResultWindowInfo winInfo;
