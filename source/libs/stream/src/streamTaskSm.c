@@ -485,6 +485,11 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
 static void keepPrevInfo(SStreamTaskSM* pSM) {
   STaskStateTrans* pTrans = pSM->pActiveTrans;
 
+  // we only keep the latest pause state
+  if (pSM->prev.state.state == TASK_STATUS__PAUSE && pSM->current.state == TASK_STATUS__PAUSE) {
+    return;
+  }
+
   pSM->prev.state = pSM->current;
   pSM->prev.evt = pTrans->event;
 }
@@ -501,9 +506,10 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
 
-    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP &&
-           s != TASK_STATUS__UNINIT && s != TASK_STATUS__READY) {
-      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
+    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP && s != TASK_STATUS__UNINIT &&
+        s != TASK_STATUS__READY) {
+      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name,
+              GET_EVT_NAME(pSM->prev.evt));
     }
 
     // the pSM->prev.evt may be 0, so print string is not appropriate.
