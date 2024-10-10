@@ -831,7 +831,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
 
 #if 1
   // disable header file compression
-  cmprAlg = NO_COMPRESSION;
+  //cmprAlg = NO_COMPRESSION;
 #endif
 
   int32_t  code;
@@ -977,7 +977,7 @@ static int32_t tsdbDataFileWriteBrinRecord(SDataFileWriter *writer, const SBrinR
     break;
   }
 
-  if ((writer->brinBlock->numOfRecords) >= writer->config->maxRow) {
+  if ((writer->brinBlock->numOfRecords) >= 256) {
     TAOS_CHECK_GOTO(tsdbDataFileWriteBrinBlock(writer), &lino, _exit);
   }
 
