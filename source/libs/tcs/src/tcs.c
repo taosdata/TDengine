@@ -19,7 +19,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 
-//#include "az.h"
+#include "az.h"
 #include "cos.h"
 
 extern int8_t tsS3Ablob;
@@ -68,7 +68,6 @@ int32_t tcsInit() {
     tcs.DeleteObjects = s3DeleteObjects;
     tcs.GetObjectToFile = s3GetObjectToFile;
   } else if (TOS_PROTO_ABLOB == proto) {
-    /*
     tcs.Begin = azBegin;
     tcs.End = azEnd;
     tcs.CheckCfg = azCheckCfg;
@@ -82,7 +81,7 @@ int32_t tcsInit() {
     tcs.GetObjectsByPrefix = azGetObjectsByPrefix;
     tcs.DeleteObjects = azDeleteObjects;
     tcs.GetObjectToFile = azGetObjectToFile;
-    */
+
   } else {
     code = TSDB_CODE_INVALID_PARA;
     return code;
