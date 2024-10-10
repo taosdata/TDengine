@@ -1279,35 +1279,43 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
+typedef struct SPartFillExprsCtx {
+  bool hasFillCol;
+  bool hasPseudoCol;
+} SPartFillExprsCtx;
+
 static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
+  SPartFillExprsCtx *pCtx = pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (COLUMN_TYPE_WINDOW_START != pCol->colType && COLUMN_TYPE_WINDOW_END != pCol->colType &&
-        COLUMN_TYPE_WINDOW_DURATION != pCol->colType && COLUMN_TYPE_GROUP_KEY != pCol->colType) {
-      *(bool*)pContext = true;
+    if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
+        COLUMN_TYPE_WINDOW_DURATION == pCol->colType || COLUMN_TYPE_GROUP_KEY == pCol->colType) {
+      pCtx->hasPseudoCol = true;
+    } else {
+      pCtx->hasFillCol = true;
       return DEAL_RES_END;
     }
   }
   return DEAL_RES_CONTINUE;
 }
 
-static bool needFillValue(SNode* pNode) {
-  bool hasFillCol = false;
-  nodesWalkExpr(pNode, needFillValueImpl, &hasFillCol);
-  return hasFillCol;
+static void needFillValue(SNode* pNode, SPartFillExprsCtx* pCtx) {
+  nodesWalkExpr(pNode, needFillValueImpl, pCtx);
 }
 
 static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pProject = NULL;
   FOREACH(pProject, pSelect->pProjectionList) {
-    if (needFillValue(pProject)) {
+    SPartFillExprsCtx ctx = {0};
+    needFillValue(pProject, &ctx);
+    if (ctx.hasFillCol) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pProject, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(pFillExprs, pNew);
       }
-    } else if (QUERY_NODE_VALUE != nodeType(pProject)) {
+    } else if ((!ctx.hasPseudoCol || nodeType(pProject) == QUERY_NODE_COLUMN) && nodeType(pProject) != QUERY_NODE_VALUE) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pProject, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -1324,13 +1332,15 @@ static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNode
     SNode* pOrderExpr = NULL;
     FOREACH(pOrderExpr, pSelect->pOrderByList) {
       SNode* pExpr = ((SOrderByExprNode*)pOrderExpr)->pExpr;
-      if (needFillValue(pExpr)) {
+      SPartFillExprsCtx ctx = {0};
+      needFillValue(pExpr, &ctx);
+      if (ctx.hasFillCol) {
         SNode* pNew = NULL;
         code = nodesCloneNode(pExpr, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
           code = nodesListMakeStrictAppend(pFillExprs, pNew);
         }
-      } else if (QUERY_NODE_VALUE != nodeType(pExpr)) {
+      } else if ((!ctx.hasPseudoCol || nodeType(pExpr) == QUERY_NODE_COLUMN) && nodeType(pExpr) != QUERY_NODE_VALUE) {
         SNode* pNew = NULL;
         code = nodesCloneNode(pExpr, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
