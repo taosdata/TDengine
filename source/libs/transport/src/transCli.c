@@ -2542,8 +2542,6 @@ static FORCE_INLINE void doCloseIdleConn(void* param) {
 
   int32_t ref = transUnrefCliHandle(conn);
   if (ref <= 0) {
-    conn->task = NULL;
-    taosMemoryFree(arg);
     return;
   }
   taosMemoryFree(arg);
@@ -2964,8 +2962,10 @@ int32_t transUnrefCliHandle(void* handle) {
   if (handle == NULL) {
     return 0;
   }
+  int32_t   ref = 0;
   SCliConn* conn = (SCliConn*)handle;
-  int32_t   ref = conn->ref--;
+  conn->ref--;
+  ref = conn->ref;
 
   tTrace("%s conn %p ref:%d", CONN_GET_INST_LABEL(conn), conn, conn->ref);
   if (conn->ref == 0) {
