@@ -894,7 +894,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 
   conn->heapMissHit = 0;
 
-  if (conn->list->size >= 10) {
+  if (conn->list->size >= 2) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     if (arg == NULL) return;
     arg->param1 = conn;
@@ -2539,12 +2539,13 @@ static FORCE_INLINE void doCloseIdleConn(void* param) {
   STaskArg* arg = param;
   SCliConn* conn = arg->param1;
   tDebug("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
+  conn->task = NULL;
+  taosMemoryFree(arg);
 
   int32_t ref = transUnrefCliHandle(conn);
   if (ref <= 0) {
     return;
   }
-  taosMemoryFree(arg);
 }
 static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
   int32_t code = 0;
