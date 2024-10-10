@@ -3307,7 +3307,7 @@ int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** 
   int       code = 0;
   SStateKey sKey = {.key = *key, .opNum = pState->number};
 
-  char*  tVal;
+  char*  tVal = NULL;
   size_t tValLen = 0;
   STREAM_STATE_GET_ROCKSDB(pState, "state", &sKey, &tVal, &tValLen);
   if (code != 0) {
@@ -3569,6 +3569,10 @@ int32_t streamStateFuncPut_rocksdb(SStreamState* pState, const STupleKey* key, c
   int    code = 0;
   char*  dst = NULL;
   size_t size = 0;
+  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
+    STREAM_STATE_PUT_ROCKSDB(pState, "func", key, (void*)value, (int32_t)vLen);
+    return code;
+  }
   code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, value, vLen, &dst, &size);
   if (code != 0) {
     return code;
