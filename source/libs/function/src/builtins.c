@@ -237,7 +237,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
-  (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+  tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {

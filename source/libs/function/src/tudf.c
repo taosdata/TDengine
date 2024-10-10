@@ -143,10 +143,10 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
-  strncpy(udfdPathLdLib, tsUdfdLdLibPath, tListLen(udfdPathLdLib));
+  tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib) < sizeof(tsUdfdLdLibPath) ? sizeof(udfdPathLdLib) : sizeof(tsUdfdLdLibPath));
 
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
+  tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
@@ -158,10 +158,11 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
   if (taosFqdn != NULL) {
-    taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
+    int len = strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1;
+    taosFqdnEnvItem = taosMemoryMalloc(len);
     if (taosFqdnEnvItem != NULL) {
-      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
-      TAOS_STRCAT(taosFqdnEnvItem, taosFqdn);
+      tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
+      TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, strlen(taosFqdn));
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
@@ -1072,7 +1073,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   int32_t code = 0, line = 0;
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   int32_t stubIndex = taosArraySearchIdx(gUdfcProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (stubIndex != -1) {
     SUdfcFuncStub *foundStub = taosArrayGet(gUdfcProxy.udfStubs, stubIndex);
@@ -1105,7 +1106,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
     SUdfcFuncStub stub = {0};
-    strncpy(stub.udfName, udfName, TSDB_FUNC_NAME_LEN);
+    tstrncpy(stub.udfName, udfName, TSDB_FUNC_NAME_LEN);
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.createTime = taosGetTimestampUs();
@@ -1129,7 +1130,7 @@ _exit:
 void releaseUdfFuncHandle(char *udfName, UdfcFuncHandle handle) {
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   SUdfcFuncStub *foundStub = taosArraySearch(gUdfcProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   SUdfcFuncStub *expiredStub = taosArraySearch(gUdfcProxy.expiredUdfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (!foundStub && !expiredStub) {
@@ -2020,7 +2021,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
-  strncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
 
   code = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -2033,7 +2034,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->session->outputType = rsp->outputType;
   task->session->bytes = rsp->bytes;
   task->session->bufSize = rsp->bufSize;
-  strncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
   fnInfo("successfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
   *funcHandle = task->session;
   taosMemoryFree(task);

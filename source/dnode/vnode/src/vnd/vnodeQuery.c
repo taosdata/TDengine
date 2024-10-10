@@ -254,7 +254,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (mer1.me.ctbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ctbEntry.comment);
       if (NULL == cfgRsp.pComment) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -273,7 +273,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
       if (NULL == cfgRsp.pComment) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _exit;
       }
     }
@@ -399,7 +399,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     req = taosArrayGet(batchReq.pMsgs, i);
     if (req == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _exit;
     }
 
