@@ -408,7 +408,7 @@ static int32_t createColumnByFunc(const SFunctionNode* pFunc, SColumnNode** ppCo
   if (NULL == *ppCol) {
     return code;
   }
-  (void)strcpy((*ppCol)->colName, pFunc->node.aliasName);
+  tstrncpy((*ppCol)->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
   (*ppCol)->node.resType = pFunc->node.resType;
   return TSDB_CODE_SUCCESS;
 }
@@ -437,11 +437,11 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   (*pPartialFunc)->hasOriginalFunc = true;
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
+  int32_t len = snprintf(name, sizeof(name), "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
   if (taosHashBinary(name, len) < 0) {
     return TSDB_CODE_FAILED;
   }
-  (void)strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  tstrncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN);
   (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
   (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;
   return TSDB_CODE_SUCCESS;
@@ -475,7 +475,7 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    (void)strcpy(pFunc->node.aliasName, pPartialFunc->node.aliasName);
+    tstrncpy(pFunc->node.aliasName, pPartialFunc->node.aliasName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -504,7 +504,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
     if (fmIsSameInOutType(pSrcFunc->funcId)) {
       pFunc->node.resType = pSrcFunc->node.resType;
     }
-    (void)strcpy(pFunc->node.aliasName, pSrcFunc->node.aliasName);
+    tstrncpy(pFunc->node.aliasName, pSrcFunc->node.aliasName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -558,8 +558,8 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
       nodesDestroyList(pParams);
       return code;
     }
-    (void)strcpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName);
-    (void)strcpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias);
+    tstrncpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -605,8 +605,8 @@ static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pSta
       nodesDestroyList(pParams);
       return code;
     }
-    (void)strcpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName);
-    (void)strcpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias);
+    tstrncpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }
