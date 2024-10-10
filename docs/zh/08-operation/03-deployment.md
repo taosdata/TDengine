@@ -206,11 +206,11 @@ http {
 
 ### 部署 taosX
 
-如果想使用 TDengine 的数据接入能力，需要部署 taosX 服务，关于它的详细说明和部署请参考[taosX 参考手册](../../reference/components/taosx)。
+如果想使用 TDengine 的数据接入能力，需要部署 taosX 服务，关于它的详细说明和部署请参考企业版参考手册。
 
 ### 部署 taosX-Agent
 
-有些数据源如 Pi, OPC 等，因为网络条件和数据源访问的限制，taosX 无法直接访问数据源，这种情况下需要部署一个代理服务 taosX-Agent，关于它的详细说明和部署请参考[taosX-Agent 参考手册](../../reference/components/taosx-agent)。
+有些数据源如 Pi, OPC 等，因为网络条件和数据源访问的限制，taosX 无法直接访问数据源，这种情况下需要部署一个代理服务 taosX-Agent，关于它的详细说明和部署请参考企业版参考手册。
 
 ### 部署 taos-Explorer
 
