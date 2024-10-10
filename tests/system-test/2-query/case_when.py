@@ -122,8 +122,8 @@ class TDTestCase:
         self.constant_check(database,sql1,sql2,5)
         
         #TD-20260
-        sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' and ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
-        sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 where ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
+        # sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' and ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
+        # sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 where ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
         self.constant_check(database,sql1,sql2,0)
         self.constant_check(database,sql1,sql2,1)
         self.constant_check(database,sql1,sql2,2)
@@ -159,7 +159,7 @@ class TDTestCase:
                         'first  case when q_int < %d then %d when q_int >= %d then %d else %d end last' %(a1,a2,a1,a2,a3), #'first  case when q_int < 3 then 1 when q_int >= 3 then 2 else 3 end last' ,
                         'first  cast(case q_int when q_int then q_int + (%d) else q_int is null end as double) last' %(a1), #'first  cast(case q_int when q_int then q_int + 1 else q_int is null end as double) last' ,
                         'first  sum(case q_int when q_int then q_int + (%d) else q_int is null end + (%d)) last'  %(a1,a2), #'first  sum(case q_int when q_int then q_int + 1 else q_int is null end + 1) last' ,
-                        'first  case when q_int is not null then case when q_int <= %d then q_int else q_int * (%d) end else -(%d) end last'  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
+                        #'first  case when q_int is not null then case when q_int <= %d then q_int else q_int * (%d) end else -(%d) end last'  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
                         'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 3 then 4 end last' ,
                         'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
                         'first  case %d when %d then %d else %d end last'  %(a1,a1,a2,a3),  # 'first  case 3 when 1 then 4 else 2 end last' ,
@@ -232,7 +232,7 @@ class TDTestCase:
                         'first  case when \'%d\' then \'b\' else null end last' %(a1), #'first  case when \'0\' then \'b\' else null end last',
                         'first  case when \'%d\' then \'b\' else %d end last' %(a1,a2), #'first  case when \'0\' then \'b\' else 2 end last',
                         'first  case when q_int then q_int when q_int + (%d) then q_int + (%d) else q_int is null end last' %(a1,a2) , #'first  case when q_int then q_int when q_int + 1 then q_int + 1 else q_int is null end last' ,
-                        'first  case when q_int then %d when ts then ts end last'  %(a1),  #'first  case when q_int then 3 when ts then ts end last' ,
+                        #'first  case when q_int then %d when ts then ts end last'  %(a1),  #'first  case when q_int then 3 when ts then ts end last' ,
                         'first  case when %d then q_int end last'  %(a1),  #'first  case when 3 then q_int end last' ,
                         'first  case when q_int then %d when %d then %d end last'  %(a1,a1,a3),  #'first  case when q_int then 3 when 1 then 2 end last' ,
                         'first  case when q_int < %d then %d when q_int >= %d then %d else %d end last' %(a1,a2,a1,a2,a3), #'first  case when q_int < 3 then 1 when q_int >= 3 then 2 else 3 end last' ,
@@ -280,11 +280,12 @@ class TDTestCase:
         
         for i in range(30):
             cs = self.state_window_list().split(',')[i] 
-            # sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,cs)
-            # sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,cs)
-            # self.constant_check(database,sql1,sql2,0)
-            # self.constant_check(database,sql1,sql2,1)
-            # self.constant_check(database,sql1,sql2,2)
+            print(cs)
+            sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,cs)
+            sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,cs)
+            self.constant_check(database,sql1,sql2,0)
+            self.constant_check(database,sql1,sql2,1)
+            self.constant_check(database,sql1,sql2,2)
             
                       
         

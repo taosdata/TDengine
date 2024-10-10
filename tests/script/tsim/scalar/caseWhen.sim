@@ -296,16 +296,16 @@ sql select case when '2' then 'b' when null then 0 end from tba1;
 if $rows != 4 then 
   return -1 
 endi
-if $data00 != b then
+if $data00 != 0 then
  return -1 
 endi
-if $data10 != b then
+if $data10 != 0 then
  return -1 
 endi
-if $data20 != b then
+if $data20 != 0 then
  return -1 
 endi
-if $data30 != b then
+if $data30 != 0 then
  return -1 
 endi
 
@@ -1061,4 +1061,69 @@ endi
 
 sql_error select case when sum(f1) then sum(f1)-abs(f1) end from tba1;
 
+sql drop database if exists test_db;
+sql create database test_db vgroups 5;
+sql use test_db;
+sql create stable test_stable (ts TIMESTAMP,c_int INT,c_uint INT UNSIGNED, c_bigint BIGINT, c_ubigint BIGINT UNSIGNED, c_float FLOAT, c_double DOUBLE, c_binary BINARY(20), c_smallint SMALLINT, c_usmallint SMALLINT UNSIGNED, c_tinyint TINYINT,c_utinyint TINYINT UNSIGNED,c_bool BOOL,c_nchar NCHAR(20), c_varchar VARCHAR(20)) tags(tag_id INT);
+sql create table t_test using test_stable tags(1);
+sql insert into t_test values ('2022-09-30 15:15:01',123,456,1234567890,9876543210,123.45,678.90,'binary_val',32767,65535,127,255,true,'涛思数据','varchar_val');
+
+sql select case when c_int > 100 then c_float else c_int end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 123.45000 then
+ return -1
+endi
+
+sql select case when c_bigint > 100000 then c_double else c_bigint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 678.900000000 then
+ return -1
+endi
+
+sql select case when c_bool then c_bool else c_utinyint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+print $data00
+if $data00 != 1 then
+ return -1
+endi
+
+sql select case when c_smallint > 30000 then c_usmallint else c_smallint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 65535 then
+ return -1
+endi
+
+sql select case when c_binary = 'binary_val' then c_nchar else c_binary end as result from t_test;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 涛思数据 then
+ return -1
+endi
+
+sql select case when c_bool then c_int else c_bool end as result from t_test;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 123 then
+ return -1
+endi
+
+sql select case when ts > '2022-01-01 00:00:00' then c_bool else ts end as result from t_test;
+if $data00 != @70-01-01 08:00:00.001@ then
+ return -1
+endi
+
+sql select case when c_double > 100 then c_nchar else c_double end as result from t_test;
+if $data00 != 0.000000000 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
