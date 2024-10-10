@@ -1495,7 +1495,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     return code;
   }
 
-  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
+  mInfo("trans:%d, execute %d actions serial, current action:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pActions, action);
@@ -1768,7 +1768,8 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool to
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_UNDO_ACTION;
-    mInfo("trans:%d, stage from rollback to undoAction", pTrans->id);
+    pTrans->actionPos = 0;
+    mInfo("trans:%d, stage from rollback to undoAction, actionPos:%d", pTrans->id, pTrans->actionPos);
     continueExec = true;
   } else {
     pTrans->failedTimes++;

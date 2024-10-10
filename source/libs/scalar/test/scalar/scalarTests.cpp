@@ -81,7 +81,7 @@ void scltInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, PATH_MAX);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     (void)printf("failed to open log file in directory:%s\n", tsLogDir);

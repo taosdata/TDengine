@@ -235,19 +235,22 @@ int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) {
 
 int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const struct timespec *abstime) {
 #ifdef __USE_WIN_THREAD
-  if (!abstime) return EINVAL;
+  if (!abstime) return 0;
   if (SleepConditionVariableCS(cond, mutex, (DWORD)(abstime->tv_sec * 1e3 + abstime->tv_nsec / 1e6))) return 0;
-  if (GetLastError() == ERROR_TIMEOUT) {
-    return ETIMEDOUT;
+  DWORD error = GetLastError();
+  if (error == ERROR_TIMEOUT) {
+    return TSDB_CODE_TIMEOUT_ERROR;
   }
-  return EINVAL;
+  return TAOS_SYSTEM_WINAPI_ERROR(error);
 #else
   int32_t code = pthread_cond_timedwait(cond, mutex, abstime);
-  if (code && code != ETIMEDOUT) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+  if(code == ETIMEDOUT) {
+    return TSDB_CODE_TIMEOUT_ERROR;
+  } else if (code) {
+    return TAOS_SYSTEM_ERROR(code);
+  } else {
+    return 0;
   }
-  return code;
 #endif
 }
 
