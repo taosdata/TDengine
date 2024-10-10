@@ -330,12 +330,13 @@ int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
@@ -406,29 +407,29 @@ void* getTaskPoolWorkerCb();
 #define IS_AUDIT_CTB_NAME(_ctbname) \
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
-#define qFatal(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qFatal(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_FATAL) {                                                           \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qError(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qError(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_ERROR) {                                                           \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qWarn(...)                                                    \
-  do {                                                                \
-    if (qDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
-    }                                                                 \
+#define qWarn(...)                                                                          \
+  do {                                                                                      \
+    if (qDebugFlag & DEBUG_WARN) {                                                          \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                       \
   } while (0)
-#define qInfo(...)                                               \
-  do {                                                           \
-    if (qDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
-    }                                                            \
+#define qInfo(...)                                                                     \
+  do {                                                                                 \
+    if (qDebugFlag & DEBUG_INFO) {                                                     \
+      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                  \
   } while (0)
 #define qDebug(...)                                               \
   do {                                                            \

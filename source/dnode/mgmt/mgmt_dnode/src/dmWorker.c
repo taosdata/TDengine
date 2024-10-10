@@ -305,11 +305,16 @@ int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
 
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
-    (void)tsem_post(&dmNotifyHdl.sem);
+    if (tsem_post(&dmNotifyHdl.sem) != 0) {
+      dError("failed to post notify sem");
+    }
+
     (void)taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  (void)tsem_destroy(&dmNotifyHdl.sem);
+  if (tsem_destroy(&dmNotifyHdl.sem) != 0) {
+    dError("failed to destroy notify sem");
+  }
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
@@ -347,14 +352,14 @@ int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     (void)taosThreadJoin(pMgmt->monitorThread, NULL);
-    (void)taosThreadClear(&pMgmt->monitorThread);
+    taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
 void dmStopAuditThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->auditThread)) {
     (void)taosThreadJoin(pMgmt->auditThread, NULL);
-    (void)taosThreadClear(&pMgmt->auditThread);
+    taosThreadClear(&pMgmt->auditThread);
   }
 }
 
@@ -385,7 +390,7 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
 
   if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
     (void)taosThreadJoin(pMgmt->crashReportThread, NULL);
-    (void)taosThreadClear(&pMgmt->crashReportThread);
+    taosThreadClear(&pMgmt->crashReportThread);
   }
 }
 

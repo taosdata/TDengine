@@ -197,7 +197,12 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
     ENV_JSON_FALSE_CHECK(cJSON_AddItemToObject(json, "db", cJSON_CreateString("")));
   }
 
-  char              *value = cJSON_PrintUnformatted(json);
+  char *value = cJSON_PrintUnformatted(json);
+  if (value == NULL) {
+    tscError("failed to print json");
+    code = TSDB_CODE_FAILED;
+    goto _end;
+  }
   MonitorSlowLogData data = {0};
   data.clusterId = pTscObj->pAppInfo->clusterId;
   data.type = SLOW_LOG_WRITE;

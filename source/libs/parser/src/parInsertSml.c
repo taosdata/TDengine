@@ -113,7 +113,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     SSchema* pTagSchema = &pSchema[tags->pColIndex[i]];
     SSmlKv*  kv = taosArrayGet(cols, i);
     if (kv == NULL){
-      code = TSDB_CODE_SML_INVALID_DATA;
+      code = terrno;
       uError("SML smlBuildTagRow error kv is null");
       goto end;
     }
@@ -381,7 +381,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
   for (int32_t r = 0; r < rowNum; ++r) {
     void* rowData = taosArrayGetP(cols, r);
     if (rowData == NULL) {
-      ret = TSDB_CODE_SML_INVALID_DATA;
+      ret = terrno;
       goto end;
     }
     // 1. set the parsed value from sql string
@@ -389,7 +389,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       SSchema* pColSchema = &pSchema[pTableCxt->boundColsInfo.pColIndex[c]];
       SColVal* pVal = taosArrayGet(pTableCxt->pValues, pTableCxt->boundColsInfo.pColIndex[c]);
       if (pVal == NULL) {
-        ret = TSDB_CODE_SML_INVALID_DATA;
+        ret = terrno;
         goto end;
       }
       void**   p = taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));

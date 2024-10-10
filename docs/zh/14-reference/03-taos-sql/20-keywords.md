@@ -131,6 +131,7 @@ description: TDengine 保留关键字的详细列表
 ### H
 
 - HAVING
+- HOST
 
 ### I
 

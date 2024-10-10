@@ -333,14 +333,14 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
       continue;
     }
     
-    int32_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
+    int64_t ret = taosLSeekFile(pFd->fd, pHead->basic.offset, SEEK_SET);
     if (ret < 0) {
       releaseFdToFileCtx(pFd);
       code = terrno;
       goto _return;
     }
     
-    ret = (int32_t)taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
+    ret = taosWriteFile(pFd->fd, pHead->pBuf, pHead->basic.bufSize);
     if (ret != pHead->basic.bufSize) {
       releaseFdToFileCtx(pFd);
       code = terrno;
@@ -373,8 +373,16 @@ _return:
   return code;
 }
 
+
+void freeGcBlkBufInfo(void* ptr) {
+  SGcBlkBufInfo* pBlk = (SGcBlkBufInfo*)ptr;
+  taosMemoryFreeClear(pBlk->pBuf);
+}
+
+
 static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkCacheInfo* pCache, SGcBlkBufInfo* pBufInfo) {
   if (0 != taosHashPut(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId), pBufInfo, sizeof(*pBufInfo))) {
+    freeGcBlkBufInfo(pBufInfo);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
@@ -514,7 +522,7 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
   (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
   if (NULL == (*ppDst)->pDataBlock) {
     taosMemoryFree(*ppDst);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   TAOS_MEMCPY(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
   blockDataDeepClear(*ppDst);
@@ -570,7 +578,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   
-  int32_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
+  int64_t ret = taosLSeekFile(pFileFd->fd, pBasic->offset, SEEK_SET);
   if (ret < 0) {
     code = terrno;
     goto _return;
@@ -582,7 +590,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
     goto _return;
   }
   
-  ret = (int32_t)taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
+  ret = taosReadFile(pFileFd->fd, *ppBuf, pBasic->bufSize);
   if (ret != pBasic->bufSize) {
     taosMemoryFreeClear(*ppBuf);
     code = terrno;
@@ -1239,10 +1247,6 @@ _return:
   return code;
 }
 
-void freeGcBlkBufInfo(void* ptr) {
-  SGcBlkBufInfo* pBlk = (SGcBlkBufInfo*)ptr;
-  taosMemoryFree(pBlk->pBuf);
-}
 
 static int32_t initGroupCacheBlockCache(SGroupCacheOperatorInfo* pInfo) {
   SGcBlkCacheInfo* pCache = &pInfo->blkCache;

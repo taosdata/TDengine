@@ -67,6 +67,9 @@ int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   blockDataCheck(*ppBlock, false);
+  if (code) {
+    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
   return code;
 }
 
@@ -492,6 +495,8 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   pOperator->status = OP_RES_TO_RETURN;
 
   if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
@@ -501,6 +506,8 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
 
 int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return 0;
@@ -509,18 +516,12 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
 
-  int32_t code = pOperator->fpSet._openFn(pOperator);
-  if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
-    return code;
-  }
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
     code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
-    if (code) {
-      pTaskInfo->code = code;
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   if ((*pResBlock) != NULL) {
@@ -530,6 +531,12 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     setOperatorCompleted(pOperator);
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 

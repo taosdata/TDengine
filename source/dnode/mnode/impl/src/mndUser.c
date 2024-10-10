@@ -220,14 +220,18 @@ _OVER:
   TAOS_RETURN(code);
 }
 int32_t ipWhiteMgtRemove(char *user) {
-  bool update = true;
+  bool    update = true;
+  int32_t code = 0;
   (void)taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     update = false;
   } else {
     taosMemoryFree(*ppList);
-    (void)taosHashRemove(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
+    code = taosHashRemove(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
+    if (code != 0) {
+      update = false;
+    }
   }
 
   if (update) ipWhiteMgt.ver++;
@@ -391,7 +395,9 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     if (pList != NULL) {
       if (isRangeInWhiteList(pList, &range)) {
         if (pList->num == 1) {
-          (void)taosHashRemove(pIpWhiteTab, user, strlen(user));
+          if (taosHashRemove(pIpWhiteTab, user, strlen(user)) < 0) {
+            mError("failed to remove ip-white-list for user: %s at line %d", user, lino);
+          }
           taosMemoryFree(pList);
         } else {
           int32_t       idx = 0;
@@ -588,7 +594,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
     if (name == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
@@ -611,7 +617,7 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
   if (found == false) {
     char *name = taosStrdup(TSDB_DEFAULT_USER);
     if (name == NULL) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     if (taosArrayPush(pUserNames, &name) == NULL) {
       taosMemoryFree(name);
@@ -842,6 +848,7 @@ static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
 
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
+  int32_t  lino = 0;
   SUserObj userObj = {0};
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
@@ -859,7 +866,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) goto _ERROR;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
 
   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
@@ -876,7 +883,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     mndTransDrop(pTrans);
     goto _ERROR;
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -1775,7 +1782,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -1990,7 +1997,11 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if (code < 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -2189,7 +2200,10 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      (void)taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len);
+      code = taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len);
+      if (code < 0) {
+        mError("read db:%s, failed to remove db:%s since %s", pNewUser->user, pAlterReq->objname, terrstr());
+      }
       mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(pNewUser->readDbs);
@@ -2205,7 +2219,10 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      (void)taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len);
+      code = taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len);
+      if (code < 0) {
+        mError("user:%s, failed to remove db:%s since %s", pNewUser->user, pAlterReq->objname, terrstr());
+      }
       mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(pNewUser->writeDbs);
@@ -2275,7 +2292,10 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
-    (void)taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
+    code = taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
+    if (code < 0) {
+      mError("user:%s, failed to remove topic:%s since %s", pNewUser->user, pAlterReq->objname, tstrerror(code));
+    }
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -2461,7 +2481,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
              ALTER_USER_ADD_ALL_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)) {
     if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
-      (void)tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      TAOS_CHECK_GOTO(tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
       auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", name.dbname, alterReq.user, alterReq.sql,
                   alterReq.sqlLen);
     } else {
@@ -2476,7 +2496,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   } else {
     if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
-      (void)tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      TAOS_CHECK_GOTO(tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
       auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", name.dbname, alterReq.user, alterReq.sql,
                   alterReq.sqlLen);
     } else {
@@ -2511,7 +2531,10 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -2982,7 +3005,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      (void)tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      code = tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      if (code < 0) {
+        sdbRelease(pSdb, pUser);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       (void)tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3026,7 +3053,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      (void)tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      code = tNameFromString(&name, db, T_NAME_ACCT | T_NAME_DB);
+      if (code < 0) {
+        sdbRelease(pSdb, pUser);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       (void)tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3213,6 +3244,7 @@ _OVER:
 
 int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
   int32_t   code = 0;
+  int32_t   lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   len = strlen(db) + 1;
   void     *pIter = NULL;
@@ -3230,15 +3262,21 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
     bool inRead = (taosHashGet(newUser.readDbs, db, len) != NULL);
     bool inWrite = (taosHashGet(newUser.writeDbs, db, len) != NULL);
     if (inRead || inWrite) {
-      (void)taosHashRemove(newUser.readDbs, db, len);
-      (void)taosHashRemove(newUser.writeDbs, db, len);
+      code = taosHashRemove(newUser.readDbs, db, len);
+      if (code < 0) {
+        mError("failed to remove readDbs:%s from user:%s", db, pUser->user);
+      }
+      code = taosHashRemove(newUser.writeDbs, db, len);
+      if (code < 0) {
+        mError("failed to remove writeDbs:%s from user:%s", db, pUser->user);
+      }
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
     }
 
     mndUserFreeObj(&newUser);
@@ -3272,16 +3310,30 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
     bool inWrite = (taosHashGet(newUser.writeTbs, stb, len) != NULL);
     bool inAlter = (taosHashGet(newUser.alterTbs, stb, len) != NULL);
     if (inRead || inWrite || inAlter) {
-      (void)taosHashRemove(newUser.readTbs, stb, len);
-      (void)taosHashRemove(newUser.writeTbs, stb, len);
-      (void)taosHashRemove(newUser.alterTbs, stb, len);
+      code = taosHashRemove(newUser.readTbs, stb, len);
+      if (code < 0) {
+        mError("failed to remove readTbs:%s from user:%s", stb, pUser->user);
+      }
+      code = taosHashRemove(newUser.writeTbs, stb, len);
+      if (code < 0) {
+        mError("failed to remove writeTbs:%s from user:%s", stb, pUser->user);
+      }
+      code = taosHashRemove(newUser.alterTbs, stb, len);
+      if (code < 0) {
+        mError("failed to remove alterTbs:%s from user:%s", stb, pUser->user);
+      }
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      if (code != 0) {
+        mndUserFreeObj(&newUser);
+        sdbRelease(pSdb, pUser);
+        TAOS_RETURN(code);
+      }
     }
 
     mndUserFreeObj(&newUser);
@@ -3314,16 +3366,30 @@ int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
     bool inWrite = (taosHashGet(newUser.writeViews, view, len) != NULL);
     bool inAlter = (taosHashGet(newUser.alterViews, view, len) != NULL);
     if (inRead || inWrite || inAlter) {
-      (void)taosHashRemove(newUser.readViews, view, len);
-      (void)taosHashRemove(newUser.writeViews, view, len);
-      (void)taosHashRemove(newUser.alterViews, view, len);
+      code = taosHashRemove(newUser.readViews, view, len);
+      if (code < 0) {
+        mError("failed to remove readViews:%s from user:%s", view, pUser->user);
+      }
+      code = taosHashRemove(newUser.writeViews, view, len);
+      if (code < 0) {
+        mError("failed to remove writeViews:%s from user:%s", view, pUser->user);
+      }
+      code = taosHashRemove(newUser.alterViews, view, len);
+      if (code < 0) {
+        mError("failed to remove alterViews:%s from user:%s", view, pUser->user);
+      }
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      if (code < 0) {
+        mndUserFreeObj(&newUser);
+        sdbRelease(pSdb, pUser);
+        TAOS_RETURN(code);
+      }
     }
 
     mndUserFreeObj(&newUser);
@@ -3356,13 +3422,21 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
 
     bool inTopic = (taosHashGet(newUser.topics, topic, len) != NULL);
     if (inTopic) {
-      (void)taosHashRemove(newUser.topics, topic, len);
+      code = taosHashRemove(newUser.topics, topic, len);
+      if (code < 0) {
+        mError("failed to remove topic:%s from user:%s", topic, pUser->user);
+      }
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+      if (code < 0) {
+        mndUserFreeObj(&newUser);
+        sdbRelease(pSdb, pUser);
+        TAOS_RETURN(code);
+      }
     }
 
     mndUserFreeObj(&newUser);

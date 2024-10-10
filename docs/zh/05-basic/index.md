@@ -1,6 +1,6 @@
 ---
-title: 快速入门
-description: 'TDengine 基本功能'
+title: 基础功能
+description: 'TDengine 基础功能'
 ---
 
 本章主要介绍 TDengine 的数据模型以及写入和查询功能。

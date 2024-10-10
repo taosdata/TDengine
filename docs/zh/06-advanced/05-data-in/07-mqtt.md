@@ -33,13 +33,14 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 ### 3. 配置连接和认证信息
 
-在 **MQTT地址** 中填写 MQTT 代理的地址，例如：`192.168.1.42:1883`
+在 **MQTT 地址** 中填写 MQTT 代理的地址，例如：`192.168.1.42`
+
+在 **MQTT 端口** 中填写 MQTT 代理的端口，例如：`1883`
 
 在 **用户** 中填写 MQTT 代理的用户名。
 
 在 **密码** 中填写 MQTT 代理的密码。
 
-点击 **连通性检查** 按钮，检查数据源是否可用。
 
 ![mqtt-03.png](./mqtt-03.png)
 
@@ -64,6 +65,8 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 在 **订阅主题及 QoS 配置** 中填写要消费的 Topic 名称。使用如下格式设置： `topic1::0,topic2::1`。
 
+点击 **检查连通性** 按钮，检查数据源是否可用。
+
 ![mqtt-05.png](./mqtt-05.png)
 
 ### 6. 配置 MQTT Payload 解析
@@ -72,15 +75,30 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，包括，指定表名称和超级表名，设置普通列和标签列等。
 
-
 #### 6.1 解析
+
 有三种获取示例数据的方法：
 
 点击 **从服务器检索** 按钮，从 MQTT 获取示例数据。
 
 点击 **文件上传** 按钮，上传 CSV 文件，获取示例数据。
 
-在 **消息体** 中填写 MQTT 消息体中的示例数据，例如：`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`。之后会使用这条示例数据来配置提取和过滤条件。
+在 **消息体** 中填写 MQTT 消息体中的示例数据。
+
+json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解析一下数据：
+
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
+```
+
+或者
+
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
+```
+
+解析结果如下所示：
 
 ![mqtt-06.png](./mqtt-06.png)
 

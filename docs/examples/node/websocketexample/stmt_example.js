@@ -23,7 +23,7 @@ async function prepare() {
     return wsSql
 }
 
-(async () => {
+async function test() {
     let stmt = null;
     let connector = null;
     try {
@@ -60,6 +60,7 @@ async function prepare() {
     }
     catch (err) {
         console.error(`Failed to insert to table meters using stmt, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
     finally {
         if (stmt) {
@@ -70,4 +71,6 @@ async function prepare() {
         }
         taos.destroy();
     }
-})();
+}
+
+test()

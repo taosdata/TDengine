@@ -20,6 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
+#include "tanal.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -47,8 +48,14 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
 }
 
 static int32_t dmInitSystem() {
-  (void)taosIgnSIGPIPE();
-  (void)taosBlockSIGPIPE();
+  if (taosIgnSIGPIPE() != 0) {
+    dError("failed to ignore SIGPIPE");
+  }
+
+  if (taosBlockSIGPIPE() != 0) {
+    dError("failed to block SIGPIPE");
+  }
+
   taosResolveCRC();
   return 0;
 }
@@ -204,8 +211,11 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
-  (void)udfcClose();
+  if (udfcClose() != 0) {
+    dError("failed to close udfc");
+  }
   udfStopUdfd();
+  taosAnalCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();

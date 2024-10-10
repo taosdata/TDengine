@@ -62,7 +62,10 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
-  if (code) return code;
+  if (code) {
+    tDecoderClear(&pReader->coder);
+    return code;
+  }
   // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
@@ -393,6 +396,7 @@ _query:
   tDecoderInit(&dc, pData, nData);
   int32_t code = metaDecodeEntry(&dc, &me);
   if (code) {
+    tDecoderClear(&dc);
     goto _err;
   }
   if (me.type == TSDB_SUPER_TABLE) {
@@ -1277,7 +1281,11 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   tDecoderInit(&dc, pData, nData);
 
-  TAOS_CHECK_GOTO(metaDecodeEntry(&dc, &oStbEntry), NULL, END);
+  code = metaDecodeEntry(&dc, &oStbEntry);
+  if (code) {
+    tDecoderClear(&dc);
+    goto END;
+  }
 
   if (oStbEntry.stbEntry.schemaTag.pSchema == NULL || oStbEntry.stbEntry.schemaTag.pSchema == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, NULL, END);
@@ -1515,6 +1523,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+        taosMemoryFreeClear(info.pTagVal);
         metaCloseCtbCursor(pCur);
         taosHashCleanup(pSepecifiedUidMap);
         return terrno;

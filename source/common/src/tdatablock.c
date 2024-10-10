@@ -867,6 +867,7 @@ int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t r
 
   code = blockDataEnsureCapacity(pDst, rowCount);
   if (code) {
+    blockDataDestroy(pDst);
     return code;
   }
 

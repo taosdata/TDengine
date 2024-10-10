@@ -57,7 +57,7 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
     pBuf->path = taosStrdup(path);
     if (pBuf->path == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -134,9 +134,8 @@ static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
 static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
-  int32_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
-  if (ret == -1) {
-    terrno = terrno;
+  int64_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
+  if (ret < 0) {
     return terrno;
   }
 
@@ -246,14 +245,14 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-  if (ret == -1) {
+  int64_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
+  if (ret < 0) {
     ret = terrno;
     return ret;
   }
 
   void* pPage = (void*)GET_PAYLOAD_DATA(pg);
-  ret = (int32_t)taosReadFile(pBuf->pFile, pPage, pg->length);
+  ret = taosReadFile(pBuf->pFile, pPage, pg->length);
   if (ret != pg->length) {
     ret = terrno;
     return ret;

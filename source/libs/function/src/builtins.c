@@ -222,10 +222,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return code;
   }
 
-  pVal->literal = strndup(buf, len);
+  pVal->literal = taosStrndup(buf, len);
   if (pVal->literal == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
@@ -237,7 +237,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
-  (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+  tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
@@ -327,7 +327,6 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   } else if (IS_NULL_TYPE(paraType)) {
     paraType = TSDB_DATA_TYPE_BIGINT;
   }
-  pFunc->hasSMA = !IS_VAR_DATA_TYPE(paraType);
   int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
@@ -3115,6 +3114,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = percentileFunction,
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
+    .cleanupFunc  = percentileFunctionCleanupExt,
 #ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
 #endif

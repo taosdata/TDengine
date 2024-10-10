@@ -728,6 +728,8 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     sDebug("vgId:%d, get response info,  seqNum:%" PRId64 ", num:%d", pNode->vgId, cbMeta.seqNum, num);
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
+    sDebug("vgId:%d, fsm execute, index:%" PRId64 ", term:%" PRId64 ", type:%s, code:%d, retry:%d", pNode->vgId,
+           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), code, retry);
     if (retry) {
       taosMsleep(10);
       sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, tstrerror(code), pEntry->index);
@@ -1139,10 +1141,15 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
     pMgr->peerStartTime = pMsg->startTime;
   }
 
+  int32_t code = 0;
   if (pMgr->restored) {
-    TAOS_CHECK_RETURN(syncLogReplContinue(pMgr, pNode, pMsg));
+    if ((code = syncLogReplContinue(pMgr, pNode, pMsg)) != 0) {
+      sError("vgId:%d, failed to continue sync log repl since %s", pNode->vgId, tstrerror(code));
+    }
   } else {
-    TAOS_CHECK_RETURN(syncLogReplRecover(pMgr, pNode, pMsg));
+    if ((code = syncLogReplRecover(pMgr, pNode, pMsg)) != 0) {
+      sError("vgId:%d, failed to recover sync log repl since %s", pNode->vgId, tstrerror(code));
+    }
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
@@ -1304,7 +1311,7 @@ int32_t syncNodeLogReplInit(SSyncNode* pNode) {
     if (pNode->logReplMgrs[i] != NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
     pNode->logReplMgrs[i] = syncLogReplCreate();
     if (pNode->logReplMgrs[i] == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
     pNode->logReplMgrs[i]->peerId = i;
   }
@@ -1439,7 +1446,10 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   if (lastVer != pBuf->matchIndex) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SyncIndex index = pBuf->endIndex - 1;
 
-  TAOS_CHECK_RETURN(syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1));
+  int32_t code = 0;
+  if ((code = syncLogBufferRollback(pBuf, pNode, pBuf->matchIndex + 1)) != 0) {
+    sError("vgId:%d, failed to rollback sync log buffer since %s", pNode->vgId, tstrerror(code));
+  }
 
   sInfo("vgId:%d, reset sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
