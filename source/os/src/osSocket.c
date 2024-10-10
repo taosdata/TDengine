@@ -482,3 +482,18 @@ uint64_t taosNtoh64(uint64_t val) {
   }
 #endif
 }
+
+int32_t taosSetSockOpt2(int32_t fd) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return 0;
+#else
+  int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  } else {
+    return 0;
+  }
+#endif
+  return 0;
+}

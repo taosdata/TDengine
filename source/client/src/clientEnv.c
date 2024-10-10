@@ -370,7 +370,10 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 1000);
   rpcInit.connLimitNum = connLimitNum;
+  rpcInit.shareConnLimit = tsShareConnLimit;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
   int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   if (TSDB_CODE_SUCCESS != code) {

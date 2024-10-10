@@ -506,7 +506,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 50
+#define TSDB_MAX_RPC_THREADS 20
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
