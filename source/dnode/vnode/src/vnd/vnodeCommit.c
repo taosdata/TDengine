@@ -102,9 +102,8 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
           ts.tv_sec = tv.tv_sec;
         }
 
-        int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-        if (rc && rc != ETIMEDOUT) {
-          code = TAOS_SYSTEM_ERROR(rc);
+        code = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+        if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
