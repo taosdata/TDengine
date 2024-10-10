@@ -147,7 +147,7 @@ uuid = { version = "1.4.0", features = [
     "serde",
 ] }
 serde_json = { version = "1.0", features = ["raw_value"] }
-sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
+sqlx = { version = "0.8", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "4.2.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
 
@@ -224,7 +224,7 @@ tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
 jemalloc_pprof = { version = "0.6.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
 
 [build-dependencies]
-sqlx = { version = "0.7", features = ["sqlite", "chrono", "mysql"] }
+sqlx = { version = "0.8", features = ["sqlite", "chrono", "mysql"] }
 dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
