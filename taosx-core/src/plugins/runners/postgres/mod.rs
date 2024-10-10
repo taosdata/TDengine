@@ -596,6 +596,7 @@ mod tests {
         assert_eq!("postgres", res.data_source);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data

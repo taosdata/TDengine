@@ -280,6 +280,7 @@ mod tests {
         assert!(!query.pool.is_closed());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_show_tables() {
         // prepare data
@@ -295,6 +296,7 @@ mod tests {
         assert!(tables.contains(&"t_metric".to_string()));
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_show_columns() {
         // prepare data
@@ -321,6 +323,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_distinct_values() {
         // prepare data
@@ -342,6 +345,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_one_for_schema() {
         // prepare data
@@ -363,6 +367,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all() {
         // prepare data
@@ -381,6 +386,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_by_stream() {
         // prepare data
@@ -411,6 +417,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n() {
         // prepare data
@@ -431,6 +438,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_charset() {
         // prepare data

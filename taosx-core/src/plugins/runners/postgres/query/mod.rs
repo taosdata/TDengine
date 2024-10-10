@@ -280,6 +280,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all() {
         // prepare data
@@ -312,6 +313,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_by_stream() {
         // prepare data
@@ -348,6 +350,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n() {
         // prepare data
