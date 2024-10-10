@@ -64,7 +64,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%smnode.json", path, TD_DIRSEP);
+  int32_t nBytes = tsnprintf(file, sizeof(file), "%s%smnode.json", path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -168,13 +168,13 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
+  int32_t nBytes = tsnprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
   }
 
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
+  nBytes = tsnprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(realfile)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;

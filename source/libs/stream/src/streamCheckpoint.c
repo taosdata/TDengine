@@ -710,7 +710,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
     return terrno;
   }
 
-  int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
+  int32_t nBytes = tsnprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(filePath);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -1304,13 +1304,13 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
 
     char filename[PATH_MAX] = {0};
     if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
-      nBytes = snprintf(filename, sizeof(filename), "%s%s", path, name);
+      nBytes = tsnprintf(filename, sizeof(filename), "%s%s", path, name);
       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
         code = TSDB_CODE_OUT_OF_RANGE;
         break;
       }
     } else {
-      nBytes = snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+      nBytes = tsnprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
         code = TSDB_CODE_OUT_OF_RANGE;
         break;
@@ -1318,7 +1318,7 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
     }
 
     char object[PATH_MAX] = {0};
-    nBytes = snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+    nBytes = tsnprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
     if (nBytes <= 0 || nBytes >= sizeof(object)) {
       code = TSDB_CODE_OUT_OF_RANGE;
       break;
@@ -1349,7 +1349,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
     return terrno;
   }
 
-  nBytes = snprintf(buf, cap, "%s/%s", id, fname);
+  nBytes = tsnprintf(buf, cap, "%s/%s", id, fname);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(buf);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -1439,7 +1439,7 @@ int32_t deleteCheckpoint(const char* id) {
 int32_t deleteCheckpointFile(const char* id, const char* name) {
   char object[128] = {0};
 
-  int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
+  int32_t nBytes = tsnprintf(object, sizeof(object), "%s/%s", id, name);
   if (nBytes <= 0 || nBytes >= sizeof(object)) {
     return TSDB_CODE_OUT_OF_RANGE;
   }

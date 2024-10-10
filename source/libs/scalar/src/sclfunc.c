@@ -2251,7 +2251,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     len = (int32_t)strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
 
-    len += snprintf(buf + len, fractionLen, format, mod);
+    len += tsnprintf(buf + len, fractionLen, format, mod);
 
     // add timezone string
     if (tzLen > 0) {
@@ -3844,11 +3844,11 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
     char slopBuf[64] = {0};
     char interceptBuf[64] = {0};
-    int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
+    int  n = tsnprintf(slopBuf, 64, "%.6lf", matrix02);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
     }
-    n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
+    n = tsnprintf(interceptBuf, 64, "%.6lf", matrix12);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void) snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }

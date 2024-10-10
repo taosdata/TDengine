@@ -42,7 +42,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   char     *content = NULL;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
-  int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t   nBytes = tsnprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -120,13 +120,13 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t nBytes = tsnprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
   }
 
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  nBytes = tsnprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -387,22 +387,22 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
   char checkFile[PATH_MAX] = {0};
   char realCheckFile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(folder, sizeof(folder), "%s%sdnode", tsDataDir, TD_DIRSEP);
+  int32_t nBytes = tsnprintf(folder, sizeof(folder), "%s%sdnode", tsDataDir, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
-  nBytes = snprintf(encryptFile, sizeof(realEncryptFile), "%s%s%s.bak", folder, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
+  nBytes = tsnprintf(encryptFile, sizeof(realEncryptFile), "%s%s%s.bak", folder, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
-  nBytes = snprintf(realEncryptFile, sizeof(realEncryptFile), "%s%s%s", folder, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
+  nBytes = tsnprintf(realEncryptFile, sizeof(realEncryptFile), "%s%s%s", folder, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
-  nBytes = snprintf(checkFile, sizeof(checkFile), "%s%s%s.bak", folder, TD_DIRSEP, DM_CHECK_CODE_FILE);
+  nBytes = tsnprintf(checkFile, sizeof(checkFile), "%s%s%s.bak", folder, TD_DIRSEP, DM_CHECK_CODE_FILE);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -507,14 +507,14 @@ int32_t dmGetEncryptKey() {
   char   *encryptKey = NULL;
   char   *content = NULL;
 
-  int32_t nBytes = snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+  int32_t nBytes = tsnprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP,
                             DM_ENCRYPT_CODE_FILE);
   if (nBytes <= 0 || nBytes >= sizeof(encryptFile)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     return code;
   }
 
-  nBytes = snprintf(checkFile, sizeof(checkFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_CHECK_CODE_FILE);
+  nBytes = tsnprintf(checkFile, sizeof(checkFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_CHECK_CODE_FILE);
   if (nBytes <= 0 || nBytes >= sizeof(checkFile)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     return code;

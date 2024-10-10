@@ -437,7 +437,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   (*pPartialFunc)->hasOriginalFunc = true;
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
   if (taosHashBinary(name, len) < 0) {
     return TSDB_CODE_FAILED;
   }

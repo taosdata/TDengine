@@ -164,7 +164,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
       return;
     }
 
-    int32_t nBytes = snprintf(buf + strlen(buf), cap, "[");
+    int32_t nBytes = tsnprintf(buf + strlen(buf), cap, "[");
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(buf);
       stError("%s failed to write buf, reason:%s", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_RANGE));
@@ -355,7 +355,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
     return terrno;
   }
 
-  nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  nBytes = tsnprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                     "checkpoint", pSnap->chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;

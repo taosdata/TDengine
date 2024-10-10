@@ -140,7 +140,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
-  int32_t  len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
+  int32_t  len = tsnprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
 

@@ -405,7 +405,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       if (tsEnableScience) {
         taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -419,7 +419,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           taosFprintfFile(pFile, "%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -670,7 +670,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           printf("%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -683,7 +683,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
