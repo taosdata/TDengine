@@ -3665,6 +3665,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .estimateReturnRowsFunc = diffEstReturnRows,
     .processFuncByRow  = diffFunctionByRow,
   },
+#if 0
   {
     .name = "forecast",
     .type = FUNCTION_TYPE_FORECAST,
@@ -3697,6 +3698,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
+#endif
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
