@@ -397,7 +397,7 @@ where
     &'r str: sqlx::Decode<'r, DB>,
 {
     fn decode(
-        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <DB as sqlx::database::Database>::ValueRef<'r>,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let v: &'r str = sqlx::Decode::decode(value)?;
         Self::from_str(v).map_err(|err| Box::new(err) as _)
@@ -409,8 +409,8 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
+        buf: &mut <DB as sqlx::database::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         let val = serde_json::to_string(&self).unwrap();
         <String as sqlx::encode::Encode<'q, DB>>::encode(val, buf as _)
     }

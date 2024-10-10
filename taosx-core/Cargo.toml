@@ -136,17 +136,17 @@ sysinfo = { workspace = true }
 chardetng = "0.1.17"
 encoding_rs = "0.8.33"
 
-sqlx = { version = "0.7.4", features = [
+sqlx = { version = "0.8", features = [
     "mysql",
     "runtime-tokio",
     "chrono",
     "bigdecimal",
     "tls-rustls",
 ] }
-bigdecimal = "0.3.0"
+bigdecimal = "0.4"
 bit-vec = "0.6.3"
 uuid = "1.4.0"
-sqlx-postgres = { version = "0.7.4", features = [
+sqlx-postgres = { version = "0.8", features = [
     "chrono",
     "bigdecimal",
     "bit-vec",
