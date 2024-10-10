@@ -204,12 +204,12 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = tsnprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
+  int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  nBytes = tsnprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
+  nBytes = snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(realfile)) {
     return TSDB_CODE_OUT_OF_RANGE;
   }

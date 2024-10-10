@@ -1042,9 +1042,12 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   if (h != S_OK) {
     return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
-  snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3,
+  int n = snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3,
            guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6],
            guid.Data4[7]);
+  if(n >= uidlen) {
+    return TSDB_CODE_OUT_OF_BUFFER;;
+  }
 
   return 0;
 #elif defined(_TD_DARWIN_64)
@@ -1054,7 +1057,10 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
-  int n = tsnprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
+  int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
+  if(n >= uidlen) {
+    return TSDB_CODE_OUT_OF_BUFFER;;
+  }
   return 0;
 #else
   int64_t len = 0;

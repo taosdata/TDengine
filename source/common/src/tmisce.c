@@ -143,7 +143,7 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
   int32_t ret = 0;
   int32_t nwrite = 0;
 
-  nwrite = tsnprintf(pBuf + nwrite, cap, "epset:{");
+  nwrite = snprintf(pBuf + nwrite, cap, "epset:{");
   if (nwrite <= 0 || nwrite >= cap) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -151,9 +151,9 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
 
   for (int _i = 0; (_i < pEpSet->numOfEps) && (cap > 0); _i++) {
     if (_i == pEpSet->numOfEps - 1) {
-      ret = tsnprintf(pBuf + nwrite, cap, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+      ret = snprintf(pBuf + nwrite, cap, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     } else {
-      ret = tsnprintf(pBuf + nwrite, cap, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+      ret = snprintf(pBuf + nwrite, cap, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     }
 
     if (ret <= 0 || ret >= cap) {
@@ -168,7 +168,7 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
-  ret = tsnprintf(pBuf + nwrite, cap, "}, inUse:%d", pEpSet->inUse);
+  ret = snprintf(pBuf + nwrite, cap, "}, inUse:%d", pEpSet->inUse);
   if (ret <= 0 || ret >= cap) {
     return TSDB_CODE_OUT_OF_BUFFER;
   } else {
@@ -215,7 +215,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), NULL, _exit);
   }
 
-  int32_t nBytes = tsnprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  int32_t nBytes = snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
   if (nBytes <= 9 || nBytes >= sizeof(tmp)) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_RANGE, NULL, _exit);
   }

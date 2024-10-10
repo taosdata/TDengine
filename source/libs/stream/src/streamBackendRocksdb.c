@@ -216,7 +216,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
     return terrno;
   }
 
-  nBytes = tsnprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
+  nBytes = snprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(state);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -229,7 +229,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       return terrno;
     }
 
-    nBytes = tsnprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
+    nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(state);
       taosMemoryFree(chkp);
@@ -282,7 +282,7 @@ int32_t remoteChkp_readMetaData(char* path, SSChkpMetaOnS3** pMeta) {
     return terrno;
   }
 
-  int32_t n = tsnprintf(metaPath, cap, "%s%s%s", path, TD_DIRSEP, "META");
+  int32_t n = snprintf(metaPath, cap, "%s%s%s", path, TD_DIRSEP, "META");
   if (n <= 0 || n >= cap) {
     taosMemoryFree(metaPath);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -350,7 +350,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    nBytes = tsnprintf(src, cap, "%s%s%s_%" PRId64 "", path, TD_DIRSEP, key, pMeta->currChkptId);
+    nBytes = snprintf(src, cap, "%s%s%s_%" PRId64 "", path, TD_DIRSEP, key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _EXIT;
@@ -361,7 +361,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    nBytes = tsnprintf(dst, cap, "%s%s%s", path, TD_DIRSEP, key);
+    nBytes = snprintf(dst, cap, "%s%s%s", path, TD_DIRSEP, key);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _EXIT;
@@ -403,7 +403,7 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
       return terrno;
     }
 
-    nBytes = tsnprintf(p, cap, "%s_%" PRId64 "", key, pMeta->currChkptId);
+    nBytes = snprintf(p, cap, "%s_%" PRId64 "", key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(pMeta);
       taosMemoryFree(p);
@@ -499,7 +499,7 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
     return terrno;
   }
 
-  int32_t nBytes = tsnprintf(defaultPath, cap, "%s%s", defaultPath, "_tmp");
+  int32_t nBytes = snprintf(defaultPath, cap, "%s%s", defaultPath, "_tmp");
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(defaultPath);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -611,13 +611,13 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
       continue;
     }
 
-    nBytes = tsnprintf(srcName, cap, "%s%s%s", src, TD_DIRSEP, name);
+    nBytes = snprintf(srcName, cap, "%s%s%s", src, TD_DIRSEP, name);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _ERROR;
     }
 
-    nBytes = tsnprintf(dstName, cap, "%s%s%s", dst, TD_DIRSEP, name);
+    nBytes = snprintf(dstName, cap, "%s%s%s", dst, TD_DIRSEP, name);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _ERROR;
@@ -715,7 +715,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(prefixPath, cap, "%s%s%s", path, TD_DIRSEP, key);
+  nBytes = snprintf(prefixPath, cap, "%s%s%s", path, TD_DIRSEP, key);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _EXIT;
@@ -727,7 +727,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(defaultPath, cap, "%s%s%s", prefixPath, TD_DIRSEP, "state");
+  nBytes = snprintf(defaultPath, cap, "%s%s%s", prefixPath, TD_DIRSEP, "state");
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _EXIT;
@@ -739,7 +739,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(checkpointRoot, cap, "%s%s%s", prefixPath, TD_DIRSEP, "checkpoints");
+  nBytes = snprintf(checkpointRoot, cap, "%s%s%s", prefixPath, TD_DIRSEP, "checkpoints");
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _EXIT;
@@ -753,7 +753,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
   if (chkptId > 0) {
-    nBytes = tsnprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+    nBytes = snprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                       "checkpoint", chkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
@@ -800,7 +800,7 @@ bool streamBackendDataIsExist(const char* path, int64_t chkpId) {
     return false;
   }
 
-  int16_t nBytes = tsnprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
+  int16_t nBytes = snprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
   if (nBytes <= 0 || nBytes >= cap) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     exist = false;
@@ -1322,13 +1322,13 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(pChkpDir, cap, "%s%s%s", path, TD_DIRSEP, "checkpoints");
+  nBytes = snprintf(pChkpDir, cap, "%s%s%s", path, TD_DIRSEP, "checkpoints");
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(pChkpIdDir, cap, "%s%s%s%" PRId64, pChkpDir, TD_DIRSEP, "checkpoint", chkpId);
+  nBytes = snprintf(pChkpIdDir, cap, "%s%s%s%" PRId64, pChkpDir, TD_DIRSEP, "checkpoint", chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _EXIT;
@@ -1500,7 +1500,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(pDst, cap, "%s%sinfo", pChkpIdDir, TD_DIRSEP);
+  nBytes = snprintf(pDst, cap, "%s%sinfo", pChkpIdDir, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("failed to build dst to load extra info, dir:%s", pChkpIdDir);
@@ -1556,7 +1556,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(pDst, cap, "%s%sinfo", pChkpIdDir, TD_DIRSEP);
+  nBytes = snprintf(pDst, cap, "%s%sinfo", pChkpIdDir, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("failed to build dst to add extra info, dir:%s, reason:%s", pChkpIdDir, tstrerror(code));
@@ -1570,7 +1570,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
     goto _EXIT;
   }
 
-  nBytes = tsnprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
+  nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
   if (nBytes <= 0 || nBytes >= sizeof(buf)) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("failed to build content to add extra info, dir:%s,reason:%s", pChkpIdDir, tstrerror(code));
@@ -2727,7 +2727,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
     return terrno;
   }
 
-  int32_t nBytes = tsnprintf(temp, cap, "%s%s%s%" PRId64, pDb->path, TD_DIRSEP, "tmp", chkpId);
+  int32_t nBytes = snprintf(temp, cap, "%s%s%s%" PRId64, pDb->path, TD_DIRSEP, "tmp", chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(temp);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -4805,14 +4805,14 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   char* srcDir = &dstBuf[cap];
   char* dstDir = &srcDir[cap];
 
-  int nBytes = tsnprintf(srcDir, cap, "%s%s%s%s%s%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                         "checkpoint", p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
-  nBytes = tsnprintf(dstDir, cap, "%s", dname);
+  nBytes = snprintf(dstDir, cap, "%s", dname);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -4837,13 +4837,13 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     memset(dstBuf, 0, cap);
 
     char* filename = taosArrayGetP(p->pAdd, i);
-    nBytes = tsnprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, filename);
+    nBytes = snprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, filename);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _ERROR;
     }
 
-    nBytes = tsnprintf(dstBuf, cap, "%s%s%s", dstDir, TD_DIRSEP, filename);
+    nBytes = snprintf(dstBuf, cap, "%s%s%s", dstDir, TD_DIRSEP, filename);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _ERROR;
@@ -4874,13 +4874,13 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   memset(srcBuf, 0, cap);
   memset(dstBuf, 0, cap);
 
-  nBytes = tsnprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, p->pCurrent);
+  nBytes = snprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, p->pCurrent);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
-  nBytes = tsnprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -4896,13 +4896,13 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   memset(srcBuf, 0, cap);
   memset(dstBuf, 0, cap);
 
-  nBytes = tsnprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, p->pManifest);
+  nBytes = snprintf(srcBuf, cap, "%s%s%s", srcDir, TD_DIRSEP, p->pManifest);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
-  nBytes = tsnprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -4914,7 +4914,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
   memset(dstBuf, 0, cap);
-  nBytes = tsnprintf(dstDir, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+  nBytes = snprintf(dstDir, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -5018,7 +5018,7 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
       return terrno;
     }
 
-    int32_t nBytes = tsnprintf(path, cap, "%s%s%s", bm->path, TD_DIRSEP, taskId);
+    int32_t nBytes = snprintf(path, cap, "%s%s%s", bm->path, TD_DIRSEP, taskId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(path);
       TAOS_UNUSED(taosThreadRwlockUnlock(&bm->rwLock));

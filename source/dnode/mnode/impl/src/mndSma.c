@@ -2252,7 +2252,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
         if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
           SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
           if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
-          len += tsnprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
+          len += snprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
                           ((SExprNode *)pFunc)->userAlias);
           if (len >= TSDB_MAX_SAVED_SQL_LEN) {
             len = TSDB_MAX_SAVED_SQL_LEN;

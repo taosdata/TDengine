@@ -156,7 +156,7 @@ bool taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValu
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) {
   int32_t code = 0;
   char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
-  int32_t nameLen = 1 + snprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
+  int32_t nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
 
   taosThreadMutexLock(&tsAlgos.lock);
   SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);

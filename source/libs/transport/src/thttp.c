@@ -102,14 +102,14 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
   int32_t len = 0;
   if (flag == HTTP_FLAT) {
     if (qid == NULL) {
-      len = tsnprintf(pHead, headLen,
+      len = snprintf(pHead, headLen,
                      "POST %s HTTP/1.1\n"
                      "Host: %s\n"
                      "Content-Type: application/json\n"
                      "Content-Length: %d\n\n",
                      uri, server, contLen);
     } else {
-      len = tsnprintf(pHead, headLen,
+      len = snprintf(pHead, headLen,
                      "POST %s HTTP/1.1\n"
                      "Host: %s\n"
                      "X-QID: %s\n"
@@ -122,7 +122,7 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
     }
   } else if (flag == HTTP_GZIP) {
     if (qid == NULL) {
-      len = tsnprintf(pHead, headLen,
+      len = snprintf(pHead, headLen,
                      "POST %s HTTP/1.1\n"
                      "Host: %s\n"
                      "Content-Type: application/json\n"
@@ -130,7 +130,7 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
                      "Content-Length: %d\n\n",
                      uri, server, contLen);
     } else {
-      len = tsnprintf(pHead, headLen,
+      len = snprintf(pHead, headLen,
                      "POST %s HTTP/1.1\n"
                      "Host: %s\n"
                      "X-QID: %s\n"
