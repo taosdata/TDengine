@@ -3666,6 +3666,48 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFuncByRow  = diffFunctionByRow,
   },
   {
+    .name = "forecast",
+    .type = FUNCTION_TYPE_FORECAST,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,    
+    .translateFunc = translateForecast,
+    .getEnvFunc    = getSelectivityFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = forecastEstReturnRows,
+  },
+    {
+    .name = "_frowts",
+    .type = FUNCTION_TYPE_FORECAST_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_flow",
+    .type = FUNCTION_TYPE_FORECAST_LOW,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fhigh",
+    .type = FUNCTION_TYPE_FORECAST_HIGH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
