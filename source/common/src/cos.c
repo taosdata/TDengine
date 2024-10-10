@@ -89,20 +89,8 @@ static void s3DumpCfgByEp(int8_t epIndex) {
 
 int32_t s3CheckCfg() {
   int32_t code = 0, lino = 0;
-  int8_t  i = 0;
 
-  if (!tsS3Enabled) {
-    (void)fprintf(stderr, "s3 not configured.\n");
-    TAOS_RETURN(code);
-  }
-
-  code = s3Begin();
-  if (code != 0) {
-    (void)fprintf(stderr, "failed to initialize s3.\n");
-    TAOS_RETURN(code);
-  }
-
-  for (; i < tsS3EpNum; i++) {
+  for (int8_t i = 0; i < tsS3EpNum; i++) {
     (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
     s3DumpCfgByEp(i);
 
@@ -192,7 +180,7 @@ int32_t s3CheckCfg() {
     (void)fprintf(stdout, "=================================================================\n");
   }
 
-  s3End();
+  // s3End();
 
   TAOS_RETURN(code);
 }
@@ -1529,6 +1517,8 @@ void s3EvictCache(const char *path, long object_size) {}
 #include "cos_http_io.h"
 #include "cos_log.h"
 
+int32_t s3Begin() { TAOS_RETURN(TSDB_CODE_SUCCESS); }
+
 int32_t s3Init() {
   if (cos_http_io_initialize(NULL, 0) != COSE_OK) {
     return -1;
@@ -1967,6 +1957,10 @@ long s3Size(const char *object_name) {
 #else
 
 int32_t s3Init() { return 0; }
+int32_t s3Begin() { TAOS_RETURN(TSDB_CODE_SUCCESS); }
+
+void    s3End() {}
+int32_t s3CheckCfg() { return 0; }
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) { return 0; }
