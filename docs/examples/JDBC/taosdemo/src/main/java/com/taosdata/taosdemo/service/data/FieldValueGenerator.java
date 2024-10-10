@@ -11,7 +11,8 @@ public class FieldValueGenerator {
 
     public static Random random = new Random(System.currentTimeMillis());
 
-    // 生成start到end的时间序列，时间戳为顺序，不含有乱序，field的value为随机生成
+    // Generate a time series from start to end, timestamps are in order without
+    // disorder, field values are randomly generated
     public static List<RowValue> generate(long start, long end, long timeGap, List<FieldMeta> fieldMetaList) {
         List<RowValue> values = new ArrayList<>();
 
@@ -29,9 +30,12 @@ public class FieldValueGenerator {
         return values;
     }
 
-    // 生成start到end的时间序列，时间戳为顺序，含有乱序，rate为乱序的比例，range为乱序前跳范围，field的value为随机生成
+    // Generate a time series from start to end, timestamps are in order but include
+    // disorder, rate is the proportion of disorder, range is the jump range before
+    // disorder, field values are randomly generated
     public static List<RowValue> disrupt(List<RowValue> values, int rate, long range) {
-        long timeGap = (long) (values.get(1).getFields().get(0).getValue()) - (long) (values.get(0).getFields().get(0).getValue());
+        long timeGap = (long) (values.get(1).getFields().get(0).getValue())
+                - (long) (values.get(0).getFields().get(0).getValue());
         int bugSize = values.size() * rate / 100;
         Set<Integer> bugIndSet = new HashSet<>();
         while (bugIndSet.size() < bugSize) {
