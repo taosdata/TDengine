@@ -94,9 +94,9 @@ def pre_test(){
     script {
         sh '''
             cd ${WK}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout fix/TD-32409
             cd ${WKC}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout fix/TD-32409
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -201,11 +201,11 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout fix/TD-32409
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout fix/TD-32409
         '''
     }
     script {
