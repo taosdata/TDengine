@@ -837,7 +837,7 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
     return TSDB_CODE_RPC_NETWORK_BUSY;
   }
 
-  queue* h = QUEUE_TAIL(&plist->conns);
+  queue* h = QUEUE_HEAD(&plist->conns);
   plist->size -= 1;
   QUEUE_REMOVE(h);
 
@@ -894,7 +894,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 
   conn->heapMissHit = 0;
 
-  if (conn->list->size >= 2) {
+  if (conn->list->size >= 5) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     if (arg == NULL) return;
     arg->param1 = conn;
