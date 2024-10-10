@@ -14,6 +14,7 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
+      - '.github/workflows/**'
 
 env:
   RELEASE_HOST: 192.168.1.45
