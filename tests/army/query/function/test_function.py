@@ -1737,9 +1737,9 @@ class TDTestCase(TBase):
         assert res0 == 28
         assert res1 == 6
 
-        tdSql.query('select week(timediff(ts, now())) from meters limit 1;')
+        tdSql.query("select week(timediff(ts, '2024-10-10 09:36:50.172')) from meters limit 1;")
         res = tdSql.getData(0, 0)
-        assert res == 41
+        assert res == 39
 
         tdSql.query('select groupid, sum(week(ts)) from meters group by groupid;')
         res0 = tdSql.getData(0, 0)
@@ -1818,9 +1818,9 @@ class TDTestCase(TBase):
         assert res0 == 4
         assert res1 == 6
 
-        tdSql.query('select weekday(timediff(ts, now())) from meters limit 1;')
+        tdSql.query("select weekday(timediff(ts, '2024-10-10 09:36:50.172')) from meters limit 1;")
         res = tdSql.getData(0, 0)
-        assert res == 1
+        assert res == 4
 
         tdSql.query('select groupid, sum(weekday(ts)) from meters group by groupid;')
         res = tdSql.getData(0, 0)
@@ -1907,9 +1907,9 @@ class TDTestCase(TBase):
         assert res0 == 28
         assert res2 == 6
 
-        tdSql.query('select weekofyear(timediff(ts, now())) from meters limit 1;')
+        tdSql.query("select weekofyear(timediff(ts, '2024-10-10 09:36:50.172')) from meters limit 1;")
         res = tdSql.getData(0, 0)
-        assert res == 42
+        assert res == 40
 
         tdSql.query('select groupid, sum(weekofyear(ts)) from meters group by groupid;')
         res0 = tdSql.getData(0, 0)
@@ -1984,9 +1984,9 @@ class TDTestCase(TBase):
         res = tdSql.getData(0, 0)
         assert res == 6
 
-        tdSql.query('select dayofweek(timediff(ts, now())) from meters limit 1;')
+        tdSql.query("select dayofweek(timediff(ts, '2024-10-10 09:36:50.172')) from meters limit 1;")
         res = tdSql.getData(0, 0)
-        assert res == 3
+        assert res == 6
 
         tdSql.query('select groupid, sum(dayofweek(ts)) from meters group by groupid;')
         res0 = tdSql.getData(0, 0)
