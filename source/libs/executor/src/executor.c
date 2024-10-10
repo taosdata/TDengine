@@ -1635,7 +1635,9 @@ int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
-  pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  if (pTaskInfo->pRoot->fpSet.releaseStreamStateFn != NULL) {
+    pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  }
   return 0;
 }
 
