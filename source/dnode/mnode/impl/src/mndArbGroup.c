@@ -445,7 +445,7 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
 
     SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
     if (pDnode == NULL) {
-      mError("dnodeId:%d, timer failed to send arb-hb request, failed find dnode", dnodeId);
+      mError("dnodeId:%d, timer failed to acquire dnode", dnodeId);
       taosArrayDestroy(hbMembers);
       continue;
     }
@@ -453,7 +453,10 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
     int64_t mndTerm = mndGetTerm(pMnode);
 
     if (mndIsDnodeOnline(pDnode, nowMs)) {
-      TAOS_CHECK_RETURN(mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers));
+      int32_t sendCode = mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers);
+      if (TSDB_CODE_SUCCESS != sendCode) {
+        mError("dnodeId:%d, timer failed to send arb-hb request", dnodeId);
+      }
     }
 
     mndReleaseDnode(pMnode, pDnode);
