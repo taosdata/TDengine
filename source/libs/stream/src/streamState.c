@@ -528,6 +528,9 @@ void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
   }
   dst->dump = 1;
   dst->pTdbState->pOwner->pBackend = src->pTdbState->pOwner->pBackend;
+  dst->pResultRowStore.resultRowPut = src->pResultRowStore.resultRowPut;
+  dst->pResultRowStore.resultRowGet = src->pResultRowStore.resultRowGet;
+  dst->pExprSupp = src->pExprSupp;
   return;
 }
 SStreamStateCur* createStreamStateCursor() {
