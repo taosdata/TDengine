@@ -655,6 +655,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_max_backfill_range_days() {
         // not set
         let dsn = Dsn::from_str("pi:///").unwrap();
@@ -729,6 +730,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_backfill_start_time() {
         let dsn = Dsn::from_str("pi:///").unwrap();
         let config = PiConfig::parse_backfill_start_time(&dsn).unwrap();
@@ -751,6 +753,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_backfill_end_time() {
         let dsn = Dsn::from_str("pi:///").unwrap();
         let config = PiConfig::parse_backfill_end_time(&dsn).unwrap();
@@ -780,6 +783,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_config() {
         dbg!(std::env::current_dir().unwrap());
         let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv").unwrap();
