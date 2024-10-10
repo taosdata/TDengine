@@ -99,7 +99,7 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子�
 
 ## 流式计算读取历史数据
 
-正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。例如：
+正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。流计算处理历史数据的最大窗口数是2000万，超过限制会报错。例如：
 
 ```sql
 create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
