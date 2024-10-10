@@ -332,8 +332,8 @@ int32_t taosGetFqdn(char *fqdn) {
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
   // hints.ai_family = AF_INET;
-  tstrncpy(fqdn, hostname, TSDB_FQDN_LEN);
-  tstrncpy(fqdn + strlen(hostname), ".local", TSDB_FQDN_LEN - strlen(hostname));
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);
+  tstrncpy(fqdn + strlen(hostname), ".local", TD_FQDN_LEN - strlen(hostname));
 #else  // linux
 
 #endif  // linux

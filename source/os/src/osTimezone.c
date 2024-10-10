@@ -926,7 +926,7 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone)
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL) == NULL) {
+  if (taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
     return TSDB_CODE_TIME_ERROR;
   }
   daylight = tm1.tm_isdst;
@@ -956,7 +956,7 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone)
          */
         time_t    tx1 = taosGetTimestampSec();
         struct tm tm1;
-        if(taosLocalTime(&tx1, &tm1, NULL) == NULL) {
+        if(taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
           return TSDB_CODE_TIME_ERROR;
         }
         /* load time zone string from /etc/timezone */
@@ -1037,7 +1037,7 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone)
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  if(taosLocalTime(&tx1, &tm1, NULL) == NULL) {
+  if(taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
     return TSDB_CODE_TIME_ERROR;
   }
   isdst_now = tm1.tm_isdst;

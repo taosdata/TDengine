@@ -251,6 +251,7 @@ void syslog(int unused, const char *format, ...);
 #define TD_LOCALE_LEN   64
 #define TD_CHARSET_LEN  64
 #define TD_TIMEZONE_LEN 96
+#define TD_TIME_STR_LEN 128
 #define TD_IP_LEN       64
 
 #ifdef __cplusplus

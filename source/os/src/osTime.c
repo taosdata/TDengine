@@ -474,15 +474,15 @@ time_t taosMktime(struct tm *timep) {
 #endif
 }
 
-struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize) {
   struct tm *res = NULL;
-  if (timep == NULL) {
+  if (timep == NULL || result == NULL) {
     return NULL;
   }
 #ifdef WINDOWS
   if (*timep < -2208988800LL) {
     if (buf != NULL) {
-      snprintf(buf, 4, "NaN");
+      snprintf(buf, bufSize, "NaN");
     }
     return NULL;
   } else if (*timep < 0) {
@@ -494,7 +494,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
     time_t        tt = 0;
     if (localtime_s(&tm1, &tt) != 0) {
       if (buf != NULL) {
-        snprintf(buf, 4, "NaN");
+        snprintf(buf, bufSize, "NaN");
       }
       return NULL;
     }
@@ -525,7 +525,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
   } else {
     if (localtime_s(result, timep) != 0) {
       if (buf != NULL) {
-        snprintf(buf, 4, "NaN");
+        snprintf(buf, bufSize, "NaN");
       }
       return NULL;
     }
@@ -533,7 +533,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
 #else
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
-    (void)snprintf(buf, 4, "NaN");
+    (void)snprintf(buf, bufSize, "NaN");
   }
 #endif
   return result;

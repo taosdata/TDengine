@@ -149,18 +149,18 @@ static int32_t taosStartLog() {
   return 0;
 }
 
-static void getDay(char* buf){
+static void getDay(char* buf, int32_t bufSize){
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
-    TAOS_UNUSED(strftime(buf, LOG_FILE_DAY_LEN, "%Y-%m-%d", &tmInfo));
+  if (taosLocalTime(&t, &tmInfo, buf, bufSize) != NULL) {
+    TAOS_UNUSED(strftime(buf, bufSize, "%Y-%m-%d", &tmInfo));
   }
 }
 
 static int64_t getTimestampToday() {
   time_t    t = taosTime(NULL);
   struct tm tm;
-  if (taosLocalTime(&t, &tm, NULL) == NULL) {
+  if (taosLocalTime(&t, &tm, NULL, 0) == NULL) {
     return 0;
   }
   tm.tm_hour = 0;
@@ -196,10 +196,10 @@ int32_t taosInitSlowLog() {
 
   getFullPathName(tsLogObj.slowLogName, logFileName);
 
-  char name[PATH_MAX + LOG_FILE_DAY_LEN] = {0};
-  char day[LOG_FILE_DAY_LEN] = {0};
-  getDay(day);
-  (void)snprintf(name, PATH_MAX + LOG_FILE_DAY_LEN, "%s.%s", tsLogObj.slowLogName, day);
+  char name[PATH_MAX + TD_TIME_STR_LEN] = {0};
+  char day[TD_TIME_STR_LEN] = {0};
+  getDay(day, sizeof(day));
+  (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
 
   tsLogObj.timestampToday = getTimestampToday();
   tsLogObj.slowHandle = taosLogBuffNew(LOG_SLOW_BUF_SIZE);
@@ -428,11 +428,11 @@ static void taosOpenNewSlowLogFile() {
   taosWriteLog(tsLogObj.slowHandle);
   atomic_store_32(&tsLogObj.slowHandle->lock, 0);
 
-  char day[LOG_FILE_DAY_LEN] = {0};
-  getDay(day);
+  char day[TD_TIME_STR_LEN] = {0};
+  getDay(day, sizeof(day));
   TdFilePtr pFile = NULL;
-  char name[PATH_MAX + LOG_FILE_DAY_LEN] = {0};
-  (void)snprintf(name, PATH_MAX + LOG_FILE_DAY_LEN, "%s.%s", tsLogObj.slowLogName, day);
+  char name[PATH_MAX + TD_TIME_STR_LEN] = {0};
+  (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
   pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
     uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
@@ -629,7 +629,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   TAOS_UNUSED(taosGetTimeOfDay(&timeSecs));
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm, NULL);
+  ptm = taosLocalTime(&curTime, &Tm, NULL, 0);
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s", ptm->tm_mon + 1, ptm->tm_mday,
                  ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(),
