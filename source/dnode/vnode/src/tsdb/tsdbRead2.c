@@ -596,7 +596,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   pReader->status.pPrimaryTsCol = taosArrayGet(pReader->resBlockInfo.pResBlock->pDataBlock, pSup->slotId[0]);
   if (pReader->status.pPrimaryTsCol == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
+    code = terrno;
     goto _end;
   }
 
