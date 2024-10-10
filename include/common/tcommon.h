@@ -328,6 +328,7 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
   FUNC_PARAM_TYPE_COLUMN = 0x2,
+  FUNC_PARAM_TYPE_MAX
 };
 
 typedef struct SFunctParam {

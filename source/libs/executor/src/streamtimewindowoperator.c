@@ -3776,7 +3776,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
                                                   SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
-  SSessionWinodwPhysiNode*       pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
+  SSessionWindowPhysiNode*       pSessionNode = (SSessionWindowPhysiNode*)pPhyNode;
   int32_t                        numOfCols = 0;
   int32_t                        code = TSDB_CODE_OUT_OF_MEMORY;
   int32_t                        lino = 0;

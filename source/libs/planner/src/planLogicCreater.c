@@ -303,6 +303,7 @@ static SNode* createFirstCol(SRealTableNode* pTable, const SSchema* pSchema) {
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   pCol->tableId = pTable->pMeta->uid;
+  pCol->tableType = pTable->pMeta->tableType;
   pCol->colId = pSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
@@ -1516,9 +1517,6 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   pProject->pProjections = NULL;
   code = nodesCloneList(pSelect->pProjectionList, &pProject->pProjections);
-  if (NULL == pProject->pProjections) {
-    code = code;
-  }
   strcpy(pProject->stmtName, pSelect->stmtName);
 
   if (TSDB_CODE_SUCCESS == code) {

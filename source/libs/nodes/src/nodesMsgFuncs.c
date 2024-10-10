@@ -3394,7 +3394,7 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
 enum { PHY_SESSION_CODE_WINDOW = 1, PHY_SESSION_CODE_GAP };
 
 static int32_t physiSessionWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SSessionWinodwPhysiNode* pNode = (const SSessionWinodwPhysiNode*)pObj;
+  const SSessionWindowPhysiNode* pNode = (const SSessionWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_SESSION_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3405,7 +3405,7 @@ static int32_t physiSessionWindowNodeToMsg(const void* pObj, STlvEncoder* pEncod
 }
 
 static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SSessionWinodwPhysiNode* pNode = (SSessionWinodwPhysiNode*)pObj;
+  SSessionWindowPhysiNode* pNode = (SSessionWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3428,7 +3428,7 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
 enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY };
 
 static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
+  const SStateWindowPhysiNode* pNode = (const SStateWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3439,7 +3439,7 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 }
 
 static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SStateWinodwPhysiNode* pNode = (SStateWinodwPhysiNode*)pObj;
+  SStateWindowPhysiNode* pNode = (SStateWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3462,7 +3462,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
 enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND };
 
 static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
+  const SEventWindowPhysiNode* pNode = (const SEventWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3476,7 +3476,7 @@ static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 }
 
 static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SEventWinodwPhysiNode* pNode = (SEventWinodwPhysiNode*)pObj;
+  SEventWindowPhysiNode* pNode = (SEventWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3502,7 +3502,7 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
 enum { PHY_COUNT_CODE_WINDOW = 1, PHY_COUNT_CODE_WINDOW_COUNT, PHY_COUNT_CODE_WINDOW_SLIDING };
 
 static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
+  const SCountWindowPhysiNode* pNode = (const SCountWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_COUNT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3516,7 +3516,7 @@ static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 }
 
 static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SCountWinodwPhysiNode* pNode = (SCountWinodwPhysiNode*)pObj;
+  SCountWindowPhysiNode* pNode = (SCountWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
