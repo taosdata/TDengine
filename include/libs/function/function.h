@@ -185,7 +185,7 @@ struct SStreamState {
   int64_t                  streamBackendRid;
   int8_t                   dump;
   int32_t                  tsIndex;
-  SResultRowStore         *pResultRowStore;
+  SResultRowStore          pResultRowStore;
   struct SExprSupp        *pExprSupp;
 };
 
