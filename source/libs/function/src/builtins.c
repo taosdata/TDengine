@@ -4839,7 +4839,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = randFunction,
     .finalizeFunc = NULL
   },
-  #if 0
   {
     .name = "forecast",
     .type = FUNCTION_TYPE_FORECAST,
@@ -4872,7 +4871,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
-#endif
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
