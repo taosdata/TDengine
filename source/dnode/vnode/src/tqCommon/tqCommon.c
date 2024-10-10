@@ -1119,10 +1119,6 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   int32_t      vgId = pMeta->vgId;
   int32_t      code = 0;
 
-  if (pTask == NULL) {
-    return -1;
-  }
-
   streamTaskResume(pTask);
   ETaskStatus status = streamTaskGetStatus(pTask).state;
 
@@ -1150,7 +1146,6 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     }
   }
 
-  streamMetaReleaseTask(pMeta, pTask);
   return code;
 }
 
@@ -1173,6 +1168,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 
   code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
+    streamMetaReleaseTask(pMeta, pTask);
     return code;
   }
 
@@ -1186,6 +1182,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
     streamMutexUnlock(&pHTask->lock);
 
     code = tqProcessTaskResumeImpl(handle, pHTask, sversion, pReq->igUntreated, fromVnode);
+    streamMetaReleaseTask(pMeta, pHTask);
   }
 
   return code;

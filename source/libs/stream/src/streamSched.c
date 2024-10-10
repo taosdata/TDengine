@@ -63,7 +63,11 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   pRunReq->reqType = execType;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  return tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  int32_t code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  if (code) {
+    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  }
+  return code;
 }
 
 void streamTaskClearSchedIdleInfo(SStreamTask* pTask) { pTask->status.schedIdleTime = 0; }
