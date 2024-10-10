@@ -1230,6 +1230,11 @@ static void cliHandleException(SCliConn* conn) {
     conn->task = NULL;
   }
 
+  code = delConnFromHeapCache(pThrd->connHeapCache, conn);
+  if (code != 0) {
+    tError("%s conn %p failed to del conn from heapcach since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+  }
+
   if (conn->registered) {
     int8_t ref = transGetRefCount(conn);
     if (ref == 0 && !uv_is_closing((uv_handle_t*)conn->stream)) {
