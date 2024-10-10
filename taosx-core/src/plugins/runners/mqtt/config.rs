@@ -395,7 +395,7 @@ mod tests {
 
         let dsn = Dsn::from_str("mqtt://?keep_alive=").unwrap();
         let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
-        assert_eq!(None, keep_alive.unwrap());
+        assert!(keep_alive.is_err());
     }
 
     #[test]

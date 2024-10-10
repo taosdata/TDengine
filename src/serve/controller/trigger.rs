@@ -8,6 +8,7 @@ use itertools::Itertools;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use taosx_core::utils;
 use thiserror::Error;
 use utoipa::*;
 
@@ -138,7 +139,7 @@ pub enum ParseErrorRateError {
     #[error("Invalid count in error rate: {0} in `{1}`.")]
     Count(std::num::ParseIntError, String),
     #[error("Invalid duration in error rate: {0} in `{1}`.")]
-    Duration(parse_duration::parse::Error, String),
+    Duration(fundu::ParseError, String),
 }
 
 impl FromStr for ErrorRate {
@@ -153,7 +154,7 @@ impl FromStr for ErrorRate {
         let count = count
             .parse::<u32>()
             .map_err(|err| ParseErrorRateError::Count(err, s.to_string()))?;
-        let duration = parse_duration::parse(duration)
+        let duration = utils::parse_duration(duration)
             .map_err(|err| ParseErrorRateError::Duration(err, s.to_string()))?;
         Ok(ErrorRate(count, duration))
     }
@@ -176,8 +177,8 @@ serde_with::serde_conv!(
     OptionHumanDuration,
     Option<Duration>,
     |duration: &Option<Duration>| duration.map(|duration| format!("{:?}", duration)),
-    |value: Option<String>| -> Result<_, parse_duration::parse::Error> {
-        value.map(|value| parse_duration::parse(&value)).transpose()
+    |value: Option<String>| -> Result<_, fundu::ParseError> {
+        value.map(|value| utils::parse_duration(&value)).transpose()
     }
 );
 #[test]
@@ -396,7 +397,7 @@ where
     &'r str: sqlx::Decode<'r, DB>,
 {
     fn decode(
-        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <DB as sqlx::database::Database>::ValueRef<'r>,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let v: &'r str = sqlx::Decode::decode(value)?;
         Self::from_str(v).map_err(|err| Box::new(err) as _)
@@ -408,8 +409,8 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
+        buf: &mut <DB as sqlx::database::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         let val = serde_json::to_string(&self).unwrap();
         <String as sqlx::encode::Encode<'q, DB>>::encode(val, buf as _)
     }

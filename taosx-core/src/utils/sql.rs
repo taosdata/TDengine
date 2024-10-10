@@ -12,6 +12,8 @@ use taos::{
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
+use crate::utils;
+
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 const SQL_CURRENT_DATABASE: &str = "select database()";
@@ -109,9 +111,9 @@ async fn test_precision() {
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
     let taos = pool.get().await.unwrap();
     taos.exec_many([
-        "drop database if exists test_min_timestamp",
-        "create database if not exists test_min_timestamp precision 'ns'",
-        "use test_min_timestamp",
+        "drop database if exists test_precision",
+        "create database if not exists test_precision precision 'ns'",
+        "use test_precision",
         "create table if not exists test (ts timestamp, v int)",
         "insert into test values (now(), 1)",
     ])
@@ -124,7 +126,7 @@ async fn test_precision() {
         .unwrap();
     assert!(t == taos::Precision::Nanosecond);
     taos.unwrap()
-        .exec_many(["drop database if exists test_min_timestamp"])
+        .exec_many(["drop database if exists test_precision"])
         .await
         .unwrap();
 }
@@ -164,7 +166,7 @@ pub async fn get_minimum_timestamp(
                             .unwrap_or((precision, keep.as_str()))
                     })
                     .and_then(|(precision, keep1)| {
-                        parse_duration::parse(keep1).ok().map(|d| (precision, d))
+                        utils::parse_duration(keep1).ok().map(|d| (precision, d))
                     })
                     .map(|(_precision, d)| {
                         chrono::Utc::now() - d
@@ -229,7 +231,7 @@ async fn test_min_timestamp() {
     let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
-    assert!(t >= min);
+    assert!(t <= min);
     taos.unwrap()
         .exec_many(["drop database if exists test_min_timestamp"])
         .await

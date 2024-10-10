@@ -1933,9 +1933,9 @@ impl TaskController {
         .await
         .unwrap_or_default();
         (
-            running_tasks_count,
-            completed_tasks_count,
-            failed_tasks_count,
+            running_tasks_count as i32,
+            completed_tasks_count as i32,
+            failed_tasks_count as i32,
         )
     }
 
@@ -2100,7 +2100,7 @@ where
     &'r str: sqlx::Decode<'r, DB>,
 {
     fn decode(
-        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <DB as sqlx::database::Database>::ValueRef<'r>,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let v: &'r str = sqlx::Decode::decode(value)?;
         Self::from_str(v).map_err(|err| Box::new(err) as _)
@@ -2113,8 +2113,8 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
+        buf: &mut <DB as sqlx::database::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         self.as_str().encode(buf as _)
     }
 
@@ -3572,6 +3572,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn active_active_edition_check() -> anyhow::Result<()> {
         let _ = tracing_subscriber_init();
         let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;

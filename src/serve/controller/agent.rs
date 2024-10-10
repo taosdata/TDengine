@@ -143,7 +143,7 @@ impl Type<sqlx::Sqlite> for Context {
 
 impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Context {
     fn decode(
-        value: <sqlx::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <sqlx::Sqlite as sqlx::database::Database>::ValueRef<'r>,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let value: String = sqlx::Decode::<sqlx::Sqlite>::decode(value)?;
 
@@ -153,16 +153,22 @@ impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Context {
     }
 }
 impl<'q> Encode<'q, sqlx::Sqlite> for Context {
-    fn encode(self, args: &mut Vec<SqliteArgumentValue<'q>>) -> IsNull {
+    fn encode(
+        self,
+        args: &mut Vec<SqliteArgumentValue<'q>>,
+    ) -> Result<IsNull, sqlx::error::BoxDynError> {
         args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
 
-        IsNull::No
+        Ok(IsNull::No)
     }
 
-    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'q>>) -> IsNull {
+    fn encode_by_ref(
+        &self,
+        args: &mut Vec<SqliteArgumentValue<'q>>,
+    ) -> Result<IsNull, sqlx::error::BoxDynError> {
         args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
 
-        IsNull::No
+        Ok(IsNull::No)
     }
 }
 
