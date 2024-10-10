@@ -1,7 +1,7 @@
 name: PR-CI-workflow
 
 on:
-  workflow_dispatch:
+  # workflow_dispatch:
   pull_request:
     paths:
       - 'crates/**'
