@@ -42,7 +42,10 @@ typedef enum {
 SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio);
 void       taosLRUCacheCleanup(SLRUCache *cache);
 
-LRUStatus  taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
+LRUStatus taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
+                             _taos_lru_deleter_t deleter, _taos_lru_overwriter_t overwriter, LRUHandle **handle,
+                             LRUPriority priority, void *ud);
+LRUStatus  taosLRUCacheInsertNoLock(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
                               _taos_lru_deleter_t deleter, _taos_lru_overwriter_t overwriter, LRUHandle **handle,
                               LRUPriority priority, void *ud);
 LRUHandle *taosLRUCacheLookup(SLRUCache *cache, const void *key, size_t keyLen);
