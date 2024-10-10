@@ -2529,6 +2529,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (pColInfoData == NULL) {
         code = terrno;
+        uError("invalid param, size of list:%d index k:%d", (int32_t) taosArrayGetSize(pDataBlock->pDataBlock), k)
         goto _exit;
       }
 
