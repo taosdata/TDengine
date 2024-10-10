@@ -849,7 +849,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
-    winRes = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
+    winRes = streamStateSessionGetKVByCur_rocksdb(NULL, pCur, &key, &pVal, &vlen);
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
