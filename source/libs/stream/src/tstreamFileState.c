@@ -698,7 +698,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
 
   int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
 
-  int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64;
+  int32_t len = (pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
   char*   buf = taosMemoryCalloc(1, len);
   if (!buf) {
     code = terrno;
@@ -849,7 +849,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
-    winRes = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
+    winRes = streamStateSessionGetKVByCur_rocksdb(NULL, pCur, &key, &pVal, &vlen);
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
