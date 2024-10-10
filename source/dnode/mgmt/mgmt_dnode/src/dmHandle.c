@@ -63,6 +63,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 0};
   SEpSet  epset = {0};
@@ -165,6 +166,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_STATUS,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 0,
                     .info.handle = 0};
@@ -198,6 +200,7 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
                     .contLen = contLen,
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
+                    .info.notFreeAhandle = 1,
                     .info.refId = 0,
                     .info.noResp = 1,
                     .info.handle = 0};
