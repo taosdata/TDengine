@@ -312,16 +312,13 @@ class TDTestCase:
         ];
         self.test_query_table_temp(sql, types, datas)
 
-        # sql = f"select * from {table_name} where c13 = false limit 10;"
-        # types = [FieldType.C_BOOL]
-        # datas = [
-        #     [[[False]]],
-        #     [[[False]]],
-        #     [[[False]]],
-        #     [[[False]]],
-        #     [[[False]]]
-        # ];
-        # self.test_query_table_temp(sql, types, datas)
+        sql = f"select * from {table_name} where c13 = ? limit 2;"
+        types = [FieldType.C_BOOL]
+        datas = [
+            [[[True]]],
+            [[[False]]],
+        ];
+        self.test_query_table_temp(sql, types, datas)
 
         sql = f"select * from {table_name} where c3 > ? and c5 < ? and c10 = ?;"
         types = [FieldType.C_INT_UNSIGNED, FieldType.C_BIGINT_UNSIGNED, FieldType.C_SMALLINT_UNSIGNED]
@@ -334,16 +331,17 @@ class TDTestCase:
         ];
         self.test_query_table_temp(sql, types, datas)
 
-        # sql = f"select * from {table_name} where c6 between ? and ?;"
-        # types = [FieldType.C_FLOAT]
-        # datas = [
-        #     [[[1.5], [2.5]]],
-        #     [[[3.5], [4.5]]],
-        #     [[[5.5], [6.5]]],
-        #     [[[7.5], [8.5]]],
-        #     [[[9.5], [10.5]]]
-        # ];
-        # self.test_query_table_temp(sql, types, datas)
+        sql = f"select * from {table_name} where c6 between ? and ?;"
+        types = [FieldType.C_FLOAT, FieldType.C_FLOAT]
+        datas = [
+            [[[0], [823423.99]]],
+            [[[234.234], [889234.234]]],
+            [[[-21341.5], [22343.5]]],
+            [[[-3243.5], [423432.5]]],
+            [[[-2342345.5], [-2346.5]]],
+            [[[92342.5], [-1000.234]]]
+        ];
+        self.test_query_table_temp(sql, types, datas)
 
         sql = f"select * from {table_name} where c14 like ? and c15 = ?;"
         types = [FieldType.C_NCHAR, FieldType.C_VARCHAR]
@@ -462,22 +460,26 @@ class TDTestCase:
         ];
         self.test_query_table_temp(sql, types, datas)
 
-    def run(self):
-        build_path = self.stmt_common.getBuildPath()
-        config = build_path + "../sim/dnode1/cfg/"
-        host = "localhost"
-        self.connectstmt = self.newcon(host, config)
-
+    def test_query_common_table(self):
         ctable_name = "common_table"
         self.insert_common_table(ctable_name)
         self.test_query_table(ctable_name)
 
+    def test_query_stable_and_subtable(self):
         stablename = "super_table"
         subtable_name = "d0"
         self.insert_super_table(stablename, subtable_name)
         self.test_query_table(stablename)
         self.test_query_table(subtable_name)
 
+    def run(self):
+        build_path = self.stmt_common.getBuildPath()
+        config = build_path + "../sim/dnode1/cfg/"
+        host = "localhost"
+        self.connectstmt = self.newcon(host, config)
+
+        self.test_query_common_table()
+        self.test_query_stable_and_subtable()
         self.test_query_constants_and_expressions()
 
         self.connectstmt.close()
