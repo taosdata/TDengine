@@ -826,7 +826,7 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
     for (int32_t j = 0; j < numOfVgroups; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (pVg == NULL) {
-        code = TSDB_CODE_INVALID_PARA;
+        code = terrno;
         goto END;
       }
 
@@ -978,7 +978,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
   req.pollFlag = atomic_load_8(&tmq->pollFlag);
-  tqDebugC("consumer:0x%" PRIx64 " send hb, pollFlag:%d", tmq->consumerId, req.pollFlag);
+  tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d", tmq->consumerId, req.pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   if (req.topics == NULL) {
     goto END;
