@@ -948,7 +948,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
   for (int32_t i = 0; i < tbNum; ++i) {
     STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
     if (NULL == tbInfo) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _return;
     }
     STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};

@@ -68,6 +68,8 @@ int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem);
 SJson*  tjsonGetObjectItem(const SJson* pJson, const char* pName);
 int32_t tjsonGetObjectName(const SJson* pJson, char** pName);
 int32_t tjsonGetObjectValueString(const SJson* pJson, char** pStringValue);
+void    tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal);
+void    tjsonGetObjectValueDouble(const SJson* pJson, double* pVal);
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal);
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal);
 int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal);

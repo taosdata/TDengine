@@ -1764,41 +1764,41 @@ _return:
   return DEAL_RES_ERROR;
 }
 
-int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_t bufSize, int32_t *len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = snprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t *)buf) ? "true" : "false");
+      n = snprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1817,19 +1817,19 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t *)buf);
+      n = snprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
 
     default:
@@ -1886,8 +1886,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
-                        operatorTypeStr(unit->compare.optr));
+          len += snprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+                          operatorTypeStr(unit->compare.optr));
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1898,18 +1898,22 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             data += VARSTR_HEADER_SIZE;
           }
           if (data) {
-            FLT_ERR_RET(fltConverToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            len += tlen;
           }
         } else {
-          (void)strcat(str, "NULL");
+          (void)strncat(str, "NULL", sizeof(str) - len - 1);
+          len += 4;
         }
-        (void)strcat(str, "]");
+        (void)strncat(str, "]", sizeof(str) - len - 1);
+        len += 1;
 
         if (unit->compare.optr2) {
-          (void)strcat(str, " && ");
+          (void)strncat(str, " && ", sizeof(str) - len - 1);
+          len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            (void)sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
-                          operatorTypeStr(unit->compare.optr2));
+            len += snprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId,
+                            refNode->slotId, operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1919,11 +1923,14 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
               tlen = varDataLen(data);
               data += VARSTR_HEADER_SIZE;
             }
-            FLT_ERR_RET(fltConverToStr(str + strlen(str), type, data, tlen > 32 ? 32 : tlen, &tlen));
+            FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            len += tlen;
           } else {
-            (void)strcat(str, "NULL");
+            (void)strncat(str, "NULL", sizeof(str) - len - 1);
+            len += 4;
           }
-          (void)strcat(str, "]");
+          (void)strncat(str, "]", sizeof(str) - len - 1);
+          len += 1;
         }
 
         qDebug("%s", str);  // TODO
@@ -1955,21 +1962,39 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           SFilterRangeNode *r = ctx->rs;
           int32_t           tlen = 0;
           while (r) {
-            char str[256] = {0};
+            char    str[256] = {0};
+            int32_t len = 0;
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", sizeof(str) - len - 1);
+              len += 6;
             } else {
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
-              FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, "(", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "[", sizeof(str) - len - 1);
+              len += 1;
+              FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
+              len += tlen;
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, ")", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "]", sizeof(str) - len - 1);
+              len += 1;
             }
-            (void)strcat(str, " - ");
+            (void)strncat(str, " - ", sizeof(str) - len - 1);
+            len += 3;
             if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", sizeof(str) - len - 1);
+              len += 6;
             } else {
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
-              FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, "(", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "[", sizeof(str) - len - 1);
+              len += 1;
+              FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
+              len += tlen;
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, ")", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "]", sizeof(str) - len - 1);
+              len += 1;
             }
             qDebug("range: %s", str);
 
@@ -3809,13 +3834,13 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
   if (TSDB_CODE_SUCCESS != tctx.code) {
-    taosArrayDestroy(group);
+    taosArrayDestroyEx(group, filterFreeGroup);
     code = tctx.code;
     goto _return;
   }
   code = filterConvertGroupFromArray(info, group);
   if (TSDB_CODE_SUCCESS != code) {
-    taosArrayDestroy(group);
+    taosArrayDestroyEx(group, filterFreeGroup);
     goto _return;
   }
   taosArrayDestroy(group);

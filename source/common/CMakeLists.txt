@@ -47,6 +47,10 @@ target_link_libraries(
     INTERFACE api
 )
 
+if(${BUILD_WITH_ANALYSIS})
+  add_definitions(-DUSE_ANAL)
+endif()
+
 if(${BUILD_S3})
 
     if(${BUILD_WITH_S3})

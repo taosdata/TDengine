@@ -216,7 +216,7 @@ extern int64_t  tsMinDiskFreeSize;
 // udf
 extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
-extern char tsUdfdLdLibPath[];
+extern char tsUdfdLdLibPath[512];
 
 // schemaless
 extern char tsSmlChildTableName[];
