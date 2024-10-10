@@ -609,10 +609,11 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   }
   if (code != 0) {
     mError("failed to write sdb file since %s", tstrerror(code));
+  } else {
+    mInfo("write sdb file success, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
+          pSdb->applyTerm, pSdb->applyConfig);
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
-  mInfo("write sdb file success, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
-        pSdb->applyTerm, pSdb->applyConfig);
   return code;
 }
 
