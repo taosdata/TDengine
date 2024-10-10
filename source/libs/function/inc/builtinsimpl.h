@@ -22,29 +22,7 @@ extern "C" {
 
 #include "function.h"
 #include "functionMgt.h"
-
-typedef struct SSumRes {
-  union {
-    int64_t  isum;
-    uint64_t usum;
-    double   dsum;
-  };
-  int16_t type;
-  int64_t prevTs;
-  bool    isPrevTsSet;
-  bool    overflow;  // if overflow is true, dsum to be used for any type;
-} SSumRes;
-
-typedef struct SMinmaxResInfo {
-  bool      assign;  // assign the first value or not
-  int64_t   v;
-  char      *str;
-  STuplePos tuplePos;
-
-  STuplePos nullTuplePos;
-  bool      nullTupleSaved;
-  int16_t   type;
-} SMinmaxResInfo;
+#include "functionResInfoInt.h"
 
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
 
