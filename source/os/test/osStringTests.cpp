@@ -129,7 +129,7 @@ TEST(osStringTests, ostsnprintfTests) {
     memset(buffer, 0, sizeof(buffer));
     ret = tsnprintf(buffer, 10, "Hello%s", "World");
     EXPECT_EQ(ret, 9);
-    EXPECT_EQ(strncmp(buffer, "Hello, Wo", 9), 0);
+    EXPECT_EQ(strncmp(buffer, "HelloWorl", 9), 0);
 
     memset(buffer, 0, sizeof(buffer));
     ret = tsnprintf(buffer, 0, "Hello, %s!", "World");
