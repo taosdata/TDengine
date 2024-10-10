@@ -133,16 +133,17 @@ def getMatch(datatype, algo):
         return True
 
 
-def generateJsonFile(algo):
-    print(f"doTest algo: {algo} \n")
+def generateJsonFile(stmt, interlace):
+    print(f"doTest stmt: {stmt} interlace_rows={interlace}\n")
     
     # replace datatype
     context = readFileContext(templateFile)
     # replace compress
-    context = context.replace("@COMPRESS", algo)
+    context = context.replace("@STMT_MODE", stmt)
+    context = context.replace("@INTERLACE_MODE", interlace)
 
     # write to file
-    fileName = f"json/test_{algo}.json"
+    fileName = f"json/test_{stmt}_{interlace}.json"
     if os.path.exists(fileName):
       os.remove(fileName)
     writeFileContext(fileName, context)
@@ -192,8 +193,6 @@ def findContextValue(context, label):
     ends = [',','}',']', 0]
     while context[end] not in ends:
         end += 1
-
-    print(f"start = {start} end={end}\n")
     return context[start:end]
 
 
@@ -208,11 +207,12 @@ def writeTemplateInfo(resultFile):
     appendFileContext(resultFile, line)
 
 
-def totalCompressRate(algo, resultFile, writeSpeed, querySpeed):
+def totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed):
     global Number
     # flush
     command = 'taos -s "flush database dbrate;"'
     rets = exec(command)
+    
     command = 'taos -s "compact database dbrate;"'
     rets = exec(command)
     waitCompactFinish(60)
@@ -243,7 +243,7 @@ def totalCompressRate(algo, resultFile, writeSpeed, querySpeed):
     # appand to file
     
     Number += 1
-    context =  "%10s %10s %10s %10s %30s %15s\n"%( Number, algo, str(totalSize)+" MB", rate+"%", writeSpeed + " Records/second", querySpeed)
+    context =  "%10s %10s %15s %10s %10s %30s %15s\n"%( Number, stmt, interlace, str(totalSize)+" MB", rate+"%", writeSpeed + " Records/second", querySpeed)
     showLog(context)
     appendFileContext(resultFile, context)
 
@@ -281,10 +281,10 @@ def testQuery():
     # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
     speed = None
 
-    for i in range(20, len(lines)):        
+    for i in range(0, len(lines)):
         # find second real
-        pos = context.find("the QPS of all threads:")
-        context = lines[26]
+        context = lines[i]
+        pos = context.find("the QPS of all threads:")        
         if pos == -1 :
             continue
         pos += 24
@@ -298,13 +298,13 @@ def testQuery():
     else:
         return speed
 
-def doTest(algo, resultFile):
-    print(f"doTest algo: {algo} \n")
+def doTest(stmt, interlace, resultFile):
+    print(f"doTest stmtMode: {stmt} interlaceRows={interlace}\n")
     #cleanAndStartTaosd()
 
 
     # json
-    jsonFile = generateJsonFile(algo)
+    jsonFile = generateJsonFile(stmt, interlace)
 
     # run taosBenchmark
     t1 = time.time()
@@ -314,14 +314,14 @@ def doTest(algo, resultFile):
     querySpeed = testQuery()
 
     # total compress rate
-    totalCompressRate(algo, resultFile, writeSpeed, querySpeed)
+    totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed)
 
 
 def main():
 
     # test compress method
-    algos = ["lz4", "zlib", "zstd", "xz", "disabled"]
-    #algos = ["lz4"]
+    stmtModes = ["stmt", "stmt2", "taosc"]
+    interlaceModes = ["0", "1"]
 
     # record result
     resultFile = "./result.txt"
@@ -333,14 +333,15 @@ def main():
     # json info
     writeTemplateInfo(resultFile)
     # head
-    context = "\n%10s %10s %10s %10s %30s %15s\n"%("No", "compress", "dataSize", "rate", "writeSpeed", "query-QPS")
+    context = "\n%10s %10s %15s %10s %10s %30s %15s\n"%("No", "stmtMode", "interlaceRows", "dataSize", "rate", "writeSpeed", "query-QPS")
     appendFileContext(resultFile, context)
 
 
     # loop for all compression
-    for algo in algos:
+    for stmt in stmtModes:
         # do test
-        doTest(algo, resultFile)
+        for interlace in interlaceModes:
+            doTest(stmt, interlace, resultFile)
     appendFileContext(resultFile, "    \n")
 
     timestamp = time.time()
