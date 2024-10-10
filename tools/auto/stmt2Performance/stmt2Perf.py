@@ -281,10 +281,10 @@ def testQuery():
     # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
     speed = None
 
-    for i in range(20, len(lines)):        
+    for i in range(0, len(lines)):
         # find second real
-        pos = context.find("the QPS of all threads:")
-        context = lines[26]
+        context = lines[i]
+        pos = context.find("the QPS of all threads:")        
         if pos == -1 :
             continue
         pos += 24

@@ -30,7 +30,7 @@
                     "insert_rows": 100000,
                     "timestamp_step": 1,
                     "start_timestamp": "2020-10-01 00:00:00.000",
-                    "auto_create_table": "yes",
+                    "auto_create_table": "no",
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc"},
