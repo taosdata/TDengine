@@ -91,11 +91,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -112,15 +108,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    (void)strcat(tmpPath, fileNamePrefix);
-    (void)strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[32] = {0};
 
-  (void)sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
   (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 

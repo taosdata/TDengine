@@ -166,7 +166,7 @@ static void printHelp() {
 char* getCurrentTimeString(char* timeString) {
   time_t    tTime = taosGetTimestampSec();
   struct tm tm;
-  taosLocalTime(&tTime, &tm, NULL);
+  taosLocalTime(&tTime, &tm, NULL, 0);
   sprintf(timeString, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
           tm.tm_min, tm.tm_sec);
 
@@ -441,7 +441,7 @@ int32_t saveConsumeContentToTbl(SThreadInfo* pInfo, char* buf) {
   return 0;
 }
 
-static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
+static char* shellFormatTimestamp(char* buf, int32_t bufSize, int64_t val, int32_t precision) {
   // if (shell.args.is_raw_time) {
   //   sprintf(buf, "%" PRId64, val);
   //   return buf;
@@ -472,7 +472,7 @@ static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
   }
 
   struct tm ptm;
-  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -559,7 +559,7 @@ static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* f
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
     } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, *(int64_t*)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), *(int64_t*)val, precision);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     default:

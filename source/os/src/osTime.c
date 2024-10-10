@@ -474,22 +474,15 @@ time_t taosMktime(struct tm *timep) {
 #endif
 }
 
-struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize) {
   struct tm *res = NULL;
-  if (timep == NULL) {
+  if (timep == NULL || result == NULL) {
     return NULL;
-  }
-  if (result == NULL) {
-    res = localtime(timep);
-    if (res == NULL && buf != NULL) {
-      (void)sprintf(buf, "NaN");
-    }
-    return res;
   }
 #ifdef WINDOWS
   if (*timep < -2208988800LL) {
     if (buf != NULL) {
-      sprintf(buf, "NaN");
+      snprintf(buf, bufSize, "NaN");
     }
     return NULL;
   } else if (*timep < 0) {
@@ -501,7 +494,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
     time_t        tt = 0;
     if (localtime_s(&tm1, &tt) != 0) {
       if (buf != NULL) {
-        sprintf(buf, "NaN");
+        snprintf(buf, bufSize, "NaN");
       }
       return NULL;
     }
@@ -532,7 +525,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
   } else {
     if (localtime_s(result, timep) != 0) {
       if (buf != NULL) {
-        sprintf(buf, "NaN");
+        snprintf(buf, bufSize, "NaN");
       }
       return NULL;
     }
@@ -540,7 +533,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
 #else
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
-    (void)sprintf(buf, "NaN");
+    (void)snprintf(buf, bufSize, "NaN");
   }
 #endif
   return result;
@@ -559,7 +552,7 @@ static int isLeapYear(time_t year) {
 
 struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) {
   if (result == NULL) {
-    return localtime(timep);
+    return NULL;
   }
 #ifdef WINDOWS
   if (*timep < 0) {

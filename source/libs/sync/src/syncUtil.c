@@ -60,7 +60,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
     return false;
   }
 
-  char ipbuf[128] = {0};
+  char ipbuf[TD_IP_LEN] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = SYNC_ADDR(pInfo);
   raftId->vgId = vgId;

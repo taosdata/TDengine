@@ -693,7 +693,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   struct tm  tm;
   time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  struct tm* ptm = taosLocalTime(&tt, &tm, NULL);
+  struct tm* ptm = taosLocalTime(&tt, &tm, NULL, 0);
   int32_t    mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
@@ -754,11 +754,11 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 
     struct tm  tm;
     time_t     t = (time_t)skey;
-    struct tm* ptm = taosLocalTime(&t, &tm, NULL);
+    struct tm* ptm = taosLocalTime(&t, &tm, NULL, 0);
     int32_t    smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
-    ptm = taosLocalTime(&t, &tm, NULL);
+    ptm = taosLocalTime(&t, &tm, NULL, 0);
     int32_t emon = tm.tm_year * 12 + tm.tm_mon;
 
     if (unit == 'y') {
@@ -782,7 +782,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm  tm;
     time_t     tt = (time_t)start;
-    struct tm* ptm = taosLocalTime(&tt, &tm, NULL);
+    struct tm* ptm = taosLocalTime(&tt, &tm, NULL, 0);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -911,13 +911,13 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
 //     2020-07-03 17:48:42
 // and the parameter can also be a variable.
 const char* fmtts(int64_t ts) {
-  static char buf[96] = {0};
+  static char buf[TD_TIME_STR_LEN] = {0};
   size_t      pos = 0;
   struct tm   tm;
 
   if (ts > -62135625943 && ts < 32503651200) {
     time_t t = (time_t)ts;
-    if (taosLocalTime(&t, &tm, buf) == NULL) {
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
       return buf;
     }
     pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
@@ -925,7 +925,7 @@ const char* fmtts(int64_t ts) {
 
   if (ts > -62135625943000 && ts < 32503651200000) {
     time_t t = (time_t)(ts / 1000);
-    if (taosLocalTime(&t, &tm, buf) == NULL) {
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
       return buf;
     }
     if (pos > 0) {
@@ -939,7 +939,7 @@ const char* fmtts(int64_t ts) {
 
   {
     time_t t = (time_t)(ts / 1000000);
-    if (taosLocalTime(&t, &tm, buf) == NULL) {
+    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
       return buf;
     }
     if (pos > 0) {
@@ -993,7 +993,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
       TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if (NULL == taosLocalTime(&quot, &ptm, buf)) {
+  if (NULL == taosLocalTime(&quot, &ptm, buf, bufLen)) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
@@ -1007,7 +1007,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm) {
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
-  if (NULL == taosLocalTime(&t, &tm->tm, NULL)) {
+  if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0)) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   return TSDB_CODE_SUCCESS;

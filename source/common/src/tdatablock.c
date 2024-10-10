@@ -2446,7 +2446,7 @@ _error:
   return NULL;
 }
 
-static char* formatTimestamp(char* buf, int64_t val, int precision) {
+static char* formatTimestamp(char* buf, int32_t bufSize, int64_t val, int precision) {
   time_t  tt;
   int32_t ms = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -2479,11 +2479,11 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
     return buf;
   }
 
-  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = strftime(buf, bufSize, "%Y-%m-%d %H:%M:%S", &ptm);
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
   } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -2500,7 +2500,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   int32_t size = 2048 * 1024;
   int32_t code = 0;
   char*   dumpBuf = NULL;
-  char    pBuf[128] = {0};
+  char    pBuf[TD_TIME_STR_LEN] = {0};
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
 
@@ -2543,7 +2543,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
-          (void)formatTimestamp(pBuf, *(uint64_t*)var, pColInfoData->info.precision);
+          (void)formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
           len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
