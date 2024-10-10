@@ -3247,7 +3247,7 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
 
   // type 11 ~ 14
   if ((commonType->type >= TSDB_DATA_TYPE_UTINYINT && commonType->type <= TSDB_DATA_TYPE_UBIGINT || commonType->type == TSDB_DATA_TYPE_BOOL) &&
-      (newType->type >= TSDB_DATA_TYPE_UTINYINT && newType->type <= TSDB_DATA_TYPE_UBIGINT || commonType->type == TSDB_DATA_TYPE_BOOL)) {
+      (newType->type >= TSDB_DATA_TYPE_UTINYINT && newType->type <= TSDB_DATA_TYPE_UBIGINT || newType->type == TSDB_DATA_TYPE_BOOL)) {
     if (newType->type > commonType->type) {
       *commonType = *newType;
     }
