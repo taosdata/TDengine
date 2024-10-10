@@ -640,10 +640,10 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       rpcMsg.pCont = pHead;
 
       char    detail[1024] = {0};
-      int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
+      int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
                              TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
       for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+        len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
       }
 
       mDebug("compact:%d, send update progress msg to %s", pDetail->compactId, detail);

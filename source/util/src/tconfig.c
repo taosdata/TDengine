@@ -672,17 +672,17 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   int32_t len = 0;
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
-      len = snprintf(buf, bufSize, "%u", pItem->bval);
+      len = tsnprintf(buf, bufSize, "%u", pItem->bval);
       break;
     case CFG_DTYPE_INT32:
-      len = snprintf(buf, bufSize, "%d", pItem->i32);
+      len = tsnprintf(buf, bufSize, "%d", pItem->i32);
       break;
     case CFG_DTYPE_INT64:
-      len = snprintf(buf, bufSize, "%" PRId64, pItem->i64);
+      len = tsnprintf(buf, bufSize, "%" PRId64, pItem->i64);
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      len = snprintf(buf, bufSize, "%f", pItem->fval);
+      len = tsnprintf(buf, bufSize, "%f", pItem->fval);
       break;
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
@@ -690,7 +690,7 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
     case CFG_DTYPE_NONE:
-      len = snprintf(buf, bufSize, "%s", pItem->str);
+      len = tsnprintf(buf, bufSize, "%s", pItem->str);
       break;
   }
 
@@ -710,13 +710,13 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   int32_t len = 0;
   switch (pItem->scope) {
     case CFG_SCOPE_SERVER:
-      len = snprintf(buf, bufSize, "server");
+      len = tsnprintf(buf, bufSize, "server");
       break;
     case CFG_SCOPE_CLIENT:
-      len = snprintf(buf, bufSize, "client");
+      len = tsnprintf(buf, bufSize, "client");
       break;
     case CFG_SCOPE_BOTH:
-      len = snprintf(buf, bufSize, "both");
+      len = tsnprintf(buf, bufSize, "both");
       break;
   }
 

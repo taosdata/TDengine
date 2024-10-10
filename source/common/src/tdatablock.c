@@ -2510,7 +2510,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
-  len += snprintf(dumpBuf + len, size - len,
+  len += tsnprintf(dumpBuf + len, size - len,
                   "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64 "|rows:%" PRId64
                   "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
                   taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
@@ -2521,7 +2521,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   for (int32_t j = 0; j < rows; j++) {
-    len += snprintf(dumpBuf + len, size - len, "%s|", flag);
+    len += tsnprintf(dumpBuf + len, size - len, "%s|", flag);
     if (len >= size - 1) {
       goto _exit;
     }
@@ -2534,7 +2534,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       }
 
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
-        len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
+        len += tsnprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size - 1) goto _exit;
         continue;
       }
@@ -2544,51 +2544,51 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
           (void)formatTimestamp(pBuf, *(uint64_t*)var, pColInfoData->info.precision);
-          len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
+          len += tsnprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_INT:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UINT:
-          len += snprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          len += snprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          len += snprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BOOL:
-          len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
+          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
@@ -2599,7 +2599,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
-          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
         case TSDB_DATA_TYPE_NCHAR: {
@@ -2611,15 +2611,15 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
             goto _exit;
           }
-          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
       }
     }
-    len += snprintf(dumpBuf + len, size - len, "%d\n", j);
+    len += tsnprintf(dumpBuf + len, size - len, "%d\n", j);
     if (len >= size - 1) goto _exit;
   }
-  len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
+  len += tsnprintf(dumpBuf + len, size - len, "%s |end\n", flag);
 
 _exit:
   if (code == TSDB_CODE_SUCCESS) {

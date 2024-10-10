@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstring>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -110,4 +111,46 @@ TEST(osStringTests, osUcs4lenTests2) {
 
   TdUcs4 ucs4_3[] = {'C', 'h', 'i', 'n', 'a', 0x4E2D, 0x6587, '\0'};
   EXPECT_EQ(taosUcs4len(ucs4_3), 7);
+}
+
+TEST(osStringTests, ostsnprintfTests) {
+    char buffer[50] = {0};
+    int64_t ret;
+
+    ret = tsnprintf(buffer, sizeof(buffer), "Hello, %s!", "World");
+    EXPECT_EQ(ret, 13);
+    EXPECT_STREQ(buffer, "Hello, World!");
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, 10, "Hello, %s!", "World");
+    EXPECT_EQ(ret, 9);
+    EXPECT_EQ(strncmp(buffer, "Hello, Wo", 9), 0);
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, 10, "Hello%s", "World");
+    EXPECT_EQ(ret, 9);
+    EXPECT_EQ(strncmp(buffer, "HelloWorl", 9), 0);
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, 0, "Hello, %s!", "World");
+    EXPECT_EQ(ret, 0);
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, SIZE_MAX + 1, "Hello, %s!", "World");
+    EXPECT_EQ(ret, 0);
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, sizeof(buffer), "");
+    EXPECT_EQ(ret, 0);
+    EXPECT_STREQ(buffer, "");
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, sizeof(buffer), "Number: %d", 42);
+    EXPECT_EQ(ret, 10);
+    EXPECT_STREQ(buffer, "Number: 42");
+
+    memset(buffer, 0, sizeof(buffer));
+    ret = tsnprintf(buffer, sizeof(buffer), "Float: %.2f", 3.14);
+    EXPECT_EQ(ret, 11);
+    EXPECT_STREQ(buffer, "Float: 3.14");
 }

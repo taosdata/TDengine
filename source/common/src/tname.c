@@ -103,7 +103,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = tsnprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {

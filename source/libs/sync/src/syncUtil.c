@@ -24,14 +24,14 @@
 #include "tglobal.h"
 
 static void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
-  int32_t len = snprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
+  int32_t len = tsnprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
-    len += snprintf(buf + len, bufLen - len, "%s:%d", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+    len += tsnprintf(buf + len, bufLen - len, "%s:%d", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
     if (i < pCfg->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ", ");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "]}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "]}");
 }
 
 void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
@@ -111,29 +111,29 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
 // for leader
 static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ",");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 // for follower
 static void syncHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ",");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
@@ -142,35 +142,35 @@ static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t buf
     return;
   }
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
+  len += tsnprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
                   pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 }
 
 static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
     SSyncLogReplMgr* pMgr = pSyncNode->logReplMgrs[i];
     if (pMgr == NULL) break;
-    len += snprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
+    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
                     pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
     if (i + 1 < pSyncNode->replicaNum) {
-      len += snprintf(buf + len, bufLen - len, "%s", ", ");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     SPeerState* pState = syncNodeGetPeerState(pSyncNode, &(pSyncNode->replicasId[i]));
     if (pState == NULL) break;
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "%s", i, pState->lastSendIndex,
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "%s", i, pState->lastSendIndex,
                     pState->lastSendTime, (i < pSyncNode->replicaNum - 1) ? ", " : "");
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {

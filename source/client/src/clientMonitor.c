@@ -21,7 +21,7 @@ char        tmpSlowLogPath[PATH_MAX] = {0};
 TdThread    monitorThread;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
-  int ret = snprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
+  int ret = tsnprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
   if (ret < 0) {
     tscError("failed to get tmp path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;

@@ -22,7 +22,7 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
   if(fname == NULL) {
     return terrno;
   }
-  int32_t code = snprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
+  int32_t code = tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
   if (code < 0){
     code = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(fname);

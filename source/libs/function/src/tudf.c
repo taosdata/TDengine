@@ -143,7 +143,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
-  tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib) < sizeof(tsUdfdLdLibPath) ? sizeof(udfdPathLdLib) : sizeof(tsUdfdLdLibPath));
+  tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib));
 
   udfdPathLdLib[udfdLdLibPathLen] = ':';
   tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);

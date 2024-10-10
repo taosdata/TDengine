@@ -63,10 +63,10 @@ int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
   }
 
   int32_t n = 0;
-  n += snprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
+  n += tsnprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     SEp *pEp = &pEpSet->eps[i];
-    n += snprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
+    n += tsnprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
   }
 
   *ppRes = str;
