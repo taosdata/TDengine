@@ -34,15 +34,17 @@ TEST(osTimeTests, taosLocalTimeNolock) {
     // Test when result is not NULL
   struct tm expectedTime;
   struct tm* result = taosLocalTimeNolock(&expectedTime, &currentTime, 1);
-  EXPECT_EQ(expectedTime.tm_year, result->tm_year);
-  EXPECT_EQ(expectedTime.tm_mon, result->tm_mon);
-  EXPECT_EQ(expectedTime.tm_mday, result->tm_mday);
-  EXPECT_EQ(expectedTime.tm_hour, result->tm_hour);
-  EXPECT_EQ(expectedTime.tm_min, result->tm_min);
-  EXPECT_EQ(expectedTime.tm_sec, result->tm_sec);
-  EXPECT_EQ(expectedTime.tm_wday, result->tm_wday);
-  EXPECT_EQ(expectedTime.tm_yday, result->tm_yday);
-  EXPECT_EQ(expectedTime.tm_isdst, result->tm_isdst);
+  if (result) {
+    EXPECT_EQ(expectedTime.tm_year, result->tm_year);
+    EXPECT_EQ(expectedTime.tm_mon, result->tm_mon);
+    EXPECT_EQ(expectedTime.tm_mday, result->tm_mday);
+    EXPECT_EQ(expectedTime.tm_hour, result->tm_hour);
+    EXPECT_EQ(expectedTime.tm_min, result->tm_min);
+    EXPECT_EQ(expectedTime.tm_sec, result->tm_sec);
+    EXPECT_EQ(expectedTime.tm_wday, result->tm_wday);
+    EXPECT_EQ(expectedTime.tm_yday, result->tm_yday);
+    EXPECT_EQ(expectedTime.tm_isdst, result->tm_isdst);
+  }
 }
 
 
