@@ -759,6 +759,10 @@ void streamMetaAcquireOneTask(SStreamTask* pTask) {
 }
 
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
+  if (pTask == NULL) {
+    return;
+  }
+
   int32_t taskId = pTask->id.taskId;
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
 
