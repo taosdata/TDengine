@@ -2497,6 +2497,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
 // for debug
 int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+  int32_t lino = 0;
   int32_t size = 2048 * 1024;
   int32_t code = 0;
   char*   dumpBuf = NULL;
@@ -2530,6 +2531,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (pColInfoData == NULL) {
         code = terrno;
+        lino = __LINE__;
         goto _exit;
       }
 
@@ -2609,6 +2611,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
+            lino = __LINE__;
             goto _exit;
           }
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
@@ -2626,7 +2629,7 @@ _exit:
     *pDataBuf = dumpBuf;
     dumpBuf = NULL;
   } else {
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     if (dumpBuf) {
       taosMemoryFree(dumpBuf);
     }
