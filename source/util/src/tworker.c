@@ -143,6 +143,18 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
       (void)taosThreadAttrInit(&thAttr);
       (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
+      if (&thAttr == NULL) {
+        uError("147 thAttr is NULL");
+      }
+      if (&worker->thread == NULL) {
+        uError("150 worker->thread is NULL");
+      }
+      if ((ThreadFp)tQWorkerThreadFp == NULL) {
+        uError("153 (ThreadFp)tQWorkerThreadFp is NULL");
+      }
+      if (worker == NULL) {
+        uError("156 worker is NULL");
+      }
       if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tQWorkerThreadFp, worker) != 0) {
         taosCloseQueue(queue);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -304,6 +316,12 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     }
     if (&worker->thread == NULL) {
       uError("worker->thread is NULL");
+    }
+    if ((ThreadFp)tAutoQWorkerThreadFp == NULL) {
+      uError("(ThreadFp)tAutoQWorkerThreadFp is NULL");
+    }
+    if (worker == NULL) {
+      uError("worker is NULL");
     }
     if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tAutoQWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread, total:%d", pool->name, worker->id, curWorkerNum);
