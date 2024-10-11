@@ -88,22 +88,20 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize += (numOfOutput * sizeof(bool));
-  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
 // Convert buf read from rocksdb to result row
 int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  if (inBuf == NULL || pSup == NULL) {
+    qError("invalid input parameters, inBuf:%p, pSup:%p", inBuf, pSup);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SqlFunctionCtx *pCtx = pSup->pCtx;
   int32_t        *offset = pSup->rowEntryInfoOffset;
   SResultRow     *pResultRow  = NULL;
   size_t          processedSize = 0;
   int32_t         code = TSDB_CODE_SUCCESS;
-  if (inBuf == NULL) {
-    qError("invalid input buffer, inBuf:%p", inBuf);
-    return TSDB_CODE_INVALID_PARA;
-  }
 
   // calculate the size of output buffer
   *outBufSize = getResultRowSize(pCtx, pSup->numOfExprs);
@@ -116,6 +114,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
   (void)memcpy(pResultRow, inBuf, sizeof(SResultRow));
   inBuf += sizeof(SResultRow);
   processedSize += sizeof(SResultRow);
+
   for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
     int32_t len = *(int32_t*)inBuf;
     inBuf += sizeof(int32_t);
@@ -132,12 +131,6 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
     inBuf += len;
     processedSize += len;
   }
-  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
-              sizeof(SResultRowEntryInfo) +
-              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
-  (void)memcpy(pos, inBuf, pSup->numOfExprs * sizeof(bool));
-  inBuf += pSup->numOfExprs * sizeof(bool);
-  processedSize += pSup->numOfExprs * sizeof(bool);
 
   if (processedSize < inBufSize) {
     // stream stores extra data after result row
@@ -147,7 +140,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
       qError("failed to reallocate memory for output buffer, size:%zu", *outBufSize + leftLen);
       return terrno;
     }
-    (void)memcpy(*outBuf + processedSize, inBuf, leftLen);
+    (void)memcpy(*outBuf + *outBufSize, inBuf, leftLen);
     inBuf += leftLen;
     processedSize += leftLen;
     *outBufSize += leftLen;
@@ -157,15 +150,16 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
 
 // Convert result row to buf for rocksdb
 int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  if (pSup == NULL || inBuf == NULL || outBuf == NULL || outBufSize == NULL) {
+    qError("invalid input parameters, inBuf:%p, pSup:%p, outBufSize:%p, outBuf:%p", inBuf, pSup, outBufSize, outBuf);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   SqlFunctionCtx *pCtx = pSup->pCtx;
   int32_t        *offset = pSup->rowEntryInfoOffset;
   SResultRow     *pResultRow = (SResultRow*)inBuf;
   size_t          rowSize = getResultRowSize(pCtx, pSup->numOfExprs);
 
-  if (inBuf == NULL) {
-    qError("invalid input buffer, inBuf:%p", inBuf);
-    return TSDB_CODE_INVALID_PARA;
-  }
   if (rowSize > inBufSize) {
     qError("invalid input buffer size, rowSize:%zu, inBufSize:%zu", rowSize, inBufSize);
     return TSDB_CODE_INVALID_PARA;
@@ -194,13 +188,6 @@ int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, 
     (void)memcpy(pBuf, getResultEntryInfo(pResultRow, i, offset), len);
     pBuf += len;
   }
-
-  // mark if col is null for top/bottom result(saveTupleData)
-  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
-              sizeof(SResultRowEntryInfo) +
-              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
-
-  (void)memcpy(pBuf, pos, pSup->numOfExprs * sizeof(bool));
 
   if (rowSize < inBufSize) {
     // stream stores extra data after result row

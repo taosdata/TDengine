@@ -2006,6 +2006,12 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   int32_t funResSize = getMaxFunResSize(&pOperator->exprSupp, numOfCols);
   pInfo->pState->pFileState = NULL;
+
+  // used for backward compatibility of function's result info
+  pInfo->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
+  pInfo->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
+  pInfo->pState->pExprSupp = &pOperator->exprSupp;
+  
   code =
       pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
                                            compareTs, pInfo->pState, pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo),
@@ -2223,6 +2229,12 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1, tsIndex);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
   pSup->pState->pFileState = NULL;
+
+  // used for backward compatibility of function's result info
+  pSup->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
+  pSup->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
+  pSup->pState->pExprSupp = pExpSup;
+
   code = pSup->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize,
                                               sesionTs, pSup->pState, pTwAggSup->deleteMark, taskIdStr,
                                               pHandle->checkpointId, STREAM_STATE_BUFF_SORT, &pSup->pState->pFileState);
@@ -2231,11 +2243,6 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pSup->pResultRows = tSimpleHashInit(32, hashFn);
   QUERY_CHECK_NULL(pSup->pResultRows, code, lino, _end, terrno);
-
-  // used for backward compatibility of function's result info
-  pSup->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
-  pSup->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
-  pSup->pState->pExprSupp = pExpSup;
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
@@ -5390,16 +5397,17 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->pState->pFileState = NULL;
-  code = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
-      tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
-      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pHandle->checkpointId, STREAM_STATE_BUFF_HASH,
-      &pInfo->pState->pFileState);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   // used for backward compatibility of function's result info
   pInfo->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
   pInfo->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
   pInfo->pState->pExprSupp = &pOperator->exprSupp;
+
+  code = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
+      tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pHandle->checkpointId, STREAM_STATE_BUFF_HASH,
+      &pInfo->pState->pFileState);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,

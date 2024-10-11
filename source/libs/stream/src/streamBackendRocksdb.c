@@ -3319,7 +3319,9 @@ int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** 
     *pVLen = tValLen;
     return code;
   }
-  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, (size_t*)pVLen);
+  size_t pValLen = 0;
+  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, &pValLen);
+  *pVLen = (int32_t)pValLen;
   taosMemoryFree(tVal);
   return code;
 }
@@ -3376,7 +3378,7 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   }
 
   SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &tmp);
-  code = streamStateGetKVByCur_rocksdb(pCur, key, NULL, 0);
+  code = streamStateGetKVByCur_rocksdb(pState, pCur, key, NULL, 0);
   if (code != 0) {
     return code;
   }
@@ -3420,7 +3422,8 @@ void streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
     rocksdb_iter_prev(pCur->iter);
   }
 }
-int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
+                                      int32_t* pVLen) {
   if (!pCur) return -1;
   SStateKey  tkey;
   SStateKey* pKtmp = &tkey;
@@ -3436,7 +3439,35 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pVLen != NULL) {
       size_t      vlen = 0;
       const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-      *pVLen = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
+      char*       val = NULL;
+      int32_t     len = valueDecode((void*)valStr, vlen, NULL, (char**)val);
+      if (len <= 0) {
+        taosMemoryFree(val);
+        return -1;
+      }
+
+      char*  tVal = val;
+      size_t tVlen = len;
+
+      if (pVal != NULL) {
+        if (pState != NULL && pState->pResultRowStore.resultRowGet != NULL && pState->pExprSupp != NULL) {
+          int code =
+              (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, val, len, (char**)&tVal, (size_t*)&tVlen);
+          if (code != 0) {
+            taosMemoryFree(val);
+            return code;
+          }
+          taosMemoryFree(val);
+          *pVal = (char*)tVal;
+        } else {
+          stInfo("streamStateGetKVByCur_rocksdb, pState = %p, pResultRowStore = %p, pExprSupp = %p", pState,
+                 pState->pResultRowStore.resultRowGet, pState->pExprSupp);
+          *pVal = (char*)tVal;
+        }
+      } else {
+        taosMemoryFree(val);
+      }
+      *pVLen = (int32_t)tVlen;
     }
 
     *pKey = pKtmp->key;
@@ -3598,7 +3629,9 @@ int32_t streamStateFuncGet_rocksdb(SStreamState* pState, const STupleKey* key, v
     return code;
   }
 
-  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, (size_t*)pVLen);
+  size_t pValLen = 0;
+  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, &pValLen);
+  *pVLen = (int32_t)pValLen;
 
   taosMemoryFree(tVal);
   return code;
@@ -3933,7 +3966,7 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateC
     taosMemoryFree(val);
   }
 
-  if (pVLen != NULL) *pVLen = tVlen;
+  if (pVLen != NULL) *pVLen = (int32_t)tVlen;
 
   *pKey = pKTmp->key;
   return 0;
@@ -4450,6 +4483,7 @@ void    streamStateClearBatch(void* pBatch) { rocksdb_writebatch_clear((rocksdb_
 void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rocksdb_writebatch_t*)pBatch); }
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl) {
+  int32_t         code = 0;
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
 
@@ -4487,7 +4521,6 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
     dst = val;
     size = vlen;
-    return -1;
   } else {
     code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, val, vlen, &dst, &size);
     if (code != 0) {

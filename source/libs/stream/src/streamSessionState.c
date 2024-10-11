@@ -576,7 +576,7 @@ static void transformCursor(SStreamFileState* pFileState, SStreamStateCur* pCur)
 static void checkAndTransformCursor(SStreamFileState* pFileState, const uint64_t groupId, SArray* pWinStates,
                                     SStreamStateCur** ppCur) {
   SSessionKey key = {.groupId = groupId};
-  int32_t     code = streamStateSessionGetKVByCur_rocksdb(NULL, *ppCur, &key, NULL, NULL);
+  int32_t     code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pFileState), *ppCur, &key, NULL, NULL);
   if (taosArrayGetSize(pWinStates) > 0 &&
       (code == TSDB_CODE_FAILED || sessionStateKeyCompare(&key, pWinStates, 0) >= 0)) {
     if (!(*ppCur)) {
@@ -654,7 +654,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     SSessionKey key = {0};
     void*       pVal = NULL;
     int         len = 0;
-    int32_t     code = streamStateSessionGetKVByCur_rocksdb(NULL, pCur, &key, &pVal, &len);
+    int32_t     code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pFileState), pCur, &key, &pVal, &len);
     if (code == TSDB_CODE_FAILED) {
       streamStateFreeCur(pCur);
       return pBuffCur;
@@ -711,7 +711,7 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
     *pKey = *(SSessionKey*)(pPos->pKey);
   } else {
     void* pData = NULL;
-    code = streamStateSessionGetKVByCur_rocksdb(NULL, pCur, pKey, &pData, pVLen);
+    code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pCur->pStreamFileState), pCur, pKey, &pData, pVLen);
     if (taosArrayGetSize(pWinStates) > 0 &&
         (code == TSDB_CODE_FAILED || sessionStateRangeKeyCompare(pKey, pWinStates, 0) >= 0)) {
       transformCursor(pCur->pStreamFileState, pCur);
