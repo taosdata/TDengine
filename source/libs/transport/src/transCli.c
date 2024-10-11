@@ -315,6 +315,7 @@ typedef struct {
   // void*    p;
   Heap* heap;
   int32_t (*cmpFunc)(const HeapNode* a, const HeapNode* b);
+  int64_t lastUpdateTs;
 } SHeap;
 
 int32_t compareHeapNode(const HeapNode* a, const HeapNode* b);
@@ -3742,7 +3743,7 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   } else {
     if (shouldSWitchToOtherConn(pConn, key)) {
-      if (pHeap->heap->nelts >= 16) {
+      if (pHeap->heap->nelts >= 8) {
         balanceConnHeapCache(pConnHeapCache, pConn);
       }
       logConnMissHit(pConn);
@@ -3793,7 +3794,14 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
 
 static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   if (pConn->heap != NULL && pConn->inHeap != 0) {
-    return transHeapBalance(pConn->heap, pConn);
+    SHeap* heap = pConn->heap;
+    tTrace("conn %p'heap have too many conn %d, should do balance", pConn, heap->heap->nelts);
+    int64_t now = taosGetTimestampMs();
+    if (((now - heap->lastUpdateTs) / 1000) > 30) {
+      heap->lastUpdateTs = now;
+      tTrace("conn %p'heap have too many conn %d, do balance", pConn, heap->heap->nelts);
+      return transHeapBalance(pConn->heap, pConn);
+    }
   }
   return 0;
 }
@@ -3871,9 +3879,6 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
 int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0 && heap == NULL || heap->heap == NULL) {
     return 0;
-  }
-  if (heap->heap->nelts >= 32) {
-    tTrace("conn %p heap busy,heap size:%d", p, heap->heap->nelts);
   }
   heapRemove(heap->heap, &p->node);
   heapInsert(heap->heap, &p->node);
