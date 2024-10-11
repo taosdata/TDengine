@@ -525,11 +525,12 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   // repeat pause will not overwrite the previous pause state
   if (pSM->current.state != TASK_STATUS__PAUSE || pTrans->next.state != TASK_STATUS__PAUSE) {
     keepPrevInfo(pSM);
-
     pSM->current = pTrans->next;
-    pSM->pActiveTrans = NULL;
+  } else {
+    stDebug("s-task:%s repeat pause evt recv, not update prev status", id);
   }
 
+  pSM->pActiveTrans = NULL;
   // todo remove it
   // todo: handle the error code
   // on success callback, add into lock if necessary, or maybe we should add an option for this?
