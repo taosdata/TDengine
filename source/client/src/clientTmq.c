@@ -993,7 +993,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     if (data == NULL) {
       continue;
     }
-    (void)strcpy(data->topicName, pTopic->topicName);
+    tstrncpy(data->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
     data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
     if (data->offsetRows == NULL) {
       continue;
@@ -1126,7 +1126,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     if (pVgEp == NULL) {
       continue;
     }
-    (void)sprintf(vgKey, "%s:%d", pTopic->topicName, pVgEp->vgId);
+    (void)snprintf(vgKey, sizeof(vgKey), "%s:%d", pTopic->topicName, pVgEp->vgId);
     SVgroupSaveInfo* pInfo = taosHashGet(pVgOffsetHashMap, vgKey, strlen(vgKey));
 
     STqOffsetVal offsetNew = {0};
@@ -1187,7 +1187,7 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
           continue;
         }
         char vgKey[TSDB_TOPIC_FNAME_LEN + 22] = {0};
-        (void)sprintf(vgKey, "%s:%d", pTopicCur->topicName, pVgCur->vgId);
+        (void)snprintf(vgKey, sizeof(vgKey), "%s:%d", pTopicCur->topicName, pVgCur->vgId);
 
         char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pVgCur->offsetInfo.endOffset);
@@ -1992,7 +1992,7 @@ END:
   if (pRspWrapper) {
     pRspWrapper->code = code;
     pRspWrapper->pollRsp.vgId = vgId;
-    (void)strcpy(pRspWrapper->pollRsp.topicName, pParam->topicName);
+    tstrncpy(pRspWrapper->pollRsp.topicName, pParam->topicName, TSDB_TOPIC_FNAME_LEN);
     code = taosWriteQitem(tmq->mqueue, pRspWrapper);
     if (code != 0) {
       tmqFreeRspWrapper(pRspWrapper);
@@ -2156,7 +2156,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   }
 
   pParam->refId = pTmq->refId;
-  (void)strcpy(pParam->topicName, pTopic->topicName);
+  tstrncpy(pParam->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
   pParam->vgId = pVg->vgId;
   pParam->requestId = req.reqId;
 

@@ -1928,10 +1928,10 @@ TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, c
   char userStr[TSDB_USER_LEN] = {0};
   char passStr[TSDB_PASSWORD_LEN] = {0};
 
-  (void)strncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
-  (void)strncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
-  (void)strncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
-  (void)strncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
+  tstrncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
+  tstrncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
+  tstrncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
+  tstrncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 }
 
@@ -2275,7 +2275,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         char*   jsonInnerData = data + CHAR_BYTES;
         char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-          (void)sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
@@ -2298,10 +2298,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
-          (void)sprintf(varDataVal(dst), "%.9lf", jsonVd);
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-          (void)sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
           tscError("doConvertJson error: invalid type:%d", jsonInnerType);
@@ -2658,8 +2658,8 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
     return -1;
   }
 
-  char dbFName[TSDB_DB_FNAME_LEN];
-  (void)sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  (void)snprintf(dbFName, TSDB_DB_FNAME_LEN, "%d.%.*s", acctId, dbLen, dbName);
 
   STablesReq* pDb = taosHashGet(pHash, dbFName, strlen(dbFName));
   if (pDb) {
@@ -2672,7 +2672,7 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
     if (NULL == db.pTables) {
       return terrno;
     }
-    (void)strcpy(db.dbFName, dbFName);
+    tstrncpy(db.dbFName, dbFName, TSDB_DB_FNAME_LEN);
     if (NULL == taosArrayPush(db.pTables, &name)) {
       return terrno;
     }
