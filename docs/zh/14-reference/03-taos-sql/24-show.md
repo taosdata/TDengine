@@ -30,6 +30,16 @@ SHOW CLUSTER ALIVE;
 
 查询当前集群的状态是否可用，返回值： 0：不可用 1：完全可用 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用）
 
+## SHOW CLUSTER MACHINES
+
+```sql
+SHOW CLUSTER MACHINES;
+```
+
+显示集群服务器信息。
+
+注：企业版独有
+
 ## SHOW CONNECTIONS
 
 ```sql
@@ -99,6 +109,7 @@ SHOW FUNCTIONS;
 ```sql
 SHOW LICENCES;
 SHOW GRANTS;
+SHOW GRANTS FULL; // 从 TDengine 3.2.3.0 版本开始支持
 ```
 
 显示企业版许可授权的信息。
