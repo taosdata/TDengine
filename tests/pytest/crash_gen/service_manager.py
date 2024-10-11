@@ -370,14 +370,14 @@ enable = true
         Logging.info("Starting TDengine instance: {}".format(self))
         self.generateCfgFile() # service side generates config file, client does not
         taosadapterExecFile = self.getTaosadapterExecFile()
-        if Config.getConfig().connector_type == "rest":
+        if Config.getConfig().connector_type != "native":
             if os.path.exists(taosadapterExecFile) :
                 self.generateTaosadapterCfgFile() # service side generates config file, client does not
             else:
                 Logging.error(f"{taosadapterExecFile} not exists and skip generate taosadapter.toml")
         self.rotateLogs()
         # self._smThread.start(self.getServiceCmdLine(), self.getLogDir()) # May raise exceptions
-        if Config.getConfig().connector_type == "rest":
+        if Config.getConfig().connector_type != "native":
             if os.path.exists(self.getTaosadapterExecFile()):
                 self._taosAdapterSubProcess = TdeSubProcess(self.getTaosadapterServiceCmdLine(),  self.getLogDir())
             else:
@@ -387,7 +387,7 @@ enable = true
     def stop(self):
         print("self._subProcess----", self._subProcess)
         self._subProcess.stop()
-        if Config.getConfig().connector_type == "rest":
+        if Config.getConfig().connector_type != "native":
             if os.path.exists(self.getTaosadapterExecFile()):
                 print("self._taosAdapterSubProcess----", self._taosAdapterSubProcess)
                 self._taosAdapterSubProcess.stop()
@@ -433,9 +433,9 @@ class TdeSubProcess:
 
         Logging.info("Attempting to start TAOS sub process...")
         self._popen     = self._start(cmdLine) # the actual sub process
-        if "taosadapter" not in ' '.join(cmdLine):
-            self._smThread  = ServiceManagerThread(self, logDir)  # A thread to manage the sub process, mostly to process the IO
-            Logging.info("Successfully started TAOS process: {}".format(self))
+        # if "taosadapter" not in ' '.join(cmdLine):
+        self._smThread  = ServiceManagerThread(self, logDir)  # A thread to manage the sub process, mostly to process the IO
+        Logging.info("Successfully started TAOS process: {}".format(self))
 
     def __repr__(self):
         # if self.subProcess is None:
@@ -1001,7 +1001,8 @@ class ServiceManagerThread:
             except Empty:
                 break  # break out of for loop, no more trimming
 
-    TD_READY_MSG = "The daemon initialized successfully"
+    TD_READY_MSG = "The daemon initialized successfully" # taosd
+    TA_READY_MSG = "Running in terminal." # taosadapter
 
     def procIpcBatch(self, trimToTarget=0, forceOutput=False):
         '''
@@ -1087,7 +1088,7 @@ class ServiceManagerThread:
             queue.put(tChunk) # tChunk garanteed not to be None
             self._printProgress("_i")
             if self._status.isStarting():  # we are starting, let's see if we have started
-                if tChunk.find(self.TD_READY_MSG) != -1:  # found
+                if tChunk.find(self.TD_READY_MSG) != -1 or tChunk.find(self.TA_READY_MSG) != -1:  # found
                     Logging.info("Waiting for the service to become FULLY READY")
                     time.sleep(1.0) # wait for the server to truly start. TODO: remove this
                     Logging.info("Service is now FULLY READY") # TODO: more ID info here?

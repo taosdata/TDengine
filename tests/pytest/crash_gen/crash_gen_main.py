@@ -91,6 +91,7 @@ class WorkerThread:
         # self._thread = threading.Thread(target=runThread, args=(self,))
         self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
+        self.dbName = ""
 
         # Let us have a DB connection of our own
         if (Config.getConfig().per_thread_db_connection):  # type: ignore
@@ -101,14 +102,14 @@ class WorkerThread:
             elif Config.getConfig().connector_type == 'rest':
                 self._dbConn = DbConn.createRest(tInst.getDbTarget())
             elif Config.getConfig().connector_type == 'ws':
-                self._dbConn = DbConn.createWs(tInst.getDbTarget())
+                self._dbConn = DbConn.createWs(tInst.getDbTarget(), self.dbName)
             elif Config.getConfig().connector_type == 'mixed':
                 if Dice.throw(3) == 0:  # 1/3 chance
                     self._dbConn = DbConn.createNative(tInst.getDbTarget())
                 if Dice.throw(3) == 1:  # 1/3 chance
                     self._dbConn = DbConn.createRest(tInst.getDbTarget())
                 else:
-                    self._dbConn = DbConn.createWs(tInst.getDbTarget())
+                    self._dbConn = DbConn.createWs(tInst.getDbTarget(), self.dbName)
             else:
                 raise RuntimeError("Unexpected connector type: {}".format(Config.getConfig().connector_type))
 
@@ -280,7 +281,6 @@ class ThreadCoordinator:
         self._dbManager = dbManager  # type: Optional[DbManager] # may be freed
         self._executedTasks: List[Task] = []  # in a given step
         self._lock = threading.RLock()  # sync access for a few things
-
         self._stepBarrier = threading.Barrier(
             self._pool.numThreads + 1)  # one barrier for all threads
         self._execStats = ExecutionStats()
@@ -1516,6 +1516,7 @@ class Task():
 
         # Now pick a database, and stick with it for the duration of the task execution
         dbName = self._db.getName()
+        wt.dbName = dbName
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
         except (taos.error.ProgrammingError, taos.error.StatementError, taosrest.errors.Error, taosrest.errors.ConnectError) as err:
@@ -1553,7 +1554,7 @@ class Task():
                 # sys.exit(-1)
                 self._err = err
                 self._aborted = True
-        except taosws.Error as err:
+        except (taosws.Error, taosws.OperationalError) as err:
             errmsg = err.args[0].split()[0]
             errno2 = int(errmsg[1:-1], 16)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
@@ -2476,15 +2477,17 @@ class TaskCreateConsumers(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
 
         if Config.getConfig().connector_type == 'native':
-
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
             # wt.execSql("use db")    # should always be in place
             if sTable.hasTopics(wt.getDbConn()):
                 sTable.createConsumer(wt.getDbConn(), random.randint(1, 10))
                 pass
+        elif Config.getConfig().connector_type == 'rest':
+            print(" Restful not support tmq consumers")
+            return
         else:
             # TODO WS supported
-            print(" restful not support tmq consumers")
+            print("TMQ in Websocket TODO supported")
             return
 
 class TaskDropTsmas(StateTransitionTask):
@@ -4991,11 +4994,19 @@ class TaskAddData(StateTransitionTask):
             elif Dice.throw(6) == 2:
                 self._addDataByAutoCreateTable_n(db, dbc)
             elif Dice.throw(6) == 3:
-                self._addDataByMultiTable_n(db, dbc)
+                if Config.getConfig().connector_type == 'native':
+                    self._addDataByMultiTable_n(db, dbc)
+                elif Config.getConfig().connector_type == 'rest':
+                    print("stmt is not supported by restapi")
+                    return
+                elif Config.getConfig().connector_type == 'ws':
+                    print("stmt by websocket todo supported")
+                    return
+
             elif Dice.throw(6) == 4:
                 self._addDataBySTMT(db, dbc)
-            # elif Dice.throw(6) == 5:
-            #     self._addDataByInfluxdbLine(db, dbc)
+            elif Dice.throw(6) == 5:
+                self._addDataByInfluxdbLine(db, dbc)
             else:
                 self.activeTable.discard(i)  # not raising an error, unlike remove
 

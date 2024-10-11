@@ -94,13 +94,13 @@ class DbConn:
         return cls.spendThreads.get(shortTid)
 
     @classmethod
-    def create(cls, connType, dbTarget):
+    def create(cls, connType, dbTarget, dbName=""):
         if connType == cls.TYPE_NATIVE:
             return DbConnNative(dbTarget)
         elif connType == cls.TYPE_REST:
             return DbConnRest(dbTarget)
         elif connType == cls.TYPE_WS:
-            return DbConnWS(dbTarget)
+            return DbConnWS(dbTarget, dbName)
         else:
             raise RuntimeError(
                 "Unexpected connection type: {}".format(connType))
@@ -115,8 +115,8 @@ class DbConn:
         return cls.create(cls.TYPE_REST, dbTarget)
 
     @classmethod
-    def createWs(cls, dbTarget) -> DbConn:
-        return cls.create(cls.TYPE_WS, dbTarget)
+    def createWs(cls, dbTarget, dbName="") -> DbConn:
+        return cls.create(cls.TYPE_WS, dbTarget, dbName)
 
     def __init__(self, dbTarget):
         self.isOpen = False
@@ -210,7 +210,7 @@ class DbConn:
     def getResultCols(self):
         raise RuntimeError("Unexpected execution, should be overriden")
 
-    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+    def influxdbLineInsert(self, line, ts_type=None, dbName=""):
         if self._type != self.TYPE_NATIVE:
             return
         raise RuntimeError("Unexpected execution, should be overriden")
@@ -330,8 +330,9 @@ class DbConnRest(DbConn):
     def getResultCols(self):
         return self._tdSql.queryCols
 
-    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
-        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
+    def influxdbLineInsert(self, line, ts_type=None, dbName=""):
+        Logging.debug("Not supported by rest-api")
+        return
 
     # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
 
@@ -428,12 +429,13 @@ class DbConnWS(DbConn):
     time_cost = -1
     WS_PORT_INCREMENT = 11
 
-    def __init__(self, dbTarget: DbTarget):
+    def __init__(self, dbTarget: DbTarget, dbName=""):
         super().__init__(dbTarget)
         self._type = self.TYPE_WS
         self._conn = None
         self._wsPort = dbTarget.port + self.WS_PORT_INCREMENT
         self._result = None
+        self._dbName = dbName
 
     @classmethod
     def resetTotalRequests(cls):
@@ -457,7 +459,7 @@ class DbConnWS(DbConn):
             # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
             # self._cursor = self._conn.cursor()
             # Record the count in the class
-            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_WS, self._wsPort) # making DB connection
+            self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath, self.TYPE_WS, self._wsPort, self._dbName) # making DB connection
             cls.totalConnections += 1
 
         self._tdSql.execute('reset query cache')
@@ -531,8 +533,8 @@ class DbConnWS(DbConn):
     def getResultCols(self):
         return self._tdSql.queryCols
 
-    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
-        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
+    def influxdbLineInsert(self, line, ts_type=None, dbName=""):
+        return self._tdSql.influxdbLineInsertWs(line, ts_type, dbName)
 
 
 class MyTDSql:
@@ -543,7 +545,7 @@ class MyTDSql:
     lqStartTime = 0.0
     # lqEndTime = 0.0 # Not needed, as we have the two above already
 
-    def __init__(self, hostAddr, cfgPath, connType='native-c', port=6030):
+    def __init__(self, hostAddr, cfgPath, connType='native-c', port=6030, dbName=""):
         self.url = f"http://{hostAddr}:{port}"
         # Make the DB connection
         if connType == 'native-c':
@@ -551,7 +553,8 @@ class MyTDSql:
         elif connType == 'rest-api':
             self._conn = taosrest.connect(url=self.url)
         else:
-            self._conn = taosws.connect(host=hostAddr, port=port)
+            self._conn = taosws.connect(host=hostAddr, port=port, database=dbName)
+        print("-----dbName", dbName)
         self._cursor = self._conn.cursor()
         self.cfgPath = cfgPath
         self.queryRows = 0
@@ -653,11 +656,21 @@ class MyTDSql:
         with open(line_file, 'a') as f:
             f.write(f'{line}\n')
 
-    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+    def influxdbLineInsertNative(self, line, ts_type=None, dbName=""):
         precision = None if ts_type is None else ts_type
         try:
-            self._conn.execute(f'use {dbname}')
+            self._conn.execute(f'use {dbName}')
             self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision)
+            self.recordSmlLine(line)
+            # Logging.info(f"Inserted influxDb Line: {line}")
+        except SchemalessError as e:
+            Logging.error(f"SchemalessError: {e}-{line}")
+            raise
+
+    def influxdbLineInsertWs(self, line, ts_type=None):
+        precision = None if ts_type is None else ts_type
+        try:
+            self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision, 1, 1)
             self.recordSmlLine(line)
             # Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:
@@ -792,8 +805,8 @@ class DbConnNative(DbConn):
     def getResultCols(self):
         return self._tdSql.queryCols
 
-    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
-        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
+    def influxdbLineInsert(self, line, ts_type=None, dbName=""):
+        return self._tdSql.influxdbLineInsertNative(line, ts_type, dbName)
 
 
 class DbManager():
