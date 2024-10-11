@@ -296,16 +296,16 @@ sql select case when '2' then 'b' when null then 0 end from tba1;
 if $rows != 4 then 
   return -1 
 endi
-if $data00 != 0 then
+if $data00 != b then
  return -1 
 endi
-if $data10 != 0 then
+if $data10 != b then
  return -1 
 endi
-if $data20 != 0 then
+if $data20 != b then
  return -1 
 endi
-if $data30 != 0 then
+if $data30 != b then
  return -1 
 endi
 
@@ -1122,7 +1122,12 @@ if $data00 != @70-01-01 08:00:00.001@ then
 endi
 
 sql select case when c_double > 100 then c_nchar else c_double end as result from t_test;
-if $data00 != 0.000000000 then
+if $data00 != 涛思数据 then
+  return -1
+endi
+
+sql select case when c_double > 100 then c_varchar else c_double end as result from t_test;
+if $data00 != varchar_val then
   return -1
 endi
 

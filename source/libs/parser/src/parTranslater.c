@@ -3186,7 +3186,7 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
   return TSDB_CODE_SUCCESS;
 }
 
-extern int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
+extern int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
 static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
   if (commonType->type < TSDB_DATA_TYPE_NULL || commonType->type >= TSDB_DATA_TYPE_MAX || 
       newType->type < TSDB_DATA_TYPE_NULL || newType->type >= TSDB_DATA_TYPE_MAX) {
@@ -3209,9 +3209,9 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
   int8_t type2 = newType->type;
   int8_t resultType;
   if (type1 < type2) {
-    resultType = gConvertTypes[type1][type2];
+    resultType = gDisplyTypes[type1][type2];
   } else {
-    resultType = gConvertTypes[type2][type1];
+    resultType = gDisplyTypes[type2][type1];
   }
   if (resultType == -1) {
       return false;

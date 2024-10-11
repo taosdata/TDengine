@@ -280,7 +280,6 @@ class TDTestCase:
         
         for i in range(30):
             cs = self.state_window_list().split(',')[i] 
-            print(cs)
             sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,cs)
             sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,cs)
             self.constant_check(database,sql1,sql2,0)
