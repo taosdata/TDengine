@@ -33,7 +33,7 @@ SHOW CLUSTER ALIVE;
 ## SHOW CLUSTER MACHINES
 
 ```sql
-SHOW CLUSTER MACHINES;
+SHOW CLUSTER MACHINES;  // 从 TDengine 3.2.3.0 版本开始支持
 ```
 
 显示集群的机器码等信息。
