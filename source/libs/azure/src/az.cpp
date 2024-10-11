@@ -21,7 +21,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 
-#if !defined(USE_S3)
+#if defined(USE_S3)
 
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
