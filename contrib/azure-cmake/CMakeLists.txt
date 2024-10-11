@@ -30,7 +30,7 @@ set(AZURE_SDK_INCLUDES
 add_library(_azure_sdk STATIC ${AZURE_SDK_UNIFIED_SRC})
 target_compile_definitions(_azure_sdk PRIVATE BUILD_CURL_HTTP_TRANSPORT_ADAPTER)
 
- target_include_directories(
+target_include_directories(
 		_azure_sdk 
                  PUBLIC "$ENV{HOME}/.cos-local.2/include"
          )
@@ -46,22 +46,22 @@ find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos
 
 target_link_libraries(
 		_azure_sdk 
-                 PRIVATE ${CURL_LIBRARY}
-                 PRIVATE ${SSL_LIBRARY}
-                 PRIVATE ${CRYPTO_LIBRARY}
-		 PRIVATE ${XML2_LIBRARY}
-		 #PRIVATE xml2
-		 PRIVATE zlib
+                 PUBLIC ${CURL_LIBRARY}
+                 PUBLIC ${SSL_LIBRARY}
+                 PUBLIC ${CRYPTO_LIBRARY}
+		 PUBLIC ${XML2_LIBRARY}
+		 PUBLIC zlib
+		 #PUBLIC xml2
 # PRIVATE ${CoreFoundation_Library}
 # PRIVATE ${SystemConfiguration_Library}
 )
 
-# Originally, on Windows azure-core is built with bcrypt and crypt32 by default
+# Originally, az-core is built with bcrypt and crypt32  on Windows by default
 if (TARGET OpenSSL::SSL)
     target_link_libraries(_azure_sdk PRIVATE OpenSSL::Crypto OpenSSL::SSL)
 endif()
 
-# Originally, on Windows azure-core is built with winhttp by default
+# Originally, az-core is built with winhttp on Windows by default
 if (TARGET td_contrib::curl)
     target_link_libraries(_azure_sdk PRIVATE td_contrib::curl)
 endif()

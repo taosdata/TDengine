@@ -10,7 +10,7 @@ if(${BUILD_S3})
   add_definitions(-DUSE_S3)
   target_link_libraries(
     az
-    #PUBLIC _azure_sdk
+    PUBLIC _azure_sdk
     PUBLIC crypt
   )
 endif()
