@@ -73,14 +73,19 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     }
 
     if (varTbName != NULL && varTbName != (void*)-1) {
-      name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      size_t cap = TMAX(TSDB_TABLE_NAME_LEN, varDataLen(varTbName) + 1);
+      name = taosMemoryMalloc(cap);
       if (name == NULL) {
         return terrno;
       }
 
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
+      name[varDataLen(varTbName)] = '\0';
       if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name, groupId) && groupId != 0 && stbFullName) {
-        buildCtbNameAddGroupId(stbFullName, name, groupId);
+        int32_t code = buildCtbNameAddGroupId(stbFullName, name, groupId, cap);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     } else if (stbFullName) {
       int32_t code = buildCtbNameByGroupId(stbFullName, groupId, &name);
@@ -236,7 +241,10 @@ int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* 
       }
 
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
-      buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
+      int32_t code = buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid, TSDB_TABLE_NAME_LEN);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
@@ -852,9 +860,12 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
           !alreadyAddGroupId(dstTableName, groupId) && groupId != 0) {
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
-          buildCtbNameAddGroupId(NULL, dstTableName, groupId);
+          code = buildCtbNameAddGroupId(NULL, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
         } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
-          buildCtbNameAddGroupId(stbFullName, dstTableName, groupId);
+          code = buildCtbNameAddGroupId(stbFullName, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
         }
       }
     }
