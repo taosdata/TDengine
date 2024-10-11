@@ -538,7 +538,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         (void)memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-        tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length));
+        tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length + 1));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
         }

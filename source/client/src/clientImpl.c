@@ -1921,19 +1921,19 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
   return NULL;
 }
 
-TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
-                     const char* db, int dbLen, uint16_t port) {
-  char ipStr[TSDB_EP_LEN] = {0};
-  char dbStr[TSDB_DB_NAME_LEN] = {0};
-  char userStr[TSDB_USER_LEN] = {0};
-  char passStr[TSDB_PASSWORD_LEN] = {0};
-
-  tstrncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
-  tstrncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
-  tstrncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
-  tstrncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
-  return taos_connect(ipStr, userStr, passStr, dbStr, port);
-}
+//TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
+//                     const char* db, int dbLen, uint16_t port) {
+//  char ipStr[TSDB_EP_LEN] = {0};
+//  char dbStr[TSDB_DB_NAME_LEN] = {0};
+//  char userStr[TSDB_USER_LEN] = {0};
+//  char passStr[TSDB_PASSWORD_LEN] = {0};
+//
+//  tstrncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
+//  tstrncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
+//  tstrncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
+//  tstrncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
+//  return taos_connect(ipStr, userStr, passStr, dbStr, port);
+//}
 
 void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
