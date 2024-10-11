@@ -377,20 +377,20 @@ int32_t tsem2_wait(tsem2_t* sem) {
 }
 
 int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
-  int ret = 0;
+  int32_t code = 0;
 
-  ret = taosThreadMutexLock(&sem->mutex);
-  if (ret) {
-    return ret;
+  code = taosThreadMutexLock(&sem->mutex);
+  if (code) {
+    return code;
   }
 
   if (sem->count <= 0) {
     struct timespec ts = {0};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
-      ret = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(errno);
       (void)taosThreadMutexUnlock(&sem->mutex);
-      terrno = ret;
-      return ret;
+      terrno = code;
+      return code;
     }
 
     ts.tv_sec += ms / 1000;
@@ -399,22 +399,18 @@ int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
     ts.tv_nsec %= 1000000000;
 
     while (sem->count <= 0) {
-      ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
-      if (ret != 0) {
+      code = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
+      if (code != 0) {
         (void)taosThreadMutexUnlock(&sem->mutex);
-        if (ret == ETIMEDOUT) {
-          return TSDB_CODE_TIMEOUT_ERROR;
-        } else {
-          return TAOS_SYSTEM_ERROR(ret);
-        }
+        return code;
       }
     }
   }
 
   sem->count--;
-
-  ret = taosThreadMutexUnlock(&sem->mutex);
-  return ret;
+  
+  code = taosThreadMutexUnlock(&sem->mutex);
+  return code;
 }
 
 #endif
