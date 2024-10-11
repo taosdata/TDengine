@@ -9581,6 +9581,10 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
+  if (createReq.urlLen > TSDB_ANAL_ANODE_URL_LEN) {
+    return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+  }
+
   createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
   if (createReq.url == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
