@@ -37,7 +37,7 @@
 #include <arpa/inet.h>
 
 TEST(osTest, osFQDNSuccess) {
-  char     fqdn[1024];
+  char     fqdn[TD_FQDN_LEN];
   char     ipString[INET_ADDRSTRLEN];
   int      code = taosGetFqdn(fqdn);
   uint32_t ipv4 = 0;
