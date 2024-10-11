@@ -36,7 +36,7 @@ SHOW CLUSTER ALIVE;
 SHOW CLUSTER MACHINES;
 ```
 
-显示集群服务器信息。
+显示集群的机器码等信息。
 
 注：企业版独有
 
