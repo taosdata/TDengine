@@ -2446,7 +2446,7 @@ _error:
   return NULL;
 }
 
-static char* formatTimestamp(char* buf, int64_t val, int precision) {
+static char* formatTimestamp(char* buf, int32_t bufSize, int64_t val, int precision) {
   time_t  tt;
   int32_t ms = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -2479,11 +2479,11 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
     return buf;
   }
 
-  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = strftime(buf, bufSize, "%Y-%m-%d %H:%M:%S", &ptm);
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
   } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -2497,10 +2497,11 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
 // for debug
 int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+  int32_t lino = 0;
   int32_t size = 2048 * 1024;
   int32_t code = 0;
   char*   dumpBuf = NULL;
-  char    pBuf[128] = {0};
+  char    pBuf[TD_TIME_STR_LEN] = {0};
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
 
@@ -2530,6 +2531,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (pColInfoData == NULL) {
         code = terrno;
+        lino = __LINE__;
         goto _exit;
       }
 
@@ -2543,7 +2545,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
-          (void)formatTimestamp(pBuf, *(uint64_t*)var, pColInfoData->info.precision);
+          (void)formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
           len += tsnprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
@@ -2609,6 +2611,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
+            lino = __LINE__;
             goto _exit;
           }
           len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
@@ -2626,7 +2629,7 @@ _exit:
     *pDataBuf = dumpBuf;
     dumpBuf = NULL;
   } else {
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     if (dumpBuf) {
       taosMemoryFree(dumpBuf);
     }

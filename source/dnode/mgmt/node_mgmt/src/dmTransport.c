@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "qworker.h"
 #include "tversion.h"
+#include "tanal.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -105,6 +106,17 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
     return false;
   }
 }
+
+static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAnalAlgoRsp rsp = {0};
+  if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+    taosAnalUpdate(rsp.ver, rsp.hash);
+    rsp.hash = NULL;
+  }
+  tFreeRetrieveAnalAlgoRsp(&rsp);
+  rpcFreeCont(pRpc->pCont);
+}
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -150,10 +162,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
+    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    } break;
+    case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
+      dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
     default:
       break;
   }

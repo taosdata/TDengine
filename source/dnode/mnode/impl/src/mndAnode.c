@@ -43,7 +43,7 @@ static void     mndCancelGetNextAnode(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextAnodeFull(SMnode *pMnode, void *pIter);
 static int32_t  mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj);
-static int32_t  mndGetAnodeStatus(SAnodeObj *pObj, char *status);
+static int32_t  mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLen);
 
 int32_t mndInitAnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -603,7 +603,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (code != 0) goto _end;
 
     status[0] = 0;
-    if (mndGetAnodeStatus(pObj, status) == 0) {
+    if (mndGetAnodeStatus(pObj, status, 64) == 0) {
       STR_TO_VARSTR(buf, status);
     } else {
       STR_TO_VARSTR(buf, "offline");
@@ -698,7 +698,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   protocol = (int32_t)(tmp * 1000);
-  if (protocol != 100) return TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+  if (protocol != 100 && protocol != 1000) return TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
 
   code = tjsonGetDoubleValue(pJson, "version", &tmp);
   pObj->version = (int32_t)(tmp * 1000);
@@ -722,10 +722,10 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
     SJson *detail = tjsonGetArrayItem(details, d);
     if (detail == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
-    code = tjsonGetStringValue(detail, "type", buf);
+    code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     EAnalAlgoType type = taosAnalAlgoInt(buf);
-    if (type < 0 || type >= ANAL_ALGO_TYPE_END) continue;
+    if (type < 0 || type >= ANAL_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");
     if (algos == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -734,13 +734,12 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
       SJson *algo = tjsonGetArrayItem(algos, a);
       if (algo == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
-      code = tjsonGetStringValue(algo, "name", buf);
-      if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+      code = tjsonGetStringValue2(algo, "name", buf, sizeof(buf));
+      if (code < 0) return TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME;
 
       SAnodeAlgo algoObj = {0};
       algoObj.nameLen = strlen(buf) + 1;
-      if (algoObj.nameLen > TSDB_ANAL_ALGO_NAME_LEN) return TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME;
-      if (algoObj.nameLen <= 1) return TSDB_CODE_OUT_OF_MEMORY;
+      if (algoObj.nameLen <= 1) return TSDB_CODE_INVALID_JSON_FORMAT;
       algoObj.name = taosMemoryCalloc(algoObj.nameLen, 1);
       tstrncpy(algoObj.name, buf, algoObj.nameLen);
 
@@ -764,7 +763,7 @@ static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
+static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLen) {
   int32_t code = 0;
   int32_t protocol = 0;
   double  tmp = 0;
@@ -780,12 +779,12 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status) {
     goto _OVER;
   }
   protocol = (int32_t)(tmp * 1000);
-  if (protocol != 100) {
+  if (protocol != 100 && protocol != 1000) {
     code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
     goto _OVER;
   }
 
-  code = tjsonGetStringValue(pJson, "status", status);
+  code = tjsonGetStringValue2(pJson, "status", status, statusLen);
   if (code < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;

@@ -589,6 +589,7 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
 
 void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   SSdb *pSdb = pMnode->pSdb;
+  if (pTrans != NULL) mInfo("vgId:1, trans:%d, release transaction", pTrans->id);
   sdbRelease(pSdb, pTrans);
 }
 
@@ -1131,10 +1132,11 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   if (!sendRsp) {
     return;
   } else {
-    mInfo("trans:%d, send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id, mndTransStr(pTrans->stage),
-          pTrans->failedTimes, code);
+    mInfo("vgId:1, trans:%d, start to send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id,
+          mndTransStr(pTrans->stage), pTrans->failedTimes, code);
   }
 
+  mInfo("vgId:1, trans:%d, start to lock rpc array", pTrans->id);
   taosWLockLatch(&pTrans->lockRpcArray);
   int32_t size = taosArrayGetSize(pTrans->pRpcArray);
   if (size <= 0) {
@@ -1155,8 +1157,8 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       if (i != 0 && code == 0) {
         code = TSDB_CODE_MNODE_NOT_FOUND;
       }
-      mInfo("trans:%d, client:%d send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code, mndTransStr(pTrans->stage),
-            pInfo->ahandle);
+      mInfo("vgId:1, trans:%d, client:%d start to send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code,
+            mndTransStr(pTrans->stage), pInfo->ahandle);
 
       SRpcMsg rspMsg = {.code = code, .info = *pInfo};
 
@@ -1199,6 +1201,9 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       }
 
       tmsgSendRsp(&rspMsg);
+
+      mInfo("vgId:1, trans:%d, client:%d send rsp finished, code:0x%x stage:%s app:%p", pTrans->id, i, code,
+            mndTransStr(pTrans->stage), pInfo->ahandle);
     }
   }
   taosArrayClear(pTrans->pRpcArray);
@@ -1495,7 +1500,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     return code;
   }
 
-  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
+  mInfo("trans:%d, execute %d actions serial, current action:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pActions, action);
@@ -1768,7 +1773,8 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool to
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_UNDO_ACTION;
-    mInfo("trans:%d, stage from rollback to undoAction", pTrans->id);
+    pTrans->actionPos = 0;
+    mInfo("trans:%d, stage from rollback to undoAction, actionPos:%d", pTrans->id, pTrans->actionPos);
     continueExec = true;
   } else {
     pTrans->failedTimes++;

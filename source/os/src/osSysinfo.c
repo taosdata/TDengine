@@ -389,10 +389,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
-      sprintf(releaseName, "macOS %u.%u", major, minor);
+      snprintf(releaseName, maxLen, "macOS %u.%u", major, minor);
   } else {
       major -= 4; // macOS 10.1.1 and newer
-      sprintf(releaseName, "macOS 10.%d.%d", major, minor);
+      snprintf(releaseName, maxLen, "macOS 10.%d.%d", major, minor);
   }
 
   return 0;
@@ -474,7 +474,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (taosGetsCmd(pCmd, sizeof(buf) - 1, buf) > 0) {
     code = 0;
     done |= 2;
-    *numOfCores = atof(buf);
+    *numOfCores = taosStr2Float(buf, NULL);
   }
   taosCloseCmd(&pCmd);
 
@@ -498,7 +498,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
       done |= 1;
     } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
       const char *v = strchr(line, ':') + 2;
-      *numOfCores = atof(v);
+      *numOfCores = taosStr2Float(v, NULL);
       done |= 2;
     }
     if (strncmp(line, "processor", 9) == 0) coreCount += 1;
@@ -1101,7 +1101,7 @@ char *taosGetCmdlineByPID(int pid) {
   return cmdline;
 #else
   static char cmdline[1024];
-  (void)sprintf(cmdline, "/proc/%d/cmdline", pid);
+  (void)snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
 
   // int fd = open(cmdline, O_RDONLY);
   TdFilePtr pFile = taosOpenFile(cmdline, TD_FILE_READ);

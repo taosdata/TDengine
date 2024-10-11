@@ -207,6 +207,8 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return terrno;
   }
 
+  mInfo("vgId:1, write sdb file with sdb applyIndex:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
+        pSdb->applyTerm, pSdb->applyConfig);
   if (taosWriteFile(pFile, &pSdb->applyIndex, sizeof(int64_t)) != sizeof(int64_t)) {
     return terrno;
   }
@@ -607,6 +609,9 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   }
   if (code != 0) {
     mError("failed to write sdb file since %s", tstrerror(code));
+  } else {
+    mInfo("write sdb file success, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
+          pSdb->applyTerm, pSdb->applyConfig);
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
