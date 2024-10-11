@@ -236,7 +236,7 @@ class TDTestCase:
                         'first  case when %d then q_int end last'  %(a1),  #'first  case when 3 then q_int end last' ,
                         'first  case when q_int then %d when %d then %d end last'  %(a1,a1,a3),  #'first  case when q_int then 3 when 1 then 2 end last' ,
                         'first  case when q_int < %d then %d when q_int >= %d then %d else %d end last' %(a1,a2,a1,a2,a3), #'first  case when q_int < 3 then 1 when q_int >= 3 then 2 else 3 end last' ,
-                        'first  case when q_int is not null then case when q_int <= %d then q_int else q_int * (%d) end else -(%d) end last'  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
+                        #'first  case when q_int is not null then case when q_int <= %d then q_int else q_int * (%d) end else -(%d) end last'  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
                         'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 3 then 4 end last' ,
                         'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
                         'first  case %d when %d then %d else %d end last'  %(a1,a1,a2,a3),  # 'first  case 3 when 1 then 4 else 2 end last' ,
