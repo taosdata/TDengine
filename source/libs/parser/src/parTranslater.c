@@ -10813,8 +10813,13 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
   }
 
-  if (NULL != pSelect->pGroupByList || (pSelect->pWindow == NULL && pSelect->hasAggFuncs)) {
+  if (NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Group by");
+  }
+
+  if (NULL == pSelect->pWindow && pSelect->hasAggFuncs) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Non window query only support scalar function, aggreate function is not allowed");
   }
 
   return TSDB_CODE_SUCCESS;
