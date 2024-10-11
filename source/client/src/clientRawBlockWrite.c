@@ -1821,6 +1821,7 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
   int32_t       code = 0;
   SVCreateTbReq pCreateReq = {0};
   SDecoder      decoderTmp = {0};
+  SVCreateTbReq *pCreateReqTmp = NULL;
 
   for (int j = 0; j < rsp->createTableNum; j++) {
     void** dataTmp = taosArrayGet(rsp->createTableReq, j);
@@ -1836,8 +1837,9 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
       goto end;
     }
     if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL) {
-      RAW_RETURN_CHECK(
-          taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
+      RAW_RETURN_CHECK(cloneSVreateTbReq(&pCreateReq, &pCreateReqTmp));
+      RAW_RETURN_CHECK(taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), pCreateReqTmp, sizeof(SVCreateTbReq)));
+      pCreateReqTmp = NULL;
     } else {
       tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
       pCreateReq = (SVCreateTbReq){0};
@@ -1850,6 +1852,7 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
 end:
   tDecoderClear(&decoderTmp);
   tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
+  tDestroySVCreateTbReq(pCreateReqTmp, TSDB_MSG_FLG_DECODE);
   return code;
 }
 
@@ -1944,6 +1947,7 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
   conn.requestId = pRequest->requestId;
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+  RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
 
   int retry = 0;
   while(1){
@@ -1971,10 +1975,6 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
       SVCreateTbReq* pCreateReqDst = NULL;
       if (type == RES_TYPE__TMQ_METADATA){
         pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
-        if (pCreateReqDst == NULL) {
-          RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
-          pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
-        }
       }
       STableMeta* pTableMeta = NULL;
       tbInfo* tmpInfo = (tbInfo*)taosHashGet(pNameHash, tbName, strlen(tbName));
