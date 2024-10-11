@@ -3743,8 +3743,9 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   } else {
     if (shouldSWitchToOtherConn(pConn, key)) {
-      if (pHeap->heap->nelts >= 8) {
-        balanceConnHeapCache(pConnHeapCache, pConn);
+      code = balanceConnHeapCache(pConnHeapCache, pConn);
+      if (code != 0) {
+        tDebug("failed to balance conn heap cache for key:%s", key);
       }
       logConnMissHit(pConn);
       return NULL;
