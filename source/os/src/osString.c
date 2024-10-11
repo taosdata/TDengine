@@ -63,15 +63,18 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *strndup(const char *s, int size) {
+char *taosStrndup(const char *s, int size) {
+  if (s == NULL) return NULL;
   size_t l;
   char  *s2;
   l = strlen(s);
   if (l > size) l = size;
   s2 = malloc(l + 1);
   if (s2) {
-    strncpy(s2, s, l);
+    tstrncpy(s2, s, l + 1);
     s2[l] = '\0';
+  } else {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return s2;
 }
@@ -83,6 +86,17 @@ char *stpncpy(char *dest, const char *src, int n) {
   dest += size;
   if (size == n) return dest;
   return memset(dest, '\0', n - size);
+}
+#else
+char *taosStrndup(const char *s, int size) {
+  if (s == NULL) {
+    return NULL;
+  }
+  char *p = strndup(s, size);
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
 }
 #endif
 
@@ -428,14 +442,14 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 }
 
 // dst buffer size should be at least 2*len + 1
-int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
+int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len, int32_t bufSize) {
   if (!dst) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
   for (int32_t i = 0; i < len; ++i) {
-    (void)sprintf(dst + i * 2, "%02x", src[i]);
+    (void)snprintf(dst + i * 2, bufSize - i * 2, "%02x", src[i]);
   }
 
   return 0;

@@ -124,8 +124,8 @@ sysinfo_opt(A) ::= .                                                            
 sysinfo_opt(A) ::= SYSINFO NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) ON priv_level(B) with_opt(D) TO user_name(C).         { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
-cmd ::= REVOKE privileges(A) ON priv_level(B) with_opt(D) FROM user_name(C).      { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
+cmd ::= GRANT privileges(A) ON priv_level(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
+cmd ::= REVOKE privileges(A) ON priv_level(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
 
 %type privileges                                                                  { int64_t }
 %destructor privileges                                                            { }
@@ -151,11 +151,17 @@ priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                 
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
 
-with_opt(A) ::= .                                                                 { A = NULL; }
-with_opt(A) ::= WITH search_condition(B).                                         { A = B; }
+with_clause_opt(A) ::= .                                                          { A = NULL; }
+with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
 
 /************************************************ create encrypt_key *********************************************/
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
+
+/************************************************ create drop update anode ***************************************/
+cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
+cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
+cmd ::= UPDATE ALL ANODES.                                                        { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, NULL, true); }
+cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
@@ -357,8 +363,8 @@ cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
-cmd ::= DROP TABLE multi_drop_clause(A).                                          { pCxt->pRootNode = createDropTableStmt(pCxt, A); }
-cmd ::= DROP STABLE exists_opt(A) full_table_name(B).                             { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B); }
+cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
+cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
 
 cmd ::= ALTER TABLE alter_table_clause(A).                                        { pCxt->pRootNode = A; }
 cmd ::= ALTER STABLE alter_table_clause(A).                                       { pCxt->pRootNode = setAlterSuperTableType(A); }
@@ -398,6 +404,11 @@ multi_drop_clause(A) ::= drop_table_clause(B).                                  
 multi_drop_clause(A) ::= multi_drop_clause(B) NK_COMMA drop_table_clause(C).      { A = addNodeToList(pCxt, B, C); }
 
 drop_table_clause(A) ::= exists_opt(B) full_table_name(C).                        { A = createDropTableClause(pCxt, B, C); }
+
+%type with_opt                                                                    { bool }
+%destructor with_opt                                                              { }
+with_opt(A) ::= .                                                                 { A = false; }
+with_opt(A) ::= WITH.                                                             { A = true; }
 
 %type specific_cols_opt                                                           { SNodeList* }
 %destructor specific_cols_opt                                                     { nodesDestroyList($$); }
@@ -519,6 +530,8 @@ cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                       
 cmd ::= SHOW MNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT); }
 //cmd ::= SHOW MODULES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MODULES_STMT); }
 cmd ::= SHOW QNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QNODES_STMT); }
+cmd ::= SHOW ANODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ANODES_STMT); }
+cmd ::= SHOW ANODES FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ANODES_FULL_STMT); }
 cmd ::= SHOW ARBGROUPS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ARBGROUPS_STMT); }
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, B, A, OP_TYPE_EQUAL); }
@@ -1182,6 +1195,9 @@ pseudo_column(A) ::= WDURATION(B).                                              
 pseudo_column(A) ::= IROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= ISFILLED(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QTAGS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= FLOW(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= FHIGH(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= FROWTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -1500,6 +1516,10 @@ twindow_clause_opt(A) ::=
   COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                         { A = createCountWindowNode(pCxt, &B, &B); }
 twindow_clause_opt(A) ::=
   COUNT_WINDOW NK_LP NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_RP.                  { A = createCountWindowNode(pCxt, &B, &C); }
+twindow_clause_opt(A) ::=
+  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+twindow_clause_opt(A) ::=
+  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }

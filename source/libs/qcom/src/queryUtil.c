@@ -210,7 +210,6 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -314,42 +313,41 @@ void destroyQueryExecRes(SExecResult* pRes) {
   }
 }
 // clang-format on
-
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = snprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      n = snprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      n = snprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -396,19 +394,19 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t*)buf);
+      n = snprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
+      n = snprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -541,7 +539,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
   *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
   if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
@@ -585,7 +583,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   (*pDst)->vgArray = NULL;
@@ -595,7 +593,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SVgroupInfo* vgInfo = NULL;

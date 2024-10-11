@@ -78,7 +78,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
 
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
 
   QW_LOCK(QW_WRITE, &mgmt->schLock);
@@ -539,7 +539,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
     }
 
     if (dbFName[0] && tbName[0]) {
-      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)snprintf(tbInfo.tbFName, sizeof(tbInfo.tbFName), "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }

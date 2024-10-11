@@ -797,7 +797,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
 
-              if (taosLocalTime(&tt, &tp, timeStr) == NULL) {
+              if (taosLocalTime(&tt, &tp, timeStr, sizeof(timeStr)) == NULL) {
                 break;
               }
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);

@@ -23,12 +23,12 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 
-#define RAW_NULL_CHECK(c)             \
-  do {                                \
-    if (c == NULL) {                  \
-      code = TSDB_CODE_OUT_OF_MEMORY; \
-      goto end;                       \
-    }                                 \
+#define RAW_NULL_CHECK(c) \
+  do {                    \
+    if (c == NULL) {      \
+      code = terrno;      \
+      goto end;           \
+    }                     \
   } while (0)
 
 #define RAW_FALSE_CHECK(c)           \
@@ -47,7 +47,7 @@
     }                       \
   } while (0)
 
-#define LOG_ID_TAG   "connId:0x%" PRIx64 ",qid:0x%" PRIx64
+#define LOG_ID_TAG   "connId:0x%" PRIx64 ",QID:0x%" PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId
 
 #define TMQ_META_VERSION "1.0"
@@ -361,7 +361,7 @@ static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE, &req.colCmpr, pJson);
 
 end:
-  uDebug("create stable return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("create stable return");
   tDecoderClear(&coder);
 }
 
@@ -381,7 +381,7 @@ static void processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   buildAlterSTableJson(req.alterOriData, req.alterOriDataLen, pJson);
 
 end:
-  uDebug("alter stable return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("alter stable return");
   tDecoderClear(&coder);
 }
 
@@ -393,8 +393,8 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   int64_t id = pCreateReq->uid;
   uint8_t tagNum = pCreateReq->ctb.tagNum;
   int32_t code = 0;
-
-  cJSON* tableName = cJSON_CreateString(name);
+  cJSON*  tags = NULL;
+  cJSON*  tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
@@ -404,7 +404,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   RAW_NULL_CHECK(tagNumJson);
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tagNum", tagNumJson));
 
-  cJSON* tags = cJSON_CreateArray();
+  tags = cJSON_CreateArray();
   RAW_NULL_CHECK(tags);
   SArray* pTagVals = NULL;
   RAW_RETURN_CHECK(tTagToValArray(pTag, &pTagVals));
@@ -417,7 +417,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     }
     char* pJson = NULL;
     parseTagDatatoJson(pTag, &pJson);
-    if(pJson == NULL) {
+    if (pJson == NULL) {
       uError("parseTagDatatoJson failed, pJson == NULL");
       goto end;
     }
@@ -458,15 +458,17 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
       char* buf = NULL;
+      int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
-        buf = taosMemoryCalloc(pTagVal->nData * 2 + 2 + 3, 1);
+        bufSize = pTagVal->nData * 2 + 2 + 3;
       } else {
-        buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+        bufSize = pTagVal->nData + 3;
       }
+      buf = taosMemoryCalloc(bufSize, 1);
 
       RAW_NULL_CHECK(buf);
       if (!buf) goto end;
-      if (dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
+      if (dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
         goto end;
       }
@@ -543,7 +545,7 @@ static void processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-  uDebug("create table return, sql json:%s", cJSON_PrintUnformatted(*pJson));
+  uDebug("create table return");
   tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
 }
@@ -731,18 +733,20 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           parseTagDatatoJson(vAlterTbReq.pTagVal, &buf);
-          if(buf == NULL) {
+          if (buf == NULL) {
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
           }
         } else {
+          int64_t bufSize = 0;
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal * 2 + 2 + 3, 1);
+            bufSize = vAlterTbReq.nTagVal * 2 + 2 + 3;
           } else {
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
+            bufSize = vAlterTbReq.nTagVal + 3;
           }
+          buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
-          if (dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) !=
+          if (dataConverToStr(buf, bufSize, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) !=
               TSDB_CODE_SUCCESS) {
             taosMemoryFree(buf);
             goto end;
@@ -772,7 +776,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-  uDebug("alter table return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("alter table return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -807,7 +811,7 @@ static void processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableName", tableName));
 
 end:
-  uDebug("processDropSTable return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDropSTable return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -843,7 +847,7 @@ static void processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "sql", sqlJson));
 
 end:
-  uDebug("processDeleteTable return, sql json:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDeleteTable return");
   tDecoderClear(&coder);
   *pJson = json;
 }
@@ -880,7 +884,7 @@ static void processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tableNameList", tableNameList));
 
 end:
-  uDebug("processDropTable return, json sql:%s", cJSON_PrintUnformatted(json));
+  uDebug("processDropTable return");
   tDecoderClear(&decoder);
   *pJson = json;
 }
@@ -978,7 +982,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery.msgType = pQuery.pCmdMsg->msgType;
   pQuery.stableQuery = true;
 
-  (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
+  launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
 
   taosMemoryFree(pCmdMsg.pMsg);
 
@@ -1082,7 +1086,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery.msgType = pQuery.pCmdMsg->msgType;
   pQuery.stableQuery = true;
 
-  (void)launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
+  launchQueryImpl(pRequest, &pQuery, true, NULL);  // ignore, because return value is pRequest
   taosMemoryFree(pCmdMsg.pMsg);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     // ignore the error code
@@ -1120,7 +1124,8 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   SRequestObj*       pRequest = NULL;
   SQuery*            pQuery = NULL;
   SHashObj*          pVgroupHashmap = NULL;
-
+  SArray*            pTagList = taosArrayInit(0, POINTER_BYTES);
+  RAW_NULL_CHECK(pTagList);
   RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
   uDebug(LOG_ID_TAG " create table, meta:%p, metaLen:%d", LOG_ID_VALUE, meta, metaLen);
 
@@ -1186,6 +1191,14 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       }
       pCreateReq->ctb.suid = pTableMeta->uid;
 
+      SArray* pTagVals = NULL;
+      code = tTagToValArray((STag*)pCreateReq->ctb.pTag, &pTagVals);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pTableMeta);
+        goto end;
+      }
+
+      bool rebuildTag = false;
       for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
         char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
         if (tName == NULL) {
@@ -1195,11 +1208,35 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
              j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
           SSchema* tag = &pTableMeta->schema[j];
           if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
-            tTagSetCid((STag*)pCreateReq->ctb.pTag, i, tag->colId);
+            STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
+            if (pTagVal) {
+              if (pTagVal->cid != tag->colId) {
+                pTagVal->cid = tag->colId;
+                rebuildTag = true;
+              }
+            } else {
+              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name,
+                     (int)taosArrayGetSize(pTagVals), i, tag->colId);
+            }
           }
         }
       }
       taosMemoryFreeClear(pTableMeta);
+      if (rebuildTag) {
+        STag* ppTag = NULL;
+        code = tTagNew(pTagVals, 1, false, &ppTag);
+        taosArrayDestroy(pTagVals);
+        pTagVals = NULL;
+        if (code != TSDB_CODE_SUCCESS) {
+          goto end;
+        }
+        if (NULL == taosArrayPush(pTagList, &ppTag)) {
+          tTagFree(ppTag);
+          goto end;
+        }
+        pCreateReq->ctb.pTag = (uint8_t*)ppTag;
+      }
+      taosArrayDestroy(pTagVals);
     }
     RAW_NULL_CHECK(taosArrayPush(pRequest->tableList, &pName));
 
@@ -1236,7 +1273,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
@@ -1251,6 +1288,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  taosArrayDestroyP(pTagList, taosMemoryFree);
   return code;
 }
 
@@ -1365,7 +1403,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
     RAW_RETURN_CHECK(removeMeta(pTscObj, pRequest->tableList, false));
   }
@@ -1510,7 +1548,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
 
   pVgData = NULL;
   pArray = NULL;
@@ -1587,7 +1625,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false, NULL, 0));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1647,7 +1685,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   RAW_RETURN_CHECK(rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false, NULL, 0));
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1766,7 +1804,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
@@ -1777,6 +1815,43 @@ end:
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
   taosMemoryFreeClear(pTableMeta);
+  return code;
+}
+
+static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
+  // find schema data info
+  int32_t       code = 0;
+  SVCreateTbReq pCreateReq = {0};
+  SDecoder      decoderTmp = {0};
+
+  for (int j = 0; j < rsp->createTableNum; j++) {
+    void** dataTmp = taosArrayGet(rsp->createTableReq, j);
+    RAW_NULL_CHECK(dataTmp);
+    int32_t* lenTmp = taosArrayGet(rsp->createTableLen, j);
+    RAW_NULL_CHECK(lenTmp);
+
+    tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
+    RAW_RETURN_CHECK(tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq));
+
+    if (pCreateReq.type != TSDB_CHILD_TABLE) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL) {
+      RAW_RETURN_CHECK(
+          taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
+    } else {
+      tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
+      pCreateReq = (SVCreateTbReq){0};
+    }
+
+    tDecoderClear(&decoderTmp);
+  }
+  return 0;
+
+end:
+  tDecoderClear(&decoderTmp);
+  tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
   return code;
 }
 
@@ -1791,7 +1866,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   SMqRspObj      rspObj = {0};
   SDecoder       decoder = {0};
   STableMeta*    pTableMeta = NULL;
-  SVCreateTbReq* pCreateReqDst = NULL;
+  SHashObj*      pCreateTbHash = NULL;
 
   SRequestObj* pRequest = NULL;
   RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
@@ -1832,6 +1907,9 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   RAW_RETURN_CHECK(smlInitHandle(&pQuery));
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pVgHash);
+  pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  RAW_NULL_CHECK(pCreateTbHash);
+  RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
 
   uDebug(LOG_ID_TAG " write raw metadata block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
   while (++rspObj.resIter < rspObj.dataRsp.blockNum) {
@@ -1844,7 +1922,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
     if (!tbName) {
       SET_ERROR_MSG("block tbname is null");
-      code = TSDB_CODE_TMQ_INVALID_MSG;
+      code = terrno;
       goto end;
     }
 
@@ -1854,41 +1932,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     (void)strcpy(pName.tname, tbName);
 
     // find schema data info
-    for (int j = 0; j < rspObj.dataRsp.createTableNum; j++) {
-      void** dataTmp = taosArrayGet(rspObj.dataRsp.createTableReq, j);
-      RAW_NULL_CHECK(dataTmp);
-      int32_t* lenTmp = taosArrayGet(rspObj.dataRsp.createTableLen, j);
-      RAW_NULL_CHECK(dataTmp);
-
-      SDecoder      decoderTmp = {0};
-      SVCreateTbReq pCreateReq = {0};
-      tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-      if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        code = TSDB_CODE_TMQ_INVALID_MSG;
-        SET_ERROR_MSG("decode create table:%s req failed", tbName);
-        goto end;
-      }
-
-      if (pCreateReq.type != TSDB_CHILD_TABLE) {
-        code = TSDB_CODE_TSC_INVALID_VALUE;
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        SET_ERROR_MSG("create table req type is not child table: %s, type: %d", tbName, pCreateReq.type);
-        goto end;
-      }
-      if (strcmp(tbName, pCreateReq.name) == 0) {
-        RAW_RETURN_CHECK(cloneSVreateTbReq(&pCreateReq, &pCreateReqDst));
-        tDecoderClear(&decoderTmp);
-        tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        break;
-      }
-      tDecoderClear(&decoderTmp);
-      tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-    }
-
-    SVgroupInfo vg = {0};
+    SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
+    SVgroupInfo    vg = {0};
     RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg));
     if (pCreateReqDst) {  // change stable name to get meta
       (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
@@ -1918,9 +1963,17 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    void* rawData = getRawDataFromRes(pRetrieve);
-    char  err[ERR_MSG_LEN] = {0};
-    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
+    void*          rawData = getRawDataFromRes(pRetrieve);
+    char           err[ERR_MSG_LEN] = {0};
+    SVCreateTbReq* pCreateReqTmp = NULL;
+    if (pCreateReqDst) {
+      RAW_RETURN_CHECK(cloneSVreateTbReq(pCreateReqDst, &pCreateReqTmp));
+    }
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqTmp, fields, pSW->nCols, true, err, ERR_MSG_LEN);
+    if (pCreateReqTmp != NULL) {
+      tdDestroySVCreateTbReq(pCreateReqTmp);
+      taosMemoryFree(pCreateReqTmp);
+    }
     taosMemoryFree(fields);
     taosMemoryFreeClear(pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1931,21 +1984,23 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
   RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
 
-  (void)launchQueryImpl(pRequest, pQuery, true, NULL);
+  launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
 end:
   uDebug(LOG_ID_TAG " write raw metadata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
+  void* pIter = taosHashIterate(pCreateTbHash, NULL);
+  while (pIter) {
+    tDestroySVCreateTbReq(pIter, TSDB_MSG_FLG_DECODE);
+    pIter = taosHashIterate(pCreateTbHash, pIter);
+  }
+  taosHashCleanup(pCreateTbHash);
   tDeleteSTaosxRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
   taosMemoryFreeClear(pTableMeta);
-  if (pCreateReqDst) {
-    tdDestroySVCreateTbReq(pCreateReqDst);
-    taosMemoryFree(pCreateReqDst);
-  }
   return code;
 }
 
@@ -2035,6 +2090,8 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   } else{
     uError("tmq_get_json_meta res:%d, invalid type", *(int8_t*)res);
   }
+
+  uDebug("tmq_get_json_meta string:%s", string);
   return string;
 }
 

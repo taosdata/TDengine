@@ -60,7 +60,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
     return false;
   }
 
-  char ipbuf[128] = {0};
+  char ipbuf[TD_IP_LEN] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = SYNC_ADDR(pInfo);
   raftId->vgId = vgId;
@@ -499,7 +499,7 @@ void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteRepl
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
   void* data = taosMemoryRealloc(pSnap->data, size);
   if (data == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSnap->data = data;
   return 0;

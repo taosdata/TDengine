@@ -25,6 +25,7 @@ extern "C" {
 typedef struct SLRUCache SLRUCache;
 
 typedef void (*_taos_lru_deleter_t)(const void *key, size_t keyLen, void *value, void *ud);
+typedef void (*_taos_lru_overwriter_t)(const void *key, size_t keyLen, void *value, void *ud);
 typedef int (*_taos_lru_functor_t)(const void *key, size_t keyLen, void *value, void *ud);
 
 typedef struct LRUHandle LRUHandle;
@@ -42,7 +43,8 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
 void       taosLRUCacheCleanup(SLRUCache *cache);
 
 LRUStatus  taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
-                              _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority, void *ud);
+                              _taos_lru_deleter_t deleter, _taos_lru_overwriter_t overwriter, LRUHandle **handle,
+                              LRUPriority priority, void *ud);
 LRUHandle *taosLRUCacheLookup(SLRUCache *cache, const void *key, size_t keyLen);
 void       taosLRUCacheErase(SLRUCache *cache, const void *key, size_t keyLen);
 

@@ -57,10 +57,10 @@ struct STsdbSnapReader {
   STombBlock tombBlock[1];
 };
 
-static int32_t tsdbSnapReadFileSetCloseReader(STsdbSnapReader* reader) {
+static void tsdbSnapReadFileSetCloseReader(STsdbSnapReader* reader) {
   TARRAY2_CLEAR(reader->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader->dataReader);
-  return 0;
+  return;
 }
 
 static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
@@ -112,7 +112,7 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
 
 _exit:
   if (code) {
-    TAOS_UNUSED(tsdbSnapReadFileSetCloseReader(reader));
+    tsdbSnapReadFileSetCloseReader(reader);
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
   return code;
@@ -190,12 +190,12 @@ _exit:
   return code;
 }
 
-static int32_t tsdbSnapReadFileSetCloseIter(STsdbSnapReader* reader) {
+static void tsdbSnapReadFileSetCloseIter(STsdbSnapReader* reader) {
   tsdbIterMergerClose(&reader->dataIterMerger);
   tsdbIterMergerClose(&reader->tombIterMerger);
   TARRAY2_CLEAR(reader->dataIterArr, tsdbIterClose);
   TARRAY2_CLEAR(reader->tombIterArr, tsdbIterClose);
-  return 0;
+  return;
 }
 
 static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
@@ -222,8 +222,8 @@ _exit:
 }
 
 static int32_t tsdbSnapReadRangeEnd(STsdbSnapReader* reader) {
-  TAOS_UNUSED(tsdbSnapReadFileSetCloseIter(reader));
-  TAOS_UNUSED(tsdbSnapReadFileSetCloseReader(reader));
+  tsdbSnapReadFileSetCloseIter(reader);
+  tsdbSnapReadFileSetCloseReader(reader);
   reader->ctx->fsr = NULL;
   return 0;
 }
@@ -373,7 +373,7 @@ static int32_t tsdbSnapReadTombData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t   lino = 0;
   SMetaInfo info;
 
-  TAOS_UNUSED(tTombBlockClear(reader->tombBlock));
+  tTombBlockClear(reader->tombBlock);
 
   TABLEID tbid[1] = {0};
   for (STombRecord* record; (record = tsdbIterMergerGetTombRecord(reader->tombIterMerger)) != NULL;) {
@@ -440,9 +440,9 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
+void tsdbSnapReaderClose(STsdbSnapReader** reader) {
   if (reader[0] == NULL) {
-    return 0;
+    return;
   }
 
   int32_t code = 0;
@@ -463,13 +463,13 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->buffers); ++i) {
-    TAOS_UNUSED(tBufferDestroy(reader[0]->buffers + i));
+    tBufferDestroy(reader[0]->buffers + i);
   }
 
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
-  return code;
+  return;
 }
 
 int32_t tsdbSnapRead(STsdbSnapReader* reader, uint8_t** data) {
@@ -623,6 +623,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
   int32_t lino = 0;
 
   if (writer->ctx->fset) {
+#if 0
     // open data reader
     SDataFileReaderConfig dataFileReaderConfig = {
         .tsdb = writer->tsdb,
@@ -650,6 +651,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
 
     code = tsdbDataFileReaderOpen(NULL, &dataFileReaderConfig, &writer->ctx->dataReader);
     TSDB_CHECK_CODE(code, lino, _exit);
+#endif
 
     // open stt reader array
     SSttLvl* lvl;
@@ -791,6 +793,15 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .did = writer->ctx->did,
       .level = 0,
   };
+  // merge stt files to either data or a new stt file
+  if (writer->ctx->fset) {
+    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (writer->ctx->fset->farr[ftype] != NULL) {
+        config.files[ftype].exist = true;
+        config.files[ftype].file = writer->ctx->fset->farr[ftype]->f[0];
+      }
+    }
+  }
 
   code = tsdbFSetWriterOpen(&config, &writer->ctx->fsetWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -821,7 +832,9 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
     code = TSDB_CODE_NO_AVAIL_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  TAOS_UNUSED(tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did));
+  if (tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did) != 0) {
+    tsdbError("vgId:%d failed to create directory %s", TD_VID(writer->tsdb->pVnode), writer->tsdb->path);
+  }
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;
@@ -840,6 +853,8 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbInfo("vgId:%d %s succeeded, fid:%d", TD_VID(writer->tsdb->pVnode), __func__, fid);
   }
   return code;
 }
@@ -920,6 +935,8 @@ static int32_t tsdbSnapWriteFileSetEnd(STsdbSnapWriter* writer) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbInfo("vgId:%d %s succeeded, fid:%d", TD_VID(writer->tsdb->pVnode), __func__, writer->ctx->fid);
   }
   return code;
 }
@@ -1000,7 +1017,7 @@ static int32_t tsdbSnapWriteDecmprTombBlock(SSnapDataHdr* hdr, STombBlock* tombB
   int32_t code = 0;
   int32_t lino = 0;
 
-  TAOS_UNUSED(tTombBlockClear(tombBlock));
+  tTombBlockClear(tombBlock);
 
   int64_t size = hdr->size;
   size = size / TOMB_RECORD_ELEM_NUM;
@@ -1173,7 +1190,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
+    tsdbInfo("vgId:%d %s done, rollback:%d", TD_VID(tsdb->pVnode), __func__, rollback);
   }
   return code;
 }

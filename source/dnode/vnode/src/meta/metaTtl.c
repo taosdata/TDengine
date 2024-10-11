@@ -144,7 +144,7 @@ static void ttlMgrCleanup(STtlManger *pTtlMgr) {
   taosMemoryFree(pTtlMgr->logPrefix);
   taosHashCleanup(pTtlMgr->pTtlCache);
   taosHashCleanup(pTtlMgr->pDirtyUids);
-  (void)tdbTbClose(pTtlMgr->pTtlIdx);
+  tdbTbClose(pTtlMgr->pTtlIdx);
   taosMemoryFree(pTtlMgr);
 }
 
@@ -302,7 +302,10 @@ int32_t ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
   }
 
   if (ttlMgrNeedFlush(pTtlMgr)) {
-    (void)ttlMgrFlush(pTtlMgr, updCtx->pTxn);
+    int32_t ret = ttlMgrFlush(pTtlMgr, updCtx->pTxn);
+    if (ret < 0) {
+      metaError("%s, ttlMgr insert failed to flush since %s", pTtlMgr->logPrefix, tstrerror(ret));
+    }
   }
 
   code = TSDB_CODE_SUCCESS;
@@ -326,7 +329,10 @@ int32_t ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
   }
 
   if (ttlMgrNeedFlush(pTtlMgr)) {
-    (void)ttlMgrFlush(pTtlMgr, delCtx->pTxn);
+    int32_t ret = ttlMgrFlush(pTtlMgr, delCtx->pTxn);
+    if (ret < 0) {
+      metaError("%s, ttlMgr del failed to flush since %s", pTtlMgr->logPrefix, tstrerror(ret));
+    }
   }
 
   code = TSDB_CODE_SUCCESS;
@@ -350,7 +356,8 @@ int32_t ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdC
                                .changeTimeMsDirty = pUpdCtimeCtx->changeTimeMs};
   STtlDirtyEntry dirtryEntry = {.type = ENTRY_TYPE_UPSERT};
 
-  code = taosHashPut(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &cacheEntry, sizeof(cacheEntry));
+  code =
+      taosHashPut(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &cacheEntry, sizeof(cacheEntry));
   if (TSDB_CODE_SUCCESS != code) {
     metaError("%s, ttlMgr update ctime failed to update cache since %s", pTtlMgr->logPrefix, tstrerror(code));
     goto _out;
@@ -359,13 +366,15 @@ int32_t ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdC
   code = taosHashPut(pTtlMgr->pDirtyUids, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &dirtryEntry,
                      sizeof(dirtryEntry));
   if (TSDB_CODE_SUCCESS != code) {
-    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix,
-              tstrerror(code));
+    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix, tstrerror(code));
     goto _out;
   }
 
   if (ttlMgrNeedFlush(pTtlMgr)) {
-    (void)ttlMgrFlush(pTtlMgr, pUpdCtimeCtx->pTxn);
+    int32_t ret = ttlMgrFlush(pTtlMgr, pUpdCtimeCtx->pTxn);
+    if (ret < 0) {
+      metaError("%s, ttlMgr update ctime failed to flush since %s", pTtlMgr->logPrefix, tstrerror(ret));
+    }
   }
 
   code = TSDB_CODE_SUCCESS;
@@ -420,7 +429,7 @@ int32_t ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
       metaError("%s, ttlMgr flush failed to get ttl cache, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix, *pUid,
-               pEntry->type);
+                pEntry->type);
       continue;
     }
 

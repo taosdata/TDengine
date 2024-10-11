@@ -619,6 +619,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
+    code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
@@ -629,6 +631,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
+    code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
@@ -667,13 +671,11 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
-  cleanupExprSupp(&pOperator->exprSupp);
-
-  // close operator after cleanup exprSupp, since we need to call cleanup of sqlFunctionCtx first to avoid mem leak.
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 
@@ -883,14 +885,17 @@ SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, i
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
   QRY_PARAM_CHECK(pRes);
 
+  int32_t lino = 0;
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
-  if (TSDB_CODE_SUCCESS != code) {
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = pOperator->fpSet.getNextFn(pOperator, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pOperator->pTaskInfo->code = code;
-  } else {
-    code = pOperator->fpSet.getNextFn(pOperator, pRes);
-    if (code) {
-      pOperator->pTaskInfo->code = code;
-    }
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
 
   return code;

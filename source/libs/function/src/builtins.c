@@ -16,9 +16,10 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "geomFunc.h"
 #include "querynodes.h"
 #include "scalar.h"
-#include "geomFunc.h"
+#include "tanal.h"
 #include "taoserror.h"
 #include "ttime.h"
 
@@ -208,10 +209,10 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 }
 
 static int32_t addTimezoneParam(SNodeList* pList) {
-  char      buf[6] = {0};
+  char      buf[TD_TIME_STR_LEN] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
+  if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf)) != NULL) {
     (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
   }
   int32_t len = (int32_t)strlen(buf);
@@ -222,10 +223,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return code;
   }
 
-  pVal->literal = strndup(buf, len);
+  pVal->literal = taosStrndup(buf, len);
   if (pVal->literal == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
@@ -237,7 +238,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
-  (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+  tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
@@ -327,7 +328,6 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   } else if (IS_NULL_TYPE(paraType)) {
     paraType = TSDB_DATA_TYPE_BIGINT;
   }
-  pFunc->hasSMA = !IS_VAR_DATA_TYPE(paraType);
   int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
@@ -2079,6 +2079,47 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateUniqueMode(pFunc, pErrBuf, len, false);
 }
 
+static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != numOfParams && 1 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "FORECAST require 1 or 2 parameters");
+  }
+
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_MATHABLE_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST only support mathable column");
+  }
+
+  if (numOfParams == 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+    if (TSDB_DATA_TYPE_BINARY != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (!taosAnalGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "FORECAST option should include algo field");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams > 2) {
@@ -3115,6 +3156,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = percentileFunction,
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
+    .cleanupFunc  = percentileFunctionCleanupExt,
 #ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
 #endif
@@ -4795,6 +4837,48 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = randFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "forecast",
+    .type = FUNCTION_TYPE_FORECAST,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,    
+    .translateFunc = translateForecast,
+    .getEnvFunc    = getSelectivityFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = forecastEstReturnRows,
+  },
+    {
+    .name = "_frowts",
+    .type = FUNCTION_TYPE_FORECAST_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_flow",
+    .type = FUNCTION_TYPE_FORECAST_LOW,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fhigh",
+    .type = FUNCTION_TYPE_FORECAST_HIGH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
 };

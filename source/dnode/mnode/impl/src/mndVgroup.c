@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndVgroup.h"
 #include "audit.h"
 #include "mndArbGroup.h"
 #include "mndDb.h"
@@ -26,7 +27,6 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndVgroup.h"
 #include "tmisce.h"
 
 #define VGROUP_VER_NUMBER   1
@@ -1670,7 +1670,9 @@ int32_t mndAddNewVgPrepareAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVg) {
   }
 
   TAOS_CHECK_GOTO(mndTransAppendPrepareLog(pTrans, pRaw), NULL, _err);
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
+  if (sdbSetRawStatus(pRaw, SDB_STATUS_CREATING) != 0) {
+    mError("vgId:%d, failed to set raw status at line:%d", pVg->vgId, __LINE__);
+  }
   if (code != 0) {
     mError("vgId:%d, failed to set raw status since %s at line:%d", pVg->vgId, tstrerror(code), __LINE__);
     TAOS_RETURN(code);

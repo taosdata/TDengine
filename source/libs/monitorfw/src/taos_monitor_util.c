@@ -37,6 +37,7 @@ void taos_monitor_split_str(char** arr, char* str, const char* del) {
 void taos_monitor_split_str_metric(char** arr, taos_metric_t* metric, const char* del, char** buf) {
   int32_t size = strlen(metric->name);
   char* name = taosMemoryMalloc(size + 1);
+  if (name == NULL) return;
   memset(name, 0, size + 1);
   memcpy(name, metric->name, size);
 
@@ -84,10 +85,10 @@ bool taos_monitor_is_match(const SJson* tags, char** pairs, int32_t count) {
     SJson* item = tjsonGetArrayItem(tags, i);
 
     char item_name[MONITOR_TAG_NAME_LEN] = {0};
-    (void)tjsonGetStringValue(item, "name", item_name);
+    if (tjsonGetStringValue(item, "name", item_name) != 0) return false;
 
     char item_value[MONITOR_TAG_VALUE_LEN] = {0};
-    (void)tjsonGetStringValue(item, "value", item_value);
+    if (tjsonGetStringValue(item, "value", item_value) != 0) return false;
 
     bool isfound = false;
     for(int32_t j = 0; j < count; j++){

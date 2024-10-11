@@ -18,6 +18,7 @@
 #include "dmInt.h"
 #include "monitor.h"
 #include "systable.h"
+#include "tanal.h"
 #include "tchecksum.h"
 
 extern SConfig *tsCfg;
@@ -39,13 +40,16 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
   }
 }
+
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   int32_t code = 0;
   dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
       dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
-      (void)rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
+        dError("failed to disable ip white list on dnode");
+      }
     }
     return;
   }
@@ -82,6 +86,47 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
     dError("failed to send retrieve ip white list request since:%s", tstrerror(code));
   }
 }
+
+static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
+  int32_t code = 0;
+  int64_t oldVer = taosAnalGetVersion();
+  if (oldVer == newVer) return;
+  dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
+
+  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {
+      .pCont = pHead,
+      .contLen = contLen,
+      .msgType = TDMT_MND_RETRIEVE_ANAL_ALGO,
+      .info.ahandle = (void *)0x9527,
+      .info.refId = 0,
+      .info.noResp = 0,
+      .info.handle = 0,
+  };
+  SEpSet epset = {0};
+
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epset);
+
+  code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+  if (code != 0) {
+    dError("failed to send retrieve analysis func ver request since %s", tstrerror(code));
+  }
+}
+
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
   dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
@@ -91,7 +136,9 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
-      (void)dmWriteEps(pMgmt->pData);
+      if (dmWriteEps(pMgmt->pData) != 0) {
+        dError("failed to write dnode file");
+      }
       dInfo("dnode will exit since it is in the dropped state");
       (void)raise(SIGINT);
     }
@@ -107,6 +154,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
+      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -147,7 +195,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0) != 0) {
+    dError("failed to parse time since %s", tstrerror(code));
+  }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
@@ -166,6 +216,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
+  req.analVer = taosAnalGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
@@ -243,7 +294,9 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  (void)rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+  if (rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL) != 0) {
+    dError("failed to send notify req");
+  }
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

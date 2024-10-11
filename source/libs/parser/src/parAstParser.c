@@ -47,6 +47,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
   void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
@@ -379,13 +380,24 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
-                                    pClause->tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);
+    if (pStmt->withOpt) {
+      code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+      }
+    } else {
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS == code) {
+        code =
+            reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
+                                      pClause->tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -395,6 +407,9 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
 }
 
 static int32_t collectMetaKeyFromDropStable(SCollectMetaKeyCxt* pCxt, SDropSuperTableStmt* pStmt) {
+  if (pStmt->withOpt) {
+    return reserveTableUidInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
   return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
                                 AUTH_TYPE_WRITE, pCxt->pMetaCache);
 }
@@ -535,6 +550,22 @@ static int32_t collectMetaKeyFromShowQnodes(SCollectMetaKeyCxt* pCxt, SShowStmt*
 static int32_t collectMetaKeyFromShowSnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
     return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SNODES,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectMetaKeyFromShowAnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ANODES,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectMetaKeyFromShowAnodesFull(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ANODES_FULL,
                                    pCxt->pMetaCache);
   }
   return TSDB_CODE_SUCCESS;
@@ -968,6 +999,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowQnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_SNODES_STMT:
       return collectMetaKeyFromShowSnodes(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ANODES_STMT:
+      return collectMetaKeyFromShowAnodes(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return collectMetaKeyFromShowAnodesFull(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_BNODES_STMT:
       return collectMetaKeyFromShowBnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:

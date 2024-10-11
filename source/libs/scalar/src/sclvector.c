@@ -101,7 +101,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   int32_t code = TSDB_CODE_SUCCESS;
   char   *tmp = taosMemoryMalloc(varDataTLen(inData));
   if (NULL == tmp) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
@@ -540,7 +540,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
       tmp = taosMemoryMalloc(bufSize);
       if (tmp == NULL) {
         sclError("out of memory in vectorConvertFromVarData");
-        SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        SCL_ERR_JRET(terrno);
       }
     }
 
@@ -734,7 +734,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       int64_t value = 0;
       GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%" PRId64, value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -751,7 +751,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       uint64_t value = 0;
       GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%" PRIu64, value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -768,7 +768,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       double value = 0;
       GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%lf", value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));

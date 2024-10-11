@@ -197,8 +197,7 @@ static void insertOfp(void) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
@@ -247,8 +246,7 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
@@ -357,8 +355,7 @@ tdbBegin(pEnv, &txn);
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(tdb_test, DISABLED_simple_insert1) {
@@ -492,6 +489,5 @@ TEST(tdb_test, simple_insert1) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }

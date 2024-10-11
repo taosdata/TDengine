@@ -91,7 +91,9 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 
         struct timeval  tv;
         struct timespec ts;
-        (void)taosGetTimeOfDay(&tv);
+        if (taosGetTimeOfDay(&tv) != 0) {
+          continue;
+        }
         ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
         if (ts.tv_nsec > 999999999l) {
           ts.tv_sec = tv.tv_sec + 1;
@@ -100,9 +102,8 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
           ts.tv_sec = tv.tv_sec;
         }
 
-        int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
-        if (rc && rc != ETIMEDOUT) {
-          code = TAOS_SYSTEM_ERROR(rc);
+        code = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+        if (code && code != TSDB_CODE_TIMEOUT_ERROR) {
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -199,7 +200,9 @@ _exit:
     vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
           pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
   }
-  (void)taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    vError("vgId:%d, failed to close file", pInfo->config.vgId);
+  }
   taosMemoryFree(data);
   return code;
 }
@@ -261,7 +264,9 @@ _exit:
     }
   }
   taosMemoryFree(pData);
-  (void)taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    vError("vgId:%d, failed to close file", pInfo->config.vgId);
+  }
   return code;
 }
 
@@ -494,7 +499,9 @@ void vnodeRollback(SVnode *pVnode) {
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  TAOS_UNUSED(taosRemoveFile(tFName));
+  if (taosRemoveFile(tFName) != 0) {
+    vError("vgId:%d, failed to remove file %s since %s", TD_VID(pVnode), tFName, tstrerror(terrno));
+  }
 }
 
 static int vnodeEncodeState(const void *pObj, SJson *pJson) {

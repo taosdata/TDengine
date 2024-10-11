@@ -91,11 +91,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -112,15 +108,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    (void)strcat(tmpPath, fileNamePrefix);
-    (void)strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[32] = {0};
 
-  (void)sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
   (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 
@@ -426,16 +418,19 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     return terrno;
   }
 
+  int64_t res = 0;
   DWORD bytesRead;
   if (!ReadFile(pFile->hFile, buf, count, &bytesRead, NULL)) {
     DWORD errCode = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(errCode);
-    bytesRead = -1;
+    res = -1;
+  } else {
+    res = bytesRead;
   }
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-  return bytesRead;
+  return res;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {

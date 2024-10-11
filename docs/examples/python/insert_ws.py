@@ -22,6 +22,7 @@ try:
 
 except Exception as err:
     print(f"Failed to insert data to power.meters, sql: {sql}, ErrMessage: {err}.")
+    raise err
 finally:
     if conn:
         conn.close()

@@ -1178,7 +1178,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfRows = 0;
@@ -1271,7 +1271,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
   char* pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("md5 function alloc memory failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -1284,7 +1284,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
       if (!pOutputBuf) {
         qError("md5 function alloc memory failed");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     char *output = pOutputBuf;
@@ -2067,9 +2067,9 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
-          // NOTE: sprintf will append '\0' at the end of string
-          int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE),
-                                *(int8_t *)input ? "true" : "false");
+          // NOTE: snprintf will append '\0' at the end of string
+          int32_t len = snprintf(varDataVal(output), outputLen + TSDB_NCHAR_SIZE - VARSTR_HEADER_SIZE, "%.*s",
+                                 (int32_t)(outputLen - VARSTR_HEADER_SIZE), *(int8_t *)input ? "true" : "false");
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
@@ -2109,7 +2109,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         int32_t len;
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
-          len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
+          len = snprintf(tmp, sizeof(tmp), "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
             code = TSDB_CODE_SCALAR_CONVERT_ERROR;
@@ -2193,7 +2193,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     NUM_TO_STRING(type, input, sizeof(fraction), fraction);
     int32_t fractionLen;
 
-    char    buf[64] = {0};
+    char    buf[TD_TIME_STR_LEN] = {0};
     int64_t timeVal;
     char*   format = NULL;
     int64_t  quot = 0;
@@ -2244,7 +2244,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     struct tm tmInfo;
     int32_t len = 0;
 
-    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf) == NULL) {
+    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf, sizeof(buf)) == NULL) {
       len = (int32_t)strlen(buf);
       goto _end;
     }
@@ -2306,7 +2306,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     SArray *pTagVals = taosArrayInit(8, sizeof(STagVal));
     if (NULL == pTagVals) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     STag   *pTag = NULL;
 
@@ -2356,7 +2356,7 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
   SArray *formats = NULL;
 
   if (tsStr == NULL || format == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
@@ -3972,6 +3972,10 @@ int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
+int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
 int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return avgScalarFunction(pInput, inputNum, pOutput);
 }
@@ -4352,16 +4356,16 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  char *binTypeStr = taosStrndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
   if (NULL == binTypeStr) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 
-  char   *binDesc = strndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
+  char   *binDesc = taosStrndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
   if (NULL == binDesc) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
@@ -4407,11 +4411,11 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t len;
     char    buf[512] = {0};
     if (!normalized) {
-      len = sprintf(varDataVal(buf), "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", bins[k].lower,
-                    bins[k].upper, bins[k].count);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}",
+                     bins[k].lower, bins[k].upper, bins[k].count);
     } else {
-      len = sprintf(varDataVal(buf), "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", bins[k].lower,
-                    bins[k].upper, bins[k].percentage);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}",
+                     bins[k].lower, bins[k].upper, bins[k].percentage);
     }
     varDataSetLen(buf, len);
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, buf, false));

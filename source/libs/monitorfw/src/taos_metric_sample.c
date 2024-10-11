@@ -44,7 +44,6 @@ taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char
 
 int taos_metric_sample_destroy(taos_metric_sample_t *self) {
   TAOS_TEST_PARA(self != NULL);
-  if (self == NULL) return 0;
   taos_free((void *)self->l_value);
   self->l_value = NULL;
   taos_free((void *)self);
@@ -63,7 +62,9 @@ int taos_metric_sample_destroy_generic(void *gen) {
 
 void taos_metric_sample_free_generic(void *gen) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)gen;
-  (void)taos_metric_sample_destroy(self);
+  if(taos_metric_sample_destroy(self) != 0) {
+    TAOS_LOG(TAOS_METRIC_SAMPLE_DESTROY_ERROR);
+  }
 }
 
 int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {

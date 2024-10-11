@@ -362,7 +362,7 @@ static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSD
 
   char *strDup = NULL;
   if ((strDup = taosStrdup(pItem->str))== NULL){
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -2300,11 +2300,14 @@ static int taosLogVarComp(void const *lp, void const *rp) {
   return strcasecmp(lpVar->name, rpVar->name);
 }
 
-static int32_t taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
+static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
   if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
+    return;
   }
-  return taosSetDebugFlag(pFlagPtr, name, flag);
+  if (taosSetDebugFlag(pFlagPtr, name, flag) != 0) {
+    uError("failed to set flag %s to %d", name, flag);
+  }
+  return;
 }
 
 int32_t taosSetGlobalDebugFlag(int32_t flag) { return taosSetAllDebugFlag(tsCfg, flag); }
@@ -2321,29 +2324,29 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   pItem->i32 = flag;
   noNeedToSetVars = pItem->array;
 
-  (void)taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
 
-  (void)taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars);
 
-  (void)taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
-  (void)taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
