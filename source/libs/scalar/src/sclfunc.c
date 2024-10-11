@@ -2193,7 +2193,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     NUM_TO_STRING(type, input, sizeof(fraction), fraction);
     int32_t fractionLen;
 
-    char    buf[64] = {0};
+    char    buf[TD_TIME_STR_LEN] = {0};
     int64_t timeVal;
     char*   format = NULL;
     int64_t  quot = 0;
@@ -2244,7 +2244,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     struct tm tmInfo;
     int32_t len = 0;
 
-    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf) == NULL) {
+    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf, sizeof(buf)) == NULL) {
       len = (int32_t)strlen(buf);
       goto _end;
     }
