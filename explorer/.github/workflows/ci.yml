@@ -1,0 +1,275 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+      - 3.0
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            node_modules
+            yarn.lock
+          key: ${{ runner.os }}-node-yarn
+      - run: |
+          yarn && yarn build
+      - name: Upload dist
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+  # TODO use matrix instead
+  macos:
+    runs-on: macos-11
+    needs: web
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: build package
+        run: |
+          cargo install universal2 || true
+          cd server/
+          cargo universal2
+
+      - name: clippy
+        run: cargo clippy --locked -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
+
+      - name: build archive
+        run: |
+          cd target/universal2-apple-darwin/release/
+          tar -cavf taos-explorer-universal2-apple-darwin.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/universal2-apple-darwin/release/*.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    needs: web
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: clippy
+        run: cargo clippy --locked -p taos-explorer -- --no-deps -Dwarnings 
+
+      - name: test
+        run: cargo test
+
+      - name: build package
+        run: cargo build --locked --release
+
+      - name: build archive
+        run: |
+          cd target/release/
+          7z a taos-explorer-x86_64-windows-msvc.zip *.exe
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: |
+            target/release/*.zip
+            target/release/taos-explorer.exe
+
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    needs: web
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: clippy
+        run: cargo clippy --locked -p taos-explorer -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
+
+      - name: build package
+        run: cargo build --locked --release --target x86_64-unknown-linux-gnu
+
+      - name: build archive
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release/
+          tar -cavf taos-explorer-x86_64-unknown-linux-gnu.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/x86_64-unknown-linux-gnu/release/*.tar.gz
+
+  linux-aarch64:
+    runs-on: ubuntu-20.04
+    needs: web
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target-aarch64
+
+      - name: clippy
+        run: cargo clippy --locked -p taos-explorer -- --no-deps -Dwarnings
+
+      - name: test
+        run: cargo test
+
+      - name: Build package
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --all --release --target=aarch64-unknown-linux-gnu
+
+      - name: build archive
+        run: |
+          cd target/aarch64-unknown-linux-gnu/release/
+          tar -cavf taos-explorer-aarch64-unknown-linux-gnu.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/aarch64-unknown-linux-gnu/release/*.tar.gz
+  release:
+    needs:
+      - macos
+      - windows
+      - linux-x86_64
+      - linux-aarch64
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: "latest"
+          message: "Latest"
+          force_push_tag: true
+      - uses: actions/download-artifact@v3
+        with:
+          name: taos-explorer
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Latest
+          tag_name: latest
+          files: |
+            taos-explorer-aarch64-unknown-linux-gnu.tar.gz
+            taos-explorer-x86_64-unknown-linux-gnu.tar.gz
+            taos-explorer-universal2-apple-darwin.tar.gz
+            taos-explorer-x86_64-windows-msvc.zip

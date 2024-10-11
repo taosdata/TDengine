@@ -1,0 +1,106 @@
+# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+#
+# Here is a full list of available options.
+
+# Explorer server port to listen on.
+# Default is 6060.
+#
+port = 6060
+
+# IPv4 listen address.
+# Default is 0.0.0.0
+addr = "0.0.0.0"
+
+# IPv6 listen address.
+
+# ipv6 = "::1"
+
+# explorer server instance id
+# 
+# The instanceId of each instance is unique on the host
+# instanceId = 1
+
+# Explorer server log level.
+# Default is "info"
+# 
+# Deprecated: use log.level instead
+log_level = "info"
+
+# All data files are stored in this directory
+# data_dir = "/var/lib/taos/explorer" # Default for Linux
+# data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
+
+# REST API endpoint to connect to the cluster.
+# This configuration is also the target for data migration tasks.
+# 
+# Default is "http://localhost:6041" - the default endpoint for REST API.
+#
+cluster = "http://localhost:6041"
+
+# native endpoint to connect to the cluster.
+# Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
+# If you enable it, you will get more performance for data migration tasks.
+# If modify this config item, you must relogin to clear the cache in browser local storage.
+#
+# cluster_native = "taos://localhost:6030"
+
+# API endpoint for data replication/backup/data sources. No default option.
+#   Set it to API URL like "http://localhost:6050".
+#
+x_api = "http://localhost:6050"
+
+# Please set it to same as the "grpc" parameter used by taosX Service; 
+# If "grpc" parameter is not set explicitly in taosX service, please set it to the default grpc address of taosX
+grpc = "http://localhost:6055"
+
+# CORS configuration switch, it allows cross-origin access
+cors = true
+
+# cloud open api.
+# cloud_open_api = "https://pre.ali.cloud.taosdata.com/openapi"
+
+# Enable ssl
+# If the following two files exist, enable ssl protocol
+#
+[ssl]
+
+# SSL certificate
+#
+# certificate = "/path/to/ca.file" # on linux/macOS
+# certificate = "C:\\path\\to\\ca.file" # on windows
+
+# SSL certificate key
+#
+# certificate_key = "/path/to/key.file" # on linux/macOS
+# certificate_key = "C:\\path\\to\\key.file" # on windows
+
+# log configuration
+[log]
+# All log files are stored in this directory
+# 
+# path = "/var/log/taos" # on linux/macOS
+# path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+# level = "info"
+
+# Compress archived log files or not
+# 
+# compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+# 
+# rotationCount = 30
+
+# Rotate when the log file reaches this size
+# 
+# rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+# 
+# reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+# keepDays = 30

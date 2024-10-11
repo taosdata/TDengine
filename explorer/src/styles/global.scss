@@ -1,0 +1,227 @@
+$color-primary: rgb(25.878906%, 34.899902%, 80.778503%);
+$color-success: #49ae18;
+$color-danger: #f12c2c;
+$small-content-width: 100%;
+$item-border-color: #e3e4e6;
+$text-color: rgb(77, 105, 146);
+$title-color: #444;
+$color-description: rgb(137, 130, 130);
+$divider-color: rgb(217, 221, 228);
+$box-shadow: 0px 10px 13px -6px rgba(0, 0, 0, 0.08), 0px 20px 31px 3px rgba(0, 0, 0, 0.09), 0px 8px 20px 7px rgba(0, 0, 0, 0.02);
+
+@mixin content-padding {
+  padding: 20px 30px;
+}
+.flexCenter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.flexBetween {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.flexEnd {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.flexStart {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+.nowrap {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.image-contain {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.router-link-exact-active,
+.router-link-active {
+  color: $color-primary;
+}
+.page-wrapper {
+  // box-shadow: $box-shadow;
+  // border-radius:8px;
+  // background-color: #fff;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  max-width: 1920px;
+}
+.block-style {
+  border-radius: 4px;
+  background-color: #fff;
+  border: 1px solid #e3e4e6;
+}
+.w100 {
+  width: 100%;
+}
+.content {
+  @include content-padding;
+  width: 100%;
+  // min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  @extend .block-style;
+  // overflow-y: auto;
+}
+.flexEnd {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.errorText {
+  color: #ff4949;
+  font-size: 14px;
+  padding: 0px;
+  margin: 0;
+  text-align: left;
+}
+.pagination {
+  margin-top: 25px;
+  text-align: center;
+}
+.custom-divider {
+  display: block;
+  height: 1px;
+  width: 100%;
+  margin: 10px 0;
+  background-color: #d9dde4;
+}
+// 这里是专门用于pre代码块添加复制按钮的样式
+.pre-code {
+  position: relative;
+  &:hover {
+    .copy-btn {
+      display: block !important;
+    }
+  }
+  .copy-btn {
+    display: none;
+    position: absolute;
+    right: 10px;
+    top: 5px;
+    color: $color-primary;
+    border: none;
+    background: #fff;
+    padding: 2px 5px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+}
+
+// 仅展示的pre
+.pre-show {
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  word-wrap: normal;
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  & > code {
+    word-break: normal;
+    white-space: pre;
+    border: 0;
+    display: inline;
+    max-width: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    line-height: inherit;
+    word-wrap: normal;
+    background-color: transparent;
+  }
+}
+.big-button {
+  font-size: 14px;
+  padding: 6px 10px;
+}
+.btn-disabled {
+  cursor: not-allowed;
+  color: #c0c4cc;
+}
+.tip-common {
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 20px;
+  border-left-width: 5px;
+  border-left-style: solid;
+}
+.primary-tip {
+  @extend .tip-common;
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+  color: #333;
+}
+.warning-tip {
+  @extend .tip-common;
+  background-color: #fff6f7;
+  border-left-color: #fe6c6f;
+  color: $color-danger;
+}
+.success-tip {
+  @extend .tip-common;
+  background-color: rgb(254, 236, 196);
+  border-left-color: $color-success;
+  color: #333;
+}
+.default-tip {
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+}
+:export {
+  color_primary: $color-primary;
+}
+.mt10 {
+  margin-top: 20px;
+}
+.mt20 {
+  margin-top: 20px;
+}
+.mr20 {
+  margin-right: 20px;
+}
+.mb20 {
+  margin-bottom: 20px;
+}
+.ml20 {
+  margin-left: 20px;
+}
+.ml15 {
+  margin-left: 15px;
+}
+.info_icon_custom {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  position: relative;
+  top: 3px;
+}
+.hidden-required {
+  ::v-deep .el-form-item__label {
+    display: flex;
+    &::before {
+      content: "*";
+      color: red;
+      margin-right: 4px;
+      visibility: hidden;
+    }
+  }
+}
+.docker-tip {
+  color: #e6a23c;
+}
