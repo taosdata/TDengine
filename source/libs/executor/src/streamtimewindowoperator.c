@@ -2012,6 +2012,11 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
                                            pHandle->checkpointId, STREAM_STATE_BUFF_HASH, &pInfo->pState->pFileState);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  // used for backward compatibility of function's result info
+  pInfo->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
+  pInfo->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
+  pInfo->pState->pExprSupp = &pOperator->exprSupp;
+
   pInfo->dataVersion = 0;
   pInfo->recvGetAll = false;
   pInfo->recvPullover = false;
