@@ -981,7 +981,7 @@ static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** ppConn)
 
   code = addConnToHeapCache(pThrd->connHeapCache, pConn);
   // code = 0, succ
-  // code = 0,
+  // code = TSDB_CODE_RPC_NETWORK_UNAVALI,  fail fast, and not insert into conn heap
   if (code != 0 && code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     TAOS_CHECK_GOTO(code, NULL, _exception);
   }
