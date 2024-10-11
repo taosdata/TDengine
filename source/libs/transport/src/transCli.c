@@ -3741,10 +3741,10 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
   } else {
-    if (pHeap->heap->nelts >= 16) {
-      balanceConnHeapCache(pConnHeapCache, pConn);
-    }
     if (shouldSWitchToOtherConn(pConn, key)) {
+      if (pHeap->heap->nelts >= 16) {
+        balanceConnHeapCache(pConnHeapCache, pConn);
+      }
       logConnMissHit(pConn);
       return NULL;
     }
