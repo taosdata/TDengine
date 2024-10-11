@@ -9,6 +9,5 @@ ExternalProject_Add(stub
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
-        TEST_COMMAND ""
-        GIT_SHALLOW true
+        TEST_COMMAND ""        
 )
