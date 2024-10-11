@@ -1,0 +1,22 @@
+task_name: pi
+task_type: pi
+
+from:
+  fromhost: pibackfill://{0}/ci_test
+  system_configuration: PI Data Archive Only
+  PISystemName: WIN-2OA23UM12TN
+  BackfillStartTime: '2024-06-01T00:00:00+08:00'
+  BackfillEndTime: '2024-06-10T00:00:00+08:00'
+  MaxBackfillRangeDays: 0
+  model: single-column
+  single-column: true
+  log_level: info
+  batch_size: 1000
+  batch_timeout: 1
+
+to:
+  target_type: taos
+  target_dbname: ci_pi
+
+via: 18
+task_exec_time: 60

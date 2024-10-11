@@ -1,0 +1,25 @@
+task_name: legacy
+task_type: tdengine2.x
+
+from:
+  fromhost: taos+ws://root:taosdata@{0}/
+  mode: history
+  schema: always
+  start: 2017-07-14T11:00:00+08:00
+  end: 2017-07-14T23:00:00+08:00
+  unit: 1d
+  retro: 0s
+  interval: 1s
+  excursion: 500ms
+
+to:
+  target_type: taos
+  target_dbname: ci_legacy
+
+task_exec_time: 15
+
+source_db:
+  name: test_legacy_with_time_range
+  subtable_number: 10
+  record_number_per_subtable: 100000
+  time_step: 1000

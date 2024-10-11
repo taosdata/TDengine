@@ -1,0 +1,37 @@
+parser:
+  {
+    "parse": {
+      "payload": {
+        "json": [
+          {"name": "id", "alias": "id", "cast": "INT"},
+          {"name": "current", "alias": "current", "cast": "FLOAT"},
+          {"name": "phase", "alias": "phase", "cast": "DOUBLE"},
+          {"name": "voltage", "alias": "voltage", "cast": "INT UNSIGNED"},
+          {"name": "groupid", "alias": "groupid", "cast": "INT"},
+          {"name": "location", "alias": "location", "cast": "VARCHAR(64)"},
+          {"name": "column2", "alias": "col2", "cast": "BIGINT UNSIGNED"},
+          {"name": "column1", "alias": "col1", "cast": "BIGINT"},
+          {"name": "column3", "alias": "col3", "cast": "SMALLINT"},
+          {"name": "column4", "alias": "col4", "cast": "SMALLINT UNSIGNED"},
+          {"name": "column5", "alias": "col5", "cast": "TINYINT"},
+          {"name": "$.data.column6", "alias": "col6", "cast": "TINYINT UNSIGNED"},
+          {"name": "$.data.column7", "alias": "col7", "cast": "BOOL"},
+          {"name": "$.data.column8", "alias": "col8", "cast": "NCHAR(32)"},
+          {"name": "column9", "alias": "col9", "cast": "BOOL"},
+          {"name":  "$.events[1].price","alias": "price","cast": "FLOAT"},
+          {"name":  "$.events[0].delta","alias": "delta","cast": "INT"},
+          {"name":  "$.events[1].boolValue","alias": "boolValue","cast": "BOOL"}
+        ]
+      }
+    },
+    "model": {
+      "name": "mqtt_{id}",
+      "using": "mqttStb",
+      "columns": ["ts", "id", "current", "voltage", "phase", "topic", "qos", "col1",
+                  "col2", "col3", "col4", "col5", "col9"],
+      "tags": [
+        "groupid",
+        "location"
+      ]
+    }
+  }

@@ -1,0 +1,100 @@
+"parser": {
+  "parser": {
+    "parse": {
+      "value": {
+        "json": ""
+      }
+    },
+    "model": {
+      "name": "d{id}",
+      "using": "csv_meters",
+      "tags": [
+        "id"
+      ],
+      "columns": [
+        "ts",
+        "current",
+        "voltage",
+        "phase",
+        "desc"
+      ]
+    },
+    "mutate": [
+      {
+        "map": {
+          "ts": {
+            "cast": "ts",
+            "as": "TIMESTAMP(ms)"
+          },
+          "current": {
+            "expr": "int(parse_float(current))",
+            "as": "INT"
+          },
+          "voltage": {
+            "cast": "voltage",
+            "as": "INT"
+          },
+          "phase": {
+            "cast": "phase",
+            "as": "DOUBLE"
+          },
+          "desc": {
+            "cast": "desc",
+            "as": "BINARY(64)"
+          },
+          "id": {
+            "cast": "id",
+            "as": "INT"
+          }
+        }
+      }
+    ]
+  },
+  "format": {
+    "currentPage": 1,
+    "pageCount": 7,
+    "pageSize": 20
+  },
+  "input": [
+    {
+      "ts": "2017-07-14T10:40:00.000+08:00",
+      "current": "10.16",
+      "voltage": "111",
+      "phase": "0.3",
+      "desc": "hello",
+      "id": "1"
+    },
+    {
+      "ts": "2017-07-14T10:40:00.001+08:00",
+      "current": "9.84",
+      "voltage": "110",
+      "phase": "0.294444",
+      "desc": "hello",
+      "id": "1"
+    },
+    {
+      "ts": "2017-07-14T10:40:00.002+08:00",
+      "current": "9.84",
+      "voltage": "106",
+      "phase": "0.311111",
+      "desc": "hello",
+      "id": "2"
+    },
+    {
+      "ts": "2017-07-14T10:40:00.003+08:00",
+      "current": "9.88",
+      "voltage": "108",
+      "phase": "0.305556",
+      "desc": "hello",
+      "id": "2"
+    },
+    {
+      "ts": "2017-07-14T10:40:00.004+08:00",
+      "current": "9.96",
+      "voltage": "105",
+      "phase": "0.313889",
+      "desc": "hello",
+      "id": "2"
+    }
+  ]
+}
