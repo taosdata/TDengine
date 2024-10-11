@@ -126,6 +126,13 @@ add_test(
     COMMAND regexTest
 )
 
+add_executable(heapTest "heapTest.cpp")
+target_link_libraries(heapTest os util gtest_main )
+add_test(
+    NAME heapTest 
+    COMMAND heapTest 
+)
+
 #add_executable(decompressTest "decompressTest.cpp")
 #target_link_libraries(decompressTest os util common gtest_main)
 #add_test(

@@ -282,6 +282,7 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key);
 static int32_t   addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn);
 static int32_t   delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
+static int32_t   balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
 
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
@@ -322,6 +323,7 @@ void    transHeapDestroy(SHeap* heap);
 int32_t transHeapGet(SHeap* heap, SCliConn** p);
 int32_t transHeapInsert(SHeap* heap, SCliConn* p);
 int32_t transHeapDelete(SHeap* heap, SCliConn* p);
+int32_t transHeapBalance(SHeap* heap, SCliConn* p);
 
 #define CLI_RELEASE_UV(loop)                     \
   do {                                           \
@@ -471,6 +473,11 @@ int32_t cliGetReqBySeq(SCliConn* conn, int64_t seq, int32_t msgType, SCliReq** p
 int8_t cliMayRecycleConn(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
+
+  code = balanceConnHeapCache(pThrd->connHeapCache, conn);
+  if (code != 0) {
+    tDebug("%s conn %p failed to balance heap cache", CONN_GET_INST_LABEL(conn), conn);
+  }
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
     code = delConnFromHeapCache(pThrd->connHeapCache, conn);
@@ -3780,6 +3787,13 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   }
   return code;
 }
+
+static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
+  if (pConn->heap != NULL) {
+    return transHeapBalance(pConn->heap, pConn);
+  }
+  return 0;
+}
 // conn heap
 int32_t compareHeapNode(const HeapNode* a, const HeapNode* b) {
   SCliConn* args1 = container_of(a, SCliConn, node);
@@ -3848,5 +3862,17 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   } else {
     tDebug("conn %p has %d reqs, not delete from heap", p, p->reqRefCnt);
   }
+  return 0;
+}
+
+int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
+  if (p->inHeap == 0) {
+    return 0;
+  }
+  if (heap && heap->heap && heap->heap->nelts >= 64) {
+    tDebug("conn %p heap busy,heap size:%d", heap->heap->nelts);
+  }
+  heapRemove(heap->heap, &p->node);
+  heapInsert(heap->heap, &p->node);
   return 0;
 }
