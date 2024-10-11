@@ -1,6 +1,6 @@
 {
   "name": "taos-explorer-ui",
-  "version": "0.3.0",
+  "version": "1.8.1",
   "description": "TDengine Explorer",
   "author": "support@taosdata.com",
   "private": true,
