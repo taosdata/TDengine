@@ -150,12 +150,21 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
         uError("147 thAttr is NULL");
       }
       if (&worker->thread == NULL) {
+        taosCloseQueue(queue);
+        (void)taosThreadMutexUnlock(&pool->mutex);
+        return NULL;
         uError("150 worker->thread is NULL");
       }
       if ((ThreadFp)tQWorkerThreadFp == NULL) {
+        taosCloseQueue(queue);
+        (void)taosThreadMutexUnlock(&pool->mutex);
+        return NULL;
         uError("153 (ThreadFp)tQWorkerThreadFp is NULL");
       }
       if (worker == NULL) {
+        taosCloseQueue(queue);
+        (void)taosThreadMutexUnlock(&pool->mutex);
+        return NULL;
         uError("156 worker is NULL");
       }
       if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tQWorkerThreadFp, worker) != 0) {
@@ -323,12 +332,24 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     }
     if (&worker->thread == NULL) {
       uError("worker->thread is NULL");
+      taosMemoryFree(worker);
+      taosCloseQueue(queue);
+      (void)taosThreadMutexUnlock(&pool->mutex);
+      return NULL;
     }
     if ((ThreadFp)tAutoQWorkerThreadFp == NULL) {
       uError("(ThreadFp)tAutoQWorkerThreadFp is NULL");
+      taosMemoryFree(worker);
+      taosCloseQueue(queue);
+      (void)taosThreadMutexUnlock(&pool->mutex);
+      return NULL;
     }
     if (worker == NULL) {
       uError("worker is NULL");
+      taosMemoryFree(worker);
+      taosCloseQueue(queue);
+      (void)taosThreadMutexUnlock(&pool->mutex);
+      return NULL;
     }
     if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tAutoQWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread, total:%d", pool->name, worker->id, curWorkerNum);
