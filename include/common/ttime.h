@@ -64,7 +64,7 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
                                                                 : 1000000000;
   time_t    t = taosTime(NULL);
   struct tm tm;
-  (void) taosLocalTime(&t, &tm, NULL);
+  (void) taosLocalTime(&t, &tm, NULL, 0);
   tm.tm_hour = 0;
   tm.tm_min = 0;
   tm.tm_sec = 0;

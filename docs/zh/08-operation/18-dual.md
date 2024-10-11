@@ -83,7 +83,7 @@ taosx replica start
 ```shell
 taosx replica start -f td1:6030 -t td2:6030 
 ```
-该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务。可以使用 http://td2:6041 指定该 endpoint 使用 websocket 接口（默认是原生接口）。也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。
+该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务。可以使用 `http://td2:6041` 指定该 endpoint 使用 websocket 接口（默认是原生接口）。也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。
 
 2. 方法二
 

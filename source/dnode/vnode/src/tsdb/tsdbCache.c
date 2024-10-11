@@ -1767,10 +1767,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
     if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       SLastCol lastCol = *pLastCol;
-      TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), NULL, _exit);
+      if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&lastCol, NULL))) {
+        tsdbLRUCacheRelease(pCache, h, false);
+        TAOS_CHECK_GOTO(code, NULL, _exit);
+      }
 
       if (taosArrayPush(pLastArray, &lastCol) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
     } else {
@@ -1780,28 +1784,33 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
       if (taosArrayPush(pLastArray, &noneCol) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
 
       if (!remainCols) {
         if ((remainCols = taosArrayInit(numKeys, sizeof(SIdxKey))) == NULL) {
           code = terrno;
+          tsdbLRUCacheRelease(pCache, h, false);
           goto _exit;
         }
       }
       if (!ignoreFromRocks) {
         if ((ignoreFromRocks = taosArrayInit(numKeys, sizeof(bool))) == NULL) {
           code = terrno;
+          tsdbLRUCacheRelease(pCache, h, false);
           goto _exit;
         }
       }
       if (taosArrayPush(remainCols, &(SIdxKey){i, key}) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
       bool ignoreRocks = pLastCol ? (pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) : false;
       if (taosArrayPush(ignoreFromRocks, &ignoreRocks) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
     }
@@ -1822,6 +1831,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         SLastCol lastCol = *pLastCol;
         code = tsdbCacheReallocSLastCol(&lastCol, NULL);
         if (code) {
+          tsdbLRUCacheRelease(pCache, h, false);
           (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
           TAOS_RETURN(code);
         }
