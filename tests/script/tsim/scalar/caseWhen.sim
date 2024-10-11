@@ -1144,4 +1144,4 @@ sql_error select case when c_double > 100 then c_varbinary else c_geometry end a
 sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
 sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
 
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

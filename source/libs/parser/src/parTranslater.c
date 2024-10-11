@@ -3244,14 +3244,14 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
     }
     allNullThen = false;
     if (!selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType)) {
-      pCxt->errCode = DEAL_RES_ERROR;
+      pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
       return DEAL_RES_ERROR;
     }
   }
 
   SExprNode* pElseExpr = (SExprNode*)pCaseWhen->pElse;
   if (pElseExpr && !selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType)) {
-    pCxt->errCode = DEAL_RES_ERROR;
+    pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
     return DEAL_RES_ERROR;
   }
 
