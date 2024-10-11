@@ -2916,7 +2916,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (META_TYPE_BOTH_TABLE == pOut->metaType) {
         // rewrite tsma fetch table with it's super table name
-        (void)sprintf(pFetch->tsmaSourceTbName.tname, "%s", pOut->tbName);
+        (void)snprintf(pFetch->tsmaSourceTbName.tname, sizeof(pFetch->tsmaSourceTbName.tname), "%s", pOut->tbName);
       }
 
       CTG_ERR_JRET(ctgGetTbTSMAFromMnode(pCtg, pConn, &pFetch->tsmaSourceTbName, NULL, tReq, TDMT_MND_GET_TABLE_TSMA));
