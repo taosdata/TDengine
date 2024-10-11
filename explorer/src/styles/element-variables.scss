@@ -1,0 +1,168 @@
+/* theme color */
+$--color-primary: rgb(25.878906%, 34.899902%, 80.778503%);
+$--color-success: #33b169;
+$--color-warning: #ffba00;
+$--color-danger: #ff4949;
+// $--color-info: #1E1E1E;
+
+$--button-font-weight: 400;
+$--descriptions-item-bordered-label-background: #fafbfd;
+$--color-text-regular: #16191f;
+$--border-color-light: #dfe4ed;
+$--border-color-lighter: #e6ebf5;
+
+$--table-border: 1px solid #dfe6ec;
+$form-text-color: rgb(77, 105, 146);
+/* icon font path, required */
+$--font-path: "~element-ui/lib/theme-chalk/fonts";
+$td-color: rgb(77, 105, 146);
+
+@import "~element-ui/packages/theme-chalk/src/index.scss";
+
+// the :export directive is the magic sauce for webpack
+// https://www.bluematador.com/blog/how-to-share-variables-between-js-and-sass
+:export {
+  theme: $--color-primary;
+}
+
+.el-menu-item {
+  height: 38px;
+  line-height: 38px;
+  color: $form-text-color;
+}
+.el-menu-item.is-active {
+  background-color: #eceefa;
+  outline: none;
+}
+.el-tooltip__popper {
+  max-width: 800px;
+  font-size: 14px;
+}
+.el-dialog__title {
+  line-height: 26px;
+  font-weight: 500;
+  font-size: 20px;
+  color: $form-text-color;
+}
+
+.el-form-item {
+  margin-bottom: 18px;
+}
+
+.el-tabs__item {
+  font-size: 18px;
+}
+
+.el-form-item__label {
+  color: $form-text-color;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: Amazon Ember, Helvetica Neue, Roboto, Arial, sans-serif;
+}
+
+.el-card {
+  border-radius: 2px;
+}
+
+.el-tabs__item {
+  font-size: 15px;
+}
+
+.el-form--label-top .el-form-item__label {
+  font-size: 16px;
+  padding: 0 !important;
+}
+
+// .el-upload-list__item {
+//   height:52px !important;
+//   transition: none !important;
+// }
+
+.el-table thead {
+  color: rgb(1, 17, 42);
+  font-weight: 600;
+}
+.el-table {
+  color: rgb(1, 17, 42);
+}
+.el-table td {
+  color: $td-color;
+}
+.el-divider {
+  background: rgb(217, 221, 228);
+}
+.el-divider--horizontal {
+  margin: 18px 0;
+}
+.el-table .el-table__row:hover {
+  box-shadow: rgba(0 ,0, 0,  10%);
+}
+.el-table__body {
+  width: 100%;
+}
+
+.el-upload-list__item-name {
+  line-height: inherit;
+}
+.el-dialog__body,
+.el-dialog--center .el-dialog__body {
+  padding: 10px 20px 20px;
+}
+.el-drawer__header {
+  margin-bottom: 10px;
+}
+
+.el-drawer__body {
+  padding: 0 20px 20px !important;
+}
+
+.el-button--mini {
+  padding: 3px 8px;
+}
+.el-button--small {
+  padding: 6px 10px;
+}
+.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content,
+.el-tree-node:focus > .el-tree-node__content,
+.el-tree-node__content:hover {
+  background-color: #f5f7fa !important;
+  color: #333;
+}
+$step_icon_size: 48px;
+.el-step__icon {
+  width: $step_icon_size;
+  height: $step_icon_size;
+  font-size: 18px;
+  cursor: pointer;
+}
+.el-step__icon.is-icon {
+  width: 48px;
+  border-color: inherit;
+  border-radius: 50%;
+  border: 2px solid;
+}
+.el-step.is-horizontal .el-step__line {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.el-table--mini {
+  font-size: 14px;
+}
+.el-table--mini .el-table__cell {
+  padding: 3px 0;
+}
+[class^="el-icon"] {
+  cursor: pointer;
+}
+.el-descriptions-item__label,
+.el-descriptions-item__label.is-bordered-label {
+  color: #16191f;
+  font-size: 18px;
+}
+
+.el-descriptions .is-bordered .el-descriptions-item__cell {
+  padding: 6px 5px;
+}
+.el-message-box__message p {
+  overflow-x: auto;
+}
