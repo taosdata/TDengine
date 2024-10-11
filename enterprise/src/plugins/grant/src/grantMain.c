@@ -1352,7 +1352,7 @@ void grantParseParameter() {
 static int32_t grantSecondsToString(int64_t seconds, char *ts) {
   time_t    sec = seconds;
   struct tm ptm;
-  if (taosLocalTime(&sec, &ptm, ts) != NULL) {
+  if (taosLocalTime(&sec, &ptm, ts, GRANT_TS_SEC_LEN) != NULL) {
     if (strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm)) {
       return 0;
     }
