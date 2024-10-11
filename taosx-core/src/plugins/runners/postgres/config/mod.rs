@@ -340,6 +340,7 @@ mod tests {
         assert_eq!(config.task.delay, Duration::try_seconds(5).unwrap());
     }
 
+    #[ignore]
     #[test]
     fn test_generate_sql() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")

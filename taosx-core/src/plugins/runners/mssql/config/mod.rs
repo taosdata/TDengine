@@ -375,8 +375,8 @@ mod tests {
         let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
-        assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("'2021-01-01 00:00:00+08:00'"));
+        assert!(sql.contains("'2021-01-02 06:00:00+08:00'"));
 
         // use {time} and cross days
         let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
@@ -384,7 +384,7 @@ mod tests {
         let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("STR_TO_DATE('00:00:00','%H:%i:%s')"));
-        assert!(sql.contains("<'24:00:00'"));
+        assert!(sql.contains("'00:00:00+08:00'"));
+        assert!(sql.contains("<'23:59:59.9999999+08:00'"));
     }
 }

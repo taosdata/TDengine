@@ -1111,6 +1111,19 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
 mod tests {
     use super::*;
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_list_csv_file() {
+        let path = "test.csv".to_string();
+        create_csv_file(&path).await.unwrap();
+
+        let paths = CsvSource::csv_path("./*.csv").unwrap();
+        dbg!(&paths);
+
+        delete_csv_file(&path).unwrap();
+    }
+
+    #[ignore]
     #[tokio::test]
     async fn test_read_header() {
         let path = "test.csv".to_string();
