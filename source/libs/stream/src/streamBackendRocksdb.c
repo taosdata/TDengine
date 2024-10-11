@@ -3319,7 +3319,9 @@ int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** 
     *pVLen = tValLen;
     return code;
   }
-  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, (size_t*)pVLen);
+  size_t pValLen = 0;
+  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, &pValLen);
+  *pVLen = (int32_t)pValLen;
   taosMemoryFree(tVal);
   return code;
 }
@@ -3598,7 +3600,9 @@ int32_t streamStateFuncGet_rocksdb(SStreamState* pState, const STupleKey* key, v
     return code;
   }
 
-  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, (size_t*)pVLen);
+  size_t pValLen = 0;
+  code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, tVal, tValLen, (char**)pVal, &pValLen);
+  *pVLen = (int32_t)pValLen;
 
   taosMemoryFree(tVal);
   return code;
@@ -3933,7 +3937,7 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateC
     taosMemoryFree(val);
   }
 
-  if (pVLen != NULL) *pVLen = tVlen;
+  if (pVLen != NULL) *pVLen = (int32_t)tVlen;
 
   *pKey = pKTmp->key;
   return 0;
