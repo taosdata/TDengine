@@ -3869,8 +3869,8 @@ int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0 && heap == NULL || heap->heap == NULL) {
     return 0;
   }
-  if (heap->heap->nelts >= 64) {
-    tDebug("conn %p heap busy,heap size:%d", heap->heap->nelts);
+  if (heap->heap->nelts >= 32) {
+    tTrace("conn %p heap busy,heap size:%d", heap->heap->nelts);
   }
   heapRemove(heap->heap, &p->node);
   heapInsert(heap->heap, &p->node);
