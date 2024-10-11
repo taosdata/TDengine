@@ -1821,7 +1821,6 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
   int32_t       code = 0;
   SVCreateTbReq pCreateReq = {0};
   SDecoder      decoderTmp = {0};
-  SVCreateTbReq *pCreateReqTmp = NULL;
 
   for (int j = 0; j < rsp->createTableNum; j++) {
     void** dataTmp = taosArrayGet(rsp->createTableReq, j);
@@ -1837,9 +1836,7 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
       goto end;
     }
     if (taosHashGet(pHashObj, pCreateReq.name, strlen(pCreateReq.name)) == NULL) {
-      RAW_RETURN_CHECK(cloneSVreateTbReq(&pCreateReq, &pCreateReqTmp));
-      RAW_RETURN_CHECK(taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), pCreateReqTmp, sizeof(SVCreateTbReq)));
-      pCreateReqTmp = NULL;
+      RAW_RETURN_CHECK(taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
     } else {
       tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
       pCreateReq = (SVCreateTbReq){0};
@@ -1852,12 +1849,11 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
 end:
   tDecoderClear(&decoderTmp);
   tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-  tDestroySVCreateTbReq(pCreateReqTmp, TSDB_MSG_FLG_DECODE);
   return code;
 }
 
 static threadlocal SHashObj*     pVgHash = NULL;
-static threadlocal SHashObj*     pCreateTbHash = NULL;
+//static threadlocal SHashObj*     pCreateTbHash = NULL;
 static threadlocal SHashObj*     pNameHash = NULL;
 static threadlocal SHashObj*     pMetaHash = NULL;
 
@@ -1912,7 +1908,8 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
   SQuery*        pQuery = NULL;
   SMqRspObj      rspObj = {0};
   SDecoder       decoder = {0};
-  SRequestObj* pRequest = NULL;
+  SHashObj*      pCreateTbHash = NULL;
+  SRequestObj*   pRequest = NULL;
   RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
@@ -1947,7 +1944,12 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
   conn.requestId = pRequest->requestId;
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-  RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
+
+  if (type == RES_TYPE__TMQ_METADATA) {
+    pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    RAW_NULL_CHECK(pCreateTbHash);
+    RAW_RETURN_CHECK(buildCreateTbMap(&rspObj.dataRsp, pCreateTbHash));
+  }
 
   int retry = 0;
   while(1){
@@ -2064,6 +2066,12 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
   }else {
     tDeleteMqDataRsp(&rspObj.dataRsp);
   }
+  void* pIter = taosHashIterate(pCreateTbHash, NULL);
+  while (pIter) {
+    tDestroySVCreateTbReq(pIter, TSDB_MSG_FLG_DECODE);
+    pIter = taosHashIterate(pCreateTbHash, pIter);
+  }
+  taosHashCleanup(pCreateTbHash);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -2273,12 +2281,6 @@ static void tmqFreeMeta(void *data){
 void freeHash() {
   taosHashCleanup(pMetaHash);
   taosHashCleanup(pNameHash);
-  void* pIter = taosHashIterate(pCreateTbHash, NULL);
-  while (pIter) {
-    tDestroySVCreateTbReq(pIter, TSDB_MSG_FLG_DECODE);
-    pIter = taosHashIterate(pCreateTbHash, pIter);
-  }
-  taosHashCleanup(pCreateTbHash);
   taosHashCleanup(pVgHash);
 }
 
@@ -2288,10 +2290,10 @@ static int32_t initHash(){
     pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(pVgHash);
   }
-  if (pCreateTbHash == NULL){
-    pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    RAW_NULL_CHECK(pCreateTbHash);
-  }
+//  if (pCreateTbHash == NULL){
+//    pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+//    RAW_NULL_CHECK(pCreateTbHash);
+//  }
   if (pNameHash == NULL){
     pNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(pNameHash);
