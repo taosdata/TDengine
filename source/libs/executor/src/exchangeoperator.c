@@ -226,7 +226,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
     if (TSDB_CODE_SUCCESS != pOperator->pTaskInfo->code) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
       T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
     }
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {

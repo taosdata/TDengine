@@ -474,10 +474,10 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
 
-  code = balanceConnHeapCache(pThrd->connHeapCache, conn);
-  if (code != 0) {
-    tDebug("%s conn %p failed to balance heap cache", CONN_GET_INST_LABEL(conn), conn);
-  }
+  // code = balanceConnHeapCache(pThrd->connHeapCache, conn);
+  // if (code != 0) {
+  //   tDebug("%s conn %p failed to balance heap cache", CONN_GET_INST_LABEL(conn), conn);
+  // }
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
     code = delConnFromHeapCache(pThrd->connHeapCache, conn);
@@ -3741,6 +3741,9 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     tDebug("failed to get conn from heap cache for key:%s", key);
     return NULL;
   } else {
+    if (pHeap->heap->nelts >= 16) {
+      balanceConnHeapCache(pConnHeapCache, pConn);
+    }
     if (shouldSWitchToOtherConn(pConn, key)) {
       logConnMissHit(pConn);
       return NULL;
@@ -3789,7 +3792,7 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
 }
 
 static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
-  if (pConn->heap != NULL) {
+  if (pConn->heap != NULL && pConn->inHeap != 0) {
     return transHeapBalance(pConn->heap, pConn);
   }
   return 0;
