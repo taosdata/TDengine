@@ -515,7 +515,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       if (tag == NULL) {
         return TSDB_CODE_SML_INVALID_DATA;
       }
-      (void)strncat(childTableName, tag->value, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName));
+      (void)strncat(childTableName, tag->value, TMIN(tag->length, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName)));
       if (i != taosArrayGetSize(tags) - 1) {
         (void)strncat(childTableName, tsSmlAutoChildTableNameDelimiter, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName));
       }
@@ -538,8 +538,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         (void)memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-        tstrncpy(childTableName, tag->value,
-                      (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+        tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
         }
