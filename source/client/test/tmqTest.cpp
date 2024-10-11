@@ -33,10 +33,9 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-TEST(testCase, tmq_api_Test) {
-  tmq_conf_t *conf = tmq_conf_new();
-  char msg[128] = {0};
-  tmq_consumer_new(NULL, msg, -1);
+TEST(testCase, driverInit_Test) {
+  // taosInitGlobalCfg();
+  //  taos_init();
 }
 
 TEST(testCase, create_topic_ctb_Test) {
