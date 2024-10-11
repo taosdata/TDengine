@@ -3866,10 +3866,10 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
 }
 
 int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
-  if (p->inHeap == 0) {
+  if (p->inHeap == 0 && heap == NULL || heap->heap == NULL) {
     return 0;
   }
-  if (heap && heap->heap && heap->heap->nelts >= 64) {
+  if (heap->heap->nelts >= 64) {
     tDebug("conn %p heap busy,heap size:%d", heap->heap->nelts);
   }
   heapRemove(heap->heap, &p->node);
