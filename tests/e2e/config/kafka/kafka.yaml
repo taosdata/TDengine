@@ -1,0 +1,22 @@
+# kafka server
+KafkaServer:
+  broker: '192.168.1.45'
+  port: 9092
+  topics:
+    -
+      topicname: test_taosx
+      format: json
+      partition: 1
+      message: {"mytime":myts, "id": myid,"current": 10.77,"phase": 0.77,"voltage": 220, "description": "hello taosx", "groupid": 1,"location":"Beijing"}
+    -
+      topicname: test_taosx1
+      format: json
+      partition: 1
+      message: {"mytime":myts, "id": myid,"message": "10.77-0.77-220", "groupid": 1,"location":"Beijing"}
+    -
+      topicname: test_taosx2
+      format: text
+      partition: 1
+      message: "mytime:myts,id:myid,current:10.3,voltage:219,phase:0.32,description:mystr,location:California.SanFrancisco,groupid:3"
+
+interval: 1

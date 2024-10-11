@@ -1,0 +1,70 @@
+"parser": {
+    "input": [
+        {
+            "payload": "{\"id\": 500,\"current\": \"10.77\",\"phase\": \"0.77\",\"voltage\": \"220\",\"groupid\": 1,\"location\": \"California.SanDiego\",\"column1\": 9223372036854775807,\"column2\": 18446744073709551615,\"column3\": 32767,\"column4\": 65535,\"column5\": 127,\"data\": {\"column6\": 255,\"column7\": \"true\",\"column8\": \"MqttTest\"},\"column9\": \"true\",\"events\": [{\"price\": \"28405.2\",\"delta\": \"6\",\"boolValue\": \"true\"},{\"price\": \"38405.2\",\"delta\": \"7\", \"boolValue\": \"false\"}]}",
+            "qos": "qos",
+            "topic": "topic",
+            "ts": "2023-12-05T09:10:56+08:00"
+        }
+    ],
+    "parser": {
+        "model": {
+            "columns": [
+                "ts",
+                "id","current","phase","voltage","column1", "column2",
+                "column3", "column4", "column5", "column6","column7",
+                "column8", "column9", "price", "delta", "boolvalue", "mytime"
+            ],
+            "name": "mqtt_{groupid}",
+            "tags": [
+                "groupid", "location"
+            ],
+            "using": "mqttstb"
+        },
+        "mutate": [
+            {
+                "filter": "id>=200"
+            },
+            {
+                "map": {
+                    "ts": {"cast": "ts", "as": "TIMESTAMP"},
+                    "id": {"cast": "id", "as": "INT"},
+                    "current": {"cast": "current", "as": "FLOAT"},
+                    "phase": {"cast": "phase", "as": "DOUBLE"},
+                    "voltage": {"value": "500", "as": "INT UNSIGNED"},
+                    "column1": {"cast": "column1", "as": "BIGINT"},
+                    "column2": {"cast": "column2", "as": "BIGINT UNSIGNED"},
+                    "column3": {"cast": "column3", "as": "SMALLINT"},
+                    "column4": {"cast": "column4", "as": "SMALLINT UNSIGNED"},
+                    "column5": {"cast": "column5", "as": "TINYINT"},
+                    "column6": {"cast": "column6", "as": "TINYINT UNSIGNED"},
+                    "column7": {"cast": "column7", "as": "BOOL"},
+                    "column8": {"join": ["id","column8"], "with": "-", "as": "NCHAR(64)"},
+                    "column9": {"cast": "column9", "as": "BOOL"},
+                    "price": {"cast": "price", "as": "FLOAT"},
+                    "delta": {"cast": "delta", "as": "INT"},
+                    "boolvalue": {"cast": "boolValue", "as": "BOOL"},
+                    "mytime": {"generator": "now", "as": "TIMESTAMP"},
+                    "groupid": {"cast": "groupid", "as": "INT"},
+                    "location": {"cast": "location", "as": "VARCHAR(64)"}
+                }
+            }
+        ],
+        "parse": {
+            "payload": {
+                "json": [
+                    "$.id","$.current","$.phase","$.voltage","$.groupid","$.location","$.column1",
+                    "$.column2=column2::BIGINT UNSIGNED",
+                    "$.column3","$.column4","$.column5",
+                    "$.data.column6=column6",
+                    "$.data.column7=column7",
+                    "$.data.column8=column8",
+                    "$.column9",
+                    "$.events[1].price=price",
+                    "$.events[0].delta=delta",
+                    "$.events[1].boolValue=boolValue"
+                ]
+            }
+        }
+    }
+}

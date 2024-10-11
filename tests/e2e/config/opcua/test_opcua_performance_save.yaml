@@ -1,0 +1,17 @@
+task_name: opcua_performance
+task_type: opcua
+
+# complicated save
+# 在使用复杂配置的同时将所有可用值设置为可允许的最大
+
+from:
+  fromhost: opcua://{1}/OPCUA/SimulationServer
+  interval: 1
+  batch_size: 10000
+  write_concurrency: 5
+
+to:
+  target_type: taos
+  target_dbname: p_opcua
+
+task_exec_time: 150

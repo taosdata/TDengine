@@ -1,0 +1,285 @@
+
+"parser": {
+    "parse": {
+        "tTinyInt": {
+            "as": "bigint"
+        },
+        "sSmallInt": {
+            "as": "bigint"
+        },
+        "iInt": {
+            "as": "bigint"
+        },
+        "bBigInt": {
+            "as": "bigint"
+        },
+        "rReal": {
+            "as": "double"
+        },
+        "fFloat": {
+            "as": "double"
+        },
+        "dDecimal": {
+            "as": "nchar(50)"
+        },
+        "nNumeric": {
+            "as": "nchar(50)"
+        },
+        "cChar": {
+            "as": "nchar(50)"
+        },
+        "nNChar": {
+            "as": "nchar(50)"
+        },
+        "vVarChar": {
+            "as": "nchar(50)"
+        },
+        "vVarCharMax": {
+            "as": "nchar(50)"
+        },
+        "nNVarchar": {
+            "as": "nchar(50)"
+        },
+        "nNVarcharMax": {
+            "as": "nchar(50)"
+        },
+        "tText": {
+            "as": "nchar(50)"
+        },
+        "nNText": {
+            "as": "nchar(50)"
+        },
+        "bBit": {
+            "as": "nchar(50)"
+        },
+        "bBinary": {
+            "as": "nchar(50)"
+        },
+        "vVarBinary": {
+            "as": "nchar(50)"
+        },
+        "vVarBinaryMax": {
+            "as": "nchar(50)"
+        },
+        "dDate": {
+            "as": "nchar(50)"
+        },
+        "dDateTime": {
+            "as": "nchar(50)"
+        },
+        "dDateTime2": {
+            "as": "nchar(50)"
+        },
+        "dDateTimeOffset": {
+            "as": "timestamp(ns)"
+        },
+        "sSmallDateTime": {
+            "as": "nchar(50)"
+        },
+        "tTime": {
+            "as": "nchar(50)"
+        },
+        "tTimestamp": {
+            "as": "nchar(50)"
+        },
+        "iImage": {
+            "as": "nchar(50)"
+        },
+        "mMoney": {
+            "as": "nchar(50)"
+        },
+        "sSmallMoney": {
+            "as": "nchar(50)"
+        },
+        "uUniqueIdentifier": {
+            "as": "nchar(50)"
+        },
+        "xXML": {
+            "as": "nchar(50)"
+        }
+    },
+    "model": {
+        "name": "tb1",
+        "using": "stb",
+        "tags": [
+            "t0"
+        ],
+        "columns": [
+            "ts",
+            "ttinyint",
+            "ssmallint",
+            "iint",
+            "bbigint",
+            "rreal",
+            "ffloat",
+            "ddecimal",
+            "nnumeric",
+            "cchar",
+            "nnchar",
+            "vvarchar",
+            "vvarcharmax",
+            "nnvarchar",
+            "nnvarcharmax",
+            "ttext",
+            "nntext",
+            "bbit",
+            "bbinary",
+            "vvarbinary",
+            "vvarbinarymax",
+            "ddate",
+            "ddatetime",
+            "ddatetime2",
+            "ddatetimeoffset",
+            "ssmalldatetime",
+            "ttime",
+            "ttimestamp",
+            "iimage",
+            "mmoney",
+            "ssmallmoney",
+            "uuniqueidentifier",
+            "xxml"
+        ]
+    },
+    "mutate": [
+        {
+            "map": {
+                "ts": {
+                    "cast": "dDateTimeOffset",
+                    "as": "TIMESTAMP"
+                },
+                "ttinyint": {
+                    "cast": "tTinyInt",
+                    "as": "BIGINT"
+                },
+                "ssmallint": {
+                    "cast": "sSmallInt",
+                    "as": "BIGINT"
+                },
+                "iint": {
+                    "cast": "iInt",
+                    "as": "BIGINT"
+                },
+                "bbigint": {
+                    "cast": "bBigInt",
+                    "as": "BIGINT"
+                },
+                "rreal": {
+                    "cast": "rReal",
+                    "as": "DOUBLE"
+                },
+                "ffloat": {
+                    "cast": "fFloat",
+                    "as": "DOUBLE"
+                },
+                "ddecimal": {
+                    "cast": "dDecimal",
+                    "as": "VARCHAR(128)"
+                },
+                "nnumeric": {
+                    "cast": "nNumeric",
+                    "as": "VARCHAR(128)"
+                },
+                "cchar": {
+                    "cast": "cChar",
+                    "as": "VARCHAR(128)"
+                },
+                "nnchar": {
+                    "cast": "nNChar",
+                    "as": "VARCHAR(128)"
+                },
+                "vvarchar": {
+                    "cast": "vVarChar",
+                    "as": "VARCHAR(128)"
+                },
+                "vvarcharmax": {
+                    "cast": "vVarCharMax",
+                    "as": "VARCHAR(128)"
+                },
+                "nnvarchar": {
+                    "cast": "nNVarchar",
+                    "as": "VARCHAR(128)"
+                },
+                "nnvarcharmax": {
+                    "cast": "nNVarcharMax",
+                    "as": "VARCHAR(128)"
+                },
+                "ttext": {
+                    "cast": "tText",
+                    "as": "VARCHAR(128)"
+                },
+                "nntext": {
+                    "cast": "nNText",
+                    "as": "VARCHAR(128)"
+                },
+                "bbit": {
+                    "cast": "bBit",
+                    "as": "VARCHAR(128)"
+                },
+                "bbinary": {
+                    "cast": "bBinary",
+                    "as": "VARCHAR(128)"
+                },
+                "vvarbinary": {
+                    "cast": "vVarBinary",
+                    "as": "VARCHAR(128)"
+                },
+                "vvarbinarymax": {
+                    "cast": "vVarBinaryMax",
+                    "as": "VARCHAR(128)"
+                },
+                "ddate": {
+                    "cast": "dDate",
+                    "as": "VARCHAR(128)"
+                },
+                "ddatetime": {
+                    "cast": "dDateTime",
+                    "as": "VARCHAR(128)"
+                },
+                "ddatetime2": {
+                    "cast": "dDateTime2",
+                    "as": "VARCHAR(128)"
+                },
+                "ddatetimeoffset": {
+                    "cast": "dDateTimeOffset",
+                    "as": "TIMESTAMP"
+                },
+                "ssmalldatetime": {
+                    "cast": "sSmallDateTime",
+                    "as": "VARCHAR(128)"
+                },
+                "ttime": {
+                    "cast": "tTime",
+                    "as": "VARCHAR(128)"
+                },
+                "ttimestamp": {
+                    "cast": "tTimestamp",
+                    "as": "VARCHAR(128)"
+                },
+                "iimage": {
+                    "cast": "iImage",
+                    "as": "VARCHAR(128)"
+                },
+                "mmoney": {
+                    "cast": "mMoney",
+                    "as": "VARCHAR(128)"
+                },
+                "ssmallmoney": {
+                    "cast": "sSmallMoney",
+                    "as": "VARCHAR(128)"
+                },
+                "uuniqueidentifier": {
+                    "cast": "uUniqueIdentifier",
+                    "as": "VARCHAR(128)"
+                },
+                "xxml": {
+                    "cast": "xXML",
+                    "as": "VARCHAR(128)"
+                },
+                "t0": {
+                    "value": "1",
+                    "as": "INT"
+                }
+            }
+        }
+    ]
+}
