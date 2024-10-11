@@ -1064,9 +1064,9 @@ sql_error select case when sum(f1) then sum(f1)-abs(f1) end from tba1;
 sql drop database if exists test_db;
 sql create database test_db vgroups 5;
 sql use test_db;
-sql create stable test_stable (ts TIMESTAMP,c_int INT,c_uint INT UNSIGNED, c_bigint BIGINT, c_ubigint BIGINT UNSIGNED, c_float FLOAT, c_double DOUBLE, c_binary BINARY(20), c_smallint SMALLINT, c_usmallint SMALLINT UNSIGNED, c_tinyint TINYINT,c_utinyint TINYINT UNSIGNED,c_bool BOOL,c_nchar NCHAR(20), c_varchar VARCHAR(20)) tags(tag_id INT);
+sql create stable test_stable (ts TIMESTAMP,c_int INT,c_uint INT UNSIGNED, c_bigint BIGINT, c_ubigint BIGINT UNSIGNED, c_float FLOAT, c_double DOUBLE, c_binary BINARY(20), c_smallint SMALLINT, c_usmallint SMALLINT UNSIGNED, c_tinyint TINYINT,c_utinyint TINYINT UNSIGNED,c_bool BOOL,c_nchar NCHAR(20), c_varchar VARCHAR(20), c_varbinary VARBINARY(20), c_geometry GEOMETRY(50)) tags(tag_id INT);
 sql create table t_test using test_stable tags(1);
-sql insert into t_test values ('2022-09-30 15:15:01',123,456,1234567890,9876543210,123.45,678.90,'binary_val',32767,65535,127,255,true,'涛思数据','varchar_val');
+sql insert into t_test values ('2022-09-30 15:15:01',123,456,1234567890,9876543210,123.45,678.90,'binary_val',32767,65535,127,255,true,'涛思数据','varchar_val', '1101', 'point(10 10)');
 
 sql select case when c_int > 100 then c_float else c_int end as result from t_test;
 if $rows != 1 then 
@@ -1088,7 +1088,6 @@ sql select case when c_bool then c_bool else c_utinyint end as result from t_tes
 if $rows != 1 then 
   return -1
 endi
-print $data00
 if $data00 != 1 then
  return -1
 endi
@@ -1126,4 +1125,18 @@ sql select case when c_double > 100 then c_nchar else c_double end as result fro
 if $data00 != 0.000000000 then
   return -1
 endi
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+sql select case when c_bool then c_varbinary else c_varchar end as result from t_test;
+if $data00 != null then
+  return -1;
+endi
+sql select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
+
+if $data00 != varchar_val then
+  return -1
+endi
+sql_error select case when c_double > 100 then c_varbinary else c_geometry end as result from t_test;
+sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
+sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
+
+
