@@ -88,8 +88,6 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize += (numOfOutput * sizeof(bool));
-  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -132,12 +130,6 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
     inBuf += len;
     processedSize += len;
   }
-  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
-              sizeof(SResultRowEntryInfo) +
-              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
-  (void)memcpy(pos, inBuf, pSup->numOfExprs * sizeof(bool));
-  inBuf += pSup->numOfExprs * sizeof(bool);
-  processedSize += pSup->numOfExprs * sizeof(bool);
 
   if (processedSize < inBufSize) {
     // stream stores extra data after result row
@@ -147,7 +139,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
       qError("failed to reallocate memory for output buffer, size:%zu", *outBufSize + leftLen);
       return terrno;
     }
-    (void)memcpy(*outBuf + processedSize, inBuf, leftLen);
+    (void)memcpy(*outBuf + *outBufSize, inBuf, leftLen);
     inBuf += leftLen;
     processedSize += leftLen;
     *outBufSize += leftLen;
@@ -194,13 +186,6 @@ int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, 
     (void)memcpy(pBuf, getResultEntryInfo(pResultRow, i, offset), len);
     pBuf += len;
   }
-
-  // mark if col is null for top/bottom result(saveTupleData)
-  void *pos = getResultEntryInfo(pResultRow, pSup->numOfExprs - 1, offset) +
-              sizeof(SResultRowEntryInfo) +
-              pCtx[pSup->numOfExprs - 1].resDataInfo.interBufSize;
-
-  (void)memcpy(pBuf, pos, pSup->numOfExprs * sizeof(bool));
 
   if (rowSize < inBufSize) {
     // stream stores extra data after result row
