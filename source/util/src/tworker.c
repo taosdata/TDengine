@@ -144,6 +144,9 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
       (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
       if (&thAttr == NULL) {
+        taosCloseQueue(queue);
+        (void)taosThreadMutexUnlock(&pool->mutex);
+        return NULL;
         uError("147 thAttr is NULL");
       }
       if (&worker->thread == NULL) {
@@ -313,6 +316,10 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (&thAttr == NULL) {
       uError("thAttr is NULL");
+      taosMemoryFree(worker);
+      taosCloseQueue(queue);
+      (void)taosThreadMutexUnlock(&pool->mutex);
+      return NULL;
     }
     if (&worker->thread == NULL) {
       uError("worker->thread is NULL");
