@@ -1643,7 +1643,9 @@ int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
 
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
-  pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  if (pTaskInfo->pRoot->fpSet.reloadStreamStateFn != NULL) {
+    pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  }
   return 0;
 }
 

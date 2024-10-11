@@ -10813,7 +10813,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
   }
 
-  if (NULL != pSelect->pGroupByList) {
+  if (NULL != pSelect->pGroupByList || (pSelect->pWindow == NULL && pSelect->hasAggFuncs)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Group by");
   }
 
