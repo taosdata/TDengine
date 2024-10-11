@@ -299,7 +299,12 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+    if (&thAttr == NULL) {
+      uError("thAttr is NULL");
+    }
+    if (&worker->thread == NULL) {
+      uError("worker->thread is NULL");
+    }
     if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tAutoQWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread, total:%d", pool->name, worker->id, curWorkerNum);
       void *tmp = taosArrayPop(pool->workers);
