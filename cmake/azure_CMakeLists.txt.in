@@ -1,0 +1,15 @@
+# azure
+ExternalProject_Add(azure
+  URL https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz
+  URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/azure-sdk-for-cpp-azure-storage-blobs_12.13.0-beta.1"
+        #BUILD_IN_SOURCE TRUE
+        #BUILD_ALWAYS 1
+        #UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)
