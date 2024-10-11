@@ -16,6 +16,8 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 
+use crate::utils;
+
 pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Result<()> {
     let sinker = KafkaSinker::new(from, to).await?;
     sinker.sink(cancel).await?;
@@ -65,7 +67,7 @@ struct KafkaProducer {
 impl TMQSource {
     // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&topic_suffix=topic_suffix&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
     async fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
-        let mut consumer_dsn = Dsn::from(dsn.clone());
+        let mut consumer_dsn = dsn.clone();
         let group_id = "x_kafka_sink";
         consumer_dsn.set("group.id", group_id);
 
@@ -97,7 +99,7 @@ impl TMQSource {
             .remove("tags")
             .map(|tags| tags.split(",").map(String::from).collect::<Vec<String>>());
 
-        if cols.is_none() && !tags.is_none() {
+        if cols.is_none() && tags.is_some() {
             return Err(anyhow!("cols is null and tags is not null"));
         }
         let topic = tmq_topic_name(&db, &table, &topic_suffix);
@@ -215,7 +217,7 @@ impl KafkaProducer {
             .remove("batch_size")
             .unwrap_or("1".to_string())
             .parse()?;
-        let ack_timeout: u64 = parse_duration::parse(
+        let ack_timeout: u64 = utils::parse_duration(
             dsn.params
                 .remove("ack_timeout")
                 .unwrap_or("1".to_string())
@@ -276,7 +278,7 @@ impl KafkaProducer {
                         }
                     },
                     _ = interval.tick() => {
-                        if messages.len() > 0 {
+                        if !messages.is_empty() {
                             KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
                             messages = Vec::with_capacity(batch_size + 2);
                         }
@@ -287,7 +289,7 @@ impl KafkaProducer {
                 }
             }
 
-            if messages.len() > 0 {
+            if !messages.is_empty() {
                 KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
             }
             Result::<(), anyhow::Error>::Ok(())
@@ -300,12 +302,12 @@ impl KafkaProducer {
 
     async fn send_messages(
         producer: &mut Producer,
-        messages: &Vec<String>,
-        topic: &String,
+        messages: &[String],
+        topic: &str,
     ) -> Result<()> {
         let records: Vec<Record<_, _>> = messages
-            .into_iter()
-            .map(|r| Record::from_value(topic.as_str(), r.as_bytes()))
+            .iter()
+            .map(|r| Record::from_value(topic, r.as_bytes()))
             .collect::<Vec<Record<_, _>>>();
 
         producer

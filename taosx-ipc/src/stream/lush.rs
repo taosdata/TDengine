@@ -58,6 +58,7 @@ impl InsertMessage {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum LushMessageControl {
     DELETE(DeleteMessage),

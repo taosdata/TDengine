@@ -54,10 +54,10 @@ impl From<CsvColumn> for PointDetail {
         Self {
             index: col.index,
             name: col.name.clone(),
-            required: match col.name.clone().as_str() {
-                "point_id" | "tag_name" | "stable" | "tbname" => true,
-                _ => false,
-            },
+            required: matches!(
+                col.name.clone().as_str(),
+                "point_id" | "tag_name" | "stable" | "tbname"
+            ),
             value: None,
             r#type: col.tag_type,
             is_tag: col.is_tag,

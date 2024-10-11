@@ -13,13 +13,13 @@ pub struct FormatValueBuilder {
 impl ValueBuilder for FormatValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let expr = Expr::try_new(format!("`{}`", self.format), true).map_err(|err| {
-            let err_msg = format!("failed build format expression, cause: {}", err.to_string());
-            ValueBuilderError::FormatError(err_msg)
+            let err_msg = format!("failed build format expression, cause: {}", err);
+            ValueBuilderError::Format(err_msg)
         })?;
 
         let values = expr.eval(record, None).map_err(|err| {
-            let err_msg = format!("failed to format, cause: {}", err.to_string());
-            ValueBuilderError::FormatError(err_msg)
+            let err_msg = format!("failed to format, cause: {}", err);
+            ValueBuilderError::Format(err_msg)
         })?;
 
         Ok(values)

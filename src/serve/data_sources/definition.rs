@@ -1,8 +1,9 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 use taos::Dsn;
+use taosx_core::utils;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -250,7 +251,7 @@ impl HintType {
                 }
             }
             HintType::Duration { value, .. } => {
-                if let Ok(duration) = parse_duration::parse(v) {
+                if let Ok(duration) = utils::parse_duration(v) {
                     value.replace(format!("{:?}", duration));
                     true
                 } else {
@@ -258,12 +259,8 @@ impl HintType {
                 }
             }
             HintType::File { value, .. } => {
-                if let Ok(path) = PathBuf::from_str(v) {
-                    value.replace(path);
-                    true
-                } else {
-                    false
-                }
+                value.replace(std::path::Path::new(v).to_path_buf());
+                true
             }
             HintType::Bool { value, .. } => {
                 if let Ok(b) = v.parse() {
@@ -923,6 +920,9 @@ impl DataSourceDefinition {
         self
     }
 }
+
+#[cfg(test)]
+use std::str::FromStr;
 
 #[test]
 fn test() {

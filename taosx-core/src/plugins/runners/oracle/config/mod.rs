@@ -1,5 +1,6 @@
-use crate::plugins::config::AdvancedOptions;
 use crate::runners::oracle::config::connect::ConnectConfig;
+use crate::utils::replace_date_placeholder;
+use crate::{plugins::config::AdvancedOptions, utils};
 use anyhow::Ok;
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use std::str::FromStr;
@@ -37,18 +38,14 @@ impl OracleConfig {
     }
 
     fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params
-            .get("taskId")
-            .map(|s| {
-                s.parse::<i64>()
-                    .map(Some)
-                    .map_err(|err| {
-                        tracing::warn!("failed to parse taskId: {}, use None", s);
-                        err
-                    })
-                    .unwrap_or(None)
-            })
-            .flatten()
+        dsn.params.get("taskId").and_then(|s| {
+            s.parse::<i64>()
+                .map(Some)
+                .inspect_err(|_err| {
+                    tracing::warn!("failed to parse taskId: {}, use None", s);
+                })
+                .unwrap_or(None)
+        })
     }
 }
 
@@ -162,7 +159,7 @@ impl TaskConfig {
             .params
             .get("interval")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse interval: {}, cause: {}",
                         s.to_string(),
@@ -187,7 +184,7 @@ impl TaskConfig {
             .params
             .get("delay")
             .map(|s| {
-                let delay = parse_duration::parse(s).map_err(|err| {
+                let delay = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse delay: {}, cause: {}",
                         s.to_string(),
@@ -227,7 +224,7 @@ impl TaskConfig {
 
     pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
         // generate sql
-        let mut sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
 
         // task start time with time zone
         let start = self.start;
@@ -235,39 +232,13 @@ impl TaskConfig {
         let start_tz = start.with_timezone(&time_zone);
 
         // replace the placeholders
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
-        let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
+        let end = self.end.unwrap_or(Utc::now());
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
 
         let start_tz = start.with_timezone(&time_zone);
@@ -331,33 +302,7 @@ impl TaskConfig {
         }
 
         // sharding by time
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 }
 

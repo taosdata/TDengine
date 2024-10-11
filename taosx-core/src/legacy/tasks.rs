@@ -252,13 +252,13 @@ impl TableOpts {
     pub fn from_params(dsn: &mut Dsn) -> Result<Self> {
         let mut opts = Self::new();
         if let Some(value) = dsn.remove("restro") {
-            opts.restro = parse_duration::parse(&value)?;
+            opts.restro = utils::parse_duration(&value)?;
         }
         if let Some(value) = dsn.remove("interval") {
-            opts.interval = parse_duration::parse(&value)?;
+            opts.interval = utils::parse_duration(&value)?;
         }
         if let Some(value) = dsn.remove("excursion") {
-            opts.excursion = parse_duration::parse(&value)?;
+            opts.excursion = utils::parse_duration(&value)?;
         }
         Ok(opts)
     }

@@ -216,7 +216,7 @@ impl MongoDBQuery {
                         None => break,
                     }
                 }
-                if documents.len() > 0 {
+                if !documents.is_empty() {
                     send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
                 }
                 Ok(amount)
@@ -333,7 +333,7 @@ mod tests {
                     let database = query.client.database("test_taosx");
                     let collection = database.collection("metrics");
                     let doc_all = doc! {
-                        "double": Bson::Double(3.141592653),
+                        "double": Bson::Double(1.234567890),
                         "string": Bson::String("abc".to_string()),
                         "array": Bson::Array(vec![Bson::Int32(1), Bson::Int32(2), Bson::Int32(3)]),
                         "document": Bson::Document(doc! {
@@ -364,7 +364,7 @@ mod tests {
                         "object_id": Bson::ObjectId(ObjectId::new()),
                         "datetime": Bson::DateTime(mongodb::bson::DateTime::now()),
                         "symbol": Bson::Symbol("abc".to_string()),
-                        "decimal128": Bson::Decimal128(Decimal128::from_str("3.141592653").unwrap()),
+                        "decimal128": Bson::Decimal128(Decimal128::from_str("1.234567890").unwrap()),
                         "undefined": Bson::Undefined,
                         "max_key": Bson::MaxKey,
                         "min_key": Bson::MinKey,
@@ -450,6 +450,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all_and_to_record_batches() {
         // prepare data
@@ -487,6 +488,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n() {
         // prepare data

@@ -1,11 +1,13 @@
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 
 use anyhow::bail;
+use chrono::{DateTime, FixedOffset};
 use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
 pub mod dsn;
+pub mod duration;
 pub mod files;
 pub mod interval;
 pub mod license;
@@ -17,6 +19,8 @@ pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod timeout;
 pub mod trace;
+
+pub use duration::parse_duration;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {
@@ -118,12 +122,10 @@ pub fn get_string_content_from_param_value(
     let mut index = 0;
     let len = if read_first {
         1
+    } else if files.len() > str_contents.len() {
+        files.len()
     } else {
-        if files.len() > str_contents.len() {
-            files.len()
-        } else {
-            str_contents.len()
-        }
+        str_contents.len()
     };
     for file in files {
         if index >= len {
@@ -168,7 +170,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
-    let file = files.get(0);
+    let file = files.first();
     if file.is_none() {
         None
     } else {
@@ -260,6 +262,57 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
     Ok(())
 }
 
+/// use the date to replace the placeholder in the string
+///
+/// # Examples
+///
+/// ${Y} -> year 2021
+/// ${y} -> year 21
+/// ${m} -> month 01
+/// ${M} -> month 1
+/// ${b} -> month Jan
+/// ${B} -> month January
+/// ${d} -> day 01
+/// ${D} -> day 1
+/// ${j} -> day of year 001
+/// ${J} -> day of year 1
+/// ${F} -> date 2021-01-01
+/// ${Ymd} -> date 20210101
+/// ${ymd} -> date 210101
+/// ${md} -> date 0101
+/// ${dm} -> date 0101
+/// ${Yj} -> date 2021001
+/// ${yj} -> date 21001
+///
+pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> String {
+    str.replace("${Y}", date.format("%Y").to_string().as_str())
+        .replace("${y}", date.format("%y").to_string().as_str())
+        .replace("${m}", date.format("%m").to_string().as_str())
+        .replace(
+            "${M}",
+            date.format("%m").to_string().trim_start_matches("0"),
+        )
+        .replace("${b}", date.format("%b").to_string().as_str())
+        .replace("${B}", date.format("%B").to_string().as_str())
+        .replace("${d}", date.format("%d").to_string().as_str())
+        .replace(
+            "${D}",
+            date.format("%d").to_string().trim_start_matches("0"),
+        )
+        .replace("${j}", date.format("%j").to_string().as_str())
+        .replace(
+            "${J}",
+            date.format("%j").to_string().trim_start_matches("0"),
+        )
+        .replace("${F}", date.format("%F").to_string().as_str())
+        .replace("${Ymd}", date.format("%Y%m%d").to_string().as_str())
+        .replace("${ymd}", date.format("%y%m%d").to_string().as_str())
+        .replace("${md}", date.format("%m%d").to_string().as_str())
+        .replace("${dm}", date.format("%d%m").to_string().as_str())
+        .replace("${Yj}", date.format("%Y%j").to_string().as_str())
+        .replace("${yj}", date.format("%y%j").to_string().as_str())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
@@ -271,11 +324,11 @@ async fn test_clear_database() -> anyhow::Result<()> {
         format!("drop database if exists {db}"),
         format!("create database {db}"),
         format!("use {db}"),
-        format!("create stable stb1 (ts timestamp, v int) tags(t1 int)"),
-        format!("create table ctb1 using stb1 tags(1)"),
-        format!("create table ctb2 using stb1 tags(2)"),
-        format!("create table ntb1 (ts timestamp, v int)"),
-        format!("create table ntb2 (ts timestamp, v int)"),
+        "create stable stb1 (ts timestamp, v int) tags(t1 int)".to_string(),
+        "create table ctb1 using stb1 tags(1)".to_string(),
+        "create table ctb2 using stb1 tags(2)".to_string(),
+        "create table ntb1 (ts timestamp, v int)".to_string(),
+        "create table ntb2 (ts timestamp, v int)".to_string(),
     ])
     .await?;
 

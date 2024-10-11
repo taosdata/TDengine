@@ -4,7 +4,10 @@ use anyhow::bail;
 use taos::*;
 use tokio_util::sync::CancellationToken;
 
-use crate::{utils::port_pool::PortPool, Action, Parser, TaskNotifySender, Transferred};
+use crate::{
+    utils::{self, port_pool::PortPool},
+    Action, Parser, TaskNotifySender, Transferred,
+};
 
 pub async fn fake_to_taos(
     from: Dsn,
@@ -24,7 +27,7 @@ pub async fn fake_to_taos(
 
     let future = async move {
         if let Some(sleep) = from.get("sleep") {
-            let sleep = parse_duration::parse(sleep)?;
+            let sleep = utils::parse_duration(sleep)?;
             tokio::time::sleep(sleep).await;
         }
         if let Some(value) = from.get("bail") {

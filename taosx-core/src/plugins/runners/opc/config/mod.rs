@@ -203,8 +203,8 @@ impl OPCConfig {
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
         let debug = dsn.params.get("debug");
-        if debug.is_some() {
-            return Ok(debug.unwrap().parse::<bool>().unwrap_or(false));
+        if let Some(debug) = debug {
+            return Ok(debug.parse::<bool>().unwrap_or(false));
         }
 
         Ok(dsn
@@ -220,35 +220,29 @@ impl OPCConfig {
     }
 
     pub fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("csv_config_file")
-            .map(|v| {
-                if v.is_empty() {
-                    return None;
-                }
-                Some(v.to_string())
-            })
-            .flatten()
+        dsn.params.get("csv_config_file").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            Some(v.to_string())
+        })
     }
 
     pub fn parse_csv_config_files(dsn: &Dsn) -> Option<Vec<String>> {
-        dsn.params
-            .get("csv_config_file")
-            .map(|v| {
-                if v.is_empty() {
-                    return None;
-                }
+        dsn.params.get("csv_config_file").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
 
-                let csv_files = v
-                    .split(",")
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect_vec();
+            let csv_files = v
+                .split(",")
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect_vec();
 
-                Some(csv_files)
-            })
-            .flatten()
+            Some(csv_files)
+        })
     }
 
     /// 从 dsn 中解析参数 select_all_points 参数
@@ -353,15 +347,12 @@ impl OPCConfig {
     }
 
     pub fn parse_csv_origin(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("csv_config_file_origin")
-            .map(|v| {
-                if v.is_empty() {
-                    return None;
-                }
-                Some(v.to_string())
-            })
-            .flatten()
+        dsn.params.get("csv_config_file_origin").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            Some(v.to_string())
+        })
     }
 }
 
@@ -419,14 +410,14 @@ pub fn get_string_vec_from_param_or_file_for_opc(
                     .map(|s| s.replace(",", "::")),
             );
         }
-        if node_config.len() == 0 {
+        if node_config.is_empty() {
             tracing::warn!("node config is empty");
             // return Err(format!("node config set but is empty: {nodes}"));
         }
         return Ok(node_config);
     }
     // tracing::warn!("node config is empty");
-    return Err("Nodes not set".to_string());
+    Err("Nodes not set".to_string())
 }
 
 #[cfg(test)]

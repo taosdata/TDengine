@@ -5,7 +5,6 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use clap::arg;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
@@ -14,7 +13,7 @@ use notify::{
     event::{DataChange, ModifyKind},
     Watcher,
 };
-use opentelemetry::trace::Tracer;
+use opentelemetry::trace::TracerProvider;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, FromInto};
 use serve::monitor::MonitorCfg;
@@ -551,18 +550,15 @@ fn build_runtime(
         .build()
 }
 
+type ReloadHandle = reload::Handle<
+    EnvFilter,
+    Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
+>;
+
 fn init_tracing_layers(
     args: &mut Args,
     tracing_level_filter: TracingLevelFilter,
-) -> Result<
-    Option<
-        reload::Handle<
-            EnvFilter,
-            Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
-        >,
-    >,
-    anyhow::Error,
-> {
+) -> Result<Option<ReloadHandle>, anyhow::Error> {
     let mut env_filter = default_env_filter(tracing_level_filter)?;
     if let Some(loggers) = args
         .global
@@ -638,11 +634,11 @@ fn init_tracing_layers(
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
-        let tracer = opentelemetry_otlp::new_pipeline()
+        let provider = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
             .with_trace_config(
-                opentelemetry_sdk::trace::config()
+                opentelemetry_sdk::trace::Config::default()
                     .with_sampler(opentelemetry_sdk::trace::Sampler::AlwaysOn)
                     .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
                     .with_max_events_per_span(64)
@@ -653,9 +649,9 @@ fn init_tracing_layers(
                     ])),
             )
             .install_simple()?;
-        tracer.in_span("init", |_cx| _cx.attach());
+        let tracer = provider.tracer("taosx");
         // Create a tracing layer with the configured tracer
-        let telemetry = tracing_opentelemetry::layer::<_>()
+        let telemetry = tracing_opentelemetry::layer()
             .with_tracer(tracer)
             .with_filter(
                 EnvFilter::builder()
@@ -1026,10 +1022,7 @@ fn default_env_filter(
 fn log_level_reload(
     event: notify::Event,
     config_file: &PathBuf,
-    handle: &reload::Handle<
-        EnvFilter,
-        Layered<Vec<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>>, Registry>,
-    >,
+    handle: &ReloadHandle,
     tracing_level_filter: tracing::level_filters::LevelFilter,
 ) {
     if !matches!(

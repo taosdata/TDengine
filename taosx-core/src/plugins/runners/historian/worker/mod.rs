@@ -72,9 +72,7 @@ pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> 
 }
 
 fn get_break_point(task_id: Option<i64>) -> Option<DateTime<Utc>> {
-    if task_id.is_none() {
-        return None;
-    }
+    task_id?;
 
     let task_id = format!("{}", task_id.unwrap());
     let breakpoints_res = breakpoints::breakpoints_get_all(&task_id);
@@ -126,7 +124,7 @@ pub async fn sync_history(
     migrate_task_config.end_datetime = Some(now);
 
     let logger_tx = logger.clone();
-    let _ = tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
+    tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
 
     // create synchronize task and set sub task id
     task_config.sub_task_id = Some(format!("{SYNCHRONIZE_TASK_PREFIX}-1"));
@@ -181,7 +179,7 @@ pub async fn sync_history(
             writer.write(&batch)?;
             tracing::info!("sync history write {} rows to ipc", batch.num_rows());
         }
-        let _ = writer.finish()?;
+        writer.finish()?;
         anyhow::Ok(())
     });
 
@@ -275,7 +273,7 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
             writer.write(&batch)?;
             tracing::info!("sync live write {} rows to ipc", batch.num_rows());
         }
-        let _ = writer.finish()?;
+        writer.finish()?;
         anyhow::Ok(())
     });
 
@@ -333,7 +331,7 @@ pub async fn set_break_point(task: &TaskConfig, break_point: &DateTime<Utc>) -> 
 
     let task_id = format!("{}", task.task_id.unwrap());
     let sub_task_id = task.sub_task_id.unwrap();
-    let breakpoint = format!("{}", break_point.to_rfc3339());
+    let breakpoint = break_point.to_rfc3339().to_string();
 
     breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint)
 }
@@ -354,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_convert_datetime() {
-        let ts_nano = 10_0000_0000_123_456_789;
+        let ts_nano = 1_000_000_000_123_456_789;
 
         let naive_datetime = DateTime::from_timestamp_micros(ts_nano / 1000)
             .unwrap()

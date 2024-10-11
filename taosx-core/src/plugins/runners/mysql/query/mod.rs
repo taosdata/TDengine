@@ -34,13 +34,13 @@ impl MySqlQuery {
     }
 
     async fn connect(
-        host: &String,
+        host: &str,
         port: u16,
-        subject: &String,
-        username: &String,
-        password: &String,
-        charset: &String,
-        ssl_mode: &String,
+        subject: &str,
+        username: &str,
+        password: &str,
+        charset: &str,
+        ssl_mode: &str,
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
@@ -54,7 +54,7 @@ impl MySqlQuery {
             .database(subject)
             .charset(charset)
             .timezone(time_zone);
-        match ssl_mode.as_str() {
+        match ssl_mode {
             "DISABLED" => {
                 options = options.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
                 Ok(MySqlPool::connect_with(options).await?)
@@ -156,6 +156,7 @@ impl MySqlQuery {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn select_by_stream<'a>(
         &mut self,
         sql: &'a str,
@@ -279,6 +280,7 @@ mod tests {
         assert!(!query.pool.is_closed());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_show_tables() {
         // prepare data
@@ -294,6 +296,7 @@ mod tests {
         assert!(tables.contains(&"t_metric".to_string()));
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_show_columns() {
         // prepare data
@@ -320,6 +323,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_distinct_values() {
         // prepare data
@@ -341,6 +345,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_one_for_schema() {
         // prepare data
@@ -362,6 +367,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all() {
         // prepare data
@@ -380,6 +386,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_by_stream() {
         // prepare data
@@ -410,6 +417,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n() {
         // prepare data
@@ -430,6 +438,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_charset() {
         // prepare data

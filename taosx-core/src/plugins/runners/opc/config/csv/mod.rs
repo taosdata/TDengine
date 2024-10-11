@@ -70,7 +70,7 @@ impl CsvParser {
             Ok(csv.to_string())
         } else {
             let decoded = general_purpose::STANDARD
-                .decode(csv.as_bytes().to_vec())
+                .decode(csv.as_bytes())
                 .map_err(|err| {
                     anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
                 })?;
@@ -246,7 +246,7 @@ impl CsvParser {
         // open the first file
         let csv_file = self
             .csv_files
-            .get(0)
+            .first()
             .ok_or(anyhow::anyhow!("csv_file not found"))?;
         tracing::info!("append line to the csv: {}", csv_file);
         let mut rdr = Self::open_csv(csv_file.clone()).await?;
@@ -280,8 +280,7 @@ impl CsvParser {
         let model_config = CsvParser::parse_csv(self.opc_type.clone(), new_csv.clone()).await?;
         model_config.validate()?;
 
-        if csv_file.starts_with("@") {
-            let file_path = &csv_file[1..];
+        if let Some(file_path) = csv_file.strip_prefix("@") {
             let mut file = File::create(file_path).await?;
             file.write_all(new_csv.as_bytes()).await?;
         } else {
@@ -293,8 +292,7 @@ impl CsvParser {
 
     /// 如果 csv 以 @ 开头， 从文件中读， 否则从字符串中读
     pub async fn open_csv(csv: String) -> anyhow::Result<AsyncReader<File>> {
-        let rdr = if csv.starts_with("@") {
-            let file_path = &csv[1..];
+        let rdr = if let Some(file_path) = csv.strip_prefix("@") {
             Self::load_csv_with_path(file_path).await?
         } else {
             Self::load_csv_with_string(&csv, true).await?
@@ -515,14 +513,13 @@ impl CsvParser {
         let point_id_index = header.id_index();
         let point_id = row
             .get(point_id_index)
-            .map(|v| {
+            .and_then(|v| {
                 if v.is_empty() {
                     None
                 } else {
                     Some(v.to_string())
                 }
             })
-            .flatten()
             .ok_or(anyhow::anyhow!("point id cannot be None in csv row"))?;
         Ok(point_id)
     }
@@ -530,10 +527,8 @@ impl CsvParser {
     pub fn parse_enabled(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<i8>> {
         let enabled = header
             .get_column("enabled")
-            .map(|col| row.get(col.index))
-            .flatten()
-            .map(|val| if val.is_empty() { None } else { Some(val) })
-            .flatten()
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| if val.is_empty() { None } else { Some(val) })
             .map(|v| {
                 if v != "0" && v != "1" {
                     return Err(anyhow::anyhow!(
@@ -550,7 +545,7 @@ impl CsvParser {
     }
 
     pub fn parse_tbname(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
-        let point_id = Self::parse_point_id(header, &row)?;
+        let point_id = Self::parse_point_id(header, row)?;
 
         let column = header
             .get_column("tbname")
@@ -586,11 +581,10 @@ impl CsvParser {
 
         let csv = self
             .csv_files
-            .get(0)
+            .first()
             .ok_or(anyhow::anyhow!("csv_file not found"))?;
 
-        if csv.starts_with("@") {
-            let file_path = &csv[1..];
+        if let Some(file_path) = csv.strip_prefix("@") {
             let content = tokio::fs::read_to_string(file_path)
                 .await
                 .map_err(|err| anyhow::anyhow!("failed to read csv file: {}", err))?;
@@ -651,7 +645,7 @@ mod tests {
 
         // content
         let content = "a,b,c\n1,2,3".to_string();
-        let file = general_purpose::STANDARD.encode(content.as_bytes().to_vec());
+        let file = general_purpose::STANDARD.encode(content.as_bytes());
         let mut rdr = CsvParser::open_csv(file).await.unwrap();
         let headers = rdr.headers().await.unwrap();
         assert_eq!(headers.len(), 3);
@@ -667,12 +661,12 @@ mod tests {
         let files = vec!["@../tests/opc/opcua-utf8bom.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
-        assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8bom.csv");
+        assert_eq!(res.first().unwrap().0, "@../tests/opc/opcua-utf8bom.csv");
 
         let files = vec!["@../tests/opc/opcua-utf8.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
-        assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8.csv");
+        assert_eq!(res.first().unwrap().0, "@../tests/opc/opcua-utf8.csv");
 
         let files = vec!["@../tests/opc/opcua-gbk.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await;
@@ -691,7 +685,7 @@ mod tests {
         assert_eq!(ua_config.opc_type, OpcType::OPCUA);
         let csv_files = ua_config.csv_files;
         assert_eq!(csv_files.len(), 1);
-        let path = csv_files.get(0).unwrap();
+        let path = csv_files.first().unwrap();
         assert_eq!(path, "@../tests/opc/opcua-utf8bom.csv");
 
         let dsn =
@@ -700,7 +694,7 @@ mod tests {
         assert_eq!(da_config.opc_type, OpcType::OPCDA);
         let csv_files = da_config.csv_files;
         assert_eq!(csv_files.len(), 1);
-        let path = csv_files.get(0).unwrap();
+        let path = csv_files.first().unwrap();
         assert_eq!(path, "@../tests/opc/opcda-utf8bom.csv");
     }
 
@@ -726,7 +720,7 @@ mod tests {
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let ua_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
         assert_eq!(ua_config.len(), 2);
-        let (point_id, tbname) = ua_config.get(0).unwrap();
+        let (point_id, tbname) = ua_config.first().unwrap();
         assert_eq!(point_id, "ns=3;i=1005");
         assert_eq!(tbname, "t_3_1005");
         let (point_id, tbname) = ua_config.get(1).unwrap();
@@ -738,7 +732,7 @@ mod tests {
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let da_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
         assert_eq!(da_config.len(), 2);
-        let (point_id, tbname) = da_config.get(0).unwrap();
+        let (point_id, tbname) = da_config.first().unwrap();
         assert_eq!(point_id, "root.parent.temperature");
         assert_eq!(tbname, "t_temperature");
         let (point_id, tbname) = da_config.get(1).unwrap();

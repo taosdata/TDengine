@@ -57,7 +57,7 @@ pub(crate) fn message_to_sql<'a>(
         .into_iter()
         .chunk_by(|m| m.stable_name())
         .into_iter()
-        .map(|(key, group)| {
+        .flat_map(|(key, group)| {
             let values = group
                 .into_iter()
                 .flat_map(|m| m.sql_insert_part(precision, with_meta, with_field_names))
@@ -74,7 +74,6 @@ pub(crate) fn message_to_sql<'a>(
                     records,
                 })
         })
-        .flatten()
         .collect_vec()
 }
 
@@ -104,7 +103,7 @@ impl Records {
         self.stable.as_deref()
     }
 }
-impl<'a> AsRef<str> for Records {
+impl AsRef<str> for Records {
     fn as_ref(&self) -> &str {
         self.sql.as_str()
     }
@@ -175,7 +174,7 @@ async fn write_stable_with_sql(
 ) -> Result<usize, FlatWriteError> {
     let sql = records.sql();
     tracing::trace!("write stable with sql: {}", sql);
-    let res = if sql.find(|c| c == '\0').is_some() {
+    let res = if sql.find('\0').is_some() {
         tracing::warn!("SQL contains null character, remove it");
         let sql: String = sql.chars().filter(|c| *c != '\0').collect();
         exec_sql_with_connection_retries(
@@ -222,7 +221,7 @@ async fn write_stable_with_sql(
                         let field = caps.get(1).unwrap().as_str();
                         return Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
                     }
-                    Err(err).map_err(Into::into)
+                    Err(Into::into(err))
                 }
                 0x267B => {
                     // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
@@ -253,12 +252,12 @@ pub async fn flat_write_with_sql(
     let cols = messages[0].records.num_columns();
     // group by stable name
     let groups = messages
-        .into_iter()
+        .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
-        let sqls = message_to_sql(messages.iter().map(|v| *v), target_precision, true, true);
+        let sqls = message_to_sql(messages.iter().copied(), target_precision, true, true);
         tracing::debug!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
@@ -277,13 +276,13 @@ pub async fn flat_write_with_sql(
                         tracing::debug!(stable, rows = n, "write stable success");
 
                         count += n;
-                        metrics.add_inserted_sqls(1 as u64);
+                        metrics.add_inserted_sqls(1_u64);
                         metrics.add_written_rows(n as u64);
                         metrics.add_written_points((n * cols) as u64);
                         break;
                     }
                     Err(err) => {
-                        metrics.add_failed_sqls(1 as u64);
+                        metrics.add_failed_sqls(1_u64);
                         metrics.add_failed_rows(records.records() as u64);
                         metrics.add_failed_points((records.records() * cols) as u64);
                         error!(stable, "write stable with sql error: {err:#}");
@@ -425,7 +424,7 @@ pub async fn flat_write_with_raw_block(
                 .filter(|(v, _)| v.as_ty().is_var_type())
                 .map(|(view, name)| (name, view.as_ty(), view.max_variable_length()))
                 .collect_vec();
-            if var_views.len() > 0 {
+            if !var_views.is_empty() {
                 for (name, ty, length) in var_views {
                     if let Some(max) = max_lengths.get(*name) {
                         if *max >= length {
@@ -560,8 +559,8 @@ pub async fn flat_write_with_raw_block(
                                                             cancel,
                                                         )
                                                         .await;
-                                                        continue;
                                                     }
+                                                    continue;
                                                 } else if code == 0x260D {
                                                     // Tags number not matched
                                                     // add Tag
@@ -861,7 +860,7 @@ pub async fn flat_write_with_raw_block(
                     };
                     let retry_messages = vec![records_copy];
                     count += flat_write_with_sql(
-                        &pool,
+                        pool,
                         taos,
                         target_precision,
                         &retry_messages,
@@ -955,7 +954,7 @@ impl FlatSink {
                         loop {
                             let (mut messages, qid, sender): FlatItem = rx.recv_async().await?;
                             taoslog::utils::Span.set_qid(&qid);
-                            if messages.len() == 0 {
+                            if messages.is_empty() {
                                 continue;
                             }
                             let num_of_rows = messages
@@ -1001,7 +1000,7 @@ impl FlatSink {
                                         written,
                                         "flat write in sink worker"
                                     );
-                                    if let Err(_) = sender.send(written) {
+                                    if sender.send(written).is_err() {
                                         // tracing::warn!("send written failed");
                                     }
                                 }
@@ -1039,7 +1038,7 @@ impl FlatSink {
                                             "Filter out records"
                                         );
                                         metrics.add_drained_rows(filtered as _);
-                                        if messages.len() == 0 {
+                                        if messages.is_empty() {
                                             continue;
                                         }
                                         let factor = messages
@@ -1082,7 +1081,7 @@ impl FlatSink {
                                             written,
                                             "flat write in sink worker"
                                         );
-                                        if let Err(_) = sender.send(written) {
+                                        if sender.send(written).is_err() {
                                             // tracing::warn!("send written failed");
                                         }
                                     } else {
@@ -1208,6 +1207,7 @@ async fn consume_flat_record_with_sink(
 
 #[framed]
 #[instrument(skip_all)]
+
 pub async fn ipc_flat_stream_worker_vgroup(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1258,7 +1258,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         let count = count.clone();
         let notifier = notifier.clone();
         let metrics_arc = metrics_arc.clone();
-        let ipc_error_strategy = ipc_error_strategy.clone();
+        let ipc_error_strategy = ipc_error_strategy;
         let batch_counter = batch_counter.clone();
         let flat_sink = flat_sink.cloned().await?;
         let mut qid = qid.clone();
@@ -1302,10 +1302,10 @@ pub async fn ipc_flat_stream_worker_vgroup(
                                 ),
                             };
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
-                            if ipc_error_strategy.will_stop() {
-                                Err(err).context("write batch error")?;
-                            } else if let Err(_) =
-                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                            if ipc_error_strategy.will_stop()
+                                || notifier
+                                    .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                    .is_err()
                             {
                                 Err(err).context("write batch error")?;
                             }
@@ -1336,7 +1336,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                         i
                     );
                 }
-                return anyhow::Ok(());
+                anyhow::Ok(())
             }
             .in_current_span(),
         );
@@ -1384,6 +1384,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
 #[framed]
 #[instrument(skip_all)]
+
 pub async fn ipc_flat_stream_worker_vgroup_sequential(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1442,7 +1443,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                 })
                 .unwrap();
                 let res =
-                    consume_flat_record_with_sink(&flat_sink, &record, &mut written, &parser).await;
+                    consume_flat_record_with_sink(&flat_sink, &record, &mut written, parser).await;
                 count.fetch_add(written, Ordering::SeqCst);
                 match res {
                     Err(err) => {
@@ -1460,10 +1461,10 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                             ),
                         };
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
-                        if ipc_error_strategy.will_stop() {
-                            Err(err).context("write batch error")?;
-                        } else if let Err(_) =
-                            notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                        if ipc_error_strategy.will_stop()
+                            || notifier
+                                .send(crate::TaskNotify::Error(format!("{:#}", err)))
+                                .is_err()
                         {
                             Err(err).context("write batch error")?;
                         }
@@ -1520,6 +1521,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
 
 #[framed]
 #[instrument(skip_all, fields(precision = %target_precision))]
+
 pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -1569,7 +1571,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let ack_tx = ack_tx.clone();
         let notifier = notifier.clone();
         let metrics_arc = metrics_arc.clone();
-        let ipc_error_strategy = ipc_error_strategy.clone();
+        let ipc_error_strategy = ipc_error_strategy;
         let batch_counter = batch_counter.clone();
         let mut qid = qid.clone();
         if cancel.is_cancelled() {
@@ -1673,7 +1675,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         "Flat stream worker {} done", i
                     );
                 }
-                return anyhow::Ok(());
+                anyhow::Ok(())
             }
             .instrument(tracing::info_span!("flat_stream_worker", worker.id = i,)),
         );
@@ -1832,13 +1834,13 @@ mod tests {
                 arrow_schema::TimeUnit::Microsecond => {
                     let now = chrono::Utc::now().timestamp_micros();
                     Arc::new(TimestampMicrosecondArray::from_iter(
-                        (0..len).map(|i| (now + i as i64 * 1000_000)).map(Some),
+                        (0..len).map(|i| (now + i as i64 * 1_000_000)).map(Some),
                     )) as ArrayRef
                 }
                 arrow_schema::TimeUnit::Nanosecond => {
                     let now = chrono::Utc::now().timestamp_nanos_opt().unwrap();
                     Arc::new(TimestampNanosecondArray::from_iter(
-                        (0..len).map(|i| (now + i as i64 * 1000_000_000)).map(Some),
+                        (0..len).map(|i| (now + i as i64 * 1_000_000_000)).map(Some),
                     )) as ArrayRef
                 }
             },
@@ -1866,7 +1868,7 @@ mod tests {
             VarBinary(_) => {
                 let mut builder = StringBuilder::new();
                 for _ in 0..len {
-                    builder.append_value(format!("\\x0102030405060708090a0b0c0d0e0f10"));
+                    builder.append_value("\\x0102030405060708090a0b0c0d0e0f10");
                 }
                 Arc::new(builder.finish())
             }
@@ -1979,7 +1981,7 @@ mod tests {
                     (0..)
                         .zip(std::iter::repeat_with(|| &self.column_names))
                         .flat_map(|(i, names)| {
-                            names.into_iter().map(move |name| format!("{}{}", name, i))
+                            names.iter().map(move |name| format!("{}{}", name, i))
                         })
                         .take(column_num),
                 )
@@ -1990,7 +1992,7 @@ mod tests {
                     .into_iter()
                     .chain(
                         std::iter::repeat_with(|| &self.column_types)
-                            .flat_map(|ty| ty.into_iter())
+                            .flat_map(|ty| ty.iter())
                             .take(column_num),
                     )
                     .collect();
@@ -1998,11 +2000,11 @@ mod tests {
             let tag_num = self.tag_num.unwrap_or(self.tag_types.len());
             let tag_names = (0..)
                 .zip(std::iter::repeat(&self.tag_names))
-                .flat_map(|(i, names)| names.into_iter().map(move |name| format!("{}{}", name, i)))
+                .flat_map(|(i, names)| names.iter().map(move |name| format!("{}{}", name, i)))
                 .take(tag_num)
                 .collect_vec();
             let tag_types = std::iter::repeat(&self.tag_types)
-                .flat_map(|ty| ty.into_iter())
+                .flat_map(|ty| ty.iter())
                 .take(tag_num)
                 .collect_vec();
 
@@ -2049,7 +2051,7 @@ mod tests {
     #[ignore]
     async fn test_stable_multiple_tables_small_record_batch() -> anyhow::Result<()> {
         // pretty_env_logger::init();
-        let _ = tracing_subscriber::fmt()
+        tracing_subscriber::fmt()
             .with_level(true)
             .with_file(true)
             .with_max_level(tracing::Level::DEBUG)

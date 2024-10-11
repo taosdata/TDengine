@@ -15,16 +15,16 @@ pub mod ua;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
-    OBSERVE,
-    SUBSCRIBE,
+    Observe,
+    Subscribe,
 }
 
 impl FromStr for CollectMode {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "observe" => Ok(Self::OBSERVE),
-            "subscribe" => Ok(Self::SUBSCRIBE),
+            "observe" => Ok(Self::Observe),
+            "subscribe" => Ok(Self::Subscribe),
             _ => Err(s.to_string()),
         }
     }
@@ -69,27 +69,25 @@ impl CollectConfig {
     }
 
     fn parse_interval(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("interval")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("invalid interval: {}, cause: {}", v, err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 
     fn parse_limit(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("limit")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("invalid limit: {}, cause: {}", v, err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 }
 

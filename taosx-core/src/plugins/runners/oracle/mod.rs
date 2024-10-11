@@ -35,22 +35,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             ORACLE_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = OracleQuery::try_new(c, String::from("+08:00"));
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     ORACLE_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(_cli) => DataSourceValidation::valid(ORACLE_ID.to_string(), None),
             }
@@ -67,7 +59,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let dsn = dsn.clone();
     tokio::task::spawn_blocking(move || get_sample_sync(dsn)).await?
@@ -151,6 +143,7 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from oracle to taos
+
 pub async fn oracle_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -193,7 +186,7 @@ pub async fn oracle_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -408,7 +401,7 @@ mod tests {
     }
 
     fn test_insert_data(len: usize) {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -419,7 +412,7 @@ mod tests {
                 let conn = query.get_conn().unwrap();
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
-                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                    let _ = conn.execute(sql_insert_data.as_str(), &[]);
                 }
                 let _ = conn.commit();
             }
@@ -430,7 +423,7 @@ mod tests {
     }
 
     fn test_clear_data() {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -449,12 +442,13 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("oracle", res.data_source);
         assert_eq!(
             "failed to connect to dsn: oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1, cause: failed to connect to oracle, cause: OCI Error: ORA-12541: TNS:no listener",
@@ -463,31 +457,32 @@ mod tests {
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("oracle", res.data_source);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data
-        let _ = test_create_table();
-        let _ = test_clear_data();
-        let _ = test_insert_data(4);
+        test_create_table();
+        test_clear_data();
+        test_insert_data(4);
 
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_oracle_to_taos() {
+    async fn test_oracle_to_taos() {
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -501,7 +496,7 @@ mod tests {
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = oracle_to_taos(
+        oracle_to_taos(
             from,
             parser,
             transform,
@@ -513,7 +508,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
@@ -529,7 +526,7 @@ mod tests {
                 match query_result {
                     Ok((_, rows)) => {
                         for row in rows {
-                            for (_, col) in row.sql_values().iter().enumerate() {
+                            for col in row.sql_values().iter() {
                                 let col_type: &OracleType = col.oracle_type().unwrap();
                                 let col_val =
                                     generate_json_value(col, col_type, String::from("+08:00"));

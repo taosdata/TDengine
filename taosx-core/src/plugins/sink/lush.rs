@@ -66,6 +66,12 @@ pub struct LushModelConfig {
 #[derive(Debug)]
 pub struct TableTagCache(scc::HashMap<FastStr, Arc<LushInsertAttrs>>);
 
+impl Default for TableTagCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TableTagCache {
     pub fn new() -> Self {
         TableTagCache(scc::HashMap::new())
@@ -74,10 +80,7 @@ impl TableTagCache {
     pub fn get(&self, table_name: &str) -> Option<Arc<LushInsertAttrs>> {
         // get the value from the cache
         let entry = self.0.get(table_name);
-        match entry {
-            Some(entry) => Some(entry.get().clone()),
-            None => None,
-        }
+        entry.map(|entry| entry.get().clone())
     }
 
     pub fn insert(&self, table_name: impl Into<FastStr>, value: impl Into<Arc<LushInsertAttrs>>) {
@@ -109,7 +112,7 @@ impl LushModelConfig {
     /// _c1 是我们为了创建超级表，添加的伪列。
     pub fn is_labels_only_stable(modeler: &Modeler) -> bool {
         // 对于 LushModelConfig 的 Parser 的 modeler，有且仅有一个 table
-        let table = modeler.get(0).unwrap();
+        let table = modeler.first().unwrap();
         let columns = table.columns.as_ref().unwrap();
         if columns.len() == 2 {
             for column in columns {
@@ -236,7 +239,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
 
         LushModelConfig {
             table_id_column: "element_id".to_string(),
-            super_table_parsers: super_table_parsers,
+            super_table_parsers,
             super_table_sqls,
             super_table_name_mapping,
             skip_null: true,
@@ -411,6 +414,7 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会根据参数决定是否忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
+
 pub async fn write(
     pool: &TaosPool,
     super_table_name: &str,
@@ -611,7 +615,7 @@ pub async fn create_sub_tables(
                 match err {
                     WriteError::ContainerLengthTooShort(field) => {
                         // 尝试修改超级表
-                        if let Err(alter) = alter_stable(pool, taos, stable, &field, &messages)
+                        if let Err(alter) = alter_stable(pool, taos, stable, &field, messages)
                             .in_current_span()
                             .await
                         {
@@ -828,7 +832,7 @@ fn message_to_sql(
     // 一个子表对应一条 SQL，形如：
     // format!("`{}` using `{}` ({}) tags({}) {}", tbname, using, names, tag_values, col_values))
     let values = messages
-        .into_iter()
+        .iter()
         .flat_map(|m| {
             m.sql_insert_part_skip_null(target_precision)
                 .into_iter()
@@ -974,7 +978,7 @@ async fn write_lush_stable_with_sql(
         {
             Ok(n) => {
                 tracing::trace!("exec sql successfully");
-                metrics.add_inserted_sqls(1 as u64);
+                metrics.add_inserted_sqls(1_u64);
                 metrics.add_written_rows(n as u64);
                 break Ok(n);
             }
@@ -1002,7 +1006,7 @@ async fn write_lush_stable_with_sql(
                             let field = caps.get(1).unwrap().as_str();
                             break Err(WriteError::ContainerLengthTooShort(field.to_string()));
                         }
-                        break Err(err).map_err(Into::into);
+                        break Err(Into::into(err));
                     }
                     0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
                         let period = match write_retries {

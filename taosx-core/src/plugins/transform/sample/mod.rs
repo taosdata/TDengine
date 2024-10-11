@@ -49,8 +49,7 @@ impl DsSampleIn {
         let json = self
             .input
             .iter()
-            .map(|value| serde_json::to_vec(value).unwrap())
-            .flatten()
+            .flat_map(|value| serde_json::to_vec(value).unwrap())
             .collect_vec();
 
         let schema = self.to_schema()?;
@@ -112,7 +111,7 @@ impl DsSampleIn {
     }
 
     fn to_schema_by_first_input(
-        input: &Vec<LinkedHashMap<String, serde_json::Value>>,
+        input: &[LinkedHashMap<String, serde_json::Value>],
         schema: Option<arrow::datatypes::Schema>,
     ) -> Option<arrow::datatypes::Schema> {
         if input.is_empty() {

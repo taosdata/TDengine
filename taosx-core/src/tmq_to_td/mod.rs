@@ -30,11 +30,11 @@ use worker::{Worker, WriteOptions};
 use worker::*;
 
 async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<bool> {
-    let target_desc = to.describe(&table).await?;
+    let target_desc = to.describe(table).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
     let desc_first = &desc[0];
-    let target_desc_first = target_desc.get(0);
+    let target_desc_first = target_desc.first();
     // check if the first field is timestamp
     if desc_first.ty() == Ty::Timestamp {
         if let Some(target_desc_first) = target_desc_first {
@@ -73,21 +73,19 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<b
                     r.sql_repr(),
                     l.sql_repr()
                 );
-            } else {
-                if r.length() < l.bytes() as usize {
-                    if let Err(err) = to
-                        .exec(format!(
-                            "ALTER TABLE `{}` MODIFY COLUMN {}",
-                            table,
-                            l.sql_repr(),
-                        ))
-                        .await
-                    {
-                        tracing::warn!(
-                            "Modify column `{}` of table `{table}` error: {err:#}, try continue",
-                            l.name()
-                        );
-                    }
+            } else if r.length() < l.bytes() as usize {
+                if let Err(err) = to
+                    .exec(format!(
+                        "ALTER TABLE `{}` MODIFY COLUMN {}",
+                        table,
+                        l.sql_repr(),
+                    ))
+                    .await
+                {
+                    tracing::warn!(
+                        "Modify column `{}` of table `{table}` error: {err:#}, try continue",
+                        l.name()
+                    );
                 }
             }
         } else {
@@ -132,7 +130,9 @@ async fn write_data(
             .await
             .context("Data source raw data error")?;
         if let Err(err) = taos
-            .write_raw_meta(&unsafe { std::mem::transmute(raw) })
+            .write_raw_meta(&unsafe {
+                std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
+            })
             .await
         {
             let code = *err.code().deref();
@@ -206,7 +206,7 @@ async fn write_data(
                     raw.ncols()
                 );
             }
-        } else if let Some(name) = raw.table_name().as_deref() {
+        } else if let Some(name) = raw.table_name() {
             if !actions.is_empty() {
                 let mut name = name.to_string();
                 for action in actions {
@@ -268,7 +268,7 @@ async fn write_data(
                                     if actions.is_empty() {
                                         let result = migrate_data_schema(
                                             &raw.fields(),
-                                            &taos,
+                                            taos,
                                             &source_table_name,
                                         )
                                         .await?;
@@ -287,7 +287,7 @@ async fn write_data(
                                         }
                                         let result = migrate_data_schema(
                                             &raw.fields(),
-                                            &taos,
+                                            taos,
                                             &source_stable_name,
                                         )
                                         .await?;
@@ -299,7 +299,7 @@ async fn write_data(
                                 } else {
                                     let table = raw.table_name().unwrap();
                                     let result =
-                                        migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                        migrate_data_schema(&raw.fields(), taos, table).await?;
                                     // if failed, do not retry again
                                     if !result {
                                         return anyhow::Ok(());
@@ -360,15 +360,13 @@ async fn write_data(
                             }
                             _ => Err(err)?,
                         }
+                    } else if let Some(meta) = raw.to_create() {
+                        let sql = meta.to_string();
+                        taos.exec(&sql)
+                            .await
+                            .with_context(|| format!("SQL: {sql}"))?;
                     } else {
-                        if let Some(meta) = raw.to_create() {
-                            let sql = meta.to_string();
-                            taos.exec(&sql)
-                                .await
-                                .with_context(|| format!("SQL: {sql}"))?;
-                        } else {
-                            Err(err)?
-                        }
+                        Err(err)?
                     }
                 };
                 anyhow::Ok(())
@@ -417,7 +415,11 @@ async fn write_data(
         if actions.is_empty() {
             if target_is_v3 {
                 if let Err(err) = taos
-                    .write_raw_meta(&unsafe { std::mem::transmute(data.as_raw_data().await?) })
+                    .write_raw_meta(&unsafe {
+                        std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
+                            data.as_raw_data().await?,
+                        )
+                    })
                     .await
                 {
                     let errstr = err.to_string();
@@ -448,6 +450,7 @@ async fn write_data(
 }
 
 #[instrument(skip_all, fields(consumer.id = id))]
+
 async fn write_meta(
     id: usize,
     source: &TaosPool,
@@ -498,7 +501,7 @@ async fn write_meta(
                 match &mut json_meta {
                     JsonMeta::Single(_) => return Ok(()),
                     JsonMeta::Plural { metas, .. } => {
-                        let _ = metas.retain(|unit| matches!(unit, MetaUnit::Drop(_)));
+                        metas.retain(|unit| matches!(unit, MetaUnit::Drop(_)));
                     }
                 }
 
@@ -513,7 +516,7 @@ async fn write_meta(
                 match &mut json_meta {
                     JsonMeta::Single(_) => return Ok(()),
                     JsonMeta::Plural { metas, .. } => {
-                        let _ = metas.retain(|unit| matches!(unit, MetaUnit::Delete(_)));
+                        metas.retain(|unit| matches!(unit, MetaUnit::Delete(_)));
                     }
                 }
 
@@ -528,7 +531,7 @@ async fn write_meta(
                 match &mut json_meta {
                     JsonMeta::Single(_) => return Ok(()),
                     JsonMeta::Plural { metas, .. } => {
-                        let _ = metas
+                        metas
                             .retain(|unit| matches!(unit, MetaUnit::Drop(_) | MetaUnit::Delete(_)));
                     }
                 }
@@ -570,8 +573,8 @@ async fn write_meta(
                                         let from = source.get().await?;
                                         sync_super_table_schema(
                                             &from,
-                                            &using,
-                                            &taos,
+                                            using,
+                                            taos,
                                             None,
                                             &Default::default(),
                                             &[],
@@ -628,7 +631,7 @@ async fn write_meta(
         }
         let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
         for sql in &sqls {
-            if let Err(err) = taos.exec(&sql).await {
+            if let Err(err) = taos.exec(sql).await {
                 metrics.add_write_raw_fails(1);
                 let errstr = err.to_string();
                 if errstr.contains("[0x032C]")
@@ -652,6 +655,7 @@ async fn write_meta(
 }
 
 type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
+
 async fn sync_msg(
     topic: &Topic,
     consumer: &Consumer,
@@ -685,9 +689,9 @@ async fn sync_msg(
         MessageSet::Meta(meta) => loop {
             let write_meta_result = write_meta(
                 id,
-                &source_pool,
+                source_pool,
                 taos,
-                &actions,
+                actions,
                 &meta,
                 target_is_v3,
                 metrics,
@@ -699,13 +703,11 @@ async fn sync_msg(
             .await;
             if let Err(err) = write_meta_result {
                 let msg = format!("{:#}", err);
-                if msg.contains("0xE00") {
-                    if retries < max_retries {
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        *taos = target_pool.get().await.context("Target connection error")?;
-                        retries += 1;
-                        continue;
-                    }
+                if msg.contains("0xE00") && retries < max_retries {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    *taos = target_pool.get().await.context("Target connection error")?;
+                    retries += 1;
+                    continue;
                 }
                 tracing::warn!("Ignore error: {}", msg);
             }
@@ -714,13 +716,13 @@ async fn sync_msg(
         },
         MessageSet::Data(data) => loop {
             if let Err(err) = write_data(
-                &topic,
+                topic,
                 id,
                 rows,
-                &source_pool,
+                source_pool,
                 taos,
-                table.as_deref(),
-                &actions,
+                table,
+                actions,
                 &data,
                 target_is_v3,
                 metrics,
@@ -729,13 +731,11 @@ async fn sync_msg(
             .await
             {
                 let msg = format!("{:#}", err);
-                if msg.contains("0xE00") {
-                    if retries < max_retries {
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        *taos = target_pool.get().await.context("Target connection error")?;
-                        retries += 1;
-                        continue;
-                    }
+                if msg.contains("0xE00") && retries < max_retries {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    *taos = target_pool.get().await.context("Target connection error")?;
+                    retries += 1;
+                    continue;
                 }
                 return Err(err).with_context(|| format!("[{id}] writing data message error"));
             }
@@ -745,9 +745,9 @@ async fn sync_msg(
         MessageSet::MetaData(meta, data) => loop {
             let write_meta_result = write_meta(
                 id,
-                &source_pool,
+                source_pool,
                 taos,
-                &actions,
+                actions,
                 &meta,
                 target_is_v3,
                 metrics,
@@ -760,26 +760,24 @@ async fn sync_msg(
             let mut meta_skipped = false;
             if let Err(err) = write_meta_result {
                 let msg = format!("{:#}", err);
-                if msg.contains("0xE00") {
-                    if retries < max_retries {
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        *taos = target_pool.get().await.context("Target connection error")?;
-                        retries += 1;
-                        continue;
-                    }
+                if msg.contains("0xE00") && retries < max_retries {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    *taos = target_pool.get().await.context("Target connection error")?;
+                    retries += 1;
+                    continue;
                 }
                 tracing::warn!("Ignore error: {}", err);
                 meta_skipped = true;
             }
             if !actions.is_empty() || meta_skipped {
                 if let Err(err) = write_data(
-                    &topic,
+                    topic,
                     id,
                     rows,
-                    &source_pool,
+                    source_pool,
                     taos,
                     table,
-                    &actions,
+                    actions,
                     &data,
                     target_is_v3,
                     metrics,
@@ -788,13 +786,11 @@ async fn sync_msg(
                 .await
                 {
                     let msg = format!("{:#}", err);
-                    if msg.contains("0xE00") {
-                        if retries < max_retries {
-                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                            *taos = target_pool.get().await.context("Target connection error")?;
-                            retries += 1;
-                            continue;
-                        }
+                    if msg.contains("0xE00") && retries < max_retries {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        *taos = target_pool.get().await.context("Target connection error")?;
+                        retries += 1;
+                        continue;
                     }
                     return Err(err)
                         .with_context(|| format!("[{id}] writing metadata message error"));
@@ -811,6 +807,7 @@ async fn sync_msg(
 }
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
+
 async fn sync(
     topic: &Topic,
     id: usize,
@@ -865,7 +862,7 @@ async fn sync(
                         .in_current_span()
                         .await?;
                     if refresh_progress_interval.ticked() {
-                        update_progress(&consumer, &metrics).await;
+                        update_progress(&consumer, metrics).await;
                     }
 
                 } else {
@@ -874,7 +871,7 @@ async fn sync(
             }
         }
     }
-    update_progress(&consumer, &metrics).await;
+    update_progress(&consumer, metrics).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -965,7 +962,7 @@ async fn sync_interlace(
                         }
                         InterlaceItem::Commit => {
                             tracing::debug!("Received commit item");
-                            let res = last_error.take().map_or_else(|| Ok(()), |err| Err(err));
+                            let res = last_error.take().map_or_else(|| Ok(()), Err);
                             let _ = worker.sender.send_async(res).await;
                         }
                     }
@@ -1097,7 +1094,7 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    update_progress(&consumer, &metrics).await;
+    update_progress(&consumer, metrics).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1107,6 +1104,7 @@ async fn sync_interlace(
 }
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
+
 async fn sync_concurrently(
     topic: &Arc<Topic>,
     id: usize,
@@ -1217,7 +1215,7 @@ async fn sync_concurrently(
             .await?
         {
             if refresh_progress_interval.ticked() {
-                update_progress(&consumer, &metrics).await;
+                update_progress(&consumer, metrics).await;
             }
             metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
@@ -1287,7 +1285,7 @@ async fn sync_concurrently(
             consumer.commit(last_offset).await?;
         }
     }
-    update_progress(&consumer, &metrics).await;
+    update_progress(&consumer, metrics).await;
     tracing::info!("Task done");
     // let _ = sender.send(consumer); // tokio send
     Ok(consumer)
@@ -1327,7 +1325,7 @@ pub async fn tmq_to_td(
     let strategy = from
         .remove("prefer")
         .map(|s| s.into())
-        .unwrap_or_else(|| WriteStrategy::from_env());
+        .unwrap_or_else(WriteStrategy::from_env);
     let concurrency = from
         .remove("write_concurrency")
         .or(from.remove("num.of.writers"))
@@ -1354,7 +1352,7 @@ pub async fn tmq_to_td(
             if matches!(s, "never" | "0" | "-1") {
                 Ok(Duration::MAX)
             } else {
-                parse_duration(&s).map_err(|e| {
+                parse_duration(s).map_err(|e| {
                     tracing::warn!(
                         key = "max.polling.timeout",
                         value = s,
@@ -1383,7 +1381,7 @@ pub async fn tmq_to_td(
     tracing::debug!("Source version: {version}");
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
-    if from_params.get("group.id").is_none() {
+    if !from_params.contains_key("group.id") {
         let to_params = to.drain_params();
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
@@ -1524,13 +1522,13 @@ pub async fn tmq_to_td(
                             let name = table.stable.as_deref().unwrap();
                             let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
-                            sql.extend(new.chars());
+                            sql.push_str(&new);
                         }
                         Action::RenameSuperTable(action) => {
                             let name = table.stable.as_deref().unwrap();
                             let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
-                            sql.extend(new.chars());
+                            sql.push_str(&new);
                         }
                         // Action::RenameReplaceWithRegex(action) => {
                         //     let name = table.stable.as_deref().unwrap();
@@ -1556,12 +1554,12 @@ pub async fn tmq_to_td(
                         if let Some(name) = table.stable.as_deref() {
                             let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
-                            sql.extend(new.chars());
+                            sql.push_str(&new);
                         }
                         let name = &table.table;
                         let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                         sql.clear();
-                        sql.extend(new.chars());
+                        sql.push_str(&new);
                     }
                     _ => (),
                 }
@@ -1749,7 +1747,7 @@ pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<
     let tmq = TmqBuilder::from_dsn(&from)?;
     let mut consumer = tmq.build().await?;
     consumer
-        .subscribe(&topics.iter().map(|t| t.name.to_string()).collect_vec())
+        .subscribe(topics.iter().map(|t| t.name.to_string()).collect_vec())
         .await?;
     Ok(consumer
         .assignments()
@@ -1769,8 +1767,8 @@ pub struct TableProgress {
 }
 #[instrument(skip_all)]
 pub async fn get_table_progress(
-    from: &String,
-    to: &String,
+    from: &str,
+    to: &str,
     // format db.table
     table: &str,
     start: Option<&String>,
@@ -1810,20 +1808,16 @@ pub async fn get_table_progress(
                 ),
             )
         }
+    } else if let Some(end) = end {
+        (
+            format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
+            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
+        )
     } else {
-        if let Some(end) = end {
-            (
-                format!(
-                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"
-                ),
-                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
-            )
-        } else {
-            (
-                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
-                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
-            )
-        }
+        (
+            format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
+            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
+        )
     };
     tracing::debug!("\nfrom_sql: {from_sql}\nto_sql: {to_sql}");
     let from_result = from_taos

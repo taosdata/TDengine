@@ -76,7 +76,7 @@ impl Consumer {
                 send.records = row_count,
                 "sending finished, waiting for persisting"
             );
-            let _ = writer.finish()?;
+            writer.finish()?;
             anyhow::Ok(())
         });
 

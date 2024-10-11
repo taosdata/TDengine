@@ -7,6 +7,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
+use arrow_compute_ext::RecordBatchExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taosx_ipc::prelude::IpcDataType;
@@ -33,7 +34,7 @@ impl Modeler {
     }
 
     pub fn table0(&self) -> Option<&Table> {
-        self.0.get(0)
+        self.0.first()
     }
 }
 
@@ -115,7 +116,8 @@ impl From<&RecordBatch> for ModeledJsonOutput {
             .collect();
         Self {
             fields,
-            columns: arrow::json::writer::record_batches_to_json_rows(&[value])
+            columns: value
+                .to_json_rows()
                 .unwrap()
                 .into_iter()
                 .map(|mut value| {
@@ -152,16 +154,16 @@ impl ModeledRecordBatch {
                 let column = self.records.column(i);
                 if let DataType::Timestamp(unit, left_tz) = field.data_type() {
                     if left_tz.is_some() {
-                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let dt = DataType::Timestamp(*unit, Some(tz.to_string().into()));
                         let column = arrow::compute::cast(column, &dt).unwrap();
                         (
                             Arc::new(Field::new(field.name(), dt, field.is_nullable())),
                             column,
                         )
                     } else {
-                        let dt = DataType::Timestamp(unit.clone(), Some("UTC".into()));
+                        let dt = DataType::Timestamp(*unit, Some("UTC".into()));
                         let column = arrow::compute::cast(column, &dt).unwrap();
-                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let dt = DataType::Timestamp(*unit, Some(tz.to_string().into()));
                         let column = arrow::compute::cast(&column, &dt).unwrap();
                         (
                             Arc::new(Field::new(field.name(), dt, field.is_nullable())),
@@ -270,7 +272,7 @@ fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
 impl Table {
     pub fn eval_table_name(&self, records: &RecordBatch) -> Result<StringArray, super::Error> {
         let name_expr = template_to_expr(&self.name)?;
-        let name_array = name_expr.eval_as(&records, DataType::Utf8)?;
+        let name_array = name_expr.eval_as(records, DataType::Utf8)?;
         let name_array = name_array
             .as_any()
             .downcast_ref::<StringArray>()
@@ -343,7 +345,7 @@ impl Table {
                 .map(|f| {
                     if let DataType::Timestamp(unit, tz) = f.data_type() {
                         DataType::Timestamp(
-                            unit.clone(),
+                            *unit,
                             if tz.is_some() {
                                 tz.clone()
                             } else {

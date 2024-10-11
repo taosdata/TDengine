@@ -33,11 +33,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             MONGODB_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let query = MongoDBQuery::try_new(c).await;
@@ -88,7 +84,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
     let mut config = MongoDBConfig::from_dsn(dsn)?;
@@ -164,6 +160,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mongodb to taos
+
 pub async fn mongodb_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -206,7 +203,7 @@ pub async fn mongodb_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -312,7 +309,11 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                    let value: String = v.bytes.iter().fold(String::new(), |mut output, b| {
+                        use std::fmt::Write;
+                        let _ = write!(output, "{b:02x}");
+                        output
+                    });
                     payload.insert(key.clone(), json!(format!("\\x{}", value)));
                 }
                 Bson::ObjectId(v) => {
@@ -388,7 +389,7 @@ mod tests {
                     let database = query.client.database("test_taosx");
                     let collection = database.collection("metrics");
                     let doc_all = doc! {
-                        "double": Bson::Double(3.141592653),
+                        "double": Bson::Double(1.234567890),
                         "string": Bson::String("abc".to_string()),
                         "array": Bson::Array(vec![Bson::Int32(1), Bson::Int32(2), Bson::Int32(3)]),
                         "document": Bson::Document(doc! {
@@ -419,7 +420,7 @@ mod tests {
                         "object_id": Bson::ObjectId(ObjectId::new()),
                         "datetime": Bson::DateTime(mongodb::bson::DateTime::now()),
                         "symbol": Bson::Symbol("abc".to_string()),
-                        "decimal128": Bson::Decimal128(Decimal128::from_str("3.141592653").unwrap()),
+                        "decimal128": Bson::Decimal128(Decimal128::from_str("1.234567890").unwrap()),
                         "undefined": Bson::Undefined,
                         "max_key": Bson::MaxKey,
                         "min_key": Bson::MinKey,
@@ -465,8 +466,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.41:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: No available servers",
@@ -477,8 +478,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27018?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: No available servers",
@@ -489,8 +490,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin1:tbase125!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -501,8 +502,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase126!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -513,8 +514,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin1").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
             "Failed to connect to dsn: authentication failed",
@@ -525,8 +526,8 @@ mod tests {
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mongodb", res.data_source);
     }
 
@@ -542,14 +543,14 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
         let _ = test_clear_data().await;
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_mongodb_to_taos() {
+    async fn test_mongodb_to_taos() {
         let from = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -560,11 +561,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mongodb_to_taos");
+        let _span = tracing::info_span!("test_mongodb_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mongodb_to_taos(
+        mongodb_to_taos(
             from,
             parser,
             transform,
@@ -576,7 +577,9 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
@@ -625,7 +628,11 @@ mod tests {
             subtype: BinarySubtype::Generic,
             bytes: vec![1, 2, 3],
         };
-        let res: String = binary.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        let res: String = binary.bytes.iter().fold(String::new(), |mut output, b| {
+            use std::fmt::Write;
+            let _ = write!(output, "{b:02x}");
+            output
+        });
         println!("\\x{}", res);
     }
 }

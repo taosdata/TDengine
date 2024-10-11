@@ -309,8 +309,8 @@ pub async fn get_point_file_template(driver: &str, lang: &str) -> anyhow::Result
     Ok(NamedFile::open(config_file.path())?)
 }
 
-fn get_safe_string_for_csv(s: &String) -> String {
-    let mut safe_str = s.clone();
+fn get_safe_string_for_csv(s: &str) -> String {
+    let mut safe_str = s.to_string();
     if safe_str.contains(",") {
         safe_str = format!("\"{}\"", safe_str.replace("\"", "\"\""));
     }
@@ -326,15 +326,10 @@ async fn get_all_points(
 ) -> anyhow::Result<(String, usize)> {
     let mut from = from.into_dsn()?;
 
-    let pattern;
-    match from.driver.as_str() {
-        "pi" | "pibackfill" => {
-            pattern = None;
-        }
-        _ => {
-            pattern = Some(String::from(".*"));
-        }
-    }
+    let pattern = match from.driver.as_str() {
+        "pi" | "pibackfill" => None,
+        _ => Some(String::from(".*")),
+    };
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
     let lang = lang.unwrap_or("zh".to_string());
 

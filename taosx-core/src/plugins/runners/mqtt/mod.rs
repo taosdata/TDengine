@@ -34,9 +34,9 @@ use super::get_data_dir;
 
 mod config;
 
-pub const MQTT_ID: &'static str = "mqtt";
+pub const MQTT_ID: &str = "mqtt";
 
-const EXE: &'static str = {
+const EXE: &str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
             "taosx-mqtt.exe"
@@ -72,6 +72,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 
 /// Run the mqtt DataIn task
 #[instrument(skip_all)]
+
 pub async fn mqtt_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -102,22 +103,19 @@ pub async fn mqtt_to_taos(
     );
 
     // save the temporary file to task dir
-    match task_id {
-        Some(task_id) => {
-            let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).map_err(|err| {
-                anyhow::format_err!("failed to create task dir: {:?}, cause: {:?}", path, err)
-            })?;
-            let path = path.join(format!(
-                "{}-{}-{}.{}",
-                task_id,
-                "mqtt",
-                chrono::Local::now().format("%Y%m%d%H%M"),
-                "toml"
-            ));
-            let _ = std::fs::copy(&config_path, path);
-        }
-        None => {}
+    if let Some(task_id) = task_id {
+        let path = get_data_dir().join("tasks").join(task_id.to_string());
+        std::fs::create_dir_all(&path).map_err(|err| {
+            anyhow::format_err!("failed to create task dir: {:?}, cause: {:?}", path, err)
+        })?;
+        let path = path.join(format!(
+            "{}-{}-{}.{}",
+            task_id,
+            "mqtt",
+            chrono::Local::now().format("%Y%m%d%H%M"),
+            "toml"
+        ));
+        let _ = std::fs::copy(&config_path, path);
     }
     // create socket channel
     let mut ipc_handler = build_ipc(
@@ -130,7 +128,7 @@ pub async fn mqtt_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -262,11 +260,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "mqtt".to_string(),
-            format!(
-                "invalid mqtt dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid mqtt dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let mqtt_config = MqttConfig {
@@ -280,11 +274,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "mqtt".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(v) => v,
             }
@@ -382,7 +372,7 @@ async fn get_sample_impl_v3(
     timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
     // build mqtt client
-    let config = MqttConfig::from(&dsn, None, None)?;
+    let config = MqttConfig::from(dsn, None, None)?;
     let connect_config = config.mqtt;
     // host and port
     let (host, port) = connect_config.host_port();
@@ -458,7 +448,7 @@ async fn get_sample_impl_v5(
     limit: usize,
     timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
-    let config = MqttConfig::from(&dsn, None, None)?;
+    let config = MqttConfig::from(dsn, None, None)?;
     let connect_config = config.mqtt;
 
     let (host, port) = connect_config.host_port();
@@ -573,8 +563,8 @@ mod tests {
     async fn test_invalid() {
         let dsn = Dsn::from_str("mqtt://").unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("mqtt", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!(
@@ -586,8 +576,8 @@ mod tests {
             Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0")
                 .unwrap();
         let validation = is_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("mqtt", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!("failed to connect to dsn: mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0, cause: mqtt plugin not found \"/usr/local/taos/plugins/mqtt/taosx-mqtt\"", validation.message.unwrap());
@@ -603,8 +593,8 @@ mod tests {
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;
         dbg!(&dsv);
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("mqtt", dsv.data_source);
         assert_eq!(None, dsv.version);
     }

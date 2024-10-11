@@ -233,7 +233,7 @@ impl Display for PIPointModelConfig {
         }
         writeln!(f, "\n")?;
         for point in &self.points {
-            writeln!(f, "{},{},{}", point.point_name, "POINT", point.super_table)?;
+            writeln!(f, "{},POINT,{}", point.point_name, point.super_table)?;
         }
         Ok(())
     }
@@ -607,6 +607,7 @@ impl Display for PIElementModelConfig {
 }
 
 /// 配置文件 schema 定义部分第 2 列的类型
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
     TAG,
@@ -724,7 +725,7 @@ fn split_csv_line(line: &str) -> Vec<&str> {
     let pat = '`';
     if sec.starts_with(pat) && sec.ends_with(pat) {
         let set = sec.trim_matches(pat);
-        parts.push(&set);
+        parts.push(set);
     } else {
         parts.push(sec);
     }
@@ -875,10 +876,10 @@ impl SuperTableConfig {
     }
 }
 
-impl Into<Parser> for SuperTableConfig {
-    fn into(self) -> Parser {
-        let map = self.get_map_transform();
-        let filter = self.get_filter();
+impl From<SuperTableConfig> for Parser {
+    fn from(val: SuperTableConfig) -> Self {
+        let map = val.get_map_transform();
+        let filter = val.get_filter();
         let mut mutate = Vec::<Mutate>::new();
         if let Some(filter) = filter {
             mutate.push(Mutate::Filter(filter));
@@ -886,7 +887,7 @@ impl Into<Parser> for SuperTableConfig {
         if let Some(map) = map {
             mutate.push(Mutate::Map(map));
         }
-        let table = self.get_table_model();
+        let table = val.get_table_model();
         let model = Modeler::new(vec![table]);
         // let parse: ParserImpl = serde_json::from_str(
         //     r#"{

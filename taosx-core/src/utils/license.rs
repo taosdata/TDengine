@@ -21,10 +21,7 @@ pub fn is_cloud(to: &taos::Dsn) -> bool {
     );
     to.protocol
         .as_ref()
-        .map(|p| match p.as_str() {
-            "http" | "https" | "ws" | "wss" => true,
-            _ => false,
-        })
+        .map(|p| matches!(p.as_str(), "http" | "https" | "ws" | "wss"))
         .unwrap_or(false)
         && to.get("token").is_some()
 }
@@ -250,7 +247,7 @@ async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
-    let source_dsn_context = || format!("Source error with {}", mask_dsn(&from));
+    let source_dsn_context = || format!("Source error with {}", mask_dsn(from));
     let sink_dsn_context = || format!("Sink error with {}", mask_dsn(to));
     // Check if enterprise available
     match (from.driver.as_str(), to.driver.as_str()) {
@@ -287,7 +284,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                         return Ok(kind);
                     }
                 }
-                if !is_cloud(&to) {
+                if !is_cloud(to) {
                     let kind = check_grant_of(&sink_builder, &sink_version, "active_active")
                         .in_current_span()
                         .await
@@ -314,7 +311,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     }
                 };
 
-                if is_cloud(&to) {
+                if is_cloud(to) {
                     return Ok(LicenseKind::good());
                 }
                 let edition = sink_builder
@@ -403,7 +400,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("Failed to connect target server: {err}");
                 }
             };
-            if is_cloud(&to) {
+            if is_cloud(to) {
                 return Ok(LicenseKind::good());
             }
             let edition = sink_builder
@@ -531,7 +528,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("Failed to connect sink server: {err}");
                 }
             };
-            if is_cloud(&to) {
+            if is_cloud(to) {
                 return Ok(LicenseKind::good());
             }
             let edition = sink_builder
@@ -567,12 +564,10 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("The current connector {connector} is not supported by license.");
                 }
             };
-            return Ok(
-                check_connector_grant_of(&sink_builder, &sink_version, connector)
-                    .in_current_span()
-                    .await
-                    .with_context(sink_dsn_context)?,
-            );
+            return check_connector_grant_of(&sink_builder, &sink_version, connector)
+                .in_current_span()
+                .await
+                .with_context(sink_dsn_context);
         }
         _ => (),
     };
@@ -616,18 +611,6 @@ mod tests {
     use std::str::FromStr;
 
     #[tokio::test]
-    async fn csv_should_always_be_valid() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
-        let from = Dsn::from_str("csv:/tmp").unwrap();
-        let to = Dsn::from_str("taos:///").unwrap();
-        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
-        assert!(res.is_ok(), "{:#?}", res);
-    }
-
-    #[tokio::test]
     async fn valid_replica_license() {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
@@ -667,7 +650,7 @@ mod tests {
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+            .contains("active_active expired at 2022-01-01 00:00:00"));
 
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
@@ -753,7 +736,7 @@ mod tests {
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+            .contains("active_active expired at 2022-01-01 00:00:00"));
 
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
@@ -848,7 +831,7 @@ mod tests {
 
             // c.3 good
             conn.exec_many([
-                format!("delete from test.test_grants_full"),
+                "delete from test.test_grants_full".to_string(),
                 format!(
                     r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
                     '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,

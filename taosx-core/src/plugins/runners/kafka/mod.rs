@@ -50,7 +50,7 @@ use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
-pub const KAFKA_ID: &'static str = "kafka";
+pub const KAFKA_ID: &str = "kafka";
 const FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 const METRIC_CONSUMERS: FastStr = FastStr::from_static_str("kafka_consumers");
 const METRIC_TOTAL_PARTITIONS: FastStr = FastStr::from_static_str("kafka_total_partitions");
@@ -172,9 +172,9 @@ async fn get_sample_impl(
         if let Some(msg) = message {
             match msg {
                 Ok(m) => {
-                    m.payload().map(|p| {
+                    if let Some(p) = m.payload() {
                         payload_list.push(String::from_utf8_lossy(p).to_string());
-                    });
+                    }
                 }
                 Err(err) => {
                     tracing::error!("Kafka polling error: {:#}", err);
@@ -230,6 +230,7 @@ fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Res
 }
 
 #[instrument(skip_all)]
+
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -278,7 +279,7 @@ pub async fn kafka_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify.clone(),
     )
     .await?;
@@ -378,7 +379,7 @@ pub async fn kafka_to_taos(
                 join_set.abort_all();
                 reset_metrics!();
                 if let Some(err) = err {
-                    let _ = ipc.send(()).await;
+                    let _ = ipc.send(());
                     let _ = ipc.close().await;
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
@@ -390,7 +391,7 @@ pub async fn kafka_to_taos(
             }
         }
         // send an empty tuple
-        let _ = ipc.send(()).await;
+        let _ = ipc.send(());
         // stop the connector
         tracing::info!("Kafka task Done");
         ipc.close().await?;
@@ -529,7 +530,7 @@ async fn execute(
 
                 batches += 1;
             }
-            let _ = writer.finish()?;
+            writer.finish()?;
             tracing::info!(
                 send.batches = batches,
                 send.records = row_count,
@@ -728,11 +729,7 @@ impl SubTask {
         };
 
         let config = Arc::new(config);
-        let topics = topic_partitions
-            .keys()
-            .into_iter()
-            .map(|k| k.to_string())
-            .collect_vec();
+        let topics = topic_partitions.keys().map(|k| k.to_string()).collect_vec();
         let topics = Arc::new(topics);
 
         for i in 0..concurrency {
@@ -999,7 +996,7 @@ impl<'a> MessagesSender<'a> {
         let mut error_offsets = Vec::new();
         for (topic, map) in context.offsets_cache.iter(&guard) {
             for (partition, offset) in map.iter(&guard) {
-                if let Err(err) = self.consumer.store_offset(&topic, *partition, *offset) {
+                if let Err(err) = self.consumer.store_offset(topic, *partition, *offset) {
                     warn!(
                         cause = %err,
                         topic,
@@ -1271,8 +1268,8 @@ fn build_schema() -> Schema {
         Field::new("key", ArrowDataType::Binary, true),
         Field::new("value", ArrowDataType::Binary, false),
     ];
-    let schema = Schema::new(flat_columns).with_metadata(metadata);
-    schema
+
+    Schema::new(flat_columns).with_metadata(metadata)
 }
 
 /// due to this issue: https://github.com/fede1024/rust-rdkafka/issues/681
@@ -1513,7 +1510,7 @@ impl KafkaTaskConfig {
         }
         // Set log level and create consumer
         let joins = context.fetch_add_joins();
-        match instance.as_deref() {
+        match instance {
             Some(instance) => {
                 tracing::info!(joins, "Consumer {instance} begin join");
             }
@@ -1618,30 +1615,27 @@ fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfi
                 };
                 // verify the broker's kinit.cmd, keytab and principal
                 let init_cmd = sasl_kerberos_kinit_cmd
-                    .replace("%{sasl.kerberos.keytab}", &sasl_kerberos_keytab.as_str())
+                    .replace("%{sasl.kerberos.keytab}", sasl_kerberos_keytab.as_str())
                     .replace(
                         "%{sasl.kerberos.principal}",
-                        &sasl_kerberos_principal.as_str(),
+                        sasl_kerberos_principal.as_str(),
                     );
                 let output = std::process::Command::new("bash")
                     .arg("-c")
                     .arg(init_cmd)
                     .output();
-                match output {
-                    Ok(output) => {
-                        if !output.status.success() {
-                            tracing::error!("{}", std::str::from_utf8(&output.stderr).unwrap());
-                            anyhow::bail!(
-                                "{}",
-                                std::str::from_utf8(&output.stderr)
-                                    .unwrap()
-                                    .lines()
-                                    .next()
-                                    .unwrap()
-                            );
-                        }
+                if let Ok(output) = output {
+                    if !output.status.success() {
+                        tracing::error!("{}", std::str::from_utf8(&output.stderr).unwrap());
+                        anyhow::bail!(
+                            "{}",
+                            std::str::from_utf8(&output.stderr)
+                                .unwrap()
+                                .lines()
+                                .next()
+                                .unwrap()
+                        );
                     }
-                    Err(_) => {}
                 }
                 // set to client
                 client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
@@ -1680,8 +1674,8 @@ mod tests {
     async fn test_is_valid() {
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
         let result = is_valid(&dsn).await;
-        assert_eq!(false, result.valid);
-        assert_eq!(false, result.support);
+        assert!(!result.valid);
+        assert!(!result.support);
         assert_eq!(KAFKA_ID, result.data_source);
         assert_eq!(
             "invalid dsn: kafka://127.0.0.1:9092, cause: topics is required",

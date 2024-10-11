@@ -143,6 +143,8 @@ impl Consumer {
                         // stastics
                         batch_count += 1;
                     }
+                    // set breakpoint
+                    set_breakpoint(&config, &end).await?;
                 }
                 Err(e) => {
                     tracing::error!("migrate mssql query error: {e:?}",);
@@ -177,8 +179,6 @@ impl Consumer {
             //     // stastics
             //     batch_count += 1;
             // }
-            // set breakpoint
-            set_breakpoint(&config, &end).await?;
         }
         drop(tx);
         tracing::debug!("migrate mssql query finished, total batch: {}", batch_count);
@@ -215,7 +215,7 @@ mod tests {
             .unwrap();
         let mut config = MssqlConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
-        config.sub_task_id = Some(format!("mig-1"));
+        config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 
         // query for schema

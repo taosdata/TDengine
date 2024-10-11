@@ -101,9 +101,8 @@ impl ParserObject {
         if !result.is_null() {
             return Err("parser_mutate failed".to_string());
         }
-        let parsed_data = unsafe {
-            String::from_raw_parts(output_p as *mut u8, output_l as usize, output_l as usize)
-        };
+        let parsed_data =
+            unsafe { String::from_raw_parts(output_p, output_l as usize, output_l as usize) };
         Ok(parsed_data)
     }
 }
@@ -128,44 +127,41 @@ lazy_static! {
         let lib_path = plugin_path.join("parsers");
 
         if let Ok(entries) = fs::read_dir(lib_path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() {
-                        let plugin_container = unsafe { Container::load(path) }.map(
-                            |container: Container<PluginLib>| {
-                                let parser_name = container.parser_name();
-                                let parser_name =
-                                    unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }
-                                        .unwrap_or("");
-                                let parser_version = container.parser_version();
-                                let parser_version =
-                                    unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
-                                        .unwrap_or("");
-                                tracing::debug!("load plugin: {parser_name}");
-                                ParserContainer {
-                                    container,
-                                    lib_version: parser_version.to_string(),
-                                    lib_name: parser_name.to_string(),
-                                    lib_id: entry.file_name().to_str().unwrap().to_string(),
-                                }
-                            },
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let plugin_container =
+                        unsafe { Container::load(path) }.map(|container: Container<PluginLib>| {
+                            let parser_name = container.parser_name();
+                            let parser_name =
+                                unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }
+                                    .unwrap_or("");
+                            let parser_version = container.parser_version();
+                            let parser_version =
+                                unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
+                                    .unwrap_or("");
+                            tracing::debug!("load plugin: {parser_name}");
+                            ParserContainer {
+                                container,
+                                lib_version: parser_version.to_string(),
+                                lib_name: parser_name.to_string(),
+                                lib_id: entry.file_name().to_str().unwrap().to_string(),
+                            }
+                        });
+
+                    if plugin_container.is_err() {
+                        tracing::error!("load plugin failed: {:#?}", plugin_container.err());
+                        continue;
+                    }
+
+                    let plugin_container = plugin_container.unwrap();
+                    if plugin_container.lib_name.is_empty() {
+                        tracing::error!("plugin load from file {:?} has no name", entry.path());
+                    } else {
+                        plugin_map.insert(
+                            plugin_container.lib_name.clone(),
+                            Arc::new(plugin_container),
                         );
-
-                        if plugin_container.is_err() {
-                            tracing::error!("load plugin failed: {:#?}", plugin_container.err());
-                            continue;
-                        }
-
-                        let plugin_container = plugin_container.unwrap();
-                        if plugin_container.lib_name.is_empty() {
-                            tracing::error!("plugin load from file {:?} has no name", entry.path());
-                        } else {
-                            plugin_map.insert(
-                                plugin_container.lib_name.clone(),
-                                Arc::new(plugin_container),
-                            );
-                        }
                     }
                 }
             }
@@ -280,7 +276,7 @@ impl Parse for ParserPlugin {
             }
         }
 
-        if json_data.len() == 0 {
+        if json_data.is_empty() {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
 
@@ -324,7 +320,7 @@ impl Parse for ParserPlugin {
             let dt = f.data_type();
             let name = f.metadata().get("query").unwrap_or(f.name());
 
-            let path = serde_json_path::JsonPath::parse(&name).ok();
+            let path = serde_json_path::JsonPath::parse(name).ok();
             let getter = |v| {
                 path.as_ref()
                     .and_then(|path| path.query(v).first())
@@ -637,7 +633,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u8)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -652,7 +648,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u16)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -667,7 +663,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .map(|v| v as u32)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -682,7 +678,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_u64()
                                                 .or_else(|| v.as_f64().map(|v| v as _))
                                                 .or_else(|| v.as_i64().map(|v| v as _))
@@ -696,7 +692,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i8)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -711,7 +707,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i16)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -726,7 +722,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .map(|v| v as i32)
                                                 .or_else(|| v.as_f64().map(|v| v as _))
@@ -741,7 +737,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_i64()
                                                 .or_else(|| v.as_f64().map(|v| v as _))
                                                 .or_else(|| v.as_u64().map(|v| v as _))
@@ -757,7 +753,7 @@ impl Parse for ParserPlugin {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_str()
                                                 .map(|s| s.as_bytes())
                                                 .map(Cow::Borrowed)
@@ -774,7 +770,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_f64()
                                                 .map(|f| f as f32)
                                                 .or_else(|| v.as_i64().map(|v| v as _))
@@ -789,7 +785,7 @@ impl Parse for ParserPlugin {
                             json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_f64()
                                                 .or_else(|| v.as_i64().map(|v| v as _))
                                                 .or_else(|| v.as_u64().map(|v| v as _))
@@ -807,7 +803,7 @@ impl Parse for ParserPlugin {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_bool()
                                                 .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                                         })
@@ -828,7 +824,7 @@ impl Parse for ParserPlugin {
                             array.extend(json_values.iter().map(|(_, v)| {
                                 v.as_ref().and_then(getter).and_then(|v| {
                                     v.as_array().map(|a| {
-                                        a.into_iter().map(|v| {
+                                        a.iter().map(|v| {
                                             v.as_str().map(Cow::Borrowed).or_else(|| {
                                                 serde_json::to_string(v).map(Cow::Owned).ok()
                                             })
@@ -865,15 +861,9 @@ impl Parse for ParserPlugin {
                     let values = json_values
                         .iter()
                         .map(|(_n, v)| {
-                            if let Some(value) = v.as_ref().and_then(getter) {
-                                if value.is_null() {
-                                    None
-                                } else {
-                                    Some(value)
-                                }
-                            } else {
-                                None
-                            }
+                            v.as_ref()
+                                .and_then(getter)
+                                .filter(|&value| !value.is_null())
                         })
                         .collect_vec();
 

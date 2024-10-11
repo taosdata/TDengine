@@ -1,6 +1,6 @@
 #[test]
 fn test_slice_overflow() {
-    let s = &"abc"[..3.min(4)];
+    let s = &"abc"[..3];
     assert_eq!(s, "abc");
 }
 

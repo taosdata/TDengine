@@ -83,18 +83,18 @@ impl Dump {
 
 impl MqttConfig {
     pub fn from(dsn: &Dsn, ipc_port: Option<u16>, task_id: Option<i64>) -> anyhow::Result<Self> {
-        let connect_config = MqttConnectConfig::from_dsn(&dsn)?;
+        let connect_config = MqttConnectConfig::from_dsn(dsn)?;
         let dump = Dump::from_dsn(dsn, task_id)?;
         let topics_vec = get_string_vec_from_param_or_file(&mut dsn.clone(), "topics")
             .map_err(|err| anyhow::anyhow!("invalid topics, cause: {}", err.to_string()))?;
 
         let mut topics = HashMap::new();
-        for i in 0..topics_vec.len() {
-            let pair = topics_vec[i].split("::").collect_vec();
+        for topic in topics_vec {
+            let pair = topic.split("::").collect_vec();
             if pair.len() != 2 {
                 return Err(anyhow::anyhow!(
                     "invalid topic: {}, cause: the format of topic is name::qos",
-                    topics_vec[i]
+                    topic
                 ));
             }
             let topic = String::from(pair[0]);
@@ -112,7 +112,7 @@ impl MqttConfig {
             log_level: dsn
                 .params
                 .get("log_level")
-                .map(Clone::clone)
+                .cloned()
                 .unwrap_or("info".to_string())
                 .to_string(),
             remote: format!("127.0.0.1:{}", ipc_port.unwrap_or(0)),
@@ -189,7 +189,7 @@ impl MqttConnectConfig {
         let port = dsn
             .addresses
             .first()
-            .and_then(|addr| addr.port.clone())
+            .and_then(|addr| addr.port)
             .ok_or(anyhow::anyhow!("port is required"))?;
         let address = if ca.is_some() {
             format!("ssl://{host}:{port}")
@@ -270,7 +270,7 @@ impl MqttConnectConfig {
 
     /// Default keep alive is 5 seconds
     pub fn keep_alive(&self) -> core::time::Duration {
-        core::time::Duration::from_secs(self.keep_alive.unwrap_or(5) as u64)
+        core::time::Duration::from_secs(self.keep_alive.unwrap_or(5))
     }
 
     fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Option<u64>> {
@@ -296,7 +296,7 @@ impl MqttConnectConfig {
     }
 
     pub fn ssl_enabled(dsn: &Dsn) -> bool {
-        dsn.params.get("ca").is_some()
+        dsn.params.contains_key("ca")
     }
 
     pub fn ssl(&self) -> anyhow::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
@@ -395,7 +395,7 @@ mod tests {
 
         let dsn = Dsn::from_str("mqtt://?keep_alive=").unwrap();
         let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
-        assert_eq!(None, keep_alive.unwrap());
+        assert!(keep_alive.is_err());
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod tests {
         assert_eq!(None, config.username);
         assert_eq!(None, config.password);
         assert_eq!(60, config.keep_alive.unwrap());
-        assert_eq!(true, config.clean_session.unwrap());
+        assert!(config.clean_session.unwrap());
         assert_eq!(None, config.ca);
         assert_eq!(None, config.cert);
         assert_eq!(None, config.cert_key);
@@ -530,7 +530,7 @@ mod tests {
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true&keep_raw_data&keep_raw_data_dir=./abc").unwrap();
         let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
         let dump = config.dump.unwrap();
-        assert_eq!(dump.enable, true);
+        assert!(dump.enable);
         assert_eq!(dump.path, "./abc");
         assert_eq!(dump.keep, 1);
     }

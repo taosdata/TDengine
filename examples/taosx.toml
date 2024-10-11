@@ -23,6 +23,18 @@ instanceId = 16
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
 
+# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+#
+# When use this in explorer, please set explorer grpc configuration to **Public** IP or
+# FQDN with correct port, which might be changed exposing to Public network.
+#
+# - Example 1: "http://192.168.111.111:6055" 
+# - Example 2: "http://node1.company.domain:6055" 
+#
+# Pleae also make sure the above address is not blocked if firewall is enabled.
+#
+#grpc = "0.0.0.0:6055"
+
 [monitor]
 # FQDN of taosKeeper service, no default value
 #fqdn = "localhost"
@@ -32,7 +44,6 @@ instanceId = 16
 
 # How often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
 #interval = 10
-
 
 # log configuration
 [log]

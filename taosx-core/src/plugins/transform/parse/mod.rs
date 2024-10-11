@@ -197,7 +197,7 @@ impl TransformExt for ParserImpl {
 
         for field in schema.fields() {
             let name = field.name();
-            let array = records.column_by_name(&name).unwrap();
+            let array = records.column_by_name(name).unwrap();
 
             if let Some(parser) = self.0.get(name) {
                 let (batch, indices) = parser.parse_array(field, array).map_err(|error| {
@@ -253,16 +253,16 @@ impl TransformExt for ParserImpl {
                             ),
                         )
                     }
+                } else if let Some((idx, field)) =
+                    fields.iter().find_position(|f| name == *f.name())
+                {
+                    (field.clone(), columns[idx].clone())
                 } else {
-                    if let Some((idx, field)) = fields.iter().find_position(|f| name == *f.name()) {
-                        (field.clone(), columns[idx].clone())
-                    } else {
-                        // dbg!(&name);
-                        (
-                            schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
-                            records.column_by_name(&name).unwrap().clone(),
-                        )
-                    }
+                    // dbg!(&name);
+                    (
+                        schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
+                        records.column_by_name(&name).unwrap().clone(),
+                    )
                 }
             })
             .unzip();
@@ -309,15 +309,7 @@ pub trait ArrayForTaos: Array {
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::List(_) => taos::Ty::VarChar,
-            arrow::datatypes::DataType::FixedSizeList(_, _) => todo!(),
-            arrow::datatypes::DataType::LargeList(_) => todo!(),
-            arrow::datatypes::DataType::Struct(_) => todo!(),
-            arrow::datatypes::DataType::Union(_, _) => todo!(),
-            arrow::datatypes::DataType::Dictionary(_, _) => todo!(),
-            arrow::datatypes::DataType::Decimal128(_, _) => todo!(),
-            arrow::datatypes::DataType::Decimal256(_, _) => todo!(),
-            arrow::datatypes::DataType::Map(_, _) => todo!(),
-            arrow::datatypes::DataType::RunEndEncoded(_, _) => todo!(),
+            _ => todo!(),
         }
     }
 

@@ -19,6 +19,7 @@ parquet = { workspace = true }
 rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip"] }
 zerocopy = { workspace = true }
+dashmap = { workspace = true }
 
 dlopen2 = "0.7.0"
 
@@ -42,14 +43,14 @@ clap = { workspace = true, features = ["default", "derive"] }
 config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
-dashmap = "5.4.0"
+
 flate2 = { version = "1.0" }
 futures = { version = "0.3", features = ["thread-pool"] }
 itertools = { workspace = true }
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-parse_duration = "2.1"
+fundu.workspace = true
 scc = { version = "2", features = ["serde"] }
 semver = { version = "1.0.22" }
 serde = { version = "1", features = ["derive"] }
@@ -91,7 +92,7 @@ actix-cors = "0.6.4"
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 utoipa = { version = "4.0.0", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "4.0.0", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
 
 cfg-if = "1.0.0"
 const_format = "0.2.30"
@@ -135,17 +136,17 @@ sysinfo = { workspace = true }
 chardetng = "0.1.17"
 encoding_rs = "0.8.33"
 
-sqlx = { version = "0.7.4", features = [
+sqlx = { version = "0.8", features = [
     "mysql",
     "runtime-tokio",
     "chrono",
     "bigdecimal",
     "tls-rustls",
 ] }
-bigdecimal = "0.3.0"
+bigdecimal = "0.4"
 bit-vec = "0.6.3"
 uuid = "1.4.0"
-sqlx-postgres = { version = "0.7.4", features = [
+sqlx-postgres = { version = "0.8", features = [
     "chrono",
     "bigdecimal",
     "bit-vec",
@@ -167,9 +168,9 @@ mongodb = { version = "3.0.0", features = [
 rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
 
 taoslog.workspace = true
-http.workspace = true
 bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
+file-guard = "0.2.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
@@ -212,3 +213,6 @@ pretty_env_logger = "0.5.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 shadow-rs = { workspace = true }
+
+[lints]
+workspace = true

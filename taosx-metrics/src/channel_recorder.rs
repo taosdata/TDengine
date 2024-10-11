@@ -296,11 +296,8 @@ mod tests {
         // start a new thread to receive metrics until channel become empty
         let h = std::thread::spawn(move || loop {
             let mut metrics_events = MetricsEvents::new();
-            loop {
-                match rx.recv_timeout(std::time::Duration::from_millis(500)) {
-                    Ok(event) => metrics_events.push(event),
-                    Err(_) => break,
-                }
+            while let Ok(event) = rx.recv_timeout(std::time::Duration::from_millis(500)) {
+                metrics_events.push(event);
             }
             if !metrics_events.is_empty() {
                 assert_eq!(metrics_events.0.len(), 20); // 每批发 20 个，所以肯定收 20 个
@@ -329,11 +326,8 @@ mod tests {
         // receive 20 metrics events
         let h = std::thread::spawn(move || {
             let mut metrics_events = MetricsEvents::new();
-            loop {
-                match rx.recv_timeout(std::time::Duration::from_secs(1)) {
-                    Ok(event) => metrics_events.push(event),
-                    Err(_) => break,
-                }
+            while let Ok(event) = rx.recv_timeout(std::time::Duration::from_secs(1)) {
+                metrics_events.push(event);
             }
             assert_eq!(metrics_events.0.len(), 20);
             let vec = metrics_events.to_vec_u8();

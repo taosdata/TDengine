@@ -46,6 +46,7 @@ fn log_path() -> PathBuf {
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 #[allow(unused)]
 #[instrument(skip_all)]
+
 pub async fn pi_to_taos(
     from: Dsn,
     actions: Vec<Action>,
@@ -92,20 +93,17 @@ pub async fn pi_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
     // save the temporary file to task dir
-    match task_id {
-        Some(task_id) => {
-            let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
-            let path = path.join(format!(
-                "{}-{}-{}.{}",
-                task_id,
-                "pi",
-                chrono::Local::now().format("%Y%m%d%H%M"),
-                "toml"
-            ));
-            let _ = fs::copy(&config_path, path);
-        }
-        None => {}
+    if let Some(task_id) = task_id {
+        let path = get_data_dir().join("tasks").join(task_id.to_string());
+        std::fs::create_dir_all(&path).unwrap();
+        let path = path.join(format!(
+            "{}-{}-{}.{}",
+            task_id,
+            "pi",
+            chrono::Local::now().format("%Y%m%d%H%M"),
+            "toml"
+        ));
+        let _ = fs::copy(&config_path, path);
     }
 
     let lush_model_config: Option<LushModelConfig> = if with_agent.is_none() {
@@ -176,7 +174,7 @@ pub async fn pi_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify.clone(),
     )
     .await?;
@@ -383,22 +381,14 @@ pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "pi".to_string(),
-            format!(
-                "invalid pi dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid pi dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let valid = validate_pi(c).await;
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "pi".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(v) => v,
             }
@@ -478,22 +468,14 @@ pub async fn is_pi_backfill_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "pibackfill".to_string(),
-            format!(
-                "invalid pibackfill dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid pibackfill dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let valid = validate_pi_backfill(c).await;
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "pibackfill".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(v) => v,
             }
@@ -586,14 +568,12 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
             Some(pattern) => (pattern, ""),
             None => ("*", ""),
         }
+    } else if let Some(pattern) = filter_element {
+        (pattern, "Element")
+    } else if let Some(pattern) = filter_template {
+        (pattern, "Template")
     } else {
-        if let Some(pattern) = filter_element {
-            (pattern, "Element")
-        } else if let Some(pattern) = filter_template {
-            (pattern, "Template")
-        } else {
-            ("*", "Template")
-        }
+        ("*", "Template")
     };
     (mode, pattern, pattern_type)
 }
@@ -647,8 +627,8 @@ mod tests {
     async fn test_is_pi_valid() {
         let dsn = Dsn::from_str("pi://").unwrap();
         let validation = is_pi_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("pi", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!(
@@ -658,8 +638,8 @@ mod tests {
 
         let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
         let validation = is_pi_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("pi", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!("failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"", validation.message.unwrap());
@@ -670,8 +650,8 @@ mod tests {
     async fn test_is_pi_backfill_valid() {
         let dsn = Dsn::from_str("pibackfill://").unwrap();
         let validation = is_pi_backfill_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("pibackfill", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!(
@@ -681,8 +661,8 @@ mod tests {
 
         let dsn = Dsn::from_str("pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
         let validation = is_pi_backfill_valid(&dsn).await;
-        assert_eq!(false, validation.valid);
-        assert_eq!(false, validation.support);
+        assert!(!validation.valid);
+        assert!(!validation.support);
         assert_eq!("pibackfill", validation.data_source);
         assert_eq!(None, validation.version);
         assert_eq!("failed to connect to dsn: pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pibackfill plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi-backfill.exe\"", validation.message.unwrap());

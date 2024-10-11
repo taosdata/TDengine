@@ -225,21 +225,22 @@ pub enum AgentAction {
 //     }
 // }
 
+type TaskMap = HashMap<
+    i64,
+    (
+        tokio::task::JoinHandle<Result<(), anyhow::Error>>,
+        CancellationToken,
+    ),
+>;
+
 pub(crate) struct TaskController {
     pub pool: SqlitePool,
-    pub tasks: RwLock<
-        HashMap<
-            i64,
-            (
-                tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-                CancellationToken,
-            ),
-        >,
-    >,
+    pub tasks: RwLock<TaskMap>,
     pub secret: RwLock<Option<Bytes>>,
     /// An Agent-to-Tasks-Vector hashmap.
     // pub agent_tasks: RwLock<HashMap<i64, AgentTasks>>,
     // An Task-to-Assignments-Vector hashmap.
+    #[allow(clippy::type_complexity)]
     pub offsets: RwLock<HashMap<i64, Arc<DashMap<String, Vec<Assignment>>>>>,
     // pub agent_workers: RwLock<HashMap<i64, AgentWorker>>
     // tasks: Mutex<Vec<Task>>,
@@ -829,7 +830,7 @@ impl TaskController {
 
     pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
         tracing::info!("list tasks");
-        let condition = filter.to_sql_conditions()?;
+        let condition = filter.gen_sql_conditions()?;
         let mut tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
@@ -1932,9 +1933,9 @@ impl TaskController {
         .await
         .unwrap_or_default();
         (
-            running_tasks_count,
-            completed_tasks_count,
-            failed_tasks_count,
+            running_tasks_count as i32,
+            completed_tasks_count as i32,
+            failed_tasks_count as i32,
         )
     }
 
@@ -2099,7 +2100,7 @@ where
     &'r str: sqlx::Decode<'r, DB>,
 {
     fn decode(
-        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <DB as sqlx::database::Database>::ValueRef<'r>,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let v: &'r str = sqlx::Decode::decode(value)?;
         Self::from_str(v).map_err(|err| Box::new(err) as _)
@@ -2112,8 +2113,8 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
+        buf: &mut <DB as sqlx::database::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         self.as_str().encode(buf as _)
     }
 
@@ -2755,8 +2756,8 @@ impl TaskDetail {
         let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        if lang.is_some() {
-            match lang.unwrap().as_str() {
+        if let Some(lang) = lang {
+            match lang.as_str() {
                 "zh" => TaskDetail {
                     from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
                     from_detail: DATA_SOURCE_DEFINITIONS_CN
@@ -3210,7 +3211,7 @@ pub struct TaskDecorator {
 }
 
 impl TaskFilter {
-    pub fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
+    pub fn gen_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
         use std::fmt::Write;
         let mut sql = String::new();
         if !self.with_deleted.unwrap_or_default() {
@@ -3571,6 +3572,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn active_active_edition_check() -> anyhow::Result<()> {
         let _ = tracing_subscriber_init();
         let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;

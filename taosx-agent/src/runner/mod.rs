@@ -19,6 +19,7 @@ use tracing::Instrument;
 
 use crate::agent::Task;
 
+#[allow(clippy::large_enum_variant)]
 pub enum Action {
     Run(Task),
     Stop(i64),
@@ -53,17 +54,19 @@ impl Worker {
     }
 }
 
+type SpawnHandle = (
+    JoinHandle<Result<()>>,
+    Arc<DashMap<i64, Worker>>,
+    flume::Sender<Action>,
+    flume::Receiver<Activity>,
+);
+
 pub fn spawn_runner(
     agent_id: i64,
     endpoint: impl Display,
     token: impl Display,
     sender: flume::Sender<RespAction>,
-) -> (
-    JoinHandle<Result<()>>,
-    Arc<DashMap<i64, Worker>>,
-    flume::Sender<Action>,
-    flume::Receiver<Activity>,
-) {
+) -> SpawnHandle {
     let (tx, rx) = flume::bounded(1);
     let (status_tx, status_rx) = flume::bounded(10);
     let endpoint = endpoint.to_string();

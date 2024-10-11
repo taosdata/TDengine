@@ -590,37 +590,48 @@ def copy_docs_to_explorer(explorer_path):
         if os.path.exists(zh_doc_zip_path):
             unzip_docs(zh_doc_zip_path, zh_doc_public_path)
         else:
-            print(f"WARN: not found docs-{release_info.CustomPrompt}.zip")
+            print(f"ERROR: not found docs-{release_info.CustomPrompt}.zip")
+            sys.exit(1)
     else:
         zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
         zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
         if os.path.exists(zh_doc_zip_path):
             unzip_docs(zh_doc_zip_path, zh_doc_public_path)
         else:
-            print("WARN: not found docs-zh.zip")
+            print("ERROR: not found docs-zh.zip")
+            sys.exit(1)
         en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
         en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
         if os.path.exists(en_doc_zip_path):
             unzip_docs(en_doc_zip_path, en_doc_public_path)
         else:
-            print("WARN: not found docs-en.zip")
+            print("ERROR: not found docs-en.zip")
+            sys.exit(1)
 
 def unzip_docs(doc_zip_path, doc_public_path):
-    if os.path.exists(doc_public_path):
-        shutil.rmtree(doc_public_path)
-    with zipfile.ZipFile(doc_zip_path) as doc_zip_file:
-        doc_zip_file.extractall(doc_public_path)
+    try:
+        if os.path.exists(doc_public_path):
+            shutil.rmtree(doc_public_path)
+        with zipfile.ZipFile(doc_zip_path) as doc_zip_file:
+            doc_zip_file.extractall(doc_public_path)
+    except Exception as e:
+        print(f"ERROR: unzip docs failed: {e}")
+        sys.exit(1)
 
 def update_docs_zip_file(explorer_path):
-    print("update docs zip file")
-    doc_zip_path = os.path.join(explorer_path, "..")
-    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
-        os.system(f"scp root@192.168.0.30:/root/enterprise-docs/docs-{release_info.CustomPrompt}.zip {doc_zip_path}")
-    else:
-        cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
-        cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
-        os.system(cmd1)
-        os.system(cmd2)
+    try:
+        print("update docs zip file")
+        doc_zip_path = os.path.join(explorer_path, "..")
+        if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+            subprocess.run(f"scp root@192.168.0.30:/root/enterprise-docs/docs-{release_info.CustomPrompt}.zip {doc_zip_path}", shell=True)
+        else:
+            cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
+            cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
+            subprocess.run(cmd1, shell=True)
+            subprocess.run(cmd2, shell=True)
+    except Exception as e:
+        print(f"ERROR: update docs zip file failed: {e}")
+        sys.exit(1)
 
 def package():
     if release_info.OS == 'Windows':

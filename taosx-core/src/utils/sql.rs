@@ -12,6 +12,8 @@ use taos::{
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
+use crate::utils;
+
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 const SQL_CURRENT_DATABASE: &str = "select database()";
@@ -109,9 +111,9 @@ async fn test_precision() {
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
     let taos = pool.get().await.unwrap();
     taos.exec_many([
-        "drop database if exists test_min_timestamp",
-        "create database if not exists test_min_timestamp precision 'ns'",
-        "use test_min_timestamp",
+        "drop database if exists test_precision",
+        "create database if not exists test_precision precision 'ns'",
+        "use test_precision",
         "create table if not exists test (ts timestamp, v int)",
         "insert into test values (now(), 1)",
     ])
@@ -119,13 +121,12 @@ async fn test_precision() {
     .unwrap();
     let mut taos = Some(taos);
 
-    let min = chrono::Utc::now();
     let t = get_current_precision(&pool, &mut taos, 0, 0, &CancellationToken::new())
         .await
         .unwrap();
     assert!(t == taos::Precision::Nanosecond);
     taos.unwrap()
-        .exec_many(["drop database if exists test_min_timestamp"])
+        .exec_many(["drop database if exists test_precision"])
         .await
         .unwrap();
 }
@@ -165,7 +166,7 @@ pub async fn get_minimum_timestamp(
                             .unwrap_or((precision, keep.as_str()))
                     })
                     .and_then(|(precision, keep1)| {
-                        parse_duration::parse(keep1).ok().map(|d| (precision, d))
+                        utils::parse_duration(keep1).ok().map(|d| (precision, d))
                     })
                     .map(|(_precision, d)| {
                         chrono::Utc::now() - d
@@ -230,7 +231,7 @@ async fn test_min_timestamp() {
     let t = get_minimum_timestamp(&pool, &mut taos, 0, &CancellationToken::new())
         .await
         .unwrap();
-    assert!(t >= min);
+    assert!(t <= min);
     taos.unwrap()
         .exec_many(["drop database if exists test_min_timestamp"])
         .await
@@ -307,7 +308,7 @@ pub async fn exec_sql_with_connection_retries(
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
                     taos.replace(
-                        reconnect_with_max_retries(pool, max_retries, &cancel)
+                        reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()
                             .await?,
                     );
@@ -543,6 +544,7 @@ pub fn sql_value_escape(value: &str) -> String {
 pub fn sql_max_var_length(batch: &RecordBatch) -> Vec<usize> {
     let mut lengths = vec![0; batch.num_columns()];
 
+    #[allow(clippy::needless_range_loop)]
     for i in 0..batch.num_columns() {
         let array = batch.column(i);
 
@@ -628,26 +630,27 @@ pub fn sql_values_from_record_batch(
                 }
                 cursor
             });
-            cursor.write(&[b'('])?;
+            cursor.write_all(b"(")?;
+            #[allow(clippy::needless_range_loop)]
             for col in 0..batch.num_columns() {
                 let array = &columns[col];
                 if col > 0 {
-                    cursor.write(&[b','])?;
+                    cursor.write_all(b",")?;
                 }
                 if array.is_null(row) {
-                    cursor.write(b"NULL")?;
+                    cursor.write_all(b"NULL")?;
                     continue;
                 }
                 match columns[col].data_type() {
                     arrow_schema::DataType::Null => {
-                        cursor.write(b"NULL")?;
+                        cursor.write_all(b"NULL")?;
                     }
                     arrow_schema::DataType::Boolean => {
                         let array = array
                             .as_any()
                             .downcast_ref::<arrow::array::BooleanArray>()
                             .unwrap();
-                        cursor.write(if array.value(row) { b"true" } else { b"false" })?;
+                        cursor.write_all(if array.value(row) { b"true" } else { b"false" })?;
                     }
                     arrow_schema::DataType::Int8 => {
                         let array = array
@@ -712,7 +715,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -724,7 +727,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -736,7 +739,7 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         let v = array.value(row);
                         if v.is_nan() {
-                            cursor.write(b"NULL")?;
+                            cursor.write_all(b"NULL")?;
                         } else {
                             write!(cursor, "{}", v)?;
                         }
@@ -752,10 +755,10 @@ pub fn sql_values_from_record_batch(
                                     write!(cursor, "{}", array.value(row) * 1000)?;
                                 }
                                 taos::Precision::Microsecond => {
-                                    write!(cursor, "{}", array.value(row) * 1000_000)?;
+                                    write!(cursor, "{}", array.value(row) * 1_000_000)?;
                                 }
                                 taos::Precision::Nanosecond => {
-                                    write!(cursor, "{}", array.value(row) * 1000_000_000)?;
+                                    write!(cursor, "{}", array.value(row) * 1_000_000_000)?;
                                 }
                             }
                         }
@@ -773,7 +776,7 @@ pub fn sql_values_from_record_batch(
                                     write!(cursor, "{}", array.value(row) * 1000)?;
                                 }
                                 taos::Precision::Nanosecond => {
-                                    write!(cursor, "{}", array.value(row) * 1000_000)?;
+                                    write!(cursor, "{}", array.value(row) * 1_000_000)?;
                                 }
                             }
                         }
@@ -803,7 +806,7 @@ pub fn sql_values_from_record_batch(
 
                             match precision {
                                 taos::Precision::Millisecond => {
-                                    write!(cursor, "{}", array.value(row) / 1000_000)?;
+                                    write!(cursor, "{}", array.value(row) / 1_000_000)?;
                                 }
                                 taos::Precision::Microsecond => {
                                     write!(cursor, "{}", array.value(row) / 1000)?;
@@ -852,14 +855,14 @@ pub fn sql_values_from_record_batch(
                             .as_any()
                             .downcast_ref::<arrow::array::StringArray>()
                             .unwrap();
-                        write!(cursor, "{}", sql_value_escaped_fmt(&array.value(row)))?;
+                        write!(cursor, "{}", sql_value_escaped_fmt(array.value(row)))?;
                     }
                     arrow_schema::DataType::LargeUtf8 => {
                         let array = array
                             .as_any()
                             .downcast_ref::<arrow::array::LargeStringArray>()
                             .unwrap();
-                        write!(cursor, "{}", sql_value_escaped_fmt(&array.value(row)))?;
+                        write!(cursor, "{}", sql_value_escaped_fmt(array.value(row)))?;
                     }
                     dt => {
                         return Err(ArrowError::NotYetImplemented(format!(
@@ -868,13 +871,13 @@ pub fn sql_values_from_record_batch(
                     }
                 }
             }
-            cursor.write(b")")?;
+            cursor.write_all(b")")?;
             rows += 1;
             cursor.flush()?;
             if cursor.position() > 900_000 {
                 let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
                 vec.push((values, rows));
-                return Ok((vec, None));
+                Ok((vec, None))
             } else {
                 Ok((vec, Some(cursor)))
             }
@@ -917,11 +920,8 @@ pub fn sql_values_from_record_batch_skip_null(
                 continue;
             }
             let column_data_type = columns[col].data_type();
-            match column_data_type {
-                arrow_schema::DataType::Null => {
-                    continue;
-                }
-                _ => (),
+            if column_data_type == &arrow_schema::DataType::Null {
+                continue;
             }
             insert_col_names.push_str(&col_names[col]);
             match column_data_type {
@@ -1036,11 +1036,11 @@ pub fn sql_values_from_record_batch_skip_null(
                             }
                             taos::Precision::Microsecond => {
                                 insert_col_values
-                                    .push_str(&(array.value(row) * 1000_000).to_string());
+                                    .push_str(&(array.value(row) * 1_000_000).to_string());
                             }
                             taos::Precision::Nanosecond => {
                                 insert_col_values
-                                    .push_str(&(array.value(row) * 1000_000_000).to_string());
+                                    .push_str(&(array.value(row) * 1_000_000_000).to_string());
                             }
                         }
                     }
@@ -1059,7 +1059,7 @@ pub fn sql_values_from_record_batch_skip_null(
                             }
                             taos::Precision::Nanosecond => {
                                 insert_col_values
-                                    .push_str(&(array.value(row) * 1000_000).to_string());
+                                    .push_str(&(array.value(row) * 1_000_000).to_string());
                             }
                         }
                     }
@@ -1090,7 +1090,7 @@ pub fn sql_values_from_record_batch_skip_null(
                         match target_precision {
                             taos::Precision::Millisecond => {
                                 insert_col_values
-                                    .push_str(&(array.value(row) / 1000_000).to_string());
+                                    .push_str(&(array.value(row) / 1_000_000).to_string());
                             }
                             taos::Precision::Microsecond => {
                                 insert_col_values.push_str(&(array.value(row) / 1000).to_string());
@@ -1133,14 +1133,14 @@ pub fn sql_values_from_record_batch_skip_null(
                         .as_any()
                         .downcast_ref::<arrow::array::StringArray>()
                         .unwrap();
-                    insert_col_values.push_str(&sql_value_escape(&array.value(row)));
+                    insert_col_values.push_str(&sql_value_escape(array.value(row)));
                 }
                 arrow_schema::DataType::LargeUtf8 => {
                     let array = array
                         .as_any()
                         .downcast_ref::<arrow::array::LargeStringArray>()
                         .unwrap();
-                    insert_col_values.push_str(&sql_value_escape(&array.value(row)));
+                    insert_col_values.push_str(&sql_value_escape(array.value(row)));
                 }
                 dt => {
                     return Err(ArrowError::NotYetImplemented(format!(
@@ -1163,7 +1163,7 @@ pub fn sql_values_from_record_batch_skip_null(
             sql = String::with_capacity(256);
         }
     }
-    if sql.len() > 0 {
+    if !sql.is_empty() {
         vec.push(sql);
     }
     Ok(vec)
@@ -1175,7 +1175,7 @@ const MAX_SQL_LENGTH: usize = 1_000_000;
 /// 输入是一个元组数组，元组的第一个元素是一个 SQL 片段，只包含 insert into 后面的部分，第二个元素是记录数， 比如 ("table_name using super_table tags(a int) (c1, c2, c3) values (1,2,3) (4, 5, 6),(7, 8, 9)", 3)
 /// 返回值是一个元组，第一个元素是完整的 SQL 语句，第二个元素是表的数量，第三个元素 SQL 的记录数
 pub fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
-    if slice.len() == 0 {
+    if slice.is_empty() {
         return vec![];
     }
     if let Some(sql) = valid_sql_or_none(slice) {
@@ -1351,7 +1351,7 @@ mod tests {
                     stable = stable,
                     i = i
                 ));
-                sql.push_str(&values);
+                sql.push_str(values);
             }
 
             let n = taos.exec(&sql).await.unwrap();

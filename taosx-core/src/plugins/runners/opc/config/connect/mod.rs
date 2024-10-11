@@ -18,12 +18,12 @@ impl ConnectConfig {
         let opc_type = OpcType::from_dsn(dsn)?;
         let connect_config = match opc_type {
             OpcType::OPCUA => Self {
-                ua: Some(UaConnectConfig::from_dsn(&dsn)?),
+                ua: Some(UaConnectConfig::from_dsn(dsn)?),
                 da: None,
             },
             OpcType::OPCDA => Self {
                 ua: None,
-                da: Some(DaConnectConfig::from_dsn(&dsn)?),
+                da: Some(DaConnectConfig::from_dsn(dsn)?),
             },
             OpcType::FAKE => Self { ua: None, da: None },
         };

@@ -29,53 +29,48 @@ pub struct Regex {
 
 #[derive(Debug)]
 enum ExtractRule<'a> {
-    ByCaptureNames(Vec<&'a str>),
-    ByCaptureLocations(usize),
-    ByRegexMatch,
+    CaptureNames(Vec<&'a str>),
+    CaptureLocations(usize),
+    RegexMatch,
 }
 
 impl ExtractRule<'_> {
     fn schema(&self, name: &str) -> Schema {
         match self {
-            ExtractRule::ByCaptureNames(names) => {
+            ExtractRule::CaptureNames(names) => {
                 let fields = names
                     .iter()
                     .map(|name| Field::new(*name, DataType::Utf8, true))
                     .collect_vec();
                 Schema::new(fields)
             }
-            ExtractRule::ByCaptureLocations(n) => {
+            ExtractRule::CaptureLocations(n) => {
                 let fields = (0..*n)
-                    .map(|i| Field::new(&format!("{}{}", name, i), DataType::Utf8, true))
+                    .map(|i| Field::new(format!("{}{}", name, i), DataType::Utf8, true))
                     .collect_vec();
                 Schema::new(fields)
             }
-            ExtractRule::ByRegexMatch => Schema::new(vec![Field::new(name, DataType::Utf8, true)]),
+            ExtractRule::RegexMatch => Schema::new(vec![Field::new(name, DataType::Utf8, true)]),
         }
     }
 }
 impl Regex {
     fn extract_rule(&self) -> ExtractRule {
-        let names = self
-            .regex
-            .capture_names()
-            .flatten()
-            .map(|s| s)
-            .collect_vec();
+        let names = self.regex.capture_names().flatten().collect_vec();
         dbg!(&names);
-        if names.len() > 0 {
+        if !names.is_empty() {
             // TODO: extract by capture names
-            return ExtractRule::ByCaptureNames(names);
+            return ExtractRule::CaptureNames(names);
         }
         // capture len is the number of capture groups + 1
         let caps = self.regex.captures_len();
         if caps > 1 {
             // TODO: extract by capture locations
-            return ExtractRule::ByCaptureLocations(caps);
+            return ExtractRule::CaptureLocations(caps);
         }
         // TODO: extract by regex match
 
-        ExtractRule::ByRegexMatch
+        ExtractRule::RegexMatch
     }
 
     fn to_empty(&self, name: &str) -> RecordBatch {
@@ -130,7 +125,7 @@ impl Parse for Regex {
         let rule = self.extract_rule();
 
         match rule {
-            ExtractRule::ByCaptureNames(names) => {
+            ExtractRule::CaptureNames(names) => {
                 let fields: Vec<_> = names
                     .into_iter()
                     .map(|s| Field::new(s, DataType::Utf8, true))
@@ -161,7 +156,7 @@ impl Parse for Regex {
                         captures_groups.push(None)
                     } else {
                         let value = string_array.value(row_index);
-                        let caps = self.regex.captures(&value).ok_or_else(|| RegexError {
+                        let caps = self.regex.captures(value).ok_or_else(|| RegexError {
                             info: format!("Regex pattern {:?} has no capture groups", self.regex),
                             item: value.to_string(),
                             regex: self.regex.to_string(),
@@ -289,11 +284,11 @@ impl Parse for Regex {
                 let records = RecordBatch::try_from_iter(arrays)?;
                 Ok((records, None))
             }
-            ExtractRule::ByCaptureLocations(caps) => {
+            ExtractRule::CaptureLocations(caps) => {
                 let names = (0..caps)
                     .map(|i| Field::new(format!("{}{}", field.name(), i), DataType::Utf8, true))
                     .collect_vec();
-                let mut arrays = std::iter::repeat_with(|| StringBuilder::new())
+                let mut arrays = std::iter::repeat_with(StringBuilder::new)
                     .take(caps)
                     .collect_vec();
                 for row_index in 0..num_rows {
@@ -303,7 +298,7 @@ impl Parse for Regex {
                         }
                     } else {
                         let value = string_array.value(row_index);
-                        match self.regex.captures(&value) {
+                        match self.regex.captures(value) {
                             Some(caps) => {
                                 for i in 0..caps.len() {
                                     let array = arrays.get_mut(i).unwrap();
@@ -336,14 +331,14 @@ impl Parse for Regex {
                 }
                 Ok((records, None))
             }
-            ExtractRule::ByRegexMatch => {
+            ExtractRule::RegexMatch => {
                 let mut array = StringBuilder::new();
                 for row_index in 0..num_rows {
                     if string_array.is_null(row_index) {
                         array.append_null();
                     } else {
                         let value = string_array.value(row_index);
-                        match self.regex.captures(&value) {
+                        match self.regex.captures(value) {
                             Some(caps) => {
                                 if let Some(cap) = caps.get(0) {
                                     array.append_value(cap.as_str());
@@ -378,7 +373,7 @@ mod tests {
     fn regex_test() {
         let re = Regex {
             regex: regex::Regex::new(r"'(?P<title>[^']+)'\s+\((?P<year>\d{4})\)").unwrap(),
-            select: Some(serde_json::from_str(&r#"["title::nchar(100)", "year::i32"]"#).unwrap()),
+            select: Some(serde_json::from_str(r#"["title::nchar(100)", "year::i32"]"#).unwrap()),
             keep: false,
         };
         let field = Field::new("a", DataType::Utf8, false);

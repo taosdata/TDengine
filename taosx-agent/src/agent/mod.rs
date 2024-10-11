@@ -479,15 +479,12 @@ impl Client {
             }
         }
 
-        let req = FlightDataEncoderBuilder::new()
-            .with_schema(schema)
-            .build(
-                resp_rx
-                    .into_stream()
-                    .enumerate()
-                    .map(|(req_id, action)| Ok(resp_action_to_arrow(action, req_id as _).unwrap())),
-            )
-            .map(|v| v.unwrap());
+        let req = FlightDataEncoderBuilder::new().with_schema(schema).build(
+            resp_rx
+                .into_stream()
+                .enumerate()
+                .map(|(req_id, action)| Ok(resp_action_to_arrow(action, req_id as _).unwrap())),
+        );
         let mut stream = self.client.do_exchange(req).await?;
         while let Some(res) = stream.try_next().await? {
             // dbg!(&res);

@@ -262,7 +262,7 @@ impl Export {
         };
 
         for user in &self.users {
-            if let Err(err) = conn.exec_many(&user.to_sqls(true)).await {
+            if let Err(err) = conn.exec_many(user.to_sqls(true)).await {
                 fails
                     .passwords
                     .push(ApplyFail::new(&user.name, format!("{err:#}")));
@@ -271,11 +271,11 @@ impl Export {
             }
         }
         for privilege in &self.privileges {
-            if let Err(err) = conn.exec(&privilege.to_sql()).await {
+            if let Err(err) = conn.exec(privilege.to_sql()).await {
                 fails.privileges.push(ApplyFail::privilege(
                     &privilege.user_name,
                     privilege.target(),
-                    format!("{}", err.message()),
+                    err.message().to_string(),
                 ));
             } else {
                 success.privileges += 1;
@@ -441,6 +441,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_export_import() -> anyhow::Result<()> {
+        use file_guard::Lock;
+        use std::fs::OpenOptions;
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("./tests/migrations.lock")?;
+
+        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+
         let _ = tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::from_default_env()
@@ -495,7 +507,7 @@ mod tests {
             let d2 = users_with_whitelist.get_users_and_privileges(&from).await?;
             assert!(d2.privileges.is_empty(), "Users only with whitelist");
             assert!(
-                d2.users.iter().all(|u| !u.allowed_host.is_none()),
+                d2.users.iter().all(|u| u.allowed_host.is_some()),
                 "Users only with whitelist"
             );
             let privileges_only = super::Options::new(false, true, false);

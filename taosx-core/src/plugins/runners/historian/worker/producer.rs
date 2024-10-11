@@ -101,7 +101,7 @@ mod tests {
         let tasks = consumer.await.unwrap();
 
         assert_eq!(16, tasks.len());
-        let t = tasks.get(0).unwrap();
+        let t = tasks.first().unwrap();
         assert_eq!(
             "2021-08-01T00:00:00+00:00",
             t.begin_datetime.unwrap().to_rfc3339()
@@ -111,7 +111,7 @@ mod tests {
             t.end_datetime.unwrap().to_rfc3339()
         );
         assert_eq!(3, t.tags.len());
-        assert_eq!("tag0", t.tags.get(0).unwrap());
+        assert_eq!("tag0", t.tags.first().unwrap());
         assert_eq!("tag1", t.tags.get(1).unwrap());
         assert_eq!("tag2", t.tags.get(2).unwrap());
     }

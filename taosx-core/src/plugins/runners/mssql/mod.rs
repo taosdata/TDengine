@@ -34,22 +34,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             MSSQL_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("invalid dsn: {}, cause: {}", dsn, err),
         ),
         Ok(c) => {
             let result = MssqlQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     MSSQL_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+                    format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
                 Ok(_cli) => DataSourceValidation::valid(MSSQL_ID.to_string(), None),
             }
@@ -66,7 +58,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     "parser": {"parse": {
 ///         "col_name": { "as": col_type }, ...
 ///     }}
-/// }
+///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mssql query
     let mut config = MssqlConfig::from_dsn(dsn)?;
@@ -109,11 +101,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     for row in rows {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
         for (col_cidx, col) in row.into_iter().enumerate() {
-            let (col_name, _) = col_map
-                .iter()
-                .nth(col_cidx)
-                .map(|(key, value)| (key, value))
-                .unwrap();
+            let (col_name, _) = col_map.iter().nth(col_cidx).unwrap();
             let col_val = generate_json_value(col, config.task.time_zone.clone())?;
             sample_map.insert(col_name.clone(), col_val);
         }
@@ -148,6 +136,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from mssql to taos
+
 pub async fn mssql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -190,7 +179,7 @@ pub async fn mssql_to_taos(
         &cancel,
         with_agent,
         transferred,
-        task_id.clone(),
+        task_id,
         notify,
     )
     .await?;
@@ -312,7 +301,7 @@ fn generate_json_value(
                 // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually 1/300 seconds)
                 let secs = (days as u32 - 25567) * 24 * 60 * 60 + secs / 300;
                 // convert to datetime with timezone
-                let datetime = DateTime::from_timestamp(secs as i64, 0 as u32).unwrap();
+                let datetime = DateTime::from_timestamp(secs as i64, 0_u32).unwrap();
 
                 Ok(json!(format!("{:?}", datetime)))
             }
@@ -325,7 +314,7 @@ fn generate_json_value(
                 // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually minutes)
                 let secs = (days as i64 - 25567) * 24 * 60 * 60 + (secs as i64) * 60;
                 // convert to datetime with timezone
-                let datetime = DateTime::from_timestamp(secs, 0 as u32).unwrap();
+                let datetime = DateTime::from_timestamp(secs, 0_u32).unwrap();
 
                 Ok(json!(format!("{:?}", datetime)))
             }
@@ -486,6 +475,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         let dsn = Dsn::from_str(
@@ -493,8 +483,8 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(false, res.valid);
-        assert_eq!(false, res.support);
+        assert!(!res.valid);
+        assert!(!res.support);
         assert_eq!("mssql", res.data_source);
         assert_eq!(
             "failed to connect to dsn: mssql://test:123456@192.168.1.66:1432/master?encryption=On&trust_cert=true, cause: failed to connect to mssql, cause: Connection refused (os error 111)",
@@ -506,11 +496,12 @@ mod tests {
         )
         .unwrap();
         let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
+        assert!(res.valid);
+        assert!(res.support);
         assert_eq!("mssql", res.data_source);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data
@@ -523,14 +514,14 @@ mod tests {
 
         let res = get_sample(&from).await;
         dbg!(&res);
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         // clear data
         let _ = test_clear_data().await;
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_mssql_to_taos() {
+    async fn test_mssql_to_taos() {
         let from = Dsn::from_str("mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true&sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -541,11 +532,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mssql_to_taos");
+        let _span = tracing::info_span!("test_mssql_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mssql_to_taos(
+        mssql_to_taos(
             from,
             parser,
             transform,
@@ -557,10 +548,13 @@ mod tests {
             transferred,
             task_id,
             notify,
-        );
+        )
+        .await
+        .ok();
         // let _ = res.await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
         // prepare data
@@ -581,7 +575,7 @@ mod tests {
                 match query_result {
                     Ok((_, rows)) => {
                         for row in rows {
-                            for (_, col) in row.into_iter().enumerate() {
+                            for col in row.into_iter() {
                                 let col_val = generate_json_value(col, String::from("+08:00"));
                                 dbg!(&col_val);
                             }

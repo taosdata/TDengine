@@ -37,7 +37,7 @@ impl Iterator for TimeChunks {
                     return None;
                 }
                 self.visited = true;
-                return Some(self.range.clone());
+                Some(self.range)
             }
         }
     }
@@ -68,11 +68,11 @@ impl Iterator for ChunkIter {
         let range = TimeRange::new().start(self.start);
         if chunk_end >= self.end {
             self.start = self.end;
-            return Some(range.end(self.end));
+            Some(range.end(self.end))
         } else {
             let range = range.end(chunk_end);
             self.start = chunk_end;
-            return Some(range.end(chunk_end));
+            Some(range.end(chunk_end))
         }
     }
 }
@@ -86,9 +86,9 @@ mod tests {
         let start = Utc::now();
         let end = start + Duration::seconds(10);
         let unit = Duration::seconds(2);
-        let mut iter = ChunkIter::new(start, end, unit);
+        let iter = ChunkIter::new(start, end, unit);
         let mut chunks = Vec::new();
-        while let Some(chunk) = iter.next() {
+        for chunk in iter {
             chunks.push(chunk);
         }
         dbg!(&chunks);
@@ -100,9 +100,9 @@ mod tests {
         let end = start + Duration::seconds(10);
         let range = TimeRange::new().start(start).end(end);
         let unit = Duration::seconds(2);
-        let mut iter = TimeChunks::new(range, unit);
+        let iter = TimeChunks::new(range, unit);
         let mut chunks = Vec::new();
-        while let Some(chunk) = iter.next() {
+        for chunk in iter {
             chunks.push(chunk);
         }
         dbg!(&chunks);
@@ -113,9 +113,9 @@ mod tests {
         let range = TimeRange::new();
         let range = range.start(Utc::now());
         let unit = Duration::seconds(2);
-        let mut iter = TimeChunks::new(range, unit);
+        let iter = TimeChunks::new(range, unit);
         let mut chunks = Vec::new();
-        while let Some(chunk) = iter.next() {
+        for chunk in iter {
             chunks.push(chunk);
         }
         dbg!(&chunks);

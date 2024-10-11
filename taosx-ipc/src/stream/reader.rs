@@ -511,6 +511,7 @@ impl<R: Read> Deref for IpcReader<R> {
 
 impl<R: Read> IpcReader<R> {
     pub fn new(reader: R) -> Result<Self, ArrowError> {
+        let reader = BufReader::new(reader);
         let reader = StreamReader::try_new(reader, None)?;
         let schema = reader.schema();
         let parser = IpcParser::new(schema);
@@ -630,11 +631,7 @@ impl LushInsertAttrs {
     pub fn to_sql(&self, table_name: Option<&str>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
             let tags = self.tags.as_ref().unwrap();
-            let table = if table_name.is_none() {
-                &self.name
-            } else {
-                table_name.unwrap()
-            };
+            let table = table_name.unwrap_or(&self.name);
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
             let values = tags.iter().map(|(_, value)| value.to_sql_value()).join(",");
             Some(format!(
@@ -1040,8 +1037,8 @@ impl LushMessageInsert {
     /// return (sqls to executes, )
     pub fn generate_insert_sql_from_tablename<'b>(
         &self,
-        data: &Vec<ColumnView>,
-        columns: &'b Vec<String>,
+        data: &[ColumnView],
+        columns: &'b [String],
     ) -> Option<(Vec<String>, HashMap<&'b String, IpcDataType>)> {
         let index = self
             .records
@@ -1620,9 +1617,8 @@ pub fn record_batch_to_column_view(
                     Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
                     Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
                 };
-                let column =
-                    arrow::compute::cast(column, &DataType::Timestamp(precision.clone(), None))
-                        .expect("timestamp to timestamp cast should always success");
+                let column = arrow::compute::cast(column, &DataType::Timestamp(precision, None))
+                    .expect("timestamp to timestamp cast should always success");
                 match precision {
                     arrow::datatypes::TimeUnit::Second => {
                         unreachable!("TDengine does not support second precision")

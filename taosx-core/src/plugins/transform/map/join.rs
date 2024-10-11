@@ -65,8 +65,8 @@ impl ValueBuilder for JoinValueBuilder {
         let values = Arc::new(
             concat_elements_utf8_many(join_columns.iter().collect_vec().as_slice()).map_err(
                 |err| {
-                    let err_msg = format!("failed to join, cause: {}", err.to_string());
-                    ValueBuilderError::JoinError(err_msg)
+                    let err_msg = format!("failed to join, cause: {}", err);
+                    ValueBuilderError::Join(err_msg)
                 },
             )?,
         ) as ArrayRef;

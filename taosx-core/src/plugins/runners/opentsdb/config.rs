@@ -24,7 +24,7 @@ impl OpentsdbConfig {
             opents: ConnectionConfig::from_dsn(dsn)?,
             taosx: Some(TaosxConfig::new(ipc)),
             task: Some(TaskConfig::from_dsn(dsn)?),
-            performance: Some(PerformanceConfig::from_dsn(&dsn)?),
+            performance: Some(PerformanceConfig::from_dsn(dsn)?),
         })
     }
 }
@@ -44,7 +44,7 @@ impl ConnectionConfig {
         let port = dsn
             .addresses
             .first()
-            .and_then(|addr| addr.port.clone())
+            .and_then(|addr| addr.port)
             .ok_or_else(|| anyhow::anyhow!("port is required"))?;
         let protocol = dsn.protocol.as_deref().unwrap_or("http");
         if protocol != "http" && protocol != "https" {

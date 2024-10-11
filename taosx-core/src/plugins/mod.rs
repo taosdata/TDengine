@@ -102,6 +102,7 @@ pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = % mask_dsn(to)))]
+
 pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,
@@ -188,19 +189,19 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
                 .await?;
 
             topics.extend(databases);
-            return Ok(topics);
+            Ok(topics)
         }
         "opc" | "opcua" | "opcda" => {
             // opc
-            return opc_datasets(data).await;
+            opc_datasets(data).await
         }
         "influxdb" => {
             // influxdb
-            return influxdb_datasets(from).await;
+            influxdb_datasets(from).await
         }
         "opentsdb" => {
             // opentsdb
-            return opentsdb_datasets(from).await;
+            opentsdb_datasets(from).await
         }
         _ => Ok(vec![]),
     }

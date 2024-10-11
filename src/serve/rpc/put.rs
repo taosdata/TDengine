@@ -13,7 +13,7 @@ use taoslog::QidManager;
 use taosx_core::utils::trace::Qid;
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
-use zerocopy::{AsBytes as _, FromBytes};
+use zerocopy::FromBytes;
 
 use taosx_core::sink::handle_point_message_init;
 use taosx_core::{
@@ -81,7 +81,6 @@ struct AppMetadata {
 //     let mut cache = IPC_STREAM_CACHE.write().await;
 //     cache.insert(trace_id, channel);
 // }
-
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
     agent_id: i64,
@@ -891,12 +890,11 @@ unsafe impl Send for PutStream {}
 
 fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
     if app_metadata[0] == 0 {
-        return MessageMetadata::ref_from(app_metadata)
+        return MessageMetadata::ref_from_bytes(app_metadata)
             .map(|m| m.qid())
             .unwrap_or_default();
     }
-    let meta_bytes = app_metadata.as_bytes();
-    match serde_json::from_slice::<AppMetadata>(meta_bytes) {
+    match serde_json::from_slice::<AppMetadata>(app_metadata) {
         Ok(app_meta) => app_meta.data_trace_id,
         Err(err) => {
             tracing::error!("parse app metadata error, {}", err);

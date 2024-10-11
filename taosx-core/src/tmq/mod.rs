@@ -8,7 +8,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
-use crate::dsv::DataSourceValidation;
+use crate::{dsv::DataSourceValidation, utils};
 
 pub mod tmq_metric;
 
@@ -106,13 +106,13 @@ pub(crate) enum StopAt {
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum StopAtError {
     #[error(transparent)]
-    DurationParseError(#[from] parse_duration::parse::Error),
+    DurationParse(#[from] fundu::ParseError),
     #[error(transparent)]
-    DateTimeCalculateError(#[from] chrono::OutOfRangeError),
+    DateTimeCalculate(#[from] chrono::OutOfRangeError),
     #[error(transparent)]
-    DateTimeParseError(#[from] chrono::ParseError),
+    DateTimeParse(#[from] chrono::ParseError),
     #[error("rows parse error: {0}")]
-    RowsParseError(#[from] std::num::ParseIntError),
+    RowsParse(#[from] std::num::ParseIntError),
 }
 
 impl FromStr for StopAt {
@@ -124,23 +124,23 @@ impl FromStr for StopAt {
             "" | "0" | "now" => Ok(Self::DateTime(at)),
             s if s.starts_with('-') => {
                 let s = s.trim_start_matches('-');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
-                let duration = chrono::Duration::from_std(duration)
-                    .map_err(StopAtError::DateTimeCalculateError)?;
+                let duration = utils::parse_duration(s).map_err(StopAtError::DurationParse)?;
+                let duration =
+                    chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.sub_assign(duration);
                 Ok(Self::DateTime(at))
             }
             s if s.starts_with('+') => {
                 let s = s.trim_start_matches('+');
-                let duration = parse_duration::parse(s).map_err(StopAtError::DurationParseError)?;
-                let duration = chrono::Duration::from_std(duration)
-                    .map_err(StopAtError::DateTimeCalculateError)?;
+                let duration = utils::parse_duration(s).map_err(StopAtError::DurationParse)?;
+                let duration =
+                    chrono::Duration::from_std(duration).map_err(StopAtError::DateTimeCalculate)?;
                 at.add_assign(duration);
                 Ok(Self::DateTime(at))
             }
             s if s.ends_with("rows") => {
                 let s = s.trim_end_matches("rows");
-                let rows = s.parse().map_err(|err| StopAtError::RowsParseError(err))?;
+                let rows = s.parse().map_err(StopAtError::RowsParse)?;
                 Ok(Self::Rows(rows))
             }
             s => {
@@ -205,17 +205,13 @@ pub(crate) async fn check_tmq_dsn(
             bail!("`msg.consume.excluded` option only support `1`");
         }
         replica = true;
-    } else {
-        if from.get("replica").is_some() {
-            tracing::info!("Active-StandBy mode, set `msg.consume.excluded=1`");
-            from.set("msg.consume.excluded", "1");
-            replica = true;
-        }
+    } else if from.get("replica").is_some() {
+        tracing::info!("Active-StandBy mode, set `msg.consume.excluded=1`");
+        from.set("msg.consume.excluded", "1");
+        replica = true;
     }
-    if replica {
-        if from.get("group.id").is_none() {
-            from.set("group.id", "replica");
-        }
+    if replica && from.get("group.id").is_none() {
+        from.set("group.id", "replica");
     }
 
     let builder = TaosBuilder::from_dsn(&from)?;
@@ -287,7 +283,7 @@ pub(crate) async fn check_tmq_dsn(
     let source_topics = source.topics().await?;
     let mut databases = Vec::new();
     if topics.len() == 1 {
-        let topic = topics.get(0).unwrap();
+        let topic = topics.first().unwrap();
         if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
             databases.push(topic.db_name().to_string());
             let vgroups = source
@@ -324,13 +320,13 @@ pub(crate) async fn check_tmq_dsn(
                     vgroups,
                     table: None,
                     use_table_name: None,
-                    topic_type: TopicType::from_sql(&topic.sql()),
+                    topic_type: TopicType::from_sql(topic.sql()),
                 }],
                 with_meta_delete,
                 with_meta_drop,
             ))
         } else if source
-            .database_exists(&topic)
+            .database_exists(topic)
             .await
             .context(format!("check database exists: {topic}"))?
         {
@@ -647,12 +643,7 @@ pub(crate) async fn check_tmq_dsn(
     } else {
         let found = source_topics
             .iter()
-            .filter(|t| {
-                topics
-                    .iter()
-                    .find(|name| name.as_str() == t.name())
-                    .is_some()
-            })
+            .filter(|t| topics.iter().any(|name| name.as_str() == t.name()))
             .collect_vec();
         let mut out = Vec::new();
         for topic in found {
@@ -689,11 +680,11 @@ pub(crate) async fn check_tmq_dsn(
         }
         if topics.len() == out.len() {
             // ok;
-            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
+            Ok((from, builder, out, with_meta_delete, with_meta_drop))
         } else {
             let invalids = topics
                 .into_iter()
-                .filter(|t| out.iter().find(|topic| topic.name == *t).is_none())
+                .filter(|t| !out.iter().any(|topic| topic.name == *t))
                 .collect_vec();
             for topic in invalids {
                 if !source
@@ -732,7 +723,7 @@ pub(crate) async fn check_tmq_dsn(
                     });
                 }
             }
-            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
+            Ok((from, builder, out, with_meta_delete, with_meta_drop))
         }
     }
 }
@@ -755,7 +746,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             dsn.driver.clone(),
             format!(
                 "invalid dsn: {}, cause: subject is required in tmq dsn",
-                dsn.to_string()
+                dsn
             ),
         );
     }
@@ -768,18 +759,14 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     match validation {
         Err(err) => DataSourceValidation::invalid(
             dsn.driver.clone(),
-            format!(
-                "failed to check dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
+            format!("failed to check dsn: {}, cause: {}", dsn, err),
         ),
         Ok((_dsn, builder, _topics, _, _)) => {
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
                     dsn.driver.clone(),
-                    format!("failed to get server version, cause: {}", err.to_string()),
+                    format!("failed to get server version, cause: {}", err),
                 ),
                 Ok(version) => DataSourceValidation {
                     valid: true,
@@ -842,8 +829,8 @@ mod tests {
         // tmq
         let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
         let dsv = is_tmq_valid(&dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
+        assert!(!dsv.valid);
+        assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!(
             "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
@@ -856,7 +843,7 @@ mod tests {
     async fn test_replica() {
         let dsn = Dsn::from_str("tmq:///db1?replica&with.meta.delete").unwrap();
         let (dsn, _, topics, _, _) = check_tmq_dsn(dsn).await.unwrap();
-        assert_eq!(true, dsn.params.contains_key("msg.consume.excluded"));
+        assert!(dsn.params.contains_key("msg.consume.excluded"));
         assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());
         assert_eq!("replica", dsn.params.get("group.id").unwrap());
         assert_eq!("db1", topics[0].database);
@@ -869,8 +856,8 @@ mod tests {
         let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid")
             .unwrap();
         let dsv = is_tmq_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
+        assert!(dsv.valid);
+        assert!(dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("3.1.1.3", dsv.version.unwrap());
 
@@ -878,8 +865,8 @@ mod tests {
         let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid")
             .unwrap();
         let dsv = is_tmq_valid(&dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
+        assert!(!dsv.valid);
+        assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
 
@@ -888,8 +875,8 @@ mod tests {
             Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid")
                 .unwrap();
         let dsv = is_tmq_valid(&dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
+        assert!(!dsv.valid);
+        assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
     }

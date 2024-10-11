@@ -24,6 +24,7 @@ use arrow::{
     error::ArrowError,
     record_batch::RecordBatch,
 };
+use arrow_compute_ext::RecordBatchExt;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
@@ -84,13 +85,14 @@ impl Pipeline {
         let batch = self
             .parse
             .as_ref()
-            .map(|parse| parse.transform_record_batch(&records))
+            .map(|parse| parse.transform_record_batch(records))
             .transpose()?;
 
         let batch = batch.unwrap_or_else(|| records.clone());
-        let batch = self.mutate.iter().fold(Ok(batch), |batch, mutate| {
-            batch.and_then(|batch| mutate.transform_record_batch(&batch))
-        })?;
+        let batch = self
+            .mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))?;
         if let Some(model) = self.model.as_ref() {
             model.apply(&batch)
         } else {
@@ -117,7 +119,7 @@ impl Pipeline {
                     if columns.is_empty() {
                         return Err(Error::EmptyTableColumns(table.name.clone()));
                     }
-                    for dup in columns.iter().duplicates() {
+                    if let Some(dup) = columns.iter().duplicates().next() {
                         return Err(Error::DuplicatedColumns(dup.clone()));
                     }
                 }
@@ -126,7 +128,7 @@ impl Pipeline {
                     if table.using.as_ref().is_none() {
                         return Err(Error::STableNameRequired);
                     }
-                    for dup in tags.iter().duplicates() {
+                    if let Some(dup) = tags.iter().duplicates().next() {
                         return Err(Error::DuplicatedTags(dup.clone()));
                     }
                 }
@@ -985,8 +987,7 @@ impl FromStr for Parser {
     type Err = ParserError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with('@') {
-            let s = &s[1..];
+        if let Some(s) = s.strip_prefix('@') {
             let s = std::fs::read_to_string(s).map_err(|error| ParserError::IoError {
                 input: s.to_string(),
                 error,
@@ -1008,16 +1009,14 @@ impl Parser {
         Self {
             global: Arc::new(TableOptions::default()),
             parse,
-            mutate: mutate,
-            model: model,
+            mutate,
+            model,
         }
     }
 
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
         let payload = self.parse.as_ref()?.get("payload");
-        if payload.is_none() {
-            return None;
-        }
+        payload?;
         let payload = payload.unwrap();
         match payload {
             FieldParser::Json(json) => {
@@ -1064,12 +1063,12 @@ impl Parser {
         let batch = self
             .parse
             .as_ref()
-            .map(|parse| parse.transform_record_batch(&records))
+            .map(|parse| parse.transform_record_batch(records))
             .transpose()?
             .unwrap_or_else(|| records.clone());
-        self.mutate.iter().fold(Ok(batch), |batch, mutate| {
-            batch.and_then(|batch| mutate.transform_record_batch(&batch))
-        })
+        self.mutate
+            .iter()
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
     }
 
     fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
@@ -1101,7 +1100,7 @@ impl Parser {
         records: &RecordBatch,
         filter_ts: bool,
     ) -> Result<Message, Error> {
-        let batch = self.transform_records(&records)?;
+        let batch = self.transform_records(records)?;
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
@@ -1109,9 +1108,11 @@ impl Parser {
 
         let json_batches = Parser::to_json_valid_batches(&batches);
 
-        let json = arrow::json::writer::record_batches_to_json_rows(
-            json_batches.iter().collect_vec().as_slice(),
-        )?;
+        let json: Vec<_> = json_batches
+            .iter()
+            .map(|batch| batch.to_json_rows())
+            .flatten_ok()
+            .try_collect()?;
 
         let mut data = vec![];
         for table in &self.model {
@@ -1253,7 +1254,7 @@ impl Parser {
         Ok(self
             .parse
             .as_ref()
-            .map(|parse| parse.transform_record_batch(&records))
+            .map(|parse| parse.transform_record_batch(records))
             .transpose()?
             .unwrap_or_else(|| records.clone()))
     }
@@ -1275,7 +1276,7 @@ impl Parser {
                 if columns.is_empty() {
                     return Err(Error::EmptyTableColumns(table.name.clone()));
                 }
-                for dup in columns.iter().duplicates() {
+                if let Some(dup) = columns.iter().duplicates().next() {
                     return Err(Error::DuplicatedColumns(dup.clone()));
                 }
             }
@@ -1284,7 +1285,7 @@ impl Parser {
                 if table.using.as_ref().is_none() {
                     return Err(Error::STableNameRequired);
                 }
-                for dup in tags.iter().duplicates() {
+                if let Some(dup) = tags.iter().duplicates().next() {
                     return Err(Error::DuplicatedTags(dup.clone()));
                 }
             }
@@ -1378,7 +1379,7 @@ impl MessageTableMeta {
                 let column = batch.column_by_name(name)?;
                 column.as_any().downcast_ref::<StringArray>()
             })
-            .and_then(|array| Some(array.value(0)))
+            .map(|array| array.value(0))
     }
 }
 #[derive(Debug)]
@@ -1994,7 +1995,7 @@ impl MessageArrowRecords {
     }
 
     pub fn stable_name(&self) -> Option<&str> {
-        self.table.using.as_ref().map(|s| s.as_str())
+        self.table.using.as_deref()
     }
 
     pub fn table_name(&self) -> &str {
@@ -2115,6 +2116,7 @@ pub trait TransformExt {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error>;
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Invalid written method: {0}")]

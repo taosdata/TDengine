@@ -83,7 +83,7 @@ impl ZFileMan {
                 let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
                 let mut file = ZFile::new(
                     prefix,
-                    self.compression_level.clone(),
+                    self.compression_level,
                     &self.api_version,
                     &self.server_version,
                 )
@@ -128,7 +128,7 @@ impl ZFileMan {
         while let Some(block) = data.fetch_raw_block().await.unwrap() {
             // dbg!(&block);
             writer.write_raw_block(&block).await?;
-            if let Some(view) = block.column_views().get(0) {
+            if let Some(view) = block.column_views().first() {
                 match view {
                     ColumnView::Timestamp(view) => {
                         last_ts = view.iter().last().unwrap();
@@ -149,13 +149,10 @@ impl ZFileMan {
         writer.finish_raw_block().await?;
 
         let mut stop = false;
-        match (stop_at, last_ts) {
-            (Some(stop_at), Some(last_ts)) => {
-                if last_ts.to_datetime_with_tz() >= stop_at {
-                    stop = true;
-                }
+        if let (Some(stop_at), Some(last_ts)) = (stop_at, last_ts) {
+            if last_ts.to_datetime_with_tz() >= stop_at {
+                stop = true;
             }
-            _ => (),
         }
         metrics.add_messages_of_data(1);
         Ok((nrows, stop))
@@ -186,7 +183,7 @@ impl ZFileMan {
         let mut last_ts = None;
 
         while let Some(block) = data.fetch_raw_block().await? {
-            if let Some(view) = block.column_views().get(0) {
+            if let Some(view) = block.column_views().first() {
                 match view {
                     ColumnView::Timestamp(view) => {
                         last_ts = view.iter().last().unwrap();
@@ -207,8 +204,8 @@ impl ZFileMan {
         }
 
         let mut stop = false;
-        match (stop_at, last_ts) {
-            (Some(stop_at), Some(last_ts)) => match stop_at {
+        if let (Some(stop_at), Some(last_ts)) = (stop_at, last_ts) {
+            match stop_at {
                 StopAt::Rows(n) => {
                     if nrows >= *n {
                         stop = true;
@@ -219,8 +216,7 @@ impl ZFileMan {
                         stop = true;
                     }
                 }
-            },
-            _ => (),
+            }
         }
         metrics.add_messages_of_data(1);
         Ok((nrows, stop))
@@ -379,7 +375,7 @@ pub async fn tmq_to_local(
     let (consumers_tx, mut consumers_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let mut files_manager = Vec::new();
-    for (_, topic) in config.topics.iter().enumerate() {
+    for topic in config.topics.iter() {
         if jobs == 0 && topic.vgroups == 0 {
             anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
         }
@@ -421,7 +417,7 @@ pub async fn tmq_to_local(
             writers: Default::default(),
             max_file_size,
             move_to: move_to.clone(),
-            compression_level: compression_level.clone(),
+            compression_level,
         });
         tracing::info!("zfile: {:?}", man);
 
@@ -480,23 +476,19 @@ fn parse_stop_at(dsn: &Dsn) -> Result<Option<StopAt>> {
     dsn.params
         .get("stopAt")
         .map(|s| {
-            StopAt::from_str(&s)
+            StopAt::from_str(s)
                 .map_err(|err| anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", s, err))
         })
         .transpose()
 }
 
 fn parse_max_file_size(dsn: &Dsn) -> Result<Option<u64>> {
-    let max_file_size = dsn
-        .params
-        .get("max.file.size")
-        .map(|s| {
-            if s.is_empty() {
-                return None;
-            }
-            Some(s.to_string())
-        })
-        .flatten();
+    let max_file_size = dsn.params.get("max.file.size").and_then(|s| {
+        if s.is_empty() {
+            return None;
+        }
+        Some(s.to_string())
+    });
 
     max_file_size
         .map(|s| {
@@ -508,16 +500,12 @@ fn parse_max_file_size(dsn: &Dsn) -> Result<Option<u64>> {
 }
 
 fn parse_move_to(dsn: &Dsn) -> Result<Option<PathBuf>> {
-    let move_to = dsn
-        .params
-        .get("move.to")
-        .map(|s| {
-            if s.is_empty() {
-                return None;
-            }
-            Some(s.to_string())
-        })
-        .flatten();
+    let move_to = dsn.params.get("move.to").and_then(|s| {
+        if s.is_empty() {
+            return None;
+        }
+        Some(s.to_string())
+    });
 
     if move_to.is_none() {
         return Ok(None);
@@ -532,16 +520,12 @@ fn parse_move_to(dsn: &Dsn) -> Result<Option<PathBuf>> {
 }
 
 fn parse_compression_level(dsn: &Dsn) -> Result<async_compression::Level> {
-    let level = dsn
-        .params
-        .get("compression.level")
-        .map(|s| {
-            if s.is_empty() {
-                return None;
-            }
-            Some(s.to_string())
-        })
-        .flatten();
+    let level = dsn.params.get("compression.level").and_then(|s| {
+        if s.is_empty() {
+            return None;
+        }
+        Some(s.to_string())
+    });
 
     let level = level.unwrap_or("best".to_string()).to_lowercase();
     match level.as_str() {
@@ -565,12 +549,12 @@ fn new_local_config(from: &Dsn, to: &Dsn, topics: Vec<Topic>) -> LocalConfig {
     let group_id = from
         .params
         .get("group.id")
-        .map(|s| s.clone())
+        .cloned()
         .unwrap_or_else(|| generate_group_id(from, to));
     let client_id = from
         .params
         .get("client.id")
-        .map(|s| s.clone())
+        .cloned()
         .unwrap_or("taosx".to_string());
     LocalConfig::new(topics, group_id, client_id)
 }
@@ -587,6 +571,7 @@ fn generate_group_id(from: &Dsn, to: &Dsn) -> String {
 }
 
 #[instrument(skip_all)]
+
 async fn backup(
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,

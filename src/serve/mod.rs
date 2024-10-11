@@ -87,7 +87,7 @@ pub(super) struct Cli {
 
     /// Grpc listen to ip:port address.
     ///
-    #[clap(short = 'g', long, env = "GRPC")]
+    #[clap(short = 'g', long, env = "TAOSX_GRPC")]
     pub grpc: Option<String>,
 
     /// Database URL.
@@ -513,7 +513,12 @@ impl Cli {
 
         flight
             .serve_with_controller(controller, channel, spawn_sender, monitor)
-            .await?;
+            .await
+            .map_err(|err| {
+                tracing::error!("grpc error: {:?}", err);
+                err
+            })?;
+
         Ok(())
     }
 }

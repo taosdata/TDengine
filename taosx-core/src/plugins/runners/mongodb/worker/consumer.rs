@@ -188,7 +188,7 @@ mod tests {
             .unwrap();
         let mut config = MongoDBConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
-        config.sub_task_id = Some(format!("mig-1"));
+        config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 
         // query for schema
@@ -199,7 +199,7 @@ mod tests {
 
         // consumer
         let config_clone = config.clone();
-        let mut query = MongoDBQuery::try_new(config.connect.clone()).await.unwrap();
+        let query = MongoDBQuery::try_new(config.connect.clone()).await.unwrap();
         let consumer = tokio::spawn(async move {
             Consumer::new(config_clone, schema, query.clone())
                 .consume(rx)

@@ -150,6 +150,9 @@ impl Default for CastOptions<'_> {
 }
 
 impl CastOptions<'_> {
+    /// Create a new cast options.
+    ///
+    /// By default, it is safe to cast and use default timestamp options.
     pub fn new() -> Self {
         Self {
             safe: true,
@@ -157,9 +160,25 @@ impl CastOptions<'_> {
             format_options: FormatOptions::default(),
         }
     }
+
+    /// Set to apply guessing timestamp precision or not.
+    pub fn guess_timestamp_precision(mut self, guess: bool) -> Self {
+        self.timestamp_options.guess_timestamp_precision = guess;
+        self
+    }
+
+    /// Set to use timezone as is or not.
+    ///
+    /// If true, the timezone in the target type will be used. If false, UTC will be used.
+    ///
+    /// Default is true.
+    pub fn use_timezone_as_is(mut self, use_timezone_as_is: bool) -> Self {
+        self.timestamp_options.use_timezone_as_is = use_timezone_as_is;
+        self
+    }
 }
 
-impl<'r, 'a> From<&'r CastOptions<'a>> for arrow::compute::CastOptions<'r> {
+impl<'r> From<&'r CastOptions<'_>> for arrow::compute::CastOptions<'r> {
     fn from(options: &'r CastOptions) -> arrow::compute::CastOptions<'r> {
         arrow::compute::CastOptions {
             safe: options.safe,
@@ -202,7 +221,7 @@ pub fn cast_with_options(
                 let array = arrow::compute::cast(&array, &Timestamp(TimeUnit::Second, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
-                let array = arrow::compute::cast(&array, &Timestamp(unit.clone(), tz))?;
+                let array = arrow::compute::cast(&array, &Timestamp(*unit, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
@@ -243,7 +262,7 @@ pub fn cast_with_options(
                             .flatten()
                             .all(|x| x.iter().all(|c| c.is_ascii_digit()))
                     }
-                    _ => false,
+                    _ => false, // should not happen
                 }
             }
             if all_is_digit(array) {
@@ -252,6 +271,35 @@ pub fn cast_with_options(
                 {
                     // Indicate that the string is timestamp integer.
                     return cast_with_options(array.as_ref(), to_type, cast_options);
+                } else if let Ok(array) =
+                    // Try to cast to utf8 -> int64 -> timestamp.
+                    arrow::compute::cast_with_options(
+                        array,
+                        &Utf8,
+                        &cast_options.into(),
+                    )
+                    .and_then(|array| {
+                        arrow::compute::cast_with_options(&array, &Int64, &cast_options.into())
+                    })
+                    .and_then(|array| cast_with_options(&array, to_type, cast_options))
+                {
+                    return Ok(array);
+                } else if let Ok(array) =
+                    // Try to cast to binary -> utf8 -> int64 -> timestamp.
+                    arrow::compute::cast_with_options(
+                        array,
+                        &Binary,
+                        &cast_options.into(),
+                    )
+                    .and_then(|array| {
+                        arrow::compute::cast_with_options(&array, &Utf8, &cast_options.into())
+                    })
+                    .and_then(|array| {
+                        arrow::compute::cast_with_options(&array, &Int64, &cast_options.into())
+                    })
+                    .and_then(|array| cast_with_options(&array, to_type, cast_options))
+                {
+                    return Ok(array);
                 }
             }
 
@@ -269,14 +317,11 @@ pub fn cast_with_options(
             if cast_options.timestamp_options.guess_timestamp_precision {
                 let array = arrow::compute::cast(
                     &array,
-                    &Timestamp(
-                        guess_precision_in_array(&array).unwrap_or_else(|| unit.clone()),
-                        tz,
-                    ),
+                    &Timestamp(guess_precision_in_array(&array).unwrap_or(*unit), tz),
                 )?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             } else {
-                let array = cast(&array, &Timestamp(unit.clone(), tz))?;
+                let array = cast(&array, &Timestamp(*unit, tz))?;
                 arrow::compute::cast_with_options(&array, to_type, &cast_options.into())
             }
         }
@@ -291,9 +336,44 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_cast_same_type() {
+        let types = [
+            DataType::Int8,
+            DataType::Int16,
+            DataType::Int32,
+            DataType::Int64,
+        ];
+        for t in types.iter() {
+            let array = new_null_array(t, 10);
+            let array = cast(&array, t).unwrap();
+            assert_eq!(array.len(), 10);
+        }
+    }
+    #[test]
+    fn test_empty() {
+        let array = new_null_array(&DataType::Null, 0);
+        let array = cast(
+            &array,
+            &DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        assert_eq!(array.len(), 0);
+    }
+
+    #[test]
+    fn test_null_to_any() {
+        let array = new_null_array(&DataType::Null, 10);
+        let array = cast(
+            &array,
+            &DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        assert_eq!(array.len(), 10);
+    }
+    #[test]
     fn test_int_to_timestamp() {
-        let data = vec![1701325744956, 1701325744956];
-        let array = arrow::array::Int64Array::from(data);
+        let data = vec![1701325744, 1701325744];
+        let array = arrow::array::Int32Array::from(data);
         let array = crate::cast(
             &array,
             &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
@@ -304,8 +384,59 @@ mod test {
             .downcast_ref::<TimestampNanosecondArray>()
             .unwrap();
         dbg!(nanos);
-        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+        assert_eq!(nanos.value(0), 1701325744 * 1000 * 1000 * 1000);
+
+        let cast_options = CastOptions::default()
+            .guess_timestamp_precision(false)
+            .use_timezone_as_is(false);
+        let data = vec![1701325744, 1701325744];
+        let array = arrow::array::Int32Array::from(data);
+        let array = crate::cast_with_options(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+            &cast_options,
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        dbg!(nanos);
+        assert_eq!(nanos.value(0), 1701325744);
         dbg!(array);
+    }
+
+    #[test]
+    fn test_int64_to_timestamp() {
+        let data = vec![1701325744956, 1701325744956];
+        let array = arrow::array::Int64Array::from(data);
+        let new = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = new
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        dbg!(nanos);
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+
+        let cast_options = CastOptions::default()
+            .guess_timestamp_precision(false)
+            .use_timezone_as_is(false);
+        let new = crate::cast_with_options(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+            &cast_options,
+        )
+        .unwrap();
+        let nanos = new
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        dbg!(nanos);
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
     }
 
     #[test]
@@ -321,9 +452,100 @@ mod test {
             .as_any()
             .downcast_ref::<TimestampNanosecondArray>()
             .unwrap();
-        dbg!(nanos);
         assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
-        dbg!(array);
+        dbg!(&array);
+
+        let string = vec!["f1701325744956", "f1701325744956"];
+        let array = arrow::array::StringArray::from(string);
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.nulls().unwrap().into_iter().count(), 2);
+        dbg!(&array);
+
+        let string = vec!["1701325744956", "1701325744956"];
+        let array = arrow::array::LargeStringArray::from(string);
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+        dbg!(&array);
+
+        let string = vec![b"1701325744956".as_slice(), b"1701325744956".as_slice()];
+        let array = arrow::array::BinaryArray::from_vec(string);
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+        dbg!(&array);
+
+        let string = vec![b"1701325744956".as_slice(), b"1701325744956".as_slice()];
+        let array = arrow::array::LargeBinaryArray::from_vec(string);
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+        dbg!(&array);
+
+        let string = vec![b"1701325744956".as_slice(), b"1701325744956".as_slice()];
+        let array = arrow::array::FixedSizeBinaryArray::try_from_iter(string.into_iter()).unwrap();
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1701325744956 * 1000 * 1000);
+        dbg!(&array);
+    }
+
+    #[test]
+    fn test_date32() {
+        let data = vec![1701325744 / (60 * 60 * 24), 1701325744 / (60 * 60 * 24)];
+        let array = arrow::array::Date32Array::from(data);
+        let array = crate::cast(
+            &array,
+            &arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
+        )
+        .unwrap();
+
+        dbg!(&array);
+        assert_eq!(
+            array.data_type(),
+            &DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
+        );
+        let nanos = array
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1701302400 * 1_000_000_000);
     }
     #[test]
     fn test() {
@@ -365,7 +587,7 @@ mod test {
 
     #[test]
     fn bound() {
-        let zero = chrono::NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
+        let zero = chrono::DateTime::from_timestamp(0, 0).expect("zero timestamp");
         let seconds_upper_bound = zero + std::time::Duration::from_secs(LOWER_BOUND_MILLIS as _);
         println!("{:?}", (zero..seconds_upper_bound));
         let millis_lower_bound = zero + std::time::Duration::from_millis(LOWER_BOUND_MILLIS as _);
@@ -380,8 +602,7 @@ mod test {
 
     #[test]
     fn bound_sample() {
-        let zero = chrono::NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
-
+        let zero = chrono::DateTime::from_timestamp(0, 0).unwrap();
         println!("ARROW_CAST_GUESSING_BOUND_YEARS |     Lower Bound     |     Upper Bound    ");
         println!("------------------------------- | ------------------- | -------------------");
         let width: usize = "ARROW_CAST_GUESSING_BOUND_YEARS".len();

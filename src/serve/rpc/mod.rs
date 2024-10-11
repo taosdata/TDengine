@@ -20,7 +20,7 @@ use arrow_flight::{
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
 };
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
@@ -376,6 +376,7 @@ impl FlightServiceImpl {
         rx
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn subscribe_agent_action_flight(
         &self,
         agent_id: AgentId,
@@ -438,7 +439,7 @@ impl FlightServiceImpl {
     }
 
     fn replay_metrics_events_from_agent(metrics_events: MetricsEvents) {
-        for event in metrics_events.events().to_owned() {
+        for event in metrics_events.events().iter().cloned() {
             let labels = event.labels.into_labels();
             match event.operation {
                 taosx_metrics::MetricOperation::IncrementCounter(value) => {
@@ -1114,7 +1115,6 @@ impl FlightService for FlightServiceImpl {
                 Ok(Response::new(Box::pin(futures::stream::iter([Ok(
                     arrow_flight::Result {
                         body: message.into(),
-                        ..Default::default()
                     },
                 )]))))
             }
@@ -1130,6 +1130,13 @@ impl FlightService for FlightServiceImpl {
         _request: Request<Empty>,
     ) -> Result<Response<Self::ListActionsStream>, Status> {
         Err(Status::unimplemented("Implement list_actions"))
+    }
+
+    async fn poll_flight_info(
+        &self,
+        _request: tonic::Request<FlightDescriptor>,
+    ) -> std::result::Result<tonic::Response<PollInfo>, tonic::Status> {
+        Err(Status::unimplemented("Implement poll_flight_info"))
     }
 }
 
@@ -1254,8 +1261,8 @@ impl RpcConfig {
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
-            .max_decoding_message_size(std::usize::MAX)
-            .max_encoding_message_size(std::usize::MAX);
+            .max_decoding_message_size(usize::MAX)
+            .max_encoding_message_size(usize::MAX);
         if let Some(tcp) = self.tcp {
             Server::builder()
                 .max_frame_size(max_frame_size)

@@ -1,4 +1,4 @@
-use crate::get_data_dir;
+use crate::{get_data_dir, utils};
 use std::time::Duration;
 use taos::Dsn;
 
@@ -62,13 +62,7 @@ impl ConnectConfig {
     fn parse_port(dsn: &Dsn) -> anyhow::Result<u16> {
         dsn.addresses
             .first()
-            .map(|addr| {
-                anyhow::Ok(
-                    addr.port
-                        .clone()
-                        .ok_or(anyhow::anyhow!("port is required"))?,
-                )
-            })
+            .map(|addr| anyhow::Ok(addr.port.ok_or(anyhow::anyhow!("port is required"))?))
             .transpose()?
             .ok_or_else(|| anyhow::anyhow!("port is required"))
     }
@@ -88,9 +82,7 @@ impl ConnectConfig {
     }
 
     fn parse_repl_set_name(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("repl_set_name")
-            .map(|repl_set_name| repl_set_name.clone())
+        dsn.params.get("repl_set_name").cloned()
     }
 
     fn parse_local_threshold(dsn: &Dsn) -> anyhow::Result<Duration> {
@@ -98,7 +90,7 @@ impl ConnectConfig {
             .params
             .get("local_threshold")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse local_threshold: {}, cause: {}",
                         s.to_string(),
@@ -120,23 +112,19 @@ impl ConnectConfig {
     }
 
     fn parse_mechanism(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("mechanism")
-            .map(|mechanism| mechanism.clone())
+        dsn.params.get("mechanism").cloned()
     }
 
     fn parse_source(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("source").map(|source| source.clone())
+        dsn.params.get("source").cloned()
     }
 
     fn parse_app_name(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("app_name").map(|app_name| app_name.clone())
+        dsn.params.get("app_name").cloned()
     }
 
     fn parse_compressors(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("compressors")
-            .map(|compressors| compressors.clone())
+        dsn.params.get("compressors").cloned()
     }
 
     fn parse_tls(dsn: &Dsn) -> bool {
@@ -206,8 +194,8 @@ mod tests {
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         assert_eq!("localhost", config.host);
         assert_eq!(27017, config.port);
-        assert_eq!(true, config.load_balanced);
-        assert_eq!(true, config.direct_connection);
+        assert!(config.load_balanced);
+        assert!(config.direct_connection);
         assert_eq!(Some("repl".to_string()), config.repl_set_name);
         assert_eq!(Duration::from_millis(10), config.local_threshold);
         assert_eq!(Some("admin".to_string()), config.username);
@@ -216,7 +204,7 @@ mod tests {
         assert_eq!(Some("admin".to_string()), config.source);
         assert_eq!(Some("appname".to_string()), config.app_name);
         assert_eq!(Some("zstd".to_string()), config.compressors);
-        assert_eq!(true, config.tls);
+        assert!(config.tls);
         assert_eq!(
             Some(get_data_dir().join("./file/ca.pem").display().to_string()),
             config.ca_file_path

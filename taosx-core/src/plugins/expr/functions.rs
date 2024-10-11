@@ -46,14 +46,13 @@ pub fn add_or_set(lhs: Dynamic, rhs: Dynamic) -> Dynamic {
                 } else if lt == TypeId::of::<rhai::INT>() {
                     Dynamic::from(lhs.as_int().unwrap() + rhs.as_int().unwrap())
                 } else if lt == TypeId::of::<ImmutableString>() {
-                    Dynamic::from(format!("{}{}", lhs.to_string(), rhs.to_string()))
+                    Dynamic::from(format!("{}{}", lhs, rhs))
                 } else {
                     Dynamic::UNIT
                 }
             }
-            (lt, rt) if lt == t_s || rt == t_s => {
-                Dynamic::from(format!("{}{}", lhs.to_string(), rhs.to_string()))
-            }
+            (lt, rt) if lt == t_s || rt == t_s => Dynamic::from(format!("{}{}", lhs, rhs)),
+            #[allow(clippy::nonminimal_bool)]
             (lt, rt) if (lt == t_f && rt == t_i) || (rt == t_f && rt == t_i) => {
                 Dynamic::from(lhs.cast::<FLOAT>() + rhs.cast::<FLOAT>())
             }

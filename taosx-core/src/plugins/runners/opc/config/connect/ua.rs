@@ -82,10 +82,7 @@ impl UaConnectConfig {
             .host
             .clone()
             .ok_or(anyhow::anyhow!("host is required"))?;
-        let port = addr
-            .port
-            .clone()
-            .ok_or(anyhow::anyhow!("port is required"))?;
+        let port = addr.port.ok_or(anyhow::anyhow!("port is required"))?;
         let subject = dsn.subject.clone().unwrap_or("".to_string());
         let endpoint = format!("opc.tcp://{}:{}/{}", host, port, subject);
         Ok(endpoint)
@@ -147,8 +144,7 @@ impl UaConnectConfig {
                     return Ok(None);
                 }
 
-                if v.starts_with('@') {
-                    let file_path = &v[1..];
+                if let Some(file_path) = v.strip_prefix('@') {
                     let path = fs::canonicalize(file_path)
                         .map_err(|err| {
                             anyhow::anyhow!("{}: {} not found, cause: {}", key, file_path, err)

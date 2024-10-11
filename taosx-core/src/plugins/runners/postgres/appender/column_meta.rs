@@ -260,7 +260,7 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "UNKNOWN".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().is_err(), true);
+        assert!(column_meta.get_ipc_type().is_err());
     }
 
     #[test]
@@ -445,6 +445,6 @@ mod tests {
             to_arrow_data_type("MACADDR".to_string()).unwrap(),
             DataType::Utf8
         );
-        assert_eq!(to_arrow_data_type("UNKNOWN".to_string()).is_err(), true);
+        assert!(to_arrow_data_type("UNKNOWN".to_string()).is_err());
     }
 }

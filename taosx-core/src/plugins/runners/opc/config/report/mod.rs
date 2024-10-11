@@ -20,15 +20,14 @@ impl ReportConfig {
     }
 
     fn parse_concurrent(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn
-            .get("concurrent")
+        dsn.get("concurrent")
             .or(dsn.get("write_concurrency"))
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("parse concurrent failed, cause: {}", err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()
     }
 
     fn parse_batch_size(dsn: &Dsn) -> anyhow::Result<Option<i64>> {

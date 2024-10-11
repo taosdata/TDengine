@@ -196,7 +196,7 @@ advanced:
     Adjust the parameters related to concurrency setting for reading from data source and  writing into data sink, and error log.
   params:
     - name: workers
-      display: Read Concurreny
+      display: Read Concurrency
       description: The number of threads for reading data from the source. If not set, the default value is the number of CPU cores.
       value: 0
       hint:
@@ -204,7 +204,7 @@ advanced:
         min: 0
         max: 100
     - name: write-concurrency
-      display: Write Concurreny
+      display: Write Concurrency
       description: |
         The overall maximum concurrency for writing to the target database. It cannot be less than the read concurrency, and the default is equal to the read concurrency.
       value: 1

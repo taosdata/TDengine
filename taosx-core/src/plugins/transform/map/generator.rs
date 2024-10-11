@@ -28,7 +28,7 @@ impl ValueBuilder for GeneratorValueBuilder {
             }
             _ => {
                 let msg = format!("generator does not support: {}", self.generator);
-                Err(ValueBuilderError::GeneratorError(msg))
+                Err(ValueBuilderError::Generator(msg))
             }
         }
     }

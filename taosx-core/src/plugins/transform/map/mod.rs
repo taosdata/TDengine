@@ -42,7 +42,7 @@ impl TransformExt for Map {
                 let (field, array) =
                     value
                         .builder
-                        .build_field(&name.as_str(), records, value.r#as.clone())?;
+                        .build_field(name.as_str(), records, value.r#as.clone())?;
                 Ok::<_, ValueBuilderError>((field, array))
             })
             .collect::<Result<Vec<_>, _>>()?
@@ -79,21 +79,22 @@ impl TransformExt for Map {
 }
 
 #[derive(Error, Debug)]
+
 pub enum ValueBuilderError {
     #[error("constant error, cause: {0}")]
-    ConstantError(String),
+    Constant(String),
     #[error("expr error, cause: {0}")]
-    ExprError(String),
+    Expr(String),
     #[error("format error, cause: {0}")]
-    FormatError(String),
+    Format(String),
     #[error("generator error, cause: {0}")]
-    GeneratorError(String),
+    Generator(String),
     #[error("join error, cause: {0}")]
-    JoinError(String),
+    Join(String),
     #[error("sum error, cause: {0}")]
-    SumError(String),
+    Sum(String),
     #[error("datatype cast error, cause: {0}")]
-    CastError(ArrowError),
+    Cast(ArrowError),
 }
 
 /// ValueBuilder is used to build a new column from a record batch.
@@ -124,8 +125,8 @@ trait ValueBuilder {
                 _ => (),
             }
             let ty = ty.arrow_data_type();
-            let array = arrow_cast_guess_precision::cast(&array, &ty)
-                .map_err(ValueBuilderError::CastError)?;
+            let array =
+                arrow_cast_guess_precision::cast(&array, &ty).map_err(ValueBuilderError::Cast)?;
             Ok((Arc::new(Field::new(name, ty, true).with_metadata(m)), array))
         } else {
             Ok((

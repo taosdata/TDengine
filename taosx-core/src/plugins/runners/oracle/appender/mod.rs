@@ -193,7 +193,7 @@ pub fn to_record_batches(
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
-                                .append_value(val.timestamp_nanos_opt().unwrap() as i64);
+                                .append_value(val.timestamp_nanos_opt().unwrap());
                         }
                     }
                 }
@@ -214,7 +214,7 @@ pub fn to_record_batches(
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
-                                .append_value(val_with_tz.timestamp_nanos_opt().unwrap() as i64);
+                                .append_value(val_with_tz.timestamp_nanos_opt().unwrap());
                         }
                     }
                 }
@@ -437,7 +437,7 @@ mod tests {
     }
 
     fn test_insert_data(len: usize) {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -448,7 +448,7 @@ mod tests {
                 let conn = query.get_conn().unwrap();
                 for i in 0..len {
                     let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
-                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                    let _ = conn.execute(sql_insert_data.as_str(), &[]);
                 }
                 let _ = conn.commit();
             }
@@ -459,7 +459,7 @@ mod tests {
     }
 
     fn test_clear_data() {
-        let _ = test_create_table();
+        test_create_table();
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -481,8 +481,8 @@ mod tests {
     #[tokio::test]
     async fn test_to_schema() {
         // prepare data
-        let _ = test_clear_data();
-        let _ = test_insert_data(1);
+        test_clear_data();
+        test_insert_data(1);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -507,14 +507,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[tokio::test]
     async fn test_to_record_batch() {
         // prepare data
-        let _ = test_clear_data();
-        let _ = test_insert_data(3);
+        test_clear_data();
+        test_insert_data(3);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -540,14 +540,14 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[tokio::test]
     async fn test_to_record_batches() {
         // prepare data
-        let _ = test_clear_data();
-        let _ = test_insert_data(7);
+        test_clear_data();
+        test_insert_data(7);
 
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -574,7 +574,7 @@ mod tests {
             }
         }
         // clear data
-        let _ = test_clear_data();
+        test_clear_data();
     }
 
     #[test]

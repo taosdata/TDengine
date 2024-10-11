@@ -1,7 +1,8 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use crate::plugins::config::AdvancedOptions;
 use crate::runners::mongodb::config::connect::ConnectConfig;
+use crate::utils::replace_date_placeholder;
+use crate::{plugins::config::AdvancedOptions, utils};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use core::result::Result::Ok;
 use mongodb::bson::{Bson, Document};
@@ -39,18 +40,14 @@ impl MongoDBConfig {
     }
 
     fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params
-            .get("taskId")
-            .map(|s| {
-                s.parse::<i64>()
-                    .map(Some)
-                    .map_err(|err| {
-                        tracing::warn!("failed to parse taskId: {}, use None", s);
-                        err
-                    })
-                    .unwrap_or(None)
-            })
-            .flatten()
+        dsn.params.get("taskId").and_then(|s| {
+            s.parse::<i64>()
+                .map(Some)
+                .inspect_err(|_err| {
+                    tracing::warn!("failed to parse taskId: {}, use None", s);
+                })
+                .unwrap_or(None)
+        })
     }
 }
 
@@ -87,19 +84,17 @@ impl TaskConfig {
     }
 
     fn parse_database(dsn: &Dsn) -> anyhow::Result<String> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("database")
             .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("database is required"))?)
+            .ok_or_else(|| anyhow::anyhow!("database is required"))
     }
 
     fn parse_collection(dsn: &Dsn) -> anyhow::Result<String> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("collection")
             .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("collection is required"))?)
+            .ok_or_else(|| anyhow::anyhow!("collection is required"))
     }
 
     fn parse_subtable_fields(dsn: &Dsn) -> BTreeMap<String, String> {
@@ -113,19 +108,18 @@ impl TaskConfig {
                     .collect::<BTreeMap<String, String>>();
             }
         }
-        return BTreeMap::new();
+        BTreeMap::new()
     }
 
     fn parse_sql(dsn: &Dsn) -> anyhow::Result<String> {
-        Ok(dsn
-            .params
+        dsn.params
             .get("sql")
             .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("sql is required"))?)
+            .ok_or_else(|| anyhow::anyhow!("sql is required"))
     }
 
     fn parse_sort(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("sort").map(|sort| sort.clone())
+        dsn.params.get("sort").cloned()
     }
 
     fn parse_start(dsn: &Dsn) -> anyhow::Result<DateTime<Utc>> {
@@ -200,7 +194,7 @@ impl TaskConfig {
             .params
             .get("interval")
             .map(|s| {
-                let duration = parse_duration::parse(s).map_err(|err| {
+                let duration = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse interval: {}, cause: {}",
                         s.to_string(),
@@ -225,7 +219,7 @@ impl TaskConfig {
             .params
             .get("delay")
             .map(|s| {
-                let delay = parse_duration::parse(s).map_err(|err| {
+                let delay = utils::parse_duration(s).map_err(|err| {
                     anyhow::anyhow!(
                         "failed to parse delay: {}, cause: {}",
                         s.to_string(),
@@ -268,35 +262,8 @@ impl TaskConfig {
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = self.start.with_timezone(&time_zone);
 
-        let mut database = self.database.clone();
-
-        database = database.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        database = database.replace("${y}", start_tz.format("%y").to_string().as_str());
-        database = database.replace("${m}", start_tz.format("%m").to_string().as_str());
-        database = database.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${b}", start_tz.format("%b").to_string().as_str());
-        database = database.replace("${B}", start_tz.format("%B").to_string().as_str());
-        database = database.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${d}", start_tz.format("%d").to_string().as_str());
-        database = database.replace("${j}", start_tz.format("%j").to_string().as_str());
-        database = database.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${F}", start_tz.format("%F").to_string().as_str());
-        database = database.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        database = database.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        database = database.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        database = database.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        database = database.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        database = database.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(database)
+        // sharding by time
+        anyhow::Ok(replace_date_placeholder(self.database.clone(), start_tz))
     }
 
     pub fn generate_collection(&self) -> anyhow::Result<String> {
@@ -304,41 +271,14 @@ impl TaskConfig {
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = self.start.with_timezone(&time_zone);
 
-        let mut collection = self.collection.clone();
-
-        collection = collection.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        collection = collection.replace("${y}", start_tz.format("%y").to_string().as_str());
-        collection = collection.replace("${m}", start_tz.format("%m").to_string().as_str());
-        collection = collection.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${b}", start_tz.format("%b").to_string().as_str());
-        collection = collection.replace("${B}", start_tz.format("%B").to_string().as_str());
-        collection = collection.replace("${d}", start_tz.format("%d").to_string().as_str());
-        collection = collection.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${j}", start_tz.format("%j").to_string().as_str());
-        collection = collection.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${F}", start_tz.format("%F").to_string().as_str());
-        collection = collection.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        collection = collection.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        collection = collection.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        collection = collection.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        collection = collection.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        collection = collection.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(collection)
+        // sharding by time
+        anyhow::Ok(replace_date_placeholder(self.collection.clone(), start_tz))
     }
 
     pub fn generate_filter(&self) -> anyhow::Result<Document> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
-        let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
+        let end = self.end.unwrap_or(Utc::now());
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
 
         let start_tz = start.with_timezone(&time_zone);
@@ -351,19 +291,19 @@ impl TaskConfig {
 
         if sql.contains("${start_datetime}") && sql.contains("${end_datetime}") {
             let query_start = Bson::DateTime(mongodb::bson::DateTime::from_millis(
-                start_tz.timestamp_millis() as i64,
+                start_tz.timestamp_millis(),
             ));
             let query_end = Bson::DateTime(mongodb::bson::DateTime::from_millis(
-                end_tz.timestamp_millis() as i64,
+                end_tz.timestamp_millis(),
             ));
             sql = sql
                 .replace(
                     "${start_datetime}",
-                    &serde_json::to_string(&query_start).unwrap().as_str(),
+                    serde_json::to_string(&query_start).unwrap().as_str(),
                 )
                 .replace(
                     "${end_datetime}",
-                    &serde_json::to_string(&query_end).unwrap().as_str(),
+                    serde_json::to_string(&query_end).unwrap().as_str(),
                 );
             time_range_exist = true;
         }
@@ -379,11 +319,11 @@ impl TaskConfig {
             sql = sql
                 .replace(
                     "${start_timestamp}",
-                    &serde_json::to_string(&query_start).unwrap().as_str(),
+                    serde_json::to_string(&query_start).unwrap().as_str(),
                 )
                 .replace(
                     "${end_timestamp}",
-                    &serde_json::to_string(&query_end).unwrap().as_str(),
+                    serde_json::to_string(&query_end).unwrap().as_str(),
                 );
             time_range_exist = true;
         }
@@ -443,8 +383,8 @@ mod tests {
         dbg!(&config);
         assert_eq!(config.connect.host, "localhost");
         assert_eq!(config.connect.port, 27017);
-        assert_eq!(config.connect.load_balanced, true);
-        assert_eq!(config.connect.direct_connection, true);
+        assert!(config.connect.load_balanced);
+        assert!(config.connect.direct_connection);
         assert_eq!(config.connect.repl_set_name, Some("repl".to_string()));
         assert_eq!(
             config.connect.local_threshold,
@@ -454,7 +394,7 @@ mod tests {
         assert_eq!(config.connect.source, Some("admin".to_string()));
         assert_eq!(config.connect.app_name, Some("appname".to_string()));
         assert_eq!(config.connect.compressors, Some("zstd".to_string()));
-        assert_eq!(config.connect.tls, true);
+        assert!(config.connect.tls);
         assert_eq!(
             config.connect.ca_file_path,
             Some(get_data_dir().join("./file/ca.pem").display().to_string()),

@@ -180,9 +180,9 @@ impl IpcMetrics {
     }
 }
 
-impl Into<CoreMetrics> for IpcMetrics {
-    fn into(self) -> CoreMetrics {
-        CoreMetrics::IPC(self)
+impl From<IpcMetrics> for CoreMetrics {
+    fn from(val: IpcMetrics) -> Self {
+        CoreMetrics::IPC(val)
     }
 }
 
