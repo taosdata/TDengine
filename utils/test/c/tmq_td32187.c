@@ -74,10 +74,11 @@ static void callFunc(int i, tmq_t* tmq, tmq_list_t* topics) {
       break;
     }
     case 3:
+      taos_free_result(tmqmessage);
       tmqmessage = tmq_consumer_poll(tmq, 5000);
       break;
     case 4:
-      tmq_consumer_close(tmq);
+//      tmq_consumer_close(tmq);
       break;
     case 5:
       tmq_commit_sync(tmq, NULL);
@@ -144,13 +145,20 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       printf("poll message\n");
-      while(cnt < 1000){
-        callFunc(taosRand()%21, tmq, topics);
+      while(cnt < 100){
+        uint32_t i = taosRand()%21;
+        callFunc(i, tmq, topics);
+        callFunc(i, tmq, topics);
         cnt++;
       }
-    } else {
-      break;
+      while(cnt < 300){
+        uint32_t i = taosRand()%21;
+        callFunc(i, tmq, topics);
+        cnt++;
+      }
+      taos_free_result(tmqmessage);
     }
+    break;
   }
 
   code = tmq_consumer_close(tmq);
