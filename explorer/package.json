@@ -14,8 +14,7 @@
     "build:musl": "node version.js && node scripts/oem.js && cargo build --release --target x86_64-unknown-linux-musl",
     "inspect": "vue-cli-service inspect",
     "lint": "eslint --fix --ext  .js,.vue src",
-    "report": "vue-cli-service build --report",
-    "prepare": "husky install"
+    "report": "vue-cli-service build --report"
   },
   "dependencies": {
     "@tdengine/websocket": "=3.0.0",
@@ -73,7 +72,6 @@
     "css-unicode-loader": "^1.0.3",
     "eslint": "^6.8.0",
     "eslint-plugin-vue": "^6.2.2",
-    "husky": "^7.0.4",
     "lint-staged": "8.1.5",
     "sass-loader": "^10.2.0",
     "svg-sprite-loader": "^6.0.7",

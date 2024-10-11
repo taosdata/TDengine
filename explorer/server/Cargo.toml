@@ -23,7 +23,7 @@ anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.2.0"
-sqlx = { version = "0.7", features = ["sqlite", "chrono", "runtime-tokio"] }
+sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio-util = "0.7.10"
 tokio-stream = "0.1.14"
 log = { version = "0.4", features = ["serde"] }
@@ -53,9 +53,7 @@ chrono = "0.4"
 chrono-tz = "0.9.0"
 scc = "2.1.16"
 
-taoslog = { git = "https://github.com/taosdata/taoslog-rs.git", rev = "e69fe96053b74e097fc78859ca058b369aecabe7", features = [
-	"ansi",
-] }
+taoslog = { path = "../../crates/taoslog", features = ["ansi"] }
 http = "0.2.12"
 bitfield = "0.16.1"
 serde_with = "3.9.0"

@@ -23,7 +23,15 @@ fn main() -> shadow_rs::SdResult<()> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir = Path::new(&manifest_dir);
     let readme = manifest_dir.join("README.md");
-    let target_dir = manifest_dir.join("..").join("target");
+
+    // The target directory is $OUT_DIR/../../../=target/:profile
+    let target_dir = out_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
 
     let cus_name = std::env::var("CUS_NAME").unwrap_or(DEFAULT_CUS_NAME.to_string());
     let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or(DEFAULT_CUS_PROMPT.to_string());
