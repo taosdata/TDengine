@@ -20,7 +20,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tglobal.h"
-
+/*
 #if defined(USE_S3)
 
 #include <azure/core.hpp>
@@ -181,12 +181,6 @@ int32_t azCheckCfg() {
   (void)fprintf(stderr, "start to delete object: %s.\n", objectname[0]);
   // code = azDeleteObjectsByPrefix(objectname[0]);
   azDeleteObjectsByPrefix(objectname[0]);
-  /*
-  if (code != 0) {
-    (void)fprintf(stderr, "delete object %s : failed.\n", objectname[0]);
-    TAOS_CHECK_GOTO(code, &lino, _next);
-  }
-  */
   (void)fprintf(stderr, "delete object %s: success.\n\n", objectname[0]);
 
 _next:
@@ -241,25 +235,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     // blobClient.UploadFrom(blobContent, sizeof(blobContent));
     blobClient.UploadFrom(file, offset, size);
     //(void)_azUploadFrom(blobClient, file, offset, size);
-    /*
-        auto blockBlobClient = BlockBlobClient(endpointUrl, sharedKeyCredential);
-
-        // Create some data to upload into the blob.
-        std::vector<uint8_t> data = {1, 2, 3, 4};
-        Azure::Core::IO::MemoryBodyStream stream(data);
-
-        Azure::Response<Models::UploadBlockBlobResult> response = blockBlobClient.Upload(stream);
-
-        Models::UploadBlockBlobResult model = response.Value;
-        std::cout << "Last modified date of uploaded blob: " << model.LastModified.ToString()
-                  << std::endl;
-    */
   } catch (const Azure::Core::RequestFailedException &e) {
-    /*
-    std::cout << "Status Code: " << static_cast<int>(e.StatusCode) << ", Reason Phrase: " << e.ReasonPhrase
-              << std::endl;
-    std::cout << e.what() << std::endl;
-    */
     code = TAOS_SYSTEM_ERROR(EIO);
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);
@@ -299,14 +275,6 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
     options.Range.Value().Offset = offset;
     options.Range.Value().Length = size;
     //}
-    /*
-    if (initialChunkSize.HasValue()) {
-      options.TransferOptions.InitialChunkSize = initialChunkSize.Value();
-    }
-    if (chunkSize.HasValue()) {
-      options.TransferOptions.ChunkSize = chunkSize.Value();
-    }
-    */
 
     auto res = blobClient.DownloadTo(buf, size, options);
     if (check && res.Value.ContentRange.Length.Value() != size) {
@@ -374,7 +342,7 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) { retur
 int32_t azDeleteObjects(const char *object_name[], int nobject) { return 0; }
 
 #else
-
+*/
 int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 
 void azEnd() {}
@@ -399,4 +367,4 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) { retur
 
 int32_t azDeleteObjects(const char *object_name[], int nobject) { return 0; }
 
-#endif
+//#endif

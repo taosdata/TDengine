@@ -1,7 +1,10 @@
 #if(${TD_LINUX})
 aux_source_directory(src AZ_SRC)
 
-add_library(az STATIC ${AZ_SRC})
+#add_library(az STATIC ${AZ_SRC})
+add_library(az STATIC
+  src/az.cpp
+  )
 
 if(${BUILD_S3})
   add_definitions(-DUSE_S3)
