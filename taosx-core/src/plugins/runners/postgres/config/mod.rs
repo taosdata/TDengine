@@ -1,4 +1,5 @@
 use crate::runners::postgres::config::connect::ConnectConfig;
+use crate::utils::replace_date_placeholder;
 use crate::{plugins::config::AdvancedOptions, utils};
 use anyhow::Ok;
 use chrono::{DateTime, Duration, FixedOffset, Utc};
@@ -223,7 +224,7 @@ impl TaskConfig {
 
     pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
         // generate sql
-        let mut sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
 
         // task start time with time zone
         let start = self.start;
@@ -231,33 +232,7 @@ impl TaskConfig {
         let start_tz = start.with_timezone(&time_zone);
 
         // replace the placeholders
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {
@@ -324,33 +299,7 @@ impl TaskConfig {
         }
 
         // sharding by time
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 }
 

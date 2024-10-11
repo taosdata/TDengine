@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use crate::runners::mongodb::config::connect::ConnectConfig;
+use crate::utils::replace_date_placeholder;
 use crate::{plugins::config::AdvancedOptions, utils};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use core::result::Result::Ok;
@@ -261,35 +262,8 @@ impl TaskConfig {
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = self.start.with_timezone(&time_zone);
 
-        let mut database = self.database.clone();
-
-        database = database.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        database = database.replace("${y}", start_tz.format("%y").to_string().as_str());
-        database = database.replace("${m}", start_tz.format("%m").to_string().as_str());
-        database = database.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${b}", start_tz.format("%b").to_string().as_str());
-        database = database.replace("${B}", start_tz.format("%B").to_string().as_str());
-        database = database.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${d}", start_tz.format("%d").to_string().as_str());
-        database = database.replace("${j}", start_tz.format("%j").to_string().as_str());
-        database = database.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        database = database.replace("${F}", start_tz.format("%F").to_string().as_str());
-        database = database.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        database = database.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        database = database.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        database = database.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        database = database.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        database = database.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(database)
+        // sharding by time
+        anyhow::Ok(replace_date_placeholder(self.database.clone(), start_tz))
     }
 
     pub fn generate_collection(&self) -> anyhow::Result<String> {
@@ -297,35 +271,8 @@ impl TaskConfig {
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = self.start.with_timezone(&time_zone);
 
-        let mut collection = self.collection.clone();
-
-        collection = collection.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        collection = collection.replace("${y}", start_tz.format("%y").to_string().as_str());
-        collection = collection.replace("${m}", start_tz.format("%m").to_string().as_str());
-        collection = collection.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${b}", start_tz.format("%b").to_string().as_str());
-        collection = collection.replace("${B}", start_tz.format("%B").to_string().as_str());
-        collection = collection.replace("${d}", start_tz.format("%d").to_string().as_str());
-        collection = collection.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${j}", start_tz.format("%j").to_string().as_str());
-        collection = collection.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        collection = collection.replace("${F}", start_tz.format("%F").to_string().as_str());
-        collection = collection.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        collection = collection.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        collection = collection.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        collection = collection.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        collection = collection.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        collection = collection.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(collection)
+        // sharding by time
+        anyhow::Ok(replace_date_placeholder(self.collection.clone(), start_tz))
     }
 
     pub fn generate_filter(&self) -> anyhow::Result<Document> {
