@@ -692,6 +692,10 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       if (j >= numOfTables) {
         break;
       }
+      if (pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
+        i += 1;
+        continue;
+      }
     }
     if (pBrinBlk->minTbid.suid == pReader->info.suid && pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
       break;
