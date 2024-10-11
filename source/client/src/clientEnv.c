@@ -1094,18 +1094,14 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  * @return
  */
 uint64_t generateRequestId() {
-  static uint64_t hashId = 0;
-  static uint32_t requestSerialId = 0;
+  static uint32_t hashId = 0;
+  static int32_t requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    int32_t code = taosGetSystemUUID32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
-               tstrerror(TAOS_SYSTEM_ERROR(errno)));
-
-    } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
+               tstrerror(code));
     }
   }
 
@@ -1117,7 +1113,7 @@ uint64_t generateRequestId() {
     uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
     if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
-    id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+    id = (((uint64_t)(hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {
       break;
     }
