@@ -1814,7 +1814,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   if (pInfo->pRes->info.rows == 0) {
     return 0;
   }
-
+  blockDataFreeRes((SSDataBlock*)pBlock);
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
 }
