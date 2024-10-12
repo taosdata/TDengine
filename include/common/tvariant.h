@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 // variant, each number/string/field_id has a corresponding struct during parsing sql
+// **NOTE**: if you want to change this struct, please consider the backward compatibility of function top and bottom.
 typedef struct SVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless

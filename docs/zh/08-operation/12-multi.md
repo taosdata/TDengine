@@ -70,7 +70,7 @@ dataDir /mnt/data6 2 0
 
 |参数名称        |   参数含义                                      |
 |:-------------|:-----------------------------------------------|
-|s3EndPoint | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问。例如：http://cos.ap-beijing.myqcloud.com |
+|s3EndPoint | 用户所在地域的 COS 服务域名，支持 http 和 https，bucket 的区域需要与 endpoint 的保持一致，否则无法访问。 |
 |s3AccessKey |冒号分隔的用户 SecretId:SecretKey。例如：AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
 |s3BucketName | 存储桶名称，减号后面是用户注册 COS 服务的 AppId。其中 AppId 是 COS 特有，AWS 和阿里云都没有，配置时需要作为 bucket name 的一部分，使用减号分隔。参数值均为字符串类型，但不需要引号。例如：test0711-1309024725 |
 |s3UploadDelaySec | data 文件持续多长时间不再变动后上传至 s3，单位：秒。最小值：1；最大值：2592000 (30天），默认值 60 秒 |

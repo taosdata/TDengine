@@ -41,7 +41,7 @@
 
 
 #define SET_ERROR_MSG_TMQ(MSG) \
-  if (errstr != NULL) (void)snprintf(errstr, errstrLen, MSG);
+  if (errstr != NULL && errstrLen > 0) (void)snprintf(errstr, errstrLen, MSG);
 
 #define PROCESS_POLL_RSP(FUNC,DATA) \
   SDecoder decoder = {0}; \
@@ -134,6 +134,7 @@ struct tmq_t {
   // poll info
   int64_t pollCnt;
   int64_t totalRows;
+  int8_t  pollFlag;
 
   // timer
   tmr_h       hbLiveTimer;
@@ -287,7 +288,6 @@ typedef struct {
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
 volatile int32_t        tmqInitRes = 0;               // initialize rsp code
 static   SMqMgmt        tmqMgmt = {0};
-static   int8_t         pollFlag = 0;
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
@@ -977,7 +977,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
-  req.pollFlag = atomic_load_8(&pollFlag);
+  req.pollFlag = atomic_load_8(&tmq->pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   if (req.topics == NULL) {
     goto END;
@@ -993,7 +993,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     if (data == NULL) {
       continue;
     }
-    (void)strcpy(data->topicName, pTopic->topicName);
+    tstrncpy(data->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
     data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
     if (data->offsetRows == NULL) {
       continue;
@@ -1057,7 +1057,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   if (code != 0) {
     tqErrorC("tmqSendHbReq asyncSendMsgToServer failed");
   }
-  (void)atomic_val_compare_exchange_8(&pollFlag, 1, 0);
+  (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 1, 0);
 
 END:
   tDestroySMqHbReq(&req);
@@ -1126,7 +1126,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     if (pVgEp == NULL) {
       continue;
     }
-    (void)sprintf(vgKey, "%s:%d", pTopic->topicName, pVgEp->vgId);
+    (void)snprintf(vgKey, sizeof(vgKey), "%s:%d", pTopic->topicName, pVgEp->vgId);
     SVgroupSaveInfo* pInfo = taosHashGet(pVgOffsetHashMap, vgKey, strlen(vgKey));
 
     STqOffsetVal offsetNew = {0};
@@ -1187,7 +1187,7 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
           continue;
         }
         char vgKey[TSDB_TOPIC_FNAME_LEN + 22] = {0};
-        (void)sprintf(vgKey, "%s:%d", pTopicCur->topicName, pVgCur->vgId);
+        (void)snprintf(vgKey, sizeof(vgKey), "%s:%d", pTopicCur->topicName, pVgCur->vgId);
 
         char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pVgCur->offsetInfo.endOffset);
@@ -1640,6 +1640,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->status = TMQ_CONSUMER_STATUS__INIT;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
+  pTmq->pollFlag = 0;
 
   // set conf
   tstrncpy(pTmq->clientId, conf->clientId, TSDB_CLIENT_ID_LEN);
@@ -1992,7 +1993,7 @@ END:
   if (pRspWrapper) {
     pRspWrapper->code = code;
     pRspWrapper->pollRsp.vgId = vgId;
-    (void)strcpy(pRspWrapper->pollRsp.topicName, pParam->topicName);
+    tstrncpy(pRspWrapper->pollRsp.topicName, pParam->topicName, TSDB_TOPIC_FNAME_LEN);
     code = taosWriteQitem(tmq->mqueue, pRspWrapper);
     if (code != 0) {
       tmqFreeRspWrapper(pRspWrapper);
@@ -2156,7 +2157,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   }
 
   pParam->refId = pTmq->refId;
-  (void)strcpy(pParam->topicName, pTopic->topicName);
+  tstrncpy(pParam->topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
   pParam->vgId = pVg->vgId;
   pParam->requestId = req.reqId;
 
@@ -2441,7 +2442,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     return NULL;
   }
 
-  (void)atomic_val_compare_exchange_8(&pollFlag, 0, 1);
+  (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 0, 1);
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
