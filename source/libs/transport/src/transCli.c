@@ -3750,6 +3750,7 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     tTrace("failed to get conn from heap cache for key:%s", key);
     return NULL;
   } else {
+    tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
     if (shouldSWitchToOtherConn(pConn, key)) {
       code = balanceConnHeapCache(pConnHeapCache, pConn);
       if (code != 0) {
