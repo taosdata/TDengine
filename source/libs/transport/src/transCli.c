@@ -102,6 +102,7 @@ typedef struct SCliConn {
   void*   heap;  // point to req conn heap
   int32_t heapMissHit;
   int64_t lastAddHeapTime;
+  int8_t  forceDelFromHeap;
 
   uv_buf_t* buf;
   int32_t   bufSize;
@@ -1129,6 +1130,7 @@ static void cliDestroy(uv_handle_t* handle) {
     tDebug("%s conn %p failed to all reqs since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
   }
 
+  conn->forceDelFromHeap = 1;
   code = delConnFromHeapCache(pThrd->connHeapCache, conn);
   if (code != 0) {
     tDebug("%s conn %p failed to del conn from heapcach since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
@@ -1242,7 +1244,7 @@ static void cliHandleException(SCliConn* conn) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
     conn->task = NULL;
   }
-
+  conn->forceDelFromHeap = 1;
   code = delConnFromHeapCache(pThrd->connHeapCache, conn);
   if (code != 0) {
     tError("%s conn %p failed to del conn from heapcach since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
@@ -3881,7 +3883,7 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
     return 0;
   } else {
     int64_t now = taosGetTimestampMs();
-    if (now - p->lastAddHeapTime < 10000) {
+    if (p->forceDelFromHeap == 0 && now - p->lastAddHeapTime < 10000) {
       tTrace("conn %p not added/delete to heap frequently", p);
       return 0;
     }
