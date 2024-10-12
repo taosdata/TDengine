@@ -2556,7 +2556,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           memset(pBuf, 0, sizeof(pBuf));
           code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
           if (code != TSDB_CODE_SUCCESS) {
-            tsnprintf(pBuf, sizeof(pBuf), "NaN");
+            TAOS_UNUSED(tsnprintf(pBuf, sizeof(pBuf), "NaN"));
           }
           len += tsnprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
