@@ -3378,7 +3378,7 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   }
 
   SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &tmp);
-  code = streamStateGetKVByCur_rocksdb(pCur, key, NULL, 0);
+  code = streamStateGetKVByCur_rocksdb(pState, pCur, key, NULL, 0);
   if (code != 0) {
     return code;
   }
@@ -3422,7 +3422,7 @@ void streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
     rocksdb_iter_prev(pCur->iter);
   }
 }
-int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
   if (!pCur) return -1;
   SStateKey  tkey;
   SStateKey* pKtmp = &tkey;
@@ -3438,7 +3438,32 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pVLen != NULL) {
       size_t      vlen = 0;
       const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-      *pVLen = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
+      char*       val = NULL;
+      int32_t     len = valueDecode((void*)valStr, vlen, NULL, (char**)val);
+      if (len <= 0) {
+        taosMemoryFree(val);
+        return -1;
+      }
+
+      char*  tVal = val;
+      size_t tVlen = len;
+
+      if (pVal != NULL) {
+        if (pState != NULL && pState->pResultRowStore.resultRowGet != NULL && pState->pExprSupp != NULL) {
+          int code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, val, len, (char**)&tVal, (size_t*)&tVlen);
+          if (code != 0) {
+            taosMemoryFree(val);
+            return code;
+          }
+          taosMemoryFree(val);
+          *pVal = (char*)tVal;
+        } else {
+          *pVal = (char*)tVal;
+        }
+      } else {
+        taosMemoryFree(val);
+      }
+      *pVLen = (int32_t)tVlen;
     }
 
     *pKey = pKtmp->key;
