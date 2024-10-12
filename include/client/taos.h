@@ -251,6 +251,7 @@ DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
+DLL_EXPORT int         taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
 DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
 DLL_EXPORT int         taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);

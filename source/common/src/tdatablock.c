@@ -2446,9 +2446,11 @@ _error:
   return NULL;
 }
 
-static char* formatTimestamp(char* buf, int32_t bufSize, int64_t val, int precision) {
+static int32_t formatTimestamp(char* buf, size_t cap, int64_t val, int precision) {
   time_t  tt;
   int32_t ms = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
     tt = (time_t)(val / 1000000000);
     ms = val % 1000000000;
@@ -2459,14 +2461,6 @@ static char* formatTimestamp(char* buf, int32_t bufSize, int64_t val, int precis
     tt = (time_t)(val / 1000);
     ms = val % 1000;
   }
-
-  /* comment out as it make testcases like select_with_tags.sim fail.
-    but in windows, this may cause the call to localtime crash if tt < 0,
-    need to find a better solution.
-    if (tt < 0) {
-      tt = 0;
-    }
-    */
 
   if (tt <= 0 && ms < 0) {
     tt--;
@@ -2479,24 +2473,40 @@ static char* formatTimestamp(char* buf, int32_t bufSize, int64_t val, int precis
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
-    return buf;
+  if (taosLocalTime(&tt, &ptm, buf, cap) == NULL) {
+    code =  TSDB_CODE_INTERNAL_ERROR;
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  size_t pos = strftime(buf, bufSize, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = strftime(buf, cap, "%Y-%m-%d %H:%M:%S", &ptm);
+  if (pos == 0) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+  int32_t nwritten = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
-    sprintf(buf + pos, ".%09d", ms);
+    nwritten = snprintf(buf + pos, cap - pos, ".%09d", ms);
   } else if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", ms);
+    nwritten = snprintf(buf + pos, cap - pos, ".%06d", ms);
   } else {
-    sprintf(buf + pos, ".%03d", ms);
+    nwritten = snprintf(buf + pos, cap - pos, ".%03d", ms);
   }
 
-  return buf;
+  if (nwritten >= cap - pos) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 // for debug
 int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+  int32_t lino = 0;
   int32_t size = 2048 * 1024;
   int32_t code = 0;
   char*   dumpBuf = NULL;
@@ -2530,6 +2540,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       if (pColInfoData == NULL) {
         code = terrno;
+        lino = __LINE__;
         goto _exit;
       }
 
@@ -2543,7 +2554,10 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
-          (void)formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
+          code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
+          if (code != TSDB_CODE_SUCCESS) {
+            snprintf(pBuf, sizeof(pBuf), "NaN");
+          }
           len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
@@ -2609,6 +2623,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
+            lino = __LINE__;
             goto _exit;
           } else { // reset the length value
             code = TSDB_CODE_SUCCESS;
@@ -2629,7 +2644,7 @@ _exit:
     *pDataBuf = dumpBuf;
     dumpBuf = NULL;
   } else {
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     if (dumpBuf) {
       taosMemoryFree(dumpBuf);
     }
@@ -2860,27 +2875,98 @@ _end:
   return code;
 }
 
-void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId) {
-  char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  if (stbName == NULL){
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
-  }else{
+// Construct the child table name in the form of <ctbName>_<stbName>_<groupId> and store it in `ctbName`.
+// If the name length exceeds TSDB_TABLE_NAME_LEN, first convert <stbName>_<groupId> to an MD5 value and then
+// concatenate. If the length is still too long, convert <ctbName> to an MD5 value as well.
+int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  char      tmp[TSDB_TABLE_NAME_LEN] = {0};
+  char*     suffix = tmp;
+  size_t    suffixCap = sizeof(tmp);
+  size_t    suffixLen = 0;
+  size_t    prefixLen = 0;
+  T_MD5_CTX context;
+
+  if (ctbName == NULL || cap < TSDB_TABLE_NAME_LEN) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  prefixLen = strlen(ctbName);
+
+  if (stbName == NULL) {
+    suffixLen = snprintf(suffix, suffixCap, "%" PRIu64, groupId);
+    if (suffixLen >= suffixCap) {
+      code = TSDB_CODE_INTERNAL_ERROR;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+  } else {
     int32_t i = strlen(stbName) - 1;
-    for(; i >= 0; i--){
-      if (stbName[i] == '.'){
+    for (; i >= 0; i--) {
+      if (stbName[i] == '.') {
         break;
       }
     }
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName + i + 1, groupId);
-  }
-
-  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
-  (void)strcat(ctbName, tmp);
-  for(int i = 0; i < strlen(ctbName); i++){
-    if(ctbName[i] == '.'){
-      ctbName[i] = '_';
+    suffixLen = snprintf(suffix, suffixCap, "%s_%" PRIu64, stbName + i + 1, groupId);
+    if (suffixLen >= suffixCap) {
+      suffixCap = suffixLen + 1;
+      suffix = taosMemoryMalloc(suffixCap);
+      TSDB_CHECK_NULL(suffix, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      suffixLen = snprintf(suffix, suffixCap, "%s_%" PRIu64, stbName + i + 1, groupId);
+      if (suffixLen >= suffixCap) {
+        code = TSDB_CODE_INTERNAL_ERROR;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
     }
   }
+
+  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
+    // If the name length exceeeds the limit, convert the suffix to MD5 value.
+    tMD5Init(&context);
+    tMD5Update(&context, (uint8_t*)suffix, suffixLen);
+    tMD5Final(&context);
+    suffixLen = snprintf(suffix, suffixCap, "%016" PRIx64 "%016" PRIx64, *(uint64_t*)context.digest,
+                         *(uint64_t*)(context.digest + 8));
+    if (suffixLen >= suffixCap) {
+      code = TSDB_CODE_INTERNAL_ERROR;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
+    // If the name is still too long, convert the ctbName to MD5 value.
+    tMD5Init(&context);
+    tMD5Update(&context, (uint8_t*)ctbName, prefixLen);
+    tMD5Final(&context);
+    prefixLen = snprintf(ctbName, cap, "t_%016" PRIx64 "%016" PRIx64, *(uint64_t*)context.digest,
+                         *(uint64_t*)(context.digest + 8));
+    if (prefixLen >= cap) {
+      code = TSDB_CODE_INTERNAL_ERROR;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  ctbName[prefixLen] = '_';
+  tstrncpy(&ctbName[prefixLen + 1], suffix, cap - prefixLen - 1);
+
+  for (char* p = ctbName; *p; ++p) {
+    if (*p == '.') *p = '_';
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (suffix != tmp) {
+    taosMemoryFree(suffix);
+  }
+  return code;
 }
 
 // auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
