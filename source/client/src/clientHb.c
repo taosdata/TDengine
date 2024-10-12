@@ -772,7 +772,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     SUserAuthVersion *qUserAuth =
         (SUserAuthVersion *)taosMemoryRealloc(pKv->value, (userNum + 1) * sizeof(SUserAuthVersion));
     if (qUserAuth) {
-      (void)strncpy((qUserAuth + userNum)->user, pTscObj->user, TSDB_USER_LEN);
+      tstrncpy((qUserAuth + userNum)->user, pTscObj->user, TSDB_USER_LEN);
       (qUserAuth + userNum)->version = htonl(-1);  // force get userAuthInfo
       pKv->value = qUserAuth;
       pKv->valueLen += sizeof(SUserAuthVersion);

@@ -114,7 +114,7 @@ static void concatStrings(SArray *list, char *buf, int size) {
       db = dot + 1;
     }
     if (i != 0) {
-      (void)strcat(buf, ",");
+      (void)strncat(buf, ",", size - 1 - len);
       len += 1;
     }
     int ret = snprintf(buf + len, size - len, "%s", db);
@@ -1132,27 +1132,27 @@ static setConfRet taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
     ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
-    strcpy(ret.retMsg, "configuration can only set once");
+    tstrncpy(ret.retMsg, "configuration can only set once", RET_MSG_LENGTH);
     return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL){
     ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
-    strcpy(ret.retMsg, "parse json error");
+    tstrncpy(ret.retMsg, "parse json error", RET_MSG_LENGTH);
     return ret;
   }
 
   int size = cJSON_GetArraySize(root);
   if(!cJSON_IsObject(root) || size == 0) {
     ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
-    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    tstrncpy(ret.retMsg, "json content is invalid, must be not empty object", RET_MSG_LENGTH);
     return ret;
   }
 
   if(size >= 1000) {
     ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
-    strcpy(ret.retMsg, "json object size is too long");
+    tstrncpy(ret.retMsg, "json object size is too long", RET_MSG_LENGTH);
     return ret;
   }
 
@@ -1160,7 +1160,7 @@ static setConfRet taos_set_config_imp(const char *config){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if(!item) {
       ret.retCode = SET_CONF_RET_ERR_INNER;
-      strcpy(ret.retMsg, "inner error");
+      tstrncpy(ret.retMsg, "inner error", RET_MSG_LENGTH);
       return ret;
     }
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){

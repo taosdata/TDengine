@@ -9581,6 +9581,10 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
   SMCreateAnodeReq createReq = {0};
   createReq.urlLen = strlen(pStmt->url) + 1;
+  if (createReq.urlLen > TSDB_ANAL_ANODE_URL_LEN) {
+    return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+  }
+
   createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
   if (createReq.url == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -10815,6 +10819,11 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Group by");
+  }
+
+  if (NULL == pSelect->pWindow && pSelect->hasAggFuncs) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Non window query only support scalar function, aggregate function is not allowed");
   }
 
   return TSDB_CODE_SUCCESS;
