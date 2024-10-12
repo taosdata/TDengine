@@ -3882,7 +3882,7 @@ int32_t transHeapInsert(SHeap* heap, SCliConn* p) {
 int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   // impl later
   if (p->connnected == 0) {
-    transHeapUpdateFailTs(heap, p);
+    TAOS_UNUSED(transHeapUpdateFailTs(heap, p));
   }
 
   if (p->inHeap == 0) {
