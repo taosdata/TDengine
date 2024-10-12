@@ -488,8 +488,10 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
              tstrerror(code));
       return 1;
     } else {
-      tError("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
-             tstrerror(code));
+      if (code != 0) {
+        tDebug("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
+               tstrerror(code));
+      }
     }
     addConnToPool(pThrd->pool, conn);
     return 1;
