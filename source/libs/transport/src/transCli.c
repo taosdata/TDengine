@@ -101,6 +101,7 @@ typedef struct SCliConn {
 
   void*   heap;  // point to req conn heap
   int32_t heapMissHit;
+  int64_t lastAddHeapTime;
 
   uv_buf_t* buf;
   int32_t   bufSize;
@@ -3866,6 +3867,7 @@ int32_t transHeapInsert(SHeap* heap, SCliConn* p) {
 
   heapInsert(heap->heap, &p->node);
   p->inHeap = 1;
+  p->lastAddHeapTime = taosGetTimestampMs();
   p->heap = heap;
   return 0;
 }
@@ -3877,7 +3879,14 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0) {
     tDebug("failed to del conn %p since not in heap", p);
     return 0;
+  } else {
+    int64_t now = taosGetTimestampMs();
+    if (now - p->lastAddHeapTime < 10000) {
+      tDebug("conn %p not added to heap frequently", p);
+      return 0;
+    }
   }
+
   p->inHeap = 0;
   p->reqRefCnt--;
   if (p->reqRefCnt == 0) {
