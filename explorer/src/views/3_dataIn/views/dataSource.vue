@@ -85,6 +85,7 @@
         @expand-change="expandChange"
         @selection-change="handleSelectionChange"
         @cell-click="clickAgent"
+        @sort-change="handleSortChange"
       >
         <el-table-column type="selection" :reserve-selection="true" width="50"> </el-table-column>
         <el-table-column type="expand">
@@ -174,6 +175,8 @@
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
+          sortable
+          :sort-method="getSortMethod('localname')"
           min-width="100"
         >
           <template slot-scope="scope">
@@ -186,12 +189,14 @@
           :label="$t('datasource.type')"
           prop="localtype"
           width="180"
-          :filters="filterMap.type"
+          sortable
+          :sort-method="getSortMethod('localtype')"
+          :filters="dataSourceFilters"
           :filter-method="filterHandler"
         >
           <template slot-scope="scope">
-            <el-tooltip :content="scope.row.localtype" placement="top-start">
-              <span class="nowrap">{{ scope.row.localtype }}</span>
+            <el-tooltip :content="dataSourceMap[scope.row.from_expand.id]" placement="top-start">
+              <span class="nowrap">{{  dataSourceMap[scope.row.from_expand.id] }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -249,8 +254,12 @@
 
         <el-table-column
           :label="$t('datasource.status')"
-          prop="status"
+          prop="statusText"
           min-width="170"
+          sortable
+          :sort-method="getSortMethod('statusText')"
+          :filters="statusFilters"
+          :filter-method="filterHandler"
         >
           <template slot-scope="scope">
             <div
@@ -270,11 +279,11 @@
                   style="max-height: 200px; overflow: auto"
                 ></div>
                 <span style="width: 80px; display: inline-block">{{
-                  handleDSStatus(scope.row.status)
+                  scope.row.statusText
                 }}</span>
               </el-tooltip>
               <span style="width: 80px; display: inline-block" v-else>{{
-                handleDSStatus(scope.row.status)
+                scope.row.statusText
               }}</span>
               <template
                 v-if="
@@ -440,7 +449,7 @@
   </div>
 </template>
 <script>
-import { Message, Switch } from "element-ui";
+import { Message } from "element-ui";
 import {
   getTask,
   refreshTask,
@@ -453,9 +462,11 @@ import {
 } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import Metrics from "../components/metrics.vue";
-import { deepClone, parsinginZone } from "@/utils";
+import { deepClone, parsinginZone, sort } from "@/utils";
+import { getDataSources } from "@/api/explorer/community";
 import { dataInMockData } from "@/const";
 import _ from 'lodash';
+
 export default {
   name: "DataSource",
   components: {},
@@ -483,6 +494,9 @@ export default {
       currentPage: 1,
       total: 10,
       topicList: [],
+      dataSourceFilters: [],
+      dataSourceMap: {},
+      statusFilters: [],
       requestIng: false,
       parsinginZone,
       taskActivities: [],
@@ -567,15 +581,15 @@ export default {
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       this.$parent.setEditID(data.id);
-      if (data.from_detail) {
-        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
+      if (data.from_expand) {
+        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_expand?.id);
         this.$store.commit("app/SET_CURRENT_RESUME", data.trigger?.resume);
         this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
-        let editDdata = deepClone([].concat(data.from_detail));
+        // let editDdata = deepClone([].concat(data.from_detail));
         if (
-          data.from_detail.id == "mqtt" ||
+          data.from_expand.id == "mqtt" ||
           data.from_expand.id == "kafka" ||
           data.from_expand.id == "csv" ||
           data.from_expand.id == "mongodb"
@@ -635,10 +649,10 @@ export default {
               .filter((item) => item.includes("csv_config_file="))[0]
               .split("=")[1]
               .replace("@", "");
-            editDdata[0].datasets.value = "csv_config_file";
+            // editDdata[0].datasets.value = "csv_config_file";
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
           } else {
-            editDdata[0].datasets.value = "select_all_points";
+            // editDdata[0].datasets.value = "select_all_points";
           }
 
           let certfile = dnsarr
@@ -677,11 +691,11 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-        this.$emit("setEditData", editDdata);
+        // this.$emit("setEditData", editDdata);
         // this.$set(this.$parent.uidata,0,editDdata)
         // this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
-        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
+        this.$parent.toggleComponent("", data.from_expand.id, data.id, dbname);
       }
     },
     edit(data, status, iscopy) {
@@ -692,15 +706,15 @@ export default {
       this.$parent.isCopyable = iscopy;
       this.$parent.isViewable = false;
       this.$store.commit("app/SET_CURRENT_EDITID", data.id);
-      if (data.from_detail) {
-        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
+      if (data.from_expand) {
+        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_expand?.id);
         this.$store.commit("app/SET_CURRENT_RESUME", data.trigger?.resume);
         this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
-        let editDdata = deepClone([].concat(data.from_detail));
+        // let editDdata = deepClone([].concat(data.from_detail));
         if (
-          data.from_detail.id == "mqtt" ||
+          data.from_expand.id == "mqtt" ||
           data.from_expand.id == "kafka" ||
           data.from_expand.id == "csv" ||
           data.from_expand.id == "mongodb"
@@ -760,10 +774,10 @@ export default {
               .filter((item) => item.includes("csv_config_file="))[0]
               .split("=")[1]
               .replace("@", "");
-            editDdata[0].datasets.value = "csv_config_file";
+            // editDdata[0].datasets.value = "csv_config_file";
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
           } else {
-            editDdata[0].datasets.value = "select_all_points";
+            // editDdata[0].datasets.value = "select_all_points";
           }
 
           let certfile = dnsarr
@@ -802,13 +816,13 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-        this.$emit("setEditData", editDdata);
+        // this.$emit("setEditData", editDdata);
         // this.$set(this.$parent.uidata,0,editDdata)
         // this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
           "",
-          data.from_detail.id,
+          data.from_expand.id,
           data.id,
           dbname,
           iscopy
@@ -842,9 +856,29 @@ export default {
           return;
         }
         if (result) {
+          this.dataSourceFilters = [];
+          const dataSourceFilterSet = {};
+          this.statusFilters = [];
+          const statusFilterSet = {};
           this.topicList = result.map((item) => {
+            if (!dataSourceFilterSet[item.from_expand.id]) {
+              this.dataSourceFilters.push({
+                value: item.from_expand.id,
+                text: this.dataSourceMap[item.from_expand.id],
+              });
+              dataSourceFilterSet[item.from_expand.id] = true;
+            }
+            if (!statusFilterSet[item.status]) {
+              this.statusFilters.push({
+                value: item.status,
+                text: this.handleDSStatus(item.status),
+              });
+              statusFilterSet[item.status] = true;
+            }
+            
             (item["taskid"] = item.id), (item["localname"] = item.name);
-            item["localtype"] = item.from_detail ? item.from_detail.name : "";
+            item["localtype"] = item.from_expand.id;
+            item["statusText"] = this.handleDSStatus(item.status);
             item["target"] = item.to_expand ? item.to_expand.subject : "";
             item["created_at"] = item.created_at
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
@@ -888,7 +922,7 @@ export default {
             data: result,
             metricsDesc,
             taskId: data.id,
-            type: data.from_detail.id,
+            type: data.from_expand.id,
           },
           config: {
             title: this.$t("dataIn.metrics"),
@@ -995,7 +1029,7 @@ export default {
           1,
           [].concat(result).map((item) => {
             (item["taskid"] = item.id), (item["localname"] = item.name);
-            item["localtype"] = item.from_detail ? item.from_detail.name : "";
+            item["localtype"] = item.from_expand.id;
             item["target"] = item.to_expand ? item.to_expand.subject : "";
             item["created_at"] = item.created_at
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
@@ -1114,6 +1148,73 @@ export default {
     handleSelectionChange(val) {
       this.multipleSelection = val;
     },
+    getSortMethod(prop) {
+      let _this = this;
+      return function (a, b) {
+        let value1 = a[prop];
+        let value2 = b[prop];
+        if (value2 === undefined || value2 === null) {
+          return 1;
+        }
+        if (value1 > value2) {
+          return 1;
+        } else if (value1 < value2) {
+          return -1;
+        } else {
+          if (!_this.sortProps) {
+            return 0;
+          }
+          // let reverse = (_this.sortProps[0] === prop &&_this.sortProps[1] === "ascending");
+          // console.log("reverse:", reverse);
+
+          for (let i = 0; i < _this.sortProps.length; i+=2) {
+            if (prop === _this.sortProps[i]) {
+              continue;
+            }
+            let thisProp = _this.sortProps[i];
+            let thisOrder = _this.sortProps[i+1];
+            let r = sort(a[thisProp], b[thisProp], thisOrder);
+            if (r !== 0) {
+              return r;
+              // return reverse ? r * -1 : r;
+            }
+          }
+          return 0;
+        }
+      };
+    },
+    handleSortChange({prop, order}) {
+      if (!this.sortProps) {
+        this.sortProps = [];
+      }
+
+      // 取消排序
+      if (!order) {
+        this.sortProps = [];
+        return;
+      }
+
+      if (this.sortProps.length === 0) {
+        this.sortProps.push(prop);
+        this.sortProps.push(order);
+        return;
+      }
+
+      if (this.sortProps[0] === prop) {
+        this.sortProps[1] = order;
+        return;
+      }
+
+      let newSortProps = [prop, order];
+      for (let i = 0; i < this.sortProps.length; i+=2) {
+        if (this.sortProps[i] !== prop) {
+          newSortProps.push(this.sortProps[i]);
+          newSortProps.push(this.sortProps[i+1]);
+        }
+      }
+      this.sortProps = newSortProps;
+      console.log("sortProps:", this.sortProps);
+    },
     filterBatchIds(permitStatus) {
       let result = [];
       this.multipleSelection.filter((item) => {
@@ -1217,6 +1318,11 @@ export default {
     }
   },
   mounted() {
+    const ds = getDataSources(this.$i18n.locale);
+    ds.forEach((item) => {
+      this.dataSourceMap[item.id] = item.name;
+    });
+
     this.clearTransformerStore();
     this.$nextTick(() => {
       this.handleResize();
@@ -1311,17 +1417,6 @@ export default {
     border: none !important;
   }
 }
-
-// 配合将 max-height 设置为百分比
-// .data-source {
-//   &:deep(.el-table) {
-//     display: flex;
-//     flex-direction: column;
-//   }
-//   &:deep(.el-table__header-wrapper) {
-//     min-height: 30px;
-//   }
-// }
 
 ::v-deep.el-table td.el-table__cell div {
   word-wrap: break-word;

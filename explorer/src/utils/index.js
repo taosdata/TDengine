@@ -438,6 +438,18 @@ export function parsinginZone(value, format) {
   return momentTimezone(value).tz(timezone).format(format);
 }
 
+export function sort(va, vb, order) {
+  if (va === vb) {
+    return 0;
+  }
+
+  if (order == "ascending") {
+    return va < vb ? -1 : 1;
+  } else {
+    return va > vb ? -1 : 1;
+  }
+}
+
 export function formatTime(time) {
   let timezone = getLocalTimezone();
   let str = moment.tz(timezone).format("Z")
