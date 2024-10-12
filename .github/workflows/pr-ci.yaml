@@ -256,6 +256,7 @@ jobs:
   deploy_with_docker:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [build_rust, build_go, build_java, build_explorer]
+    if: ${{ always() && needs.build_rust.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success' }}
     outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
@@ -312,6 +313,7 @@ jobs:
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: deploy_with_docker
+    if: ${{ always() && needs.deploy_with_docker.result == 'success' }}
     steps:
       - name: Run Test
         run: |
@@ -352,7 +354,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, generate_report]
     # needs: [deploy_with_docker, run_test]
-    if: success()
+    if: ${{ always() && needs.deploy_with_docker.result == 'success' && needs.run_test.result == 'success' && needs.generate_report.result == 'success' }}
     steps:
       - name: Force stop taosx-agent & taosx
         # shell: bash {0}
