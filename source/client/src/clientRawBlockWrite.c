@@ -1984,7 +1984,7 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
         tbInfo info = {0};
 
         RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &info.vgInfo));
-        if (pCreateReqDst) {  // change stable name to get meta
+        if (pCreateReqDst && tmpInfo == NULL) {  // change stable name to get meta
           (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
         }
         RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
@@ -2005,12 +2005,13 @@ static int32_t tmqWriteRawImpl(TAOS* taos, uint16_t type, void* data, int32_t da
           pCreateReqDst->ctb.suid = pTableMeta->suid;
         }
 
-        code = taosHashPut(pNameHash, pName.tname, strlen(pName.tname), &info, sizeof(tbInfo));
-        code = (code == TSDB_CODE_DUP_KEY) ? 0 : code;
-        RAW_RETURN_CHECK(code);
-        code = taosHashPut(pVgHash, &info.vgInfo.vgId, sizeof(info.vgInfo.vgId), &info.vgInfo, sizeof(SVgroupInfo));
-        code = (code == TSDB_CODE_DUP_KEY) ? 0 : code;
-        RAW_RETURN_CHECK(code);
+        RAW_RETURN_CHECK(taosHashPut(pNameHash, pName.tname, strlen(pName.tname), &info, sizeof(tbInfo)));
+        tmpInfo = (tbInfo*)taosHashGet(pNameHash, pName.tname, strlen(pName.tname));
+//        code = (code == TSDB_CODE_DUP_KEY) ? 0 : code;
+//        RAW_RETURN_CHECK(code);
+        RAW_RETURN_CHECK(taosHashPut(pVgHash, &info.vgInfo.vgId, sizeof(info.vgInfo.vgId), &info.vgInfo, sizeof(SVgroupInfo)));
+//        code = (code == TSDB_CODE_DUP_KEY) ? 0 : code;
+//        RAW_RETURN_CHECK(code);
       }
 
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
