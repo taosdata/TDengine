@@ -1280,8 +1280,11 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 }
 
 typedef struct SPartFillExprsCtx {
-  bool hasFillCol;
-  bool hasPseudoCol;
+  bool      hasFillCol;
+  bool      hasPseudoWinCol;
+  bool      hasGroupKeyCol;
+  SHashObj* pPseudoCols;
+  int32_t   code;
 } SPartFillExprsCtx;
 
 static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
@@ -1289,10 +1292,17 @@ static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
-        COLUMN_TYPE_WINDOW_DURATION == pCol->colType || COLUMN_TYPE_GROUP_KEY == pCol->colType) {
-      pCtx->hasPseudoCol = true;
+        COLUMN_TYPE_WINDOW_DURATION == pCol->colType) {
+      pCtx->hasPseudoWinCol = true;
+      pCtx->code = taosHashPut(pCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
+      qInfo("wjm col: %s as window pesudo col", pCol->colName);
+    } else if (COLUMN_TYPE_GROUP_KEY == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType || COLUMN_TYPE_TAG == pCol->colType) {
+      pCtx->hasGroupKeyCol = true;
+      pCtx->code = taosHashPut(pCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
+      qInfo("wjm col: %s as group key or tag", pCol->colName);
     } else {
       pCtx->hasFillCol = true;
+      qInfo("wjm col: %s as fill col", pCol->colName);
       return DEAL_RES_END;
     }
   }
@@ -1303,24 +1313,128 @@ static void needFillValue(SNode* pNode, SPartFillExprsCtx* pCtx) {
   nodesWalkExpr(pNode, needFillValueImpl, pCtx);
 }
 
+bool isNotFillExpr(SNode* pNode, SPartFillExprsCtx* pCtx) {
+  if (pCtx->hasPseudoWinCol) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      return true;
+    }
+    return false;
+  } else if (pCtx->hasGroupKeyCol) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      return true;
+    }
+    return false;
+  } else {
+    return false;
+  }
+}
+
+typedef struct SCollectFillExprsCtx {
+  SHashObj*   pPseudoCols;
+  int32_t     code;
+  SNodeList* pFillExprs;
+  SNodeList* pNotFillExprs;
+} SCollectFillExprsCtx;
+
+static EDealRes collectFillExpr(SNode* pNode, void* pContext) {
+  SCollectFillExprsCtx* pCollectFillCtx = pContext;
+  SPartFillExprsCtx     partFillCtx = {0};
+  SNode*                pNew = NULL;
+  partFillCtx.pPseudoCols = pCollectFillCtx->pPseudoCols;
+  needFillValue(pNode, &partFillCtx);
+  if (partFillCtx.code != TSDB_CODE_SUCCESS) {
+    pCollectFillCtx->code = partFillCtx.code;
+    return DEAL_RES_ERROR;
+  }
+
+  if (partFillCtx.hasFillCol) {
+    pCollectFillCtx->code = nodesCloneNode(pNode, &pNew);
+    if (pCollectFillCtx->code == TSDB_CODE_SUCCESS) {
+      pCollectFillCtx->code = nodesListMakeStrictAppend(&pCollectFillCtx->pFillExprs, pNew);
+    }
+    if (pCollectFillCtx->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  else if (isNotFillExpr(pNode, &partFillCtx)) {
+    return DEAL_RES_CONTINUE;
+    // purly pseudoCol expr, wstart/wend/wduration/group_key/tags
+  } else {
+    // other exprs, const funcs/values/exprs with pesudocols or group_keys
+    // will be calculated by project node
+    // here we need to add those pseudo cols into fill not fill exprs if they are not in it yet
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SCollectFillExprsCtx collectFillCtx = {0};
+  collectFillCtx.pPseudoCols = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!collectFillCtx.pPseudoCols) return terrno;
+
+  // TODO wjm test pSelect->isDistinct == true
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FILL, collectFillExpr, &collectFillCtx);
+  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+    void* pIter = taosHashIterate(collectFillCtx.pPseudoCols, 0);
+    while (pIter) {
+      SNode* pNode = *(SNode**)pIter, *pNew = NULL;
+      collectFillCtx.code = nodesCloneNode(pNode, &pNew);
+      if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+        collectFillCtx.code = nodesListMakeStrictAppend(&collectFillCtx.pNotFillExprs, pNew);
+      }
+      if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+        pIter = taosHashIterate(collectFillCtx.pPseudoCols, pIter);
+      } else {
+        taosHashCancelIterate(collectFillCtx.pPseudoCols, pIter);
+        break;
+      }
+    }
+    if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+      TSWAP(*pFillExprs, collectFillCtx.pFillExprs);
+      TSWAP(*pNotFillExprs, collectFillCtx.pNotFillExprs);
+    }
+  }
+  if (collectFillCtx.code != TSDB_CODE_SUCCESS) {
+    if (collectFillCtx.pFillExprs) nodesDestroyList(collectFillCtx.pFillExprs);
+    if (collectFillCtx.pNotFillExprs) nodesDestroyList(collectFillCtx.pNotFillExprs);
+  }
+  taosHashCleanup(collectFillCtx.pPseudoCols);
+  return code;
+}
+
 static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pProject = NULL;
   FOREACH(pProject, pSelect->pProjectionList) {
     SPartFillExprsCtx ctx = {0};
     needFillValue(pProject, &ctx);
+    char* str = NULL;
+    int32_t len = 0;
     if (ctx.hasFillCol) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pProject, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(pFillExprs, pNew);
       }
-    } else if ((!ctx.hasPseudoCol || nodeType(pProject) == QUERY_NODE_COLUMN) && nodeType(pProject) != QUERY_NODE_VALUE) {
+      //nodesNodeToString(pProject, false, &str, &len);
+      qInfo("wjm expr: %s need fill", str);
+      taosMemoryFreeClear(str);
+      len = 0;
+    } else if (isNotFillExpr(pProject, &ctx)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pProject, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(pNotFillExprs, pNew);
       }
+      //nodesNodeToString(pProject, false, &str, &len);
+      qInfo("wjm expr: %s not fill", str);
+      taosMemoryFreeClear(str);
+      len = 0;
+    } else {
+      //nodesNodeToString(pProject, false, &str, &len);
+      qInfo("wjm expr: %s not project", str);
+      taosMemoryFreeClear(str);
+      len = 0;
     }
     if (TSDB_CODE_SUCCESS != code) {
       NODES_DESTORY_LIST(*pFillExprs);
@@ -1340,7 +1454,7 @@ static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNode
         if (TSDB_CODE_SUCCESS == code) {
           code = nodesListMakeStrictAppend(pFillExprs, pNew);
         }
-      } else if ((!ctx.hasPseudoCol || nodeType(pExpr) == QUERY_NODE_COLUMN) && nodeType(pExpr) != QUERY_NODE_VALUE) {
+      } else if (isNotFillExpr(pExpr, &ctx)) {
         SNode* pNew = NULL;
         code = nodesCloneNode(pExpr, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
@@ -1379,7 +1493,8 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
   pFill->node.inputTsOrder = TSDB_ORDER_ASC;
 
-  code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
+  //code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
+  code = collectFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pFill->pFillExprs, pSelect, SQL_CLAUSE_FILL, NULL);
   }
