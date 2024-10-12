@@ -3816,11 +3816,11 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
 static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   if (pConn->heap != NULL && pConn->inHeap != 0) {
     SHeap* heap = pConn->heap;
-    tTrace("conn %p'heap may should do balance, numOfConn:%d", pConn, heap->heap->nelts);
+    tTrace("conn %p'heap may should do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
     int64_t now = taosGetTimestampMs();
     if (((now - heap->lastUpdateTs) / 1000) > 30) {
       heap->lastUpdateTs = now;
-      tTrace("conn %p'heap do balance, numOfConn:%d", pConn, heap->heap->nelts);
+      tTrace("conn %p'heap do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
       return transHeapBalance(pConn->heap, pConn);
     }
   }
