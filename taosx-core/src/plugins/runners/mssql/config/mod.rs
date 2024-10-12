@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::runners::mssql::config::connect::ConnectConfig;
+use crate::utils::replace_date_placeholder;
 use crate::{plugins::config::AdvancedOptions, utils};
 use anyhow::Ok;
 use chrono::{DateTime, Duration, FixedOffset, Utc};
@@ -224,7 +225,7 @@ impl TaskConfig {
 
     pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
         // generate sql
-        let mut sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
 
         // task start time with time zone
         let start = self.start;
@@ -232,33 +233,7 @@ impl TaskConfig {
         let start_tz = start.with_timezone(&time_zone);
 
         // replace the placeholders
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {
@@ -325,33 +300,7 @@ impl TaskConfig {
         }
 
         // sharding by time
-        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
-        sql = sql.replace(
-            "${M}",
-            start_tz.format("%m").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
-        sql = sql.replace(
-            "${D}",
-            start_tz.format("%d").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
-        sql = sql.replace(
-            "${J}",
-            start_tz.format("%j").to_string().trim_start_matches("0"),
-        );
-        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
-        anyhow::Ok(sql)
+        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
     }
 }
 
@@ -426,8 +375,8 @@ mod tests {
         let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
-        assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("'2021-01-01 00:00:00+08:00'"));
+        assert!(sql.contains("'2021-01-02 06:00:00+08:00'"));
 
         // use {time} and cross days
         let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
@@ -435,7 +384,7 @@ mod tests {
         let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("STR_TO_DATE('00:00:00','%H:%i:%s')"));
-        assert!(sql.contains("<'24:00:00'"));
+        assert!(sql.contains("'00:00:00+08:00'"));
+        assert!(sql.contains("<'23:59:59.9999999+08:00'"));
     }
 }

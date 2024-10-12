@@ -475,6 +475,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         let dsn = Dsn::from_str(
@@ -500,6 +501,7 @@ mod tests {
         assert_eq!("mssql", res.data_source);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data
@@ -552,6 +554,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
         // prepare data

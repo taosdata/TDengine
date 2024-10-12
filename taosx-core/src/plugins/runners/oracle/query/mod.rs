@@ -115,12 +115,6 @@ impl OracleQuery {
         sql: &str,
     ) -> anyhow::Result<LinkedHashMap<String, OracleType>> {
         let conn = self.get_conn()?;
-        // modify session timezone
-        let _ = conn.execute(
-            format!("ALTER SESSION SET TIME_ZONE='{}'", self.time_zone).as_str(),
-            &[],
-        )?;
-        conn.commit()?;
         // select data
         let result = conn.query(sql, &[]);
         let mut col_map = LinkedHashMap::new();
@@ -307,6 +301,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[test]
     fn test_connect() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1");
@@ -317,6 +312,7 @@ mod tests {
         assert!(query.get_conn().is_ok());
     }
 
+    #[ignore]
     #[test]
     fn test_select_distinct_values() {
         // prepare data
@@ -336,6 +332,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[test]
     fn test_select_for_schema() {
         // prepare data
@@ -367,6 +364,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[test]
     fn test_select_all() {
         // prepare data
@@ -399,6 +397,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[test]
     fn test_select_all_and_to_record_batches() {
         // prepare data
@@ -431,6 +430,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[test]
     fn test_top_n() {
         // prepare data
@@ -463,6 +463,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[test]
     fn test_top_n_with_tz() {
         // prepare data

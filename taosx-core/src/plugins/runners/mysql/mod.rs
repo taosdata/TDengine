@@ -501,6 +501,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         // prepare data
@@ -603,6 +604,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();

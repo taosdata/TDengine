@@ -1,0 +1,25 @@
+task_name: opcda_complicated
+task_type: opcda
+# complicated save
+# 在使用复杂配置的同时将所有可用值设置为可允许的最大
+
+from:
+  fromhost: opcda://{0}/Matrikon.OPC.Simulation.1
+  connect_timeout: 60
+  request_timeout: 60
+  interval: 1
+  log_level: debug
+  read_concurrency: 0
+  write_concurrency: 0
+  batch_size: 1000
+  batch_timeout: 1
+  keep_raw_data: "true"
+  keep_raw_data_days: 1
+  keep_raw_data_dir: E:\opcda-data
+
+to:
+  target_type: taos
+  target_dbname: ci_opcda
+
+# via: 7
+task_exec_time: 20

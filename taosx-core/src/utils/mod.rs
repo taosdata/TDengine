@@ -1,6 +1,7 @@
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 
 use anyhow::bail;
+use chrono::{DateTime, FixedOffset};
 use taos::*;
 
 pub mod breakpoints;
@@ -259,6 +260,57 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
     //     );
     // }
     Ok(())
+}
+
+/// use the date to replace the placeholder in the string
+///
+/// # Examples
+///
+/// ${Y} -> year 2021
+/// ${y} -> year 21
+/// ${m} -> month 01
+/// ${M} -> month 1
+/// ${b} -> month Jan
+/// ${B} -> month January
+/// ${d} -> day 01
+/// ${D} -> day 1
+/// ${j} -> day of year 001
+/// ${J} -> day of year 1
+/// ${F} -> date 2021-01-01
+/// ${Ymd} -> date 20210101
+/// ${ymd} -> date 210101
+/// ${md} -> date 0101
+/// ${dm} -> date 0101
+/// ${Yj} -> date 2021001
+/// ${yj} -> date 21001
+///
+pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> String {
+    str.replace("${Y}", date.format("%Y").to_string().as_str())
+        .replace("${y}", date.format("%y").to_string().as_str())
+        .replace("${m}", date.format("%m").to_string().as_str())
+        .replace(
+            "${M}",
+            date.format("%m").to_string().trim_start_matches("0"),
+        )
+        .replace("${b}", date.format("%b").to_string().as_str())
+        .replace("${B}", date.format("%B").to_string().as_str())
+        .replace("${d}", date.format("%d").to_string().as_str())
+        .replace(
+            "${D}",
+            date.format("%d").to_string().trim_start_matches("0"),
+        )
+        .replace("${j}", date.format("%j").to_string().as_str())
+        .replace(
+            "${J}",
+            date.format("%j").to_string().trim_start_matches("0"),
+        )
+        .replace("${F}", date.format("%F").to_string().as_str())
+        .replace("${Ymd}", date.format("%Y%m%d").to_string().as_str())
+        .replace("${ymd}", date.format("%y%m%d").to_string().as_str())
+        .replace("${md}", date.format("%m%d").to_string().as_str())
+        .replace("${dm}", date.format("%d%m").to_string().as_str())
+        .replace("${Yj}", date.format("%Y%j").to_string().as_str())
+        .replace("${yj}", date.format("%y%j").to_string().as_str())
 }
 
 #[tokio::test(flavor = "multi_thread")]

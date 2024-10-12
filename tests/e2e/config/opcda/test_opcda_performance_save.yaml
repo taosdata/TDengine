@@ -1,0 +1,15 @@
+task_name: opcda_performance
+task_type: opcda
+# complicated save
+# 在使用复杂配置的同时将所有可用值设置为可允许的最大
+
+from:
+  fromhost: opcda://{0}/Matrikon.OPC.Simulation.1
+  interval: 1
+  batch_size: 4000
+
+to:
+  target_type: taos
+  target_dbname: p_opcda
+
+task_exec_time: 150

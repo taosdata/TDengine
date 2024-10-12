@@ -1,0 +1,541 @@
+<template>
+  <div>
+    <p class="title">
+      <span>{{ $t("dataIn.dataSources") }}</span>
+    </p>
+    <div class="data-source">
+      <div class="flexEnd">
+        <el-button
+          plain
+          @click="refresh"
+          size="small"
+          icon="el-icon-refresh"
+          :disabled="requestIng"
+          >{{ $t("refresh") }}</el-button
+        >
+        <el-button
+          plain
+          @click="addDbSource"
+          size="small"
+          icon="el-icon-plus"
+          >{{ $t("datasource.addtarget") }}</el-button
+        >
+      </div>
+      <el-table
+        style="margin-top: 20px"
+        :data="topicList"
+        size="mini"
+        max-height="250"
+        row-key="taskid"
+        v-loading="requestIng"
+        :expand-row-keys="expandRowKeys"
+        @expand-change="expandChange"
+      >
+        <el-table-column type="expand">
+          <template >
+            <div>
+              <el-table :data="taskActivities" size="mini" class="tabel-expand">
+                <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
+                  <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
+                    <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
+                    <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
+                    <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
+                    {{ scope.row.level }}
+                  </span>
+                </el-table-column>
+                <el-table-column prop="at" :label="$t('dataIn.at')" width="220">
+                  <span slot-scope="scope">{{
+                    parsinginZone(scope.row.at)
+                  }}</span>
+                </el-table-column>
+                <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
+                <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="$t('datasource.taskid')"
+          prop="taskid"
+          width="100"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.name2')"
+          prop="localname"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.type')"
+          prop="localtype"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.target')"
+          prop="target"
+        ></el-table-column>
+        <el-table-column :label="$t('datasource.createat')" prop="created_at" width="220">
+          <span slot-scope="scope">{{
+            parsinginZone(scope.row.created_at)
+          }}</span>
+        </el-table-column>
+        <!-- <el-table-column
+          :label="$t('datasource.via')"
+          prop="via"
+          width="150"
+        ></el-table-column> -->
+
+        <el-table-column
+          :label="$t('datasource.status')"
+          prop="status"
+          width="250"
+        >
+          <template slot-scope="scope">
+            <div class="status-operation">
+              <el-tooltip
+                v-if="
+                  ['stopped', 'finished', 'failed'].includes(
+                    scope.row.status.toLowerCase()
+                  )
+                "
+                placement="bottom"
+                effect="light"
+                popper-class="datain"
+              >
+                <div v-html="scope.row.last_modified_at" slot="content"></div>
+                <div
+                  slot="content"
+                  v-html="scope.row.reason"
+                  style="max-height: 200px; overflow: auto"
+                ></div>
+                <span style="width: 80px; display: inline-block">{{
+                  scope.row.status
+                }}</span>
+              </el-tooltip>
+              <span style="width: 80px; display: inline-block" v-else>{{
+                scope.row.status
+              }}</span>
+              <template v-if="scope.row.status.toLowerCase() !== 'running'">
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.excutestart')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="start(scope.row)"
+                    icon="el-icon-qidong"
+                  ></el-button>
+                </el-tooltip>
+              </template>
+              <template v-else>
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.excutestop')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="stop(scope.row)"
+                    icon="el-icon-tingzhi"
+                  ></el-button
+                ></el-tooltip>
+              </template>
+              <template>
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('refresh')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="refreshCurrentTask(scope.row)"
+                    icon="el-icon-refresh"
+                  ></el-button
+                ></el-tooltip>
+              </template>
+            </div>
+            <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
+              <div class="finished-time">{{scope.row.last_modified_at}}</div>
+              <div class="reason">{{scope.row.reason}}</div>
+            </template> -->
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="$t('datasource.operation')"
+          width="100"
+          class="action"
+        >
+          <template slot-scope="scope">
+            <el-button
+              type="primay"
+              size="small"
+              :disabled="
+                scope.row.from_detail === undefined ||
+                !getEditStatus(scope.row.labels)
+              "
+              @click="view(scope.row, scope.row.status.toLowerCase())"
+              icon="el-icon-view"
+            ></el-button>
+            <el-button
+              plain
+              size="small"
+              @click="del(scope.row)"
+              icon="el-icon-delete"
+            ></el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="dialog">
+        <AddDialog
+          :typeList="typeList"
+          @closeDialog="closeDialog"
+          @addAgent="addAgent"
+          ref="agentdialog"
+        ></AddDialog>
+      </div>
+      <el-pagination
+        class="pagination"
+        layout="total, prev, pager, next"
+        :current-page.sync="currentPage"
+        :page-size="pageSize"
+        :hide-on-single-page="true"
+        :total="total"
+        @current-change="handlePageChange"
+      ></el-pagination>
+    </div>
+    <!-- <div class="agent" style="margin-top: 20px">
+      <Agents ref="agents" />
+    </div> -->
+  </div>
+</template>
+<script>
+import { Message, Switch } from "element-ui";
+import { getTask, refreshTask, getTaskActivities } from "@/api/explorer/datain";
+import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
+import AddDialog from "../components/addDialog.vue";
+import Agents from "../components/agents.vue";
+import { deepClone, parsinginZone } from "@/utils";
+export default {
+  name: "DataSource",
+  components: { AddDialog, Agents },
+  props: {
+    sourceList: {
+      type: Array,
+      default() {
+        return [];
+      },
+    },
+    tagName: {
+      type: String,
+      default: "datasource",
+    },
+  },
+
+  data() {
+    return {
+      disable: true,
+      typeList: [],
+      dbsource: null,
+      pageSize: 10,
+      currentPage: 1,
+      total: 10,
+      dialog: false,
+      topicList: [],
+      requestIng: false,
+      parsinginZone,
+      taskActivities: [],
+      expandRowKeys:[],
+    };
+  },
+  methods: {
+    handlePageChange() {},
+    //非root用户不能修改root下创建的数据源
+    getEditStatus(data) {
+      if (data) {
+        let result = data
+          .filter((item) => item.includes("user"))
+          .toString()
+          .split("::");
+        if (result[1] == localStorage.getItem("username")) {
+          return true;
+        } else {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    },
+    del(data) {
+      this.$confirm(
+        this.$t("datasource.deletetip") + data.name + "?",
+        this.$t("datasource.warning"),
+        {
+          confirmButtonText: this.$t("datasource.ok"),
+          cancelButtonText: this.$t("datasource.cancel"),
+          type: "warning",
+        }
+      ).then(async () => {
+        await excuteDel(data.id)
+          .then(() => {
+            Message({
+              type: "success",
+              message: this.$t("datasource.deleteok"),
+            });
+            this.refresh();
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      });
+    },
+    view(data, status) {
+      this.$parent.sourceName = data.name;
+      this.$parent.currentTaskStatus = status;
+      this.$parent.agentID = data?.via
+      if (data.from_expand && data.to_expand) {
+        let info = {
+          sourceData: {
+            dbFiled: data.from_expand.subject,
+            ...data.from_expand.params,
+            cols: data.from_expand.params.cols ? data.from_expand.params.cols.split(',') : [],
+            tags: data.from_expand.params.tags ? data.from_expand.params.tags.split(',') : [],
+          },
+          target: {
+            ...data.to_expand.params,
+            kafkaUrl: `${data.to_expand.host}${data.to_expand.port ? ':'+data.to_expand.port : ''}` ,
+            topic: data.to_expand.subject
+          } 
+        }
+
+        let dbname =
+          data.from_expand && data.from_expand.subject
+            ? data.from_expand.subject
+            : "";
+        this.$parent.uidata = info;
+        localStorage.setItem("dataoutName", data.name);
+        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
+      }
+    },
+    addDbSource() {
+      this.dialog = true;
+      this.$parent.currentTaskStatus = "";
+    },
+    async getList() {
+      try {
+        this.requestIng = true;
+        this.topicList = [];
+        let id = localStorage.getItem("local_clusterID");
+        await getTask(id,'dataout').then((res) => {
+          if (res) {
+            this.topicList = res.map((item) => {
+              (item["taskid"] = item.id), (item["localname"] = item.name);
+              item["localtype"] = item.to_expand ? item.to_expand.id : "";
+              item["target"] = item.from_expand ? item.from_expand.subject : "";
+              item["created_at"] = item.created_at
+                ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                  "Z"
+                : "";
+              return item;
+            });
+            this.requestIng = false;
+          }
+        });
+      } catch (err) {
+        this.requestIng = false;
+        return Promise.reject(err);
+      }
+    },
+
+    start(data, index) {
+      try {
+        this.$confirm(
+          this.$t("datasource.starttip").replace("{dataname}", data.name),
+          // `Are you sure to start the ${data.name} task?`,
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
+          }
+        ).then(async () => {
+          let result = await excuteStart(data.id);
+          if (result && result.message) {
+            this.$error(result.message);
+            return;
+          }
+          this.refresh();
+        });
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    },
+    stop(data) {
+      try {
+        this.$confirm(
+          this.$t("datasource.stoptip").replace("{dataname}", data.name),
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
+          }
+        ).then(async () => {
+          await excuteStop(data.id);
+          this.refresh();
+        });
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    },
+    refresh() {
+      this.getList();
+    },
+    async refreshCurrentTask(data) {
+      try {
+        let result = await refreshTask(data.taskid);
+        if (result && (result.message || result.desc)) {
+          this.$error(result.message || result.desc);
+          return;
+        }
+        let index = this.topicList.findIndex(
+          (item) => item.taskid == data.taskid
+        );
+        this.topicList.splice(
+          index,
+          1,
+          [].concat(result).map((item) => {
+            (item["taskid"] = item.id), (item["localname"] = item.name);
+            item["localtype"] = item.to_expand ? item.to_expand.id : "";
+            item["target"] = item.from_expand ? item.from_expand.subject : "";
+            item["created_at"] = item.created_at
+              ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                "Z"
+              : "";
+            return item;
+          })[0]
+        );
+        Message.success(this.$t("datasource.refreshsuccess"));
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    //显示添加数据源弹窗
+    showAddDialog() {},
+    closeDialog() {
+      this.dialog = false;
+    },
+    // 显示添加代理弹框
+    addAgent() {
+      this.$refs.agents.add();
+    },
+    async expandChange(row,expandedRows) {
+      if (row.taskid == this.expandRowKeys[0]) {
+        this.expandRowKeys = []
+        return 
+      } 
+      let res =  await getTaskActivities(row.taskid)
+      this.expandRowKeys = [row.taskid]
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        }); 
+        return
+      }
+      let activitList = res.map(item => {
+        if (item.status == 'failed') {
+          item.context = item.context.message
+        }
+        if (typeof item.context == 'object') {
+          item.context = null
+        }
+        return item
+      })
+      this.taskActivities = activitList
+      console.log('res',res);
+
+    },
+    getLevelStyle(level) {
+      let style = ''
+      switch (level) {
+        case 'info': style = 'color: #67c23a'
+        break;
+        case 'warn': style = 'color: #e6a23c'
+        break;
+        case 'error': style = 'color: #fe6c6c'
+        break;
+      }
+      return style
+    }
+  },
+  mounted() {
+    if (this.$parent.$parent.$parent.currentName == "datasource") {
+      this.refresh();
+    }
+    this.typeList = this.sourceList;
+  },
+};
+</script>
+<style lang="scss">
+.el-tooltip__popper {
+  max-width: 450px !important;
+}
+</style>
+<style lang="scss" scoped>
+::v-deep.el-form-item__label {
+  white-space: nowrap !important;
+  margin-right: 100px;
+}
+.el-form-item {
+  display: flex;
+}
+::v-deep.el-form-item--mini .el-form-item__content {
+  margin-left: 0px !important;
+}
+::v-deep.el-input--mini .el-input__inner,
+::v-deep.el-input.el-input--mini.el-input--suffix {
+  width: 172px !important;
+}
+::v-deep.input.el-input__inner {
+  width: 172px !important;
+}
+.title {
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+  color: #333;
+  border-left-width: 5px;
+  border-left-style: solid;
+  border-radius: 4px;
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 8px 16px;
+}
+.flexEnd {
+  position: absolute;
+  top: 15px;
+  z-index: 9999;
+  right: 10px;
+  .el-button {
+    border: none;
+    background: transparent;
+  }
+}
+
+  .tabel-expand {
+   width: 64%;
+   margin-left: 40px;
+   padding: 10px 5px;
+   ::v-deep.el-table th.el-table__cell.is-leaf {
+    border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell {
+    border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell div {
+      word-wrap: break-word;
+      word-break: break-word;
+   }
+  }
+
+</style>

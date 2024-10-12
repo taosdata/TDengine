@@ -497,49 +497,23 @@ def build_and_install_opentsdb(mode):
         print("Build opentsdb failed: ", e.strerror)
         sys.exit()
 
-def init_explorer_code(explorer_path):
-    print(explorer_path)
-    if os.path.exists(explorer_path):
-        os.chdir(explorer_path)
-        os.system('git checkout main')
-        os.system('git reset --hard')
-        os.system('git prune')
-        os.system('git pull')
-    else:
-        os.chdir(os.path.join(taosx_dir, ".."))
-        os.system('git clone git@github.com:taosdata/explorer.git')
-
-    if release_info.TdengineVersion is not None and release_info.TdengineVersion != "":
-        os.chdir(explorer_path)
-        os.system(f'git checkout ver-{release_info.TdengineVersion}')
-
 def build_taos_explorer(explorer_path, mode):
-    init_explorer_code(explorer_path)
     update_docs_zip_file(explorer_path)
     copy_docs_to_explorer(explorer_path)
-    os.chdir(explorer_path)
-    os.system('yarn install')
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy")
     check_directory(explorer_exe_path)
     if release_info.OS.lower() == 'windows':
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&yarn build:bin')
         os.chdir(taosx_dir)
-        binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer.exe")
-        deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer.exe")
-        # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
-        shutil.copy2(binary_file, deploy_file)
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo make deploy-explorer')
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} yarn build:bin')
-        binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer")
-        deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer")
-        # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
-        shutil.copy2(binary_file, deploy_file)
+        os.chdir(taosx_dir)
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo make deploy-explorer')
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer.exe")
-    explorer_srv_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.exe")
-    explorer_srv_xml_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.xml")
-    explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")
+    explorer_srv_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer-srv.exe")
+    explorer_srv_xml_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer-srv.xml")
+    explorer_toml_path = os.path.join(taosx_dir, "target", "deploy", "explorer.toml")
 
     taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
     taos_explorer_cfg_path = os.path.join(release_info.InstallPath, "config")
@@ -555,7 +529,7 @@ def copy_taos_explorer_on_windows(explorer_path):
 
 def build_and_install_taos_explorer(mode):
     print("build_and_install taos_explorer start...")
-    explorer_path = os.path.join(taosx_dir, "..", "explorer")
+    explorer_path = os.path.join(taosx_dir, "explorer")
     build_taos_explorer(explorer_path, mode)
     if release_info.OS.lower() == 'windows':
         copy_taos_explorer_on_windows(explorer_path)

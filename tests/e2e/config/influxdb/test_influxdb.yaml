@@ -1,0 +1,24 @@
+task_name: influxdb
+task_type: influxdb
+
+from:
+  fromhost: influxdb+http://{0}
+  bucket: automatic_ci
+  beginTime: "2024-09-20T00:00:00+08:00"
+  endTime: "2024-09-20T18:00:00+08:00"
+  readWindow: 60
+  delay: 10
+  version: 2.7
+  orgId: 17d08ca8b6b9c823
+  token: 4DH05m1CpI41pS2eMXoKPE6cxpMdEpA6a9RQ5HNy6yAFHUIOFwkc9WAdzVTdE6RZoNNoeTRHO4AZiZOgXMk77Q==
+  addDbrp: false
+
+task_exec_time: 10
+
+to:
+  target_type: taos
+  target_dbname: ci_testinflux
+
+source_bucket:
+  record_number: 100
+  field_number: 6

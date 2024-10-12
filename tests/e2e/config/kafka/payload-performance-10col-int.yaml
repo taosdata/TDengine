@@ -1,0 +1,84 @@
+parser:
+  format:
+    currentPage: 1
+    pageCount: 5
+    pageSize: 10
+  input:
+  - key: key
+    offset: offset
+    partition: partition
+    topic: topic
+    ts: '2023-12-05T09:10:56+08:00'
+    value: '{"mytime": 0, "groupid": 1, "col1": 78817, "col2": 50326, "col3": 32027,
+      "col4": 3224, "col5": 28367, "col6": 69000, "col7": 55855, "col8": 60441, "col9":
+      92789, "col10": 84696}'
+  parser:
+    model:
+      columns:
+      - ts
+      - col1
+      - col2
+      - col3
+      - col4
+      - col5
+      - col6
+      - col7
+      - col8
+      - col9
+      - col10
+      name: kafka_{groupid}
+      tags:
+      - groupid
+      using: kafkastb
+    mutate:
+    - map:
+        col1:
+          as: INT
+          cast: col1
+        col10:
+          as: INT
+          cast: col10
+        col2:
+          as: INT
+          cast: col2
+        col3:
+          as: INT
+          cast: col3
+        col4:
+          as: INT
+          cast: col4
+        col5:
+          as: INT
+          cast: col5
+        col6:
+          as: INT
+          cast: col6
+        col7:
+          as: INT
+          cast: col7
+        col8:
+          as: INT
+          cast: col8
+        col9:
+          as: INT
+          cast: col9
+        groupid:
+          as: INT
+          cast: groupid
+        ts:
+          as: TIMESTAMP(ns)
+          generator: now
+    parse:
+      value:
+        json:
+        - groupid
+        - col1
+        - col2
+        - col3
+        - col4
+        - col5
+        - col6
+        - col7
+        - col8
+        - col9
+        - col10

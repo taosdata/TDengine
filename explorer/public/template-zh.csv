@@ -1,0 +1,4 @@
+序号（可选）,信息点编码（必填，用作点位子表名称）,OPC TAG点地址（必填字段）,数据类型（必填）,采集值列名(可配置，默认 val),质量位列名（可配置，默认 quality）,信息点是否启用 1-启用 0-未启用（可选，默认 启用）,对应超级表表名,OPC原始时间列名（可选，按ts_col和receive_ts_col的先后顺序设置首列，ts_col和received_ts_col都不配置时，使用ts作为首列）,TD服务端接收时间列名（可选，按ts_col和receive_ts_col的先后顺序设置首列）, 标签列1（必填）,标签列2（可选）
+0,tbname,point_id,type,value_col,quality_col,enabled,stable,ts_col,received_ts_col,tag::VARCHAR(200)::name,tag::VARCHAR(50)::unit
+1,tbname1,ns=3;i=1002,int,val,quality,1,stb_int,ts,rts,入库温度,℃
+2,tbname2,ns=3;i=1007,double,val,quality,0,stb_double,ts,rts,减压阀压力,kpa

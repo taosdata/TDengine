@@ -442,6 +442,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1").unwrap();
@@ -461,6 +462,7 @@ mod tests {
         assert_eq!("oracle", res.data_source);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_sample() {
         // prepare data

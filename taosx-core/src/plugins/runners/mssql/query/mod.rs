@@ -429,6 +429,7 @@ mod tests {
         dbg!(query.pool.get().await.is_ok());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_distinct_values() {
         // prepare data
@@ -466,6 +467,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_for_schema() {
         // prepare data
@@ -500,6 +502,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all() {
         // prepare data
@@ -535,6 +538,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_all_and_to_record_batches() {
         // prepare data
@@ -571,6 +575,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n() {
         // prepare data
@@ -606,6 +611,7 @@ mod tests {
         let _ = test_clear_data().await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_n_with_tz() {
         // prepare data

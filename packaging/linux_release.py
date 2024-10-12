@@ -12,7 +12,7 @@ opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","opentsdb"))
-explore_dir = os.path.abspath(os.path.join(top_dir, "..","explorer"))
+explore_dir = os.path.abspath(os.path.join(top_dir, "explorer"))
 systemd_path = ""
 target = "taosx"
 
@@ -188,25 +188,20 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
 
 def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("install taosx-explore under linux...")
-    platform = "linux"
-    arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(explore_dir,"target",mode.lower(),"taos-explorer")
-    os.chdir(top_dir)
-    deploy_file = os.path.join(top_dir,"target","deploy","taos-explorer")
-    # os.system(f"cargo make upx {binary_file} {deploy_file}")
-    shutil.copy2(binary_file, deploy_file)
+    deploy_dir = os.path.join(top_dir, "target", "deploy")
+    deploy_file = os.path.join(deploy_dir, "taos-explorer")
 
     check_directory(dst_dir)
     shutil.copy(deploy_file, dst_dir)
     logging.info("taosx-explorer copied to {release_dir}".format(release_dir=dst_dir))
 
     os.chdir(explore_dir)
-    shutil.copy2(os.path.join(explore_dir, "target",f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
+    shutil.copy2(os.path.join(top_dir, "target", mode.lower(), f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
     check_directory(cfg_path)
-    shutil.copy2(os.path.join("server","examples","explorer.toml"), cfg_path)
+    shutil.copy2(os.path.join(deploy_dir, "explorer.toml"), cfg_path)
 
 def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     logging.info("build_and_install taosx-agent under linux...")

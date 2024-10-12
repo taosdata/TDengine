@@ -497,6 +497,7 @@ mod tests {
         // let _ = migrate_history(config).await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_all_distinct_values() {
         // prepare data

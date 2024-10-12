@@ -4,6 +4,7 @@ on:
   # workflow_dispatch:
   pull_request:
     paths:
+      - '.github/workflows/**'
       - 'crates/**'
       - 'plugins/**'
       - 'src/**'
@@ -51,6 +52,7 @@ jobs:
 
       - name: Compile check
         run: |
+          mkdir -p explorer/dist/ || true
           cargo +stable check --locked --workspace --all --tests --examples --target-dir targets/stable
 
   check:
@@ -63,6 +65,7 @@ jobs:
 
       - name: Compile check
         run: |
+          mkdir -p explorer/dist/ || true
           cargo check --locked --workspace --all --tests --examples
 
       - name: Format check
