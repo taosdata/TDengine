@@ -513,21 +513,18 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     int typeLen  = strlen(type);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
+      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
                (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
     if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
-      typeLen = strlen(type);
-      snprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
                columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
-      typeLen = strlen(type);
-      snprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",
                columnCompressStr(COMPRESS_L2_TYPE_U32(pCfg->pSchemaExt[i].compress)));
-      typeLen = strlen(type);
-      snprintf(type + typeLen, LTYPE_LEN - typeLen, " LEVEL \'%s\'",
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " LEVEL \'%s\'",
                columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
     if (!(pSchema->flags & COL_IS_KEY)) {

@@ -306,7 +306,7 @@ uint64_t schGenUUID(void) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
     }
   }
-ßßß
+
   int64_t  ts = taosGetTimestampMs();
   uint64_t pid = taosGetPId();
   int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
