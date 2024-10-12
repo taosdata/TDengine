@@ -76,7 +76,11 @@ int32_t taosAnalInit() {
   }
 
   tsAlgos.ver = 0;
-  taosThreadMutexInit(&tsAlgos.lock, NULL);
+  if (taosThreadMutexInit(&tsAlgos.lock, NULL) != 0) {
+    uError("failed to init algo mutex");
+    return -1;
+  }
+
   tsAlgos.hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (tsAlgos.hash == NULL) {
     uError("failed to init algo hash");
@@ -99,7 +103,9 @@ static void taosAnalFreeHash(SHashObj *hash) {
 
 void taosAnalCleanup() {
   curl_global_cleanup();
-  taosThreadMutexDestroy(&tsAlgos.lock);
+  if (taosThreadMutexDestroy(&tsAlgos.lock) != 0) {
+    uError("failed to destroy anal lock");
+  }
   taosAnalFreeHash(tsAlgos.hash);
   tsAlgos.hash = NULL;
   uInfo("analysis env is cleaned up");
@@ -107,12 +113,15 @@ void taosAnalCleanup() {
 
 void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
   if (newVer > tsAlgos.ver) {
-    taosThreadMutexLock(&tsAlgos.lock);
-    SHashObj *hash = tsAlgos.hash;
-    tsAlgos.ver = newVer;
-    tsAlgos.hash = pHash;
-    taosThreadMutexUnlock(&tsAlgos.lock);
-    taosAnalFreeHash(hash);
+    if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
+      SHashObj *hash = tsAlgos.hash;
+      tsAlgos.ver = newVer;
+      tsAlgos.hash = pHash;
+      if (taosThreadMutexUnlock(&tsAlgos.lock) != 0) {
+        uError("failed to unlock hash")
+      }
+      taosAnalFreeHash(hash);
+    }
   } else {
     taosAnalFreeHash(pHash);
   }
@@ -158,18 +167,22 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
   char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
   int32_t nameLen = 1 + snprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
 
-  taosThreadMutexLock(&tsAlgos.lock);
-  SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
-  if (pUrl != NULL) {
-    tstrncpy(url, pUrl->url, urlLen);
-    uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
-  } else {
-    url[0] = 0;
-    terrno = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
-    code = terrno;
-    uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
+  if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
+    SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
+    if (pUrl != NULL) {
+      tstrncpy(url, pUrl->url, urlLen);
+      uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
+    } else {
+      url[0] = 0;
+      terrno = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
+      code = terrno;
+      uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
+    }
+    if (taosThreadMutexUnlock(&tsAlgos.lock) != 0) {
+      uError("failed to unlock hash");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
-  taosThreadMutexUnlock(&tsAlgos.lock);
 
   return code;
 }
@@ -210,10 +223,10 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
     return -1;
   }
 
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 100);
+  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 100) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -238,14 +251,14 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 60000);
-  curl_easy_setopt(curl, CURLOPT_POST, 1);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf);
+  if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 60000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
 
   uDebug("curl post request will sent, url:%s len:%d", url, bufLen);
   code = curl_easy_perform(curl);
@@ -596,7 +609,9 @@ void taosAnalBufDestroy(SAnalBuf *pBuf) {
       SAnalColBuf *pCol = &pBuf->pCols[i];
       if (pCol->fileName[0] != 0) {
         if (pCol->filePtr != NULL) (void)taosCloseFile(&pCol->filePtr);
-        taosRemoveFile(pCol->fileName);
+        if (taosRemoveFile(pCol->fileName) != 0) {
+          uError("failed to remove file %s", pCol->fileName);
+        }
         pCol->fileName[0] = 0;
       }
     }
