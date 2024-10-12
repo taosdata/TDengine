@@ -47,7 +47,6 @@
             <el-checkbox-group
               v-model="selectedDatabasePrivileges[item]"
               class="db-pri"
-              @change="changePri($event)"
             >
               <el-checkbox :disabled="$COMMUNITY" label="Read">{{ $t('read') }}</el-checkbox>
               <el-checkbox :disabled="$COMMUNITY" label="Write">{{ $t('write') }}</el-checkbox>
@@ -119,7 +118,7 @@ export default {
       default: false,
     },
   },
-  async created() {
+  async mounted() {
     this.loading = true;
     await this.getDatabaseList();
     await this.getTopicList();
@@ -172,62 +171,51 @@ export default {
       selectedDatabasePrivileges: {},
       selectedTopicPrivileges: {},
       confirmStatus: false,
+      loading: true,
     };
   },
   methods: {
-    changePri() {},
-    getDatabaseList() {
+    async getDatabaseList() {
       try {
-        sendSQLReq(`show databases;`)
-          .then((res) => {
-            let databaseList = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            databaseList.forEach((item) => {
-              if (
-                ["performance_schema", "information_schema"].indexOf(
-                  item.name
-                ) < 0
-              ) {
-                this.databaseList.push(item.name);
-                let privilege = this.$COMMUNITY ? ['Read', 'Write'] : ['Read']
-                this.$set(this.selectedDatabasePrivileges, item.name, privilege);
-              }
-            });
-          })
-          .catch((err) => {
-            this.$emit("close");
-            return Promise.reject(err);
-          });
+        let res = await sendSQLReq(`show databases;`);
+        let databaseList = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        databaseList.forEach((item) => {
+          if (
+            ["performance_schema", "information_schema"].indexOf(
+              item.name
+            ) < 0
+          ) {
+            this.databaseList.push(item.name);
+            let privilege = this.$COMMUNITY ? ['Read', 'Write'] : ['Read']
+            this.$set(this.selectedDatabasePrivileges, item.name, privilege);
+          }
+        });
+         
       } catch (error) {
         console.log(error);
       }
     },
-    getTopicList() {
+    async getTopicList() {
       try {
-        sendSQLReq(`show topics;`)
-          .then((res) => {
-            let topicList = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            topicList.forEach((item) => {
-              this.topicList.push(item.topic_name);
-              this.$set(this.selectedTopicPrivileges, item.topic_name, []);
-            });
-          })
-          .catch((err) => {
-            this.$emit("close");
-            // err.desc && this.$error(err.desc);
-            return Promise.reject(err);
-          });
+        let res = await sendSQLReq(`show topics;`);
+        let topicList = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        topicList.forEach((item) => {
+          this.topicList.push(item.topic_name);
+          this.$set(this.selectedTopicPrivileges, item.topic_name, []);
+        });
+        
       } catch (error) {
         console.log(error);
         // this.$error(error.desc);
@@ -235,7 +223,6 @@ export default {
     },
     cancel() {
       this.$emit("close");
-      return;
     },
     async grantPrivilege(privileges, dbName, userName) {
       return await sendSQLReq(
