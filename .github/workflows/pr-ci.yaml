@@ -27,6 +27,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
+  ARM_BUILDER_IMAGE: bitcapybara/taosx-builder:latest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -81,8 +82,22 @@ jobs:
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
 
+  # need install qemu support for host: apt-get install qemu binfmt-support qemu-user-static
+  check-arm:
+    name: Check Arm
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+      - name: check
+        run: |
+          docker run -v ${{ github.workspace }}:/app -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
+
   build_rust:
-    needs: check
+    needs: [check, check-arm]
+    if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
@@ -244,6 +259,7 @@ jobs:
   deploy_with_docker:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [build_rust, build_go, build_java, build_explorer]
+    if: ${{ always() && needs.build_rust.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success' }}
     outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
@@ -300,6 +316,7 @@ jobs:
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: deploy_with_docker
+    if: ${{ always() && needs.deploy_with_docker.result == 'success' }}
     steps:
       - name: Run Test
         run: |
@@ -339,7 +356,8 @@ jobs:
   clean_up:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, generate_report]
-    if: success()
+    # needs: [deploy_with_docker, run_test]
+    if: ${{ always() && needs.deploy_with_docker.result == 'success' && needs.run_test.result == 'success' && needs.generate_report.result == 'success' }}
     steps:
       - name: Force stop taosx-agent & taosx
         # shell: bash {0}
