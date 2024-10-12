@@ -49,5 +49,5 @@ int64_t tGenIdPI64(void);
  */
 int64_t tGenQid64(int8_t dnodeId);
 
-int32_t taosGetSystemUUID32(uint32_t *uuid);
-int32_t taosGetSystemUUID64(uint64_t *uuid);
+int32_t taosGetSystemUUIDU32(uint32_t *uuid);
+int32_t taosGetSystemUUIDU64(uint64_t *uuid);

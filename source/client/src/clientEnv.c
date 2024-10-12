@@ -1098,7 +1098,7 @@ uint64_t generateRequestId() {
   static int32_t requestSerialId = 0;
 
   if (hashId == 0) {
-    int32_t code = taosGetSystemUUID32(&hashId);
+    int32_t code = taosGetSystemUUIDU32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
                tstrerror(code));

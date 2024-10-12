@@ -18,11 +18,11 @@
 static uint32_t tUUIDHashId = 0;
 static int32_t tUUIDSerialNo = 0;
 
-int32_t taosGetSystemUUID32(uint32_t *uuid) {
+int32_t taosGetSystemUUIDU32(uint32_t *uuid) {
   if (uuid == NULL) return TSDB_CODE_APP_ERROR;
-  char    uid[65] = {0};
-  int32_t code = taosGetSystemUUID(uid, sizeof(uid));
-  uid[64] = 0;
+  char    uid[37] = {0};
+  int32_t code = taosGetSystemUUIDLimit36(uid, sizeof(uid));
+  uid[36] = 0;
 
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -32,11 +32,11 @@ int32_t taosGetSystemUUID32(uint32_t *uuid) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t taosGetSystemUUID64(uint64_t *uuid) {
+int32_t taosGetSystemUUIDU64(uint64_t *uuid) {
   if (uuid == NULL) return TSDB_CODE_APP_ERROR;
-  char    uid[65] = {0};
-  int32_t code = taosGetSystemUUID(uid, sizeof(uid));
-  uid[64] = 0;
+  char    uid[37] = {0};
+  int32_t code = taosGetSystemUUIDLimit36(uid, sizeof(uid));
+  uid[36] = 0;
 
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -48,7 +48,7 @@ int32_t taosGetSystemUUID64(uint64_t *uuid) {
 
 int32_t tGenIdPI32(void) {
   if (tUUIDHashId == 0) {
-    int32_t code = taosGetSystemUUID32(&tUUIDHashId);
+    int32_t code = taosGetSystemUUIDU32(&tUUIDHashId);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
     }
@@ -64,7 +64,7 @@ int32_t tGenIdPI32(void) {
 
 int64_t tGenIdPI64(void) {
   if (tUUIDHashId == 0) {
-    int32_t code = taosGetSystemUUID32(&tUUIDHashId);
+    int32_t code = taosGetSystemUUIDU32(&tUUIDHashId);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
     }
