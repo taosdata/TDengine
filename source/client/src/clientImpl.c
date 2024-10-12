@@ -2341,14 +2341,13 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
-                         bool convertUcs4) {
-  if (numOfCols <= 0 || pFields == NULL || pResultInfo == NULL) {
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
+  if (pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL || pResultInfo == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  if (numOfRows == 0) {
+  if (pResultInfo->numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2356,7 +2355,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  code = doConvertJson(pResultInfo, numOfCols, numOfRows);
+  code = doConvertJson(pResultInfo, pResultInfo->numOfCols, pResultInfo->numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2376,9 +2375,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  if (rows != numOfRows || cols != numOfCols) {
-    tscError("setResultDataPtr paras error:rows;%d numOfRows:%d cols:%d numOfCols:%d", rows, numOfRows, cols,
-             numOfCols);
+  if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
+    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows, pResultInfo->numOfRows, cols,
+             pResultInfo->numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -2389,7 +2388,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   p += sizeof(uint64_t);
 
   // check fields
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int8_t type = *(int8_t*)p;
     p += sizeof(int8_t);
 
@@ -2398,10 +2397,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   }
 
   int32_t* colLength = (int32_t*)p;
-  p += sizeof(int32_t) * numOfCols;
+  p += sizeof(int32_t) * pResultInfo->numOfCols;
 
   char* pStart = p;
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     if (blockVersion == BLOCK_VERSION_1) {
       colLength[i] = htonl(colLength[i]);
     }
@@ -2412,7 +2411,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
-      pStart += numOfRows * sizeof(int32_t);
+      pStart += pResultInfo->numOfRows * sizeof(int32_t);
     } else {
       pResultInfo->pCol[i].nullbitmap = pStart;
       pStart += BitmapLen(pResultInfo->numOfRows);
@@ -2429,7 +2428,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   p += sizeof(bool);
 
   if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);
+    code = doConvertUCS4(pResultInfo, pResultInfo->numOfRows, pResultInfo->numOfCols, colLength);
   }
 
   return code;
@@ -2542,7 +2541,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   pResultInfo->totalRows += pResultInfo->numOfRows;
 
   int32_t code =
-      setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
+      setResultDataPtr(pResultInfo, convertUcs4);
   return code;
 }
 
