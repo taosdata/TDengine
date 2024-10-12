@@ -283,6 +283,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5473.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
