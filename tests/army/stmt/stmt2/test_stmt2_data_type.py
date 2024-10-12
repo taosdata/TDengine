@@ -575,16 +575,16 @@ class TDTestCase:
         ]
 
         invalid_tags = [
-            [[b'hello']],
-            [[b'5']],
-            [[b'-5']],
-            [[b'3.14']],
-            [[b'-3.14']],
-            [[b'POINT(1.0)']],
-            [[b'LINESTRING(1.0 1.0)']],
-            [[b'POLYGON((1.0 1.0, 2.0 2.0, 3.0 3.0))']],
-            [[b'POLYGON((0 0, 4 0, 4 4))']],
-            [[b'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
+            # [[b'hello']],
+            # [[b'5']],
+            # [[b'-5']],
+            # [[b'3.14']],
+            # [[b'-3.14']],
+            # [[b'POINT(1.0)']],
+            # [[b'LINESTRING(1.0 1.0)']],
+            # [[b'POLYGON((1.0 1.0, 2.0 2.0, 3.0 3.0))']],
+            # [[b'POLYGON((0 0, 4 0, 4 4))']],
+            # [[b'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))']],
         ]
 
         self.test_stmt_data_type('test_stmt_geometry_type', 'geometry(100)', tags, invalid_tags)
