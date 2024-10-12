@@ -485,7 +485,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
       tError("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
              tstrerror(code));
-      return 0;
+      return 1;
     } else {
       tError("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
              tstrerror(code));
