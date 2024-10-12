@@ -112,7 +112,7 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
               groupId, name, skey, ekey);
 
       SSingleDeleteReq req = {.startTs = skey, .endTs = ekey};
-      strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
+      tstrncpy(req.tbname, name, TSDB_TABLE_NAME_LEN);
       void* p = taosArrayPush(deleteReq->deleteReqs, &req);
       if (p == NULL) {
         return terrno;
@@ -240,7 +240,7 @@ int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* 
         return terrno;
       }
 
-      strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
+      tstrncpy(pCreateTableReq->name, pDataBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
       int32_t code = buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid, TSDB_TABLE_NAME_LEN);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
