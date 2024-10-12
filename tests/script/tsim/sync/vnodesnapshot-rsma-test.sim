@@ -165,7 +165,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
 
-sleep 3000
+sleep 10000
 
 print =============== query data of level 1
 sql connect

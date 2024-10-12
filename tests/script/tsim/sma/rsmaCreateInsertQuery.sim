@@ -84,7 +84,7 @@ endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 print =============== wait maxdelay 15+2 seconds for results after reboot
-sleep 17000
+sleep 27000
 
 print =============== select * from retention level 2 from memory after reboot
 sql select * from ct1;
