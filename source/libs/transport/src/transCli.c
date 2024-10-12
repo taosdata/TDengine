@@ -172,6 +172,7 @@ typedef struct SCliThrd {
 
   SArray* pQIdBuf;  // tmp buf to avoid alloc buf;
   queue   batchSendSet;
+  int8_t  thrdInited;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -2238,11 +2239,13 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err != 0) {
+      destroyThrdObj(pThrd);
       code = TAOS_SYSTEM_ERROR(errno);
       TAOS_CHECK_GOTO(code, NULL, _err);
     } else {
       tDebug("success to create tranport-cli thread:%d", i);
     }
+    pThrd->thrdInited = 1;
     cli->pThreadObj[i] = pThrd;
   }
   return cli;
@@ -2433,7 +2436,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     return;
   }
 
-  if (taosThreadJoin(pThrd->thread, NULL) != 0) {
+  if (pThrd->thrdInited && taosThreadJoin(pThrd->thread, NULL) != 0) {
     tTrace("failed to join thread since %s", tstrerror(terrno));
   }
 
