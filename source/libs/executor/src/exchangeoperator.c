@@ -533,7 +533,11 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
   if (pRpcHandle != NULL) {
-    asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+    code = asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+    if (code != 0) {
+      qError("failed to free rpc handle, code:%s, %p", tstrerror(code), pExchangeInfo);
+      code = 0;
+    }
     *pRpcHandle = -1;
   }
 
