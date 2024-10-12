@@ -479,14 +479,14 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
 
-  // code = balanceConnHeapCache(pThrd->connHeapCache, conn);
-  // if (code != 0) {
-  //   tDebug("%s conn %p failed to balance heap cache", CONN_GET_INST_LABEL(conn), conn);
-  // }
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
     code = delConnFromHeapCache(pThrd->connHeapCache, conn);
-    if (code != 0) {
+    if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
+      tError("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
+             tstrerror(code));
+      return 0;
+    } else {
       tError("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
              tstrerror(code));
     }
@@ -3878,6 +3878,7 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
   if (p->connnected == 0) {
     transHeapUpdateFailTs(heap, p);
   }
+
   if (p->inHeap == 0) {
     tTrace("failed to del conn %p since not in heap", p);
     return 0;
@@ -3885,7 +3886,7 @@ int32_t transHeapDelete(SHeap* heap, SCliConn* p) {
     int64_t now = taosGetTimestampMs();
     if (p->forceDelFromHeap == 0 && now - p->lastAddHeapTime < 10000) {
       tTrace("conn %p not added/delete to heap frequently", p);
-      return 0;
+      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
     }
   }
 
