@@ -76,7 +76,7 @@ class TDTestCase(TBase):
         cmd = f"rm -rf {dnode2_data_path}"
         os.system(cmd)
         # recreate the encrypt key for dnode2
-        os.system(f"{os.sep.join([taosd_path, "taosd"])} -y '1234567890' -c {dnode2_cfg_path}")
+        os.system(f"{os.sep.join([taosd_path, 'taosd'])} -y '1234567890' -c {dnode2_cfg_path}")
         tdLog.info("test case: recreate the encrypt key for dnode2 passed")
 
     def run(self):
