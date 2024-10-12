@@ -555,9 +555,18 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+  SSDataBlock* pBlock = pReader->pResBlock;
   if (blockDataGetNumOfCols(pBlock) > 0) {
-    return TSDB_CODE_SUCCESS;
+    blockDataDestroy(pBlock);
+    pReader->pResBlock = createDataBlock();
+    if (pReader->pResBlock == NULL) {
+      return terrno;
+    }
+    pBlock = pReader->pResBlock;
+
+    pBlock->info.id.uid = pReader->cachedSchemaUid;
+    pBlock->info.version = pReader->msg.ver;
   }
 
   int32_t numOfCols = taosArrayGetSize(pColIdList);
@@ -662,13 +671,12 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     pReader->cachedSchemaVer = sversion;
 
     ASSERT(pReader->cachedSchemaVer == pReader->pSchemaWrapper->version);
-    if (blockDataGetNumOfCols(pBlock) == 0) {
-      int32_t code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
-      if (code != TSDB_CODE_SUCCESS) {
-        tqError("vgId:%d failed to build data block, code:%s", vgId, tstrerror(code));
-        return code;
-      }
+    int32_t code = buildResSDataBlock(pReader, pReader->pSchemaWrapper, pReader->pColIdList);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("vgId:%d failed to build data block, code:%s", vgId, tstrerror(code));
+      return code;
     }
+    pBlock = pReader->pResBlock;
   }
 
   int32_t numOfRows = 0;
