@@ -2877,7 +2877,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     return 0;
   }
 
-  blockDataFreeRes((SSDataBlock*)pBlock);
   code = calBlockTbName(pInfo, pInfo->pRes, 0);
   QUERY_CHECK_CODE(code, lino, _end);
 
