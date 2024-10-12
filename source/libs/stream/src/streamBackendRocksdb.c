@@ -3422,7 +3422,8 @@ void streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
     rocksdb_iter_prev(pCur->iter);
   }
 }
-int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
+                                      int32_t* pVLen) {
   if (!pCur) return -1;
   SStateKey  tkey;
   SStateKey* pKtmp = &tkey;
@@ -3450,7 +3451,8 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCu
 
       if (pVal != NULL) {
         if (pState != NULL && pState->pResultRowStore.resultRowGet != NULL && pState->pExprSupp != NULL) {
-          int code = (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, val, len, (char**)&tVal, (size_t*)&tVlen);
+          int code =
+              (pState->pResultRowStore.resultRowGet)(pState->pExprSupp, val, len, (char**)&tVal, (size_t*)&tVlen);
           if (code != 0) {
             taosMemoryFree(val);
             return code;
@@ -4479,6 +4481,7 @@ void    streamStateClearBatch(void* pBatch) { rocksdb_writebatch_clear((rocksdb_
 void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rocksdb_writebatch_t*)pBatch); }
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl) {
+  int32_t         code = 0;
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
 
@@ -4491,8 +4494,20 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
   char    buf[128] = {0};
   int32_t klen = ginitDict[i].enFunc((void*)key, buf);
 
+  char*  dst = NULL;
+  size_t size = 0;
+  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
+    dst = val;
+    size = vlen;
+  } else {
+    code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, val, vlen, &dst, &size);
+    if (code != 0) {
+      return code;
+    }
+  }
+
   char*   ttlV = NULL;
-  int32_t ttlVLen = ginitDict[i].enValueFunc(val, vlen, ttl, &ttlV);
+  int32_t ttlVLen = ginitDict[i].enValueFunc(dst, size, ttl, &ttlV);
 
   rocksdb_column_family_handle_t* pCf = wrapper->pCf[ginitDict[i].idx];
   rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, ttlV, (size_t)ttlVLen);
@@ -4516,7 +4531,6 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
     dst = val;
     size = vlen;
-    return -1;
   } else {
     code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, val, vlen, &dst, &size);
     if (code != 0) {
