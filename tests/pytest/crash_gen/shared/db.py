@@ -667,10 +667,10 @@ class MyTDSql:
             Logging.error(f"SchemalessError: {e}-{line}")
             raise
 
-    def influxdbLineInsertWs(self, line, ts_type=None):
+    def influxdbLineInsertWs(self, line, ts_type=None, dbName=""):
         precision = None if ts_type is None else ts_type
         try:
-            self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision, 1, 1)
+            self._conn.schemaless_insert(line, taosws.PySchemalessProtocol.Line, precision, 1, 1)
             self.recordSmlLine(line)
             # Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:

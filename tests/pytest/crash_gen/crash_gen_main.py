@@ -79,6 +79,7 @@ gContainer: Container
 
 
 class WorkerThread:
+    dbName = ""
     def __init__(self, pool: ThreadPool, tid, tc: ThreadCoordinator):
         """
             Note: this runs in the main thread context
@@ -91,7 +92,7 @@ class WorkerThread:
         # self._thread = threading.Thread(target=runThread, args=(self,))
         self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
-        self.dbName = ""
+        print("====WorkerThread dbname:", self.dbName)
 
         # Let us have a DB connection of our own
         if (Config.getConfig().per_thread_db_connection):  # type: ignore
@@ -1516,6 +1517,7 @@ class Task():
 
         # Now pick a database, and stick with it for the duration of the task execution
         dbName = self._db.getName()
+        print("!!db-", dbName)
         wt.dbName = dbName
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
@@ -4877,12 +4879,20 @@ class TaskAddData(StateTransitionTask):
             int: The corresponding TDSmlTimestampType value.
 
         """
-        if precision == "ms":
-            return TDSmlTimestampType.MILLI_SECOND.value
-        elif precision == "us":
-            return TDSmlTimestampType.MICRO_SECOND.value
-        elif precision == "ns":
-            return TDSmlTimestampType.NANO_SECOND.value
+        if Config.getConfig().connector_type == 'native' or Config.getConfig().connector_type == 'rest':
+            if precision == "ms":
+                return TDSmlTimestampType.MILLI_SECOND.value
+            elif precision == "us":
+                return TDSmlTimestampType.MICRO_SECOND.value
+            elif precision == "ns":
+                return TDSmlTimestampType.NANO_SECOND.value
+        else:
+            if precision == "ms":
+                return taosws.PySchemalessPrecision.Millisecond
+            elif precision == "us":
+                return taosws.PySchemalessPrecision.Microsecond
+            elif precision == "ns":
+                return taosws.PySchemalessPrecision.Nanosecond
 
     def _addDataByInfluxdbLine(self, db: Database, dbc):
         """
@@ -4957,7 +4967,7 @@ class TaskAddData(StateTransitionTask):
         try:
             lines = f'{stbname},{tagStrs} {colStrs} {ts}'
             ts_type = self._transSmlTsType(precision)
-            dbc.influxdbLineInsert(line=[lines], ts_type=ts_type, dbname=db.getName())
+            dbc.influxdbLineInsert(line=[lines], ts_type=ts_type, dbName=db.getName())
         except Exception as e:  # Any exception at all
             self.logError(f"func _addDataByInfluxdbLine error: {lines}-{e}")
             raise
