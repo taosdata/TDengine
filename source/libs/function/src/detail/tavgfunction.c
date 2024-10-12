@@ -92,13 +92,6 @@
     out->sum.usum += val;                                     \
   }
 
-typedef struct SAvgRes {
-  double  result;
-  SSumRes sum;
-  int64_t count;
-  int16_t type;  // store the original input type, used in merge function
-} SAvgRes;
-
 static void floatVectorSumAVX(const float* plist, int32_t numOfRows, SAvgRes* pRes) {
   const int32_t bitWidth = 256;
 
