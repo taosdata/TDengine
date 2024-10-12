@@ -18,6 +18,7 @@ import time
 import socket
 import json
 import toml
+import subprocess
 from frame.boundary import DataBoundary
 import taos
 from frame.log import *
@@ -1830,6 +1831,51 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
+    def generate_query_result(self, inputfile, test_case):
+        if not os.path.exists(inputfile):
+            tdLog.exit(f"Input file '{inputfile}' does not exist.")
+        else:
+            self.query_result_file = f"./temp_{test_case}.result"
+            os.system(f"taos -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+            return self.query_result_file
+
+    def compare_result_files(self, file1, file2):
+
+        try:
+            # 使用 subprocess.run 来执行 diff/fc 命令
+            # print(file1, file2)
+            if platform.system().lower() != 'windows':
+                cmd='diff'
+                result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
+            else:
+                cmd='fc'
+                result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
+            # 如果输出不为空，则打印差异
+            if result.stdout:
+                tdLog.debug(f"Differences between {file1} and {file2}")
+                tdLog.notice(f"\r\n{result.stdout}")
+                return False
+            else:
+                return True
+        except FileNotFoundError:
+            tdLog.debug("The 'diff' command is not found. Please make sure it's installed and available in your PATH.")
+        except Exception as e:
+            tdLog.debug(f"An error occurred: {e}")
+
+
+    def compare_testcase_result(self, inputfile,expected_file,test_case):
+        test_reulst_file = self.generate_query_result(inputfile,test_case)
+
+        if self.compare_result_files(expected_file, test_reulst_file ):
+            tdLog.info("Test passed: Result files are identical.")
+            os.system(f"rm -f {test_reulst_file}")
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.lineno}(line:{caller.lineno}) failed: sqlfile is {inputfile}, expect_file:{expected_file}  != reult_file:{test_reulst_file} ")
+
+            tdLog.exit("Test failed: Result files are different.")
+
+
 def is_json(msg):
     if isinstance(msg, str):
         try:
@@ -1863,5 +1909,7 @@ def dict2toml(in_dict: dict, file:str):
         return ""
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
+
+
 
 tdCom = TDCom()
