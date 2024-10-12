@@ -3006,20 +3006,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           }
           break;
         }
-        case TSDB_DATA_TYPE_TINYINT:
-        case TSDB_DATA_TYPE_SMALLINT:
-        case TSDB_DATA_TYPE_INT:
-        case TSDB_DATA_TYPE_BIGINT:{
+        case TSDB_DATA_TYPE_TINYINT: {
+          int8_t *in = (int8_t *)pInputData[0]->pData;
+          int8_t *out = (int8_t *)pOutputData->pData;
+          int8_t result = (int8_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_SMALLINT: {
+          int16_t *in = (int16_t *)pInputData[0]->pData;
+          int16_t *out = (int16_t *)pOutputData->pData;
+          int16_t result = (int16_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_INT: {
+          int32_t *in = (int32_t *)pInputData[0]->pData;
+          int32_t *out = (int32_t *)pOutputData->pData;
+          int32_t result = (int32_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_BIGINT: {
           int64_t *in = (int64_t *)pInputData[0]->pData;
           int64_t *out = (int64_t *)pOutputData->pData;
           int64_t result = (int64_t)d1((double)in[i], in2);
           out[i] = result;
           break;
         }
-        case TSDB_DATA_TYPE_UTINYINT:
-        case TSDB_DATA_TYPE_USMALLINT:
-        case TSDB_DATA_TYPE_UINT:
-        case TSDB_DATA_TYPE_UBIGINT:{
+        case TSDB_DATA_TYPE_UTINYINT: {
+          uint8_t *in = (uint8_t *)pInputData[0]->pData;
+          uint8_t *out = (uint8_t *)pOutputData->pData;
+          uint8_t result = (uint8_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_USMALLINT: {
+          uint16_t *in = (uint16_t *)pInputData[0]->pData;
+          uint16_t *out = (uint16_t *)pOutputData->pData;
+          uint16_t result = (uint16_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_UINT: {
+          uint32_t *in = (uint32_t *)pInputData[0]->pData;
+          uint32_t *out = (uint32_t *)pOutputData->pData;
+          uint32_t result = (uint32_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_UBIGINT: {
           uint64_t *in = (uint64_t *)pInputData[0]->pData;
           uint64_t *out = (uint64_t *)pOutputData->pData;
           uint64_t result = (uint64_t)d1((double)in[i], in2);
@@ -3062,20 +3098,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
             }
             break;
           }
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_BIGINT:{
+          case TSDB_DATA_TYPE_TINYINT: {
+            int8_t *in = (int8_t *)pInputData[0]->pData;
+            int8_t *out = (int8_t *)pOutputData->pData;
+            int8_t result = (int8_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_SMALLINT: {
+            int16_t *in = (int16_t *)pInputData[0]->pData;
+            int16_t *out = (int16_t *)pOutputData->pData;
+            int16_t result = (int16_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_INT: {
+            int32_t *in = (int32_t *)pInputData[0]->pData;
+            int32_t *out = (int32_t *)pOutputData->pData;
+            int32_t result = (int32_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_BIGINT: {
             int64_t *in = (int64_t *)pInputData[0]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
             int64_t result = (int64_t)d1((double)in[0], in2);
             out[i] = result;
             break;
           }
-          case TSDB_DATA_TYPE_UTINYINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-          case TSDB_DATA_TYPE_UINT:
-          case TSDB_DATA_TYPE_UBIGINT:{
+          case TSDB_DATA_TYPE_UTINYINT: {
+            uint8_t *in = (uint8_t *)pInputData[0]->pData;
+            uint8_t *out = (uint8_t *)pOutputData->pData;
+            uint8_t result = (uint8_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_USMALLINT: {
+            uint16_t *in = (uint16_t *)pInputData[0]->pData;
+            uint16_t *out = (uint16_t *)pOutputData->pData;
+            uint16_t result = (uint16_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UINT: {
+            uint32_t *in = (uint32_t *)pInputData[0]->pData;
+            uint32_t *out = (uint32_t *)pOutputData->pData;
+            uint32_t result = (uint32_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UBIGINT: {
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
             uint64_t result = (uint64_t)d1((double)in[0], in2);
@@ -3119,20 +3191,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
             }
             break;
           }
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_BIGINT:{
+          case TSDB_DATA_TYPE_TINYINT: {
+            int8_t *in = (int8_t *)pInputData[0]->pData;
+            int8_t *out = (int8_t *)pOutputData->pData;
+            int8_t result = (int8_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_SMALLINT: {
+            int16_t *in = (int16_t *)pInputData[0]->pData;
+            int16_t *out = (int16_t *)pOutputData->pData;
+            int16_t result = (int16_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_INT: {
+            int32_t *in = (int32_t *)pInputData[0]->pData;
+            int32_t *out = (int32_t *)pOutputData->pData;
+            int32_t result = (int32_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_BIGINT: {
             int64_t *in = (int64_t *)pInputData[0]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
             int64_t result = (int64_t)d1((double)in[i], in2);
             out[i] = result;
             break;
           }
-          case TSDB_DATA_TYPE_UTINYINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-          case TSDB_DATA_TYPE_UINT:
-          case TSDB_DATA_TYPE_UBIGINT:{
+          case TSDB_DATA_TYPE_UTINYINT: {
+            uint8_t *in = (uint8_t *)pInputData[0]->pData;
+            uint8_t *out = (uint8_t *)pOutputData->pData;
+            uint8_t result = (uint8_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_USMALLINT: {
+            uint16_t *in = (uint16_t *)pInputData[0]->pData;
+            uint16_t *out = (uint16_t *)pOutputData->pData;
+            uint16_t result = (uint16_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UINT: {
+            uint32_t *in = (uint32_t *)pInputData[0]->pData;
+            uint32_t *out = (uint32_t *)pOutputData->pData;
+            uint32_t result = (uint32_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UBIGINT: {
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
             uint64_t result = (uint64_t)d1((double)in[i], in2);
