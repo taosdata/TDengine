@@ -3668,7 +3668,7 @@ static void cliConnRemoveTimeoutNoQidMsg(SCliConn* pConn, int64_t* st, queue* se
   SCliThrd*      pThrd = pConn->hostThrd;
   STrans*        pInst = pThrd->pInst;
   SListFilterArg arg = {.id = *st, .pInst = pInst};
-  transQueueRemoveByFilter(&pConn->reqsToSend, filterTimeoutReq, st, &set, -1);
+  transQueueRemoveByFilter(&pConn->reqsToSend, filterTimeoutReq, &arg, &set, -1);
   return;
 }
 
