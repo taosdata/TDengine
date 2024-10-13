@@ -677,6 +677,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       return code;
     }
     pBlock = pReader->pResBlock;
+    *pRes = pBlock;
   }
 
   int32_t numOfRows = 0;
