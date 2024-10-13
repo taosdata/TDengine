@@ -690,6 +690,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     code = buildResSDataBlock(pReader, pReader->pSchemaWrapper, pReader->pColIdList);
     TSDB_CHECK_CODE(code, line, END);
     pBlock = pReader->pResBlock;
+    *pRes = pBlock;
   }
 
   int32_t numOfRows = 0;
