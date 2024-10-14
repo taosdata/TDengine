@@ -102,7 +102,6 @@ pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = % mask_dsn(to)))]
-
 pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,
@@ -117,8 +116,12 @@ pub async fn build_ipc(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
     let ipc = if with_agent.is_none() {
-        let builder = taos::TaosBuilder::from_dsn(to)?;
-        let pool = builder.pool()?;
+        let pool = {
+            let builder = taos::TaosBuilder::from_dsn(to)?;
+            let mut pool_config = builder.default_pool_config();
+            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            builder.with_pool_config(pool_config)?
+        };
         if with_agent.is_none() {
             let _ = pool.get().await.context("Target connection error")?;
         }
