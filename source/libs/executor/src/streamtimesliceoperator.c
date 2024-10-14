@@ -2073,6 +2073,9 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
 
+  // init Info->groupResInfo
+  pInfo->groupResInfo.freeItem = false;
+
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
                   true, OP_NOT_OPENED, pInfo, pTaskInfo);
