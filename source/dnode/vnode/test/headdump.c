@@ -149,7 +149,12 @@ void dumpRecord(SDataFileReader *pFileReader, const TBrinBlkArray *brinBlkArray,
 
   SBrinRecord *pRecord = NULL;
   int32_t      i = 0;
-  while (((pRecord = getNextBrinRecord(&iter)) != NULL)) {
+  int32_t      code = 0;
+  while (0 == (code = getNextBrinRecord(&iter, &pRecord))) {
+    if (pRecord == NULL) {
+      break;
+    }
+
     printf(
         "record[%d]: "
         "suid,uid[%ld,%ld],firstKey[%ld,%u,%ld],lastKey[%ld,%u,%ld],vers[%ld,%ld],blockOffset:%ld,smaOffset:%ld,block[%"
@@ -159,6 +164,10 @@ void dumpRecord(SDataFileReader *pFileReader, const TBrinBlkArray *brinBlkArray,
         pRecord->minVer, pRecord->maxVer, pRecord->blockOffset, pRecord->smaOffset, pRecord->blockSize,
         pRecord->blockKeySize, pRecord->smaSize, pRecord->numRow, pRecord->count);
     i++;
+  }
+
+  if (code != 0) {
+    printf("failed to get next record, code:%d\n", code);
   }
 }
 
