@@ -4531,58 +4531,36 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t processPrimaryKeyInCondition(SNode *pNode, STimeWindow *win, bool *isStrict) {
+static bool processPrimaryKeyInCondition(SNode *pNode, STimeWindow *win) {
     SOperatorNode *optNode = (SOperatorNode *)pNode;
     if (optNode->pLeft == NULL || optNode->pRight == NULL) {
-        return TSDB_CODE_APP_ERROR;
+        return false;
     }
     SNodeListNode *valueListNode = (SNodeListNode *)(optNode->pRight);
     if (valueListNode == NULL || valueListNode->pNodeList == NULL) {
-        return TSDB_CODE_APP_ERROR;
+        return false;
     }
     SNodeList *valueList = valueListNode->pNodeList;
     if (valueList->length == 0) {
-        *win = TSWINDOW_DESC_INITIALIZER;
-        return TSDB_CODE_SUCCESS;
+        return false;
     }
     int64_t minTs = INT64_MAX;
     int64_t maxTs = INT64_MIN;
-    SListCell *cell = valueList->pHead;
-    while (cell != NULL) {
-        SValueNode *valueNode = (SValueNode *)(cell->pNode);
-        if (valueNode == NULL) {
-            return TSDB_CODE_APP_ERROR;
-        }
-        int64_t tsValue = 0;
-        switch (valueNode->node.resType.type) {
-            case TSDB_DATA_TYPE_TIMESTAMP:
-            case TSDB_DATA_TYPE_BIGINT:
-                tsValue = valueNode->datum.i;
-                break;
-            case TSDB_DATA_TYPE_INT:
-                tsValue = (int64_t)valueNode->datum.i;
-                break;
-            case TSDB_DATA_TYPE_SMALLINT:
-                tsValue = (int64_t)valueNode->datum.i;
-                break;
-            case TSDB_DATA_TYPE_TINYINT:
-                tsValue = (int64_t)valueNode->datum.i;
-                break;
-            default:
-                return TSDB_CODE_APP_ERROR;
-        }
-        if (tsValue < minTs) {
-            minTs = tsValue;
-        }
-        if (tsValue > maxTs) {
-            maxTs = tsValue;
-        }
-        cell = cell->pNext;
+    SNode *node = NULL;
+    FOREACH(node, valueList) {
+      int64_t tsValue = 0;
+      SValueNode *valueNode = (SValueNode*)node;
+      tsValue = valueNode->datum.i;
+      if (tsValue < minTs) {
+          minTs = tsValue;
+      }
+      if (tsValue > maxTs) {
+          maxTs = tsValue;
+      }
     }
     win->skey = minTs;
     win->ekey = maxTs;
-    *isStrict = true;
-    return TSDB_CODE_SUCCESS;
+    return true;
 }
 
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
@@ -4624,8 +4602,10 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
       }
     } else if (filterClassifyCondition(pNode) == COND_TYPE_PRIMARY_KEY
               && node->node.type == QUERY_NODE_OPERATOR && optNode->opType == OP_TYPE_IN) {
-        code = processPrimaryKeyInCondition(pNode, win, isStrict);
-        goto _return;
+        if(processPrimaryKeyInCondition(pNode, win)) {
+          *isStrict =false;
+          goto _return;
+        }
     }
     *win = TSWINDOW_INITIALIZER;
     *isStrict = false;
