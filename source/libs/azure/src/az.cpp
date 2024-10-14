@@ -268,18 +268,19 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
   TAOS_RETURN(code);
 }
 
-int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int32_t     code = TSDB_CODE_SUCCESS;
   std::string accountName = tsS3AccessKeyId[0];
   std::string accountKey = tsS3AccessKeySecret[0];
   std::string accountURL = tsS3Hostname[0];
-  accountURL = "https://" + accountURL;
+  uint8_t    *buf = NULL;
 
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
 
     StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
 
+    accountURL = "https://" + accountURL;
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
     std::string containerName = tsS3BucketName;
@@ -287,26 +288,15 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 
     TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
 
-    uint8_t *buf = (uint8_t *)taosMemoryCalloc(1, size);
-    if (!buf) {
-      return terrno;
-    }
-
     Blobs::DownloadBlobToOptions options;
-    // options.TransferOptions.Concurrency = concurrency;
-    // if (offset.HasValue() || length.HasValue()) {
     options.Range = Azure::Core::Http::HttpRange();
     options.Range.Value().Offset = offset;
     options.Range.Value().Length = size;
-    //}
-    /*
-    if (initialChunkSize.HasValue()) {
-      options.TransferOptions.InitialChunkSize = initialChunkSize.Value();
+
+    buf = (uint8_t *)taosMemoryCalloc(1, size);
+    if (!buf) {
+      return terrno;
     }
-    if (chunkSize.HasValue()) {
-      options.TransferOptions.ChunkSize = chunkSize.Value();
-    }
-    */
 
     auto res = blobClient.DownloadTo(buf, size, options);
     if (check && res.Value.ContentRange.Length.Value() != size) {
@@ -321,7 +311,33 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
            e.ReasonPhrase.c_str());
     code = TAOS_SYSTEM_ERROR(EIO);
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    if (buf) {
+      taosMemoryFree(buf);
+    }
+    *ppBlock = NULL;
+
     TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // May use an exponential backoff policy for retries with 503
+  int        retryCount = 0;
+  static int maxRetryCount = 5;
+  static int minRetryInterval = 1000;  // ms
+  static int maxRetryInterval = 3000;  // ms
+
+_retry:
+  code = azGetObjectBlockImpl(object_name, offset, size, check, ppBlock);
+  if (TSDB_CODE_SUCCESS != code && retryCount++ < maxRetryCount) {
+    taosMsleep(taosRand() % (maxRetryInterval - minRetryInterval + 1) + minRetryInterval);
+    uInfo("%s: 0x%x(%s) and retry get object", __func__, code, tstrerror(code));
+    goto _retry;
   }
 
   TAOS_RETURN(code);
