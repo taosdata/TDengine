@@ -1349,7 +1349,7 @@ static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNode
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(pFillExprs, pNew);
       }
-      nodesNodeToString(pProject, false, &str, &len);
+      //nodesNodeToString(pProject, false, &str, &len);
       qInfo("wjm expr: %s need fill", str);
       taosMemoryFreeClear(str);
       len = 0;
@@ -1359,12 +1359,12 @@ static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNode
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(pNotFillExprs, pNew);
       }
-      nodesNodeToString(pProject, false, &str, &len);
+      //nodesNodeToString(pProject, false, &str, &len);
       qInfo("wjm expr: %s not fill", str);
       taosMemoryFreeClear(str);
       len = 0;
     } else {
-      nodesNodeToString(pProject, false, &str, &len);
+      //nodesNodeToString(pProject, false, &str, &len);
       qInfo("wjm expr: %s not project", str);
       taosMemoryFreeClear(str);
       len = 0;
