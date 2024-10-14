@@ -2160,10 +2160,10 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  int32_t      numOfAlgos = 0;
-  int32_t      nameLen;
-  int32_t      type;
-  char         name[TSDB_ANAL_ALGO_KEY_LEN];
+  int32_t  numOfAlgos = 0;
+  int32_t  nameLen;
+  int32_t  type;
+  char     name[TSDB_ANAL_ALGO_KEY_LEN];
   SAnalUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -11343,16 +11343,111 @@ _exit:
   return code;
 }
 
+static int32_t tCheckSubmitTbData(const SSubmitTbData *pTbData) {
+  if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    SColData *colDataArr = TARRAY_DATA(pTbData->aCol);
+    SRowKey   lastKey;
+    for (int32_t i = 0; i < TARRAY_SIZE(pTbData->aCol); i++) {
+      SRowKey key;
+      tColDataArrGetRowKey(colDataArr, TARRAY_SIZE(pTbData->aCol), i, &key);
+
+      if (i > 0 && tRowKeyCompare(&lastKey, &key) >= 0) {
+        uError("%s failed since the row key is not in ascending order", __func__);
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      lastKey = key;
+    }
+  } else {
+    int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
+    SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+    SRowKey lastKey;
+
+    if (nRow == 0) {
+      uError("%s failed since the row number is 0", __func__);
+      return TSDB_CODE_INVALID_MSG;
+    }
+
+    for (int32_t i = 0; i < nRow; i++) {
+      SRowKey key;
+      tRowGetKey(rows[i], &key);
+
+      if (i > 0 && tRowKeyCompare(&lastKey, &key) >= 0) {
+        uError("%s failed since the row key is not in ascending order", __func__);
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      lastKey = key;
+    }
+  }
+  return 0;
+}
+
+static int32_t tCheckSumitReq(const SSubmitReq2 *pReq) {
+  int32_t code = 0;
+
+  if (pReq == NULL) {
+    uError("%s failed since the submit request is NULL", __func__);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  size_t nSubmitTbData = taosArrayGetSize(pReq->aSubmitTbData);
+  if (nSubmitTbData == 0) {
+    uError("%s failed since the submit request has no table data", __func__);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  SHashObj *hmap = taosHashInit(nSubmitTbData, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (NULL == hmap) {
+    uError("%s failed to create hash map since %s", __func__, tstrerror(terrno));
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
+    SSubmitTbData *pTbData = taosArrayGet(pReq->aSubmitTbData, i);
+    if (NULL == pTbData) {
+      taosHashCleanup(hmap);
+      uError("%s failed to get table data", __func__);
+      return TSDB_CODE_INVALID_MSG;
+    }
+
+    if (taosHashGet(hmap, &pTbData->uid, sizeof(pTbData->uid)) != NULL) {
+      taosHashCleanup(hmap);
+      uError("%s failed since duplicate table data", __func__);
+      return TSDB_CODE_INVALID_MSG;
+    }
+
+    code = taosHashPut(hmap, &pTbData->uid, sizeof(pTbData->uid), NULL, 0);
+    if (code != 0) {
+      taosHashCleanup(hmap);
+      uError("%s failed to put table data into hash map", __func__);
+      return code;
+    }
+
+    code = tCheckSubmitTbData(pTbData);
+    if (code) {
+      taosHashCleanup(hmap);
+      uError("%s failed to check table data", __func__);
+      return code;
+    }
+  }
+
+  taosHashCleanup(hmap);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   int32_t code = 0;
   int32_t lino;
 
+  TAOS_CHECK_EXIT(tCheckSumitReq(pReq));
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
   TAOS_CHECK_EXIT(tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)));
   for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
     TAOS_CHECK_EXIT(tEncodeSSubmitTbData(pCoder, taosArrayGet(pReq->aSubmitTbData, i)));
   }
   tEndEncode(pCoder);
+
 _exit:
   return code;
 }
