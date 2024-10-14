@@ -119,7 +119,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
     int32_t len = *(int32_t*)inBuf;
     inBuf += sizeof(int32_t);
     processedSize += sizeof(int32_t);
-    if (pCtx->fpSet.decode) {
+    if (pResultRow->version != FUNCTION_RESULT_INFO_VERSION && pCtx->fpSet.decode) {
       code = pCtx->fpSet.decode(&pCtx[i], inBuf, getResultEntryInfo(pResultRow, i, offset), pResultRow->version);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to decode result row, code:%d", code);
