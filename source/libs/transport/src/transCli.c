@@ -3643,14 +3643,15 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
                tstrerror(code));
         break;
       }
+      tWarn("%s conn %p remove timeout msg sid:%" PRId64 "", CONN_GET_INST_LABEL(pConn), pConn, *qid);
     }
     pIter = taosHashIterate(pConn->pQTable, pIter);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pQIdBuf); i++) {
     int64_t* qid = taosArrayGet(pQIdBuf, i);
-    transQueueRemoveByFilter(&pConn->reqsSentOut, filterByQid, qid, &set, -1);
-    transQueueRemoveByFilter(&pConn->reqsToSend, filterByQid, qid, &set, -1);
+    transQueueRemoveByFilter(&pConn->reqsSentOut, filterByQid, qid, set, -1);
+    transQueueRemoveByFilter(&pConn->reqsToSend, filterByQid, qid, set, -1);
 
     STransCtx* p = taosHashGet(pConn->pQTable, qid, sizeof(*qid));
     transCtxCleanup(p);
@@ -3668,7 +3669,7 @@ static void cliConnRemoveTimeoutNoQidMsg(SCliConn* pConn, int64_t* st, queue* se
   SCliThrd*      pThrd = pConn->hostThrd;
   STrans*        pInst = pThrd->pInst;
   SListFilterArg arg = {.id = *st, .pInst = pInst};
-  transQueueRemoveByFilter(&pConn->reqsToSend, filterTimeoutReq, &arg, &set, -1);
+  transQueueRemoveByFilter(&pConn->reqsToSend, filterTimeoutReq, &arg, set, -1);
   return;
 }
 
