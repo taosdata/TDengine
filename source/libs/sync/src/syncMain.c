@@ -421,13 +421,11 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
 
-  if (pSyncNode->peersNum > 0) {
-    minMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
-  }
-
-  for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-    if (matchIndex < minMatchIndex) {
+    if (minMatchIndex == SYNC_INDEX_INVALID) {
+      minMatchIndex = matchIndex;
+    } else if (matchIndex > 0 && matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
@@ -2900,7 +2898,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
       n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
-                    (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
+                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
     n += tsnprintf(buf + n, len - n, "%s", "}");
 
