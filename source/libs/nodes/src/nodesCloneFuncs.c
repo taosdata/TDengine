@@ -368,6 +368,13 @@ static int32_t countWindowNodeCopy(const SCountWindowNode* pSrc, SCountWindowNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t anomalyWindowNodeCopy(const SAnomalyWindowNode* pSrc, SAnomalyWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_FIELD(pExpr);
+  COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
   CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
   CLONE_NODE_FIELD_EX(pGap, SValueNode*);
@@ -622,6 +629,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
+  CLONE_NODE_FIELD(pAnomalyExpr);
+  COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -674,6 +683,12 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
   COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t logicForecastFuncCopy(const SForecastFuncLogicNode* pSrc, SForecastFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pFuncs);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -940,6 +955,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_COUNT_WINDOW:
       code = countWindowNodeCopy((const SCountWindowNode*)pNode, (SCountWindowNode*)pDst);
       break;
+    case QUERY_NODE_ANOMALY_WINDOW:
+      code = anomalyWindowNodeCopy((const SAnomalyWindowNode*)pNode, (SAnomalyWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
       break;
@@ -1023,6 +1041,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = logicGroupCacheCopy((const SGroupCacheLogicNode*)pNode, (SGroupCacheLogicNode*)pDst);
