@@ -681,7 +681,7 @@ void cliHandleResp(SCliConn* conn) {
   if (cliMayRecycleConn(conn)) {
     return;
   }
-  cliConnCheckTimoutMsg(conn);
+  // cliConnCheckTimoutMsg(conn);
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
 }
@@ -1309,7 +1309,7 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
     return;
   }
 
-  cliConnMayUpdateTimer(conn, pInst->readTimeout);
+  cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
   if (conn->readerStart == 0) {
     code = uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
     if (code != 0) {
