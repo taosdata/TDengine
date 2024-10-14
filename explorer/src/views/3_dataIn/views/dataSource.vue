@@ -868,17 +868,18 @@ export default {
               });
               dataSourceFilterSet[item.from_expand.id] = true;
             }
+
+            item["statusText"] = this.handleDSStatus(item.status);
             if (!statusFilterSet[item.status]) {
               this.statusFilters.push({
-                value: item.status,
-                text: this.handleDSStatus(item.status),
+                value: item.statusText,
+                text: item.statusText,
               });
               statusFilterSet[item.status] = true;
             }
             
             (item["taskid"] = item.id), (item["localname"] = item.name);
             item["localtype"] = item.from_expand.id;
-            item["statusText"] = this.handleDSStatus(item.status);
             item["target"] = item.to_expand ? item.to_expand.subject : "";
             item["created_at"] = item.created_at
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
