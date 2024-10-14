@@ -289,12 +289,12 @@ jobs:
 
           PWD=$(pwd)
           echo "PWD: $PWD"
-          run_container_id=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -v $PWD:$PWD -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          run_container_id=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
           # 复制 TestNG_taosX 并删除 .pytest_cache
-          docker exec $run_container_id bash -c "ls /data/github/ || mkdir -p /data/github/"
-          docker cp /data/github/TestNG_taosX $run_container_id:/data/github
-          docker exec $run_container_id bash -c "rm -rf /data/github/TestNG_taosX/.pytest_cache"
+          # docker exec $run_container_id bash -c "ls /data/github/ || mkdir -p /data/github/"
+          # docker cp /data/github/TestNG_taosX $run_container_id:/data/github
+          # docker exec $run_container_id bash -c "rm -rf /data/github/TestNG_taosX/.pytest_cache"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
