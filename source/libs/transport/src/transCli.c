@@ -480,9 +480,9 @@ int32_t cliGetReqBySeq(SCliConn* conn, int64_t seq, int32_t msgType, SCliReq** p
 int8_t cliMayRecycleConn(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
-
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
+    cliResetConnTimer(conn);
     code = delConnFromHeapCache(pThrd->connHeapCache, conn);
     if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
       tDebug("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
