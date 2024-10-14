@@ -333,7 +333,7 @@ jobs:
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest  --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cp $PWD/tests/e2e/setenv.sh.example $PWD/tests/e2e/setenv.sh && poetry config virtualenvs.in-project true && cd $PWD/tests/e2e/ poetry install"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cp $PWD/tests/e2e/setenv.sh.example $PWD/tests/e2e/setenv.sh && poetry config virtualenvs.in-project true && cd $PWD/tests/e2e/ && poetry install"
 
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $PWD/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_setup"
 
