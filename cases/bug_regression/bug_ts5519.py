@@ -27,7 +27,9 @@ class TestTs5519(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
         )
-        self.restart_dnode = self.taosd_setting["spec"]["dnodes"][2]
+        
+        self.restart_dnode = self.taosd_setting["spec"]["dnodes"]
+        self.sorted_dnodes = sorted(self.restart_dnode, key=lambda x: int(x['endpoint'].split(':')[1]))
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 3
         self.create_table_thread_count = 40
         self.childtable_count = 100
@@ -90,13 +92,22 @@ class TestTs5519(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {self.dbname}')
 
-
+    def delete_wal(self, host, data_dir):
+        self._remote.cmd(host, [f"rm -rf {data_dir}/vnode/vnode*/wal"])
+        
     def run(self):
         self.insert_data("yes", "no", self.insert_rows1, self.today_zero_ts, self.json_file_name1)
-        self.taosd.kill_by_port(self.restart_dnode["endpoint"])
+        self.taosd.kill_by_port(self.sorted_dnodes[2]["endpoint"])
         self.insert_data("no", "yes", self.insert_rows2, self.restore_ts, self.json_file_name2)
-        self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.restart_dnode["endpoint"], True)
-        
+        self.taosd.kill_by_port(self.sorted_dnodes[0]["endpoint"])
+        self.taosd.kill_by_port(self.sorted_dnodes[1]["endpoint"])
+        self.delete_wal(self.sorted_dnodes[0]["endpoint"].split(":")[0], self.sorted_dnodes[0]["config"]["dataDir"])
+        self.delete_wal(self.sorted_dnodes[1]["endpoint"].split(":")[0], self.sorted_dnodes[1]["config"]["dataDir"])
+        self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[0]["endpoint"], True)
+        self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[1]["endpoint"], True)
+        self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[2]["endpoint"], True)
+        self.tdSql.query(f'select distinct(restored) from information_schema.ins_vnodes where db_name = "{self.dbname}";', count_expected_res=True)
+        self.tdSql.checkEqual(self.tdSql.query_row, 1)
 
     def cleanup(self):
         pass
