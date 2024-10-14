@@ -704,7 +704,7 @@ bool filterToRmTimoutReq(void* key, void* arg) {
   SCliReq*        pReq = QUEUE_DATA(key, SCliReq, q);
   if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((taosGetTimestampUs() - pReq->st) / 1000000);
-    if (filterArg && (elapse > filterArg->pInst->readTimeout)) {
+    if (filterArg && (elapse >= filterArg->pInst->readTimeout)) {
       return false;
     } else {
       return false;
@@ -718,7 +718,7 @@ bool filterToDebug_timeoutMsg(void* key, void* arg) {
   SCliReq*        pReq = QUEUE_DATA(key, SCliReq, q);
   if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((taosGetTimestampUs() - pReq->st) / 1000000);
-    if (filterArg && elapse > filterArg->pInst->readTimeout) {
+    if (filterArg && elapse >= filterArg->pInst->readTimeout) {
       tWarn("req %s timeout, elapse:%" PRId64 "ms", TMSG_INFO(pReq->msg.msgType), elapse);
       return false;
     }
@@ -3612,7 +3612,7 @@ bool filterTimeoutReq(void* key, void* arg) {
   SCliReq* pReq = QUEUE_DATA(key, SCliReq, q);
   if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((st - pReq->st) / 1000000);
-    if (listArg && elapse > listArg->pInst->readTimeout) {
+    if (listArg && elapse >= listArg->pInst->readTimeout) {
       return true;
     } else {
       return false;
@@ -3632,7 +3632,7 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
     STransCtx* pCtx = (STransCtx*)pIter;
     int64_t*   qid = taosHashGetKey(pIter, NULL);
 
-    if (((*st - pCtx->st) / 1000000) > pInst->readTimeout) {
+    if (((*st - pCtx->st) / 1000000) >= pInst->readTimeout) {
       code = taosHashRemove(pThrd->pIdConnTable, qid, sizeof(*qid));
       if (code != 0) {
         tError("%s conn %p failed to remove state sid:%" PRId64 " since %s", CONN_GET_INST_LABEL(pConn), pConn, *qid,
@@ -3674,6 +3674,7 @@ static void cliConnRemoveTimeoutNoQidMsg(SCliConn* pConn, int64_t* st, queue* se
   SCliThrd*      pThrd = pConn->hostThrd;
   STrans*        pInst = pThrd->pInst;
   SListFilterArg arg = {.id = *st, .pInst = pInst};
+  transQueueRemoveByFilter(&pConn->reqsSentOut, filterTimeoutReq, &arg, set, -1);
   transQueueRemoveByFilter(&pConn->reqsToSend, filterTimeoutReq, &arg, set, -1);
   return;
 }

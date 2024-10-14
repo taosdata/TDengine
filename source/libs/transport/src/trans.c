@@ -85,7 +85,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->readTimeout = pInit->readTimeout;
-  if (pRpc->readTimeout <= 0) {
+  if (pRpc->readTimeout < 0) {
     pRpc->readTimeout = INT64_MAX;
   }
 
