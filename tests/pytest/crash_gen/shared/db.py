@@ -670,12 +670,17 @@ class MyTDSql:
     def influxdbLineInsertWs(self, line, ts_type=None, dbName=""):
         precision = None if ts_type is None else ts_type
         try:
+            # TODO refactor
+            # TODO add database to source conn, not redefine here
+            self._conn = taosws.connect(host="127.0.0.1", port=6041, database=dbName)
             self._conn.schemaless_insert(line, taosws.PySchemalessProtocol.Line, precision, 1, 1)
             self.recordSmlLine(line)
             # Logging.info(f"Inserted influxDb Line: {line}")
         except SchemalessError as e:
             Logging.error(f"SchemalessError: {e}-{line}")
             raise
+        finally:
+            self._conn.close()
 
     def openTsdbTelnetLineInsert(self, line, ts_type=None):
         # TODO finish
