@@ -421,11 +421,7 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
 
-  if (pSyncNode->peersNum > 0) {
-    minMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
-  }
-
-  for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
     if (minMatchIndex == SYNC_INDEX_INVALID) {
       minMatchIndex = matchIndex;
