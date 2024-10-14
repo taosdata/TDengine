@@ -130,6 +130,12 @@ jobs:
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taosx ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cd ..
+          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm taosx.tar.gz
+          tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_explorer:
     needs: remove_artifacts
@@ -327,19 +333,16 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
 
-          PWD=$(pwd)
-          echo "pwd: $PWD"
-
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest  --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cp $PWD/tests/e2e/setenv.sh.example $PWD/tests/e2e/setenv.sh && poetry config virtualenvs.in-project true && cd $PWD/tests/e2e/ && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && poetry install"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url."https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/" && poetry install"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $PWD/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_setup"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_setup"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $PWD/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile\" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile\" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $PWD/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
