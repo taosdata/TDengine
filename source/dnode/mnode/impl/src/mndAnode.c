@@ -834,7 +834,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
 
         for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
           SAnodeAlgo *algo = taosArrayGet(algos, a);
-          nameLen = 1 + snprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
+          nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
 
           SAnalUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
           if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
@@ -851,7 +851,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
               goto _OVER;
             }
 
-            url.urlLen = 1 + snprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
+            url.urlLen = 1 + tsnprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
                                       taosAnalAlgoUrlStr(url.type));
             if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalUrl)) != 0) {
               taosMemoryFree(url.url);
