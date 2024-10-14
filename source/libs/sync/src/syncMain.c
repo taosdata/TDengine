@@ -425,7 +425,7 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
     if (minMatchIndex == SYNC_INDEX_INVALID) {
       minMatchIndex = matchIndex;
-    } else if (matchIndex < minMatchIndex) {
+    } else if (matchIndex > 0 && matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
