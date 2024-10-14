@@ -1836,6 +1836,8 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   }
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
+  pInfo->groupResInfo.freeItem = false;
+
   pInfo->pUpdated = taosArrayInit(16, sizeof(SWinKey));
   QUERY_CHECK_NULL(pInfo->pUpdated, code, lino, _end, terrno);
 
@@ -2023,6 +2025,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   }
 
   int32_t keyBytes = sizeof(TSKEY);
+  keyBytes += blockDataGetRowSize(pDownRes) + sizeof(SResultCellData) * taosArrayGetSize(pDownRes->pDataBlock);
   if (pPkCol) {
     keyBytes += pPkCol->bytes;
   }
@@ -2072,9 +2075,6 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
-
-  // init Info->groupResInfo
-  pInfo->groupResInfo.freeItem = false;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,

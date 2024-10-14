@@ -237,7 +237,7 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   if (ppBuff) {
     pWinStates = (SArray*)(*ppBuff);
   } else {
-    qTrace("===stream=== search buff is empty.group id:%" PRId64, pKey->groupId);
+    qDebug("===stream=== search buff is empty.group id:%" PRId64, pKey->groupId);
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
