@@ -1842,7 +1842,7 @@ class TDCom:
     def compare_result_files(self, file1, file2):
 
         try:
-            # 使用 subprocess.run 来执行 diff/fc 命令
+            # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
@@ -1850,7 +1850,7 @@ class TDCom:
             else:
                 cmd='fc'
                 result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
-            # 如果输出不为空，则打印差异
+            # if result is not empty, print the differences and files name. Otherwise, the files are identical.
             if result.stdout:
                 tdLog.debug(f"Differences between {file1} and {file2}")
                 tdLog.notice(f"\r\n{result.stdout}")
