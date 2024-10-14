@@ -416,7 +416,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
-    taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      encryptError("failed to close file:%p", pFile);
+    }
     taosCloseLog();
     taosCleanupArgs();
     return ret;
