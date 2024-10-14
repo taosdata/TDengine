@@ -744,6 +744,9 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
     return;
   }
   code = cliConnRemoveTimeoutMsg(conn);
+  if (code != 0) {
+    tDebug("%s conn %p do remove timeout msg since %s", CONN_GET_INST_LABEL(conn), conn);
+  }
   // QUEUE_INIT(&set);
   // SListFilterArg arg = {.id = 0, .pInst = pInst};
   // transQueueRemoveByFilter(&conn->reqsSentOut, filterToRmTimoutReq, &arg, &set, -1);
