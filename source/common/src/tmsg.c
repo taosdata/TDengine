@@ -11411,9 +11411,19 @@ static int32_t tCheckSumitReq(const SSubmitReq2 *pReq) {
       return TSDB_CODE_INVALID_MSG;
     }
 
+    if (pTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+      if (pTbData->pCreateTbReq == NULL) {
+        taosHashCleanup(hmap);
+        uError("%s failed since the create table request is NULL", __func__);
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      continue;
+    }
+
     if (taosHashGet(hmap, &pTbData->uid, sizeof(pTbData->uid)) != NULL) {
       taosHashCleanup(hmap);
-      uError("%s failed since duplicate table data", __func__);
+      uError("%s failed since duplicate table data, uid:%" PRId64, __func__, pTbData->uid);
       return TSDB_CODE_INVALID_MSG;
     }
 
