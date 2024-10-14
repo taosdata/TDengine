@@ -106,7 +106,7 @@ class TestTs5519(TDCase):
         self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[0]["endpoint"], True)
         self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[1]["endpoint"], True)
         self.taosd.update_cfg('/tmp', self.taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, self.sorted_dnodes[2]["endpoint"], True)
-        self.tdSql.query(f'select distinct(restored) from information_schema.ins_vnodes where db_name = "{self.dbname}";', count_expected_res=True)
+        self.tdSql.query(f'select count(*) from (select distinct(restored) from information_schema.ins_vnodes where db_name = "{self.dbname}");', count_expected_res=1)
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
 
     def cleanup(self):
