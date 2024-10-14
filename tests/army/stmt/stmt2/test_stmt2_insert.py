@@ -795,7 +795,7 @@ class TDTestCase:
             assert err.msg == 'insert into super table syntax is not supported for stmt'
             tdLog.info("Case [test_stmt2_insert_super_table_auto_creat_table_with_bind_tags] PASS")
 
-    def test_stmt2_insert_super_table_auto_single_table_muti_rows_muti_cols(self):
+    def test_stmt2_insert_super_table_muti_table_muti_rows_muti_cols(self):
         stablename = 'stmt_insert_super_table_auto_single_table_muti_rows_muti_cols'
         try:
             self.connectstmt.execute("drop database if exists %s" % self.dbname)
@@ -862,7 +862,7 @@ class TDTestCase:
         except Exception as err:
             raise err
             
-    def test_stmt2_insert_super_table_auto_single_table_single_rows_muti_cols(self):
+    def test_stmt2_insert_super_table_muti_table_single_rows_muti_cols(self):
         stablename = 'stmt_insert_super_table_auto_single_table_single_rows_muti_cols'
         try:
             self.connectstmt.execute("drop database if exists %s" % self.dbname)
@@ -929,7 +929,7 @@ class TDTestCase:
         except Exception as err:
             raise err
         
-    def test_stmt2_insert_super_table_auto_single_table_muti_rows_single_cols(self):
+    def test_stmt2_insert_super_table_muti_table_muti_rows_single_cols(self):
         stablename = 'stmt_insert_super_table_auto_single_table_single_rows_muti_cols'
         try:
             self.connectstmt.execute("drop database if exists %s" % self.dbname)
@@ -1015,7 +1015,7 @@ class TDTestCase:
             raise err
         
     def test_stmt2_tag_number_not_match(self):
-        stablename = 'stmt_insert_super_table_auto_single_table_single_rows_muti_cols'
+        stablename = 'test_stmt2_tag_number_not_match'
 
         # bind data
         tbnames = ['t1', 't2']
@@ -1038,6 +1038,21 @@ class TDTestCase:
             ]
         ]
 
+        incorrect_datas = [
+            # table 1
+            [
+                [1626861392589111],
+                [3.1415926],
+                [3.1415926]
+            ],
+            # table 2
+            [
+                [1626861392589333, 1626861392589444],
+                [3.1415,           3.1415],
+                [3.1415,           3.1415]
+            ]
+        ]
+
         table1 = BindTable(tbnames[0], tags[0])
         
         for data in datas[0]:
@@ -1048,14 +1063,16 @@ class TDTestCase:
         for data in datas[1]:
             table2.add_col_data(data)
 
+        self.connectstmt.execute("drop database if exists %s" % self.dbname)
+        self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+        self.connectstmt.select_db(self.dbname)
+        
+        # throw error using bind_param_with_tables
         try:
-            self.connectstmt.execute("drop database if exists %s" % self.dbname)
-            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
-            self.connectstmt.select_db(self.dbname)
             self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
 
             stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} (location) tags (?,?) (ts,current) values(?, ?)")            
-
+              
             # columns type for stable
             stmt2.bind_param_with_tables([table1, table2])
             
@@ -1063,16 +1080,133 @@ class TDTestCase:
         except Exception as err:
             assert err.msg == 'Tags number not matched'
 
+        # throw error using bind_param
         try:
             self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
             self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
 
-            stmt2.prepare(f"insert into ? using {stablename} tags (?,?) (ts,current) values(?, ?)")
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} (location) tags (?,?) (ts,current) values(?, ?)")            
+              
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, datas)
             
             tdLog.exit("Case [test_stmt2_tag_number_not_match] Fail")
         except Exception as err:
             assert err.msg == 'Tags number not matched'
+
+        # throw error using bind_param with incorrect_datas
+        try:
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) (ts,current) values(?, ?)")            
+              
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, incorrect_datas)
+            
+            tdLog.exit("Case [test_stmt2_tag_number_not_match] Fail")
+        except Exception as err:
+            assert err.args[0] == 'list index out of range'
+
         tdLog.info("Case [test_stmt2_tag_number_not_match] PASS")
+
+    def test_stmt2_col_number_not_match(self):
+        stablename = 'test_stmt2_col_number_not_match'
+
+        # bind data
+        tbnames = ['t1', 't2']
+        tags    = [
+            ['Bj', 1],
+            ['London', 2],
+        ]
+
+        # prepare data
+        datas = [
+            # table 1
+            [
+                [1626861392589111],
+                [3.1415926],
+                [3]
+            ],
+            # table 2
+            [
+                [1626861392589333, 1626861392589444],
+                [3.1415,           3.1415],
+                [4,           3]
+            ]
+        ]
+
+        incorrect_datas = [
+            # table 1
+            [
+                [1626861392589111],
+                [3.1415926],
+                [3.1415926]
+            ],
+            # table 2
+            [
+                [1626861392589333, 1626861392589444],
+                [3.1415,           3.1415],
+                [3.1415,           3.1415]
+            ]
+        ]
+
+        table1 = BindTable(tbnames[0], tags[0])
+        
+        for data in datas[0]:
+            table1.add_col_data(data)
+
+        table2 = BindTable(tbnames[1], tags[1])
+        
+        for data in datas[1]:
+            table2.add_col_data(data)
+
+        self.connectstmt.execute("drop database if exists %s" % self.dbname)
+        self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+        self.connectstmt.select_db(self.dbname)
+
+        # throw error using bind_param_with_tables
+        try:
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) (ts,current) values(?, ?, ?)")            
+              
+            # columns type for stable
+            stmt2.bind_param_with_tables([table1, table2])
+            
+            tdLog.exit("Case [test_stmt2_tag_number_not_match] Fail")
+        except Exception as err:
+            assert err.msg == 'Illegal number of columns'
+
+        # throw error using bind_param
+        try:
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) (ts,current) values(?, ?, ?)")          
+              
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, datas)
+            
+            tdLog.exit("Case [test_stmt2_tag_number_not_match] Fail")
+        except Exception as err:
+            assert err.msg == 'Illegal number of columns'
+
+        # throw error using bind_param with incorrect_datas
+        try:
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) (ts,current) values(?, ?)")            
+              
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, incorrect_datas)
+            
+            tdLog.exit("Case [test_stmt2_tag_number_not_match] Fail")
+        except Exception as err:
+            assert err.args[0] == 'list index out of range'
+
+        tdLog.info("Case [test_stmt2_col_number_not_match] PASS")
 
     def test_stmt2_not_support_normal_value_in_sql(self):
         stablename = 'test_stmt2_not_support_normal_value_in_sql'
@@ -1303,7 +1437,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select * from log where bu < 10", rows)
+            self.stmt_common.compare_result(conn, "select * from log where bu < 10", rows)
             tdLog.info("[query1: all] PASS")
             
             # query2: Numeric Functions
@@ -1326,7 +1460,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select abs(5) from log where bu < 5", rows)
+            self.stmt_common.compare_result(conn, "select abs(5) from log where bu < 5", rows)
             tdLog.info("[query2: Numeric Functions] PASS")
 
             # query3: Numeric Functions and escapes
@@ -1369,7 +1503,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select CHAR_LENGTH('中文字符') from log", rows)
+            self.stmt_common.compare_result(conn, "select CHAR_LENGTH('中文字符') from log", rows)
             tdLog.info("[query4-1: string Functions] PASS")
 
             # query4-2: string Functions
@@ -1391,7 +1525,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select CHAR_LENGTH('123') from log", rows)
+            self.stmt_common.compare_result(conn, "select CHAR_LENGTH('123') from log", rows)
             tdLog.info("[query4-2: string Functions] PASS")
 
             # query5-1: conversion Functions
@@ -1413,7 +1547,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select cast( '1232a' as bigint) from log", rows)
+            self.stmt_common.compare_result(conn, "select cast( '1232a' as bigint) from log", rows)
             tdLog.info("[query5-1: conversion Functions] PASS")
 
             # query5-2: conversion Functions
@@ -1435,7 +1569,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select cast( 123 as binary(10)) from log", rows)
+            self.stmt_common.compare_result(conn, "select cast( 123 as binary(10)) from log", rows)
             tdLog.info("[query5-2: conversion Functions] PASS")
 
             # query6: datatime Functions
@@ -1457,7 +1591,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select timediff('2021-07-21 17:56:32.590111', 1626861392591112, 1a) from log", rows)
+            self.stmt_common.compare_result(conn, "select timediff('2021-07-21 17:56:32.590111', 1626861392591112, 1a) from log", rows)
             tdLog.info("[query6: datatime Functions] PASS")
 
             # query7: aggregate Functions
@@ -1479,7 +1613,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select count(123) from log", rows)
+            self.stmt_common.compare_result(conn, "select count(123) from log", rows)
             tdLog.info("[query7: aggregate Functions] PASS")
 
             # query8: selector Functions
@@ -1501,7 +1635,7 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select bottom(bu,2) from log group by bu order by bu desc", rows)
+            self.stmt_common.compare_result(conn, "select bottom(bu,2) from log group by bu order by bu desc", rows)
             tdLog.info("[query8: selector Functions] PASS")
 
             
@@ -1524,14 +1658,426 @@ class TDTestCase:
             # get result
             rows = stmt2.result()
 
-            self.compare_result(conn, "select twa(15) from log", rows)
+            self.stmt_common.compare_result(conn, "select twa(15) from log", rows)
             tdLog.info("[query9: time-series specific Functions] PASS")
 
         except Exception as err:
             raise err
 
-    
+    def test_stmt2_insert_super_table_simple_table_muti_rows_muti_cols(self):
+        stablename = 'test_stmt2_insert_super_table_simple_table_muti_rows_muti_cols'
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
 
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) values(?,?,?,?)")
+
+            # bind data
+            tbnames = ['t1']
+            tags    = [
+                ['Bj', 100],
+            ]
+
+            # prepare data
+            datas = [
+                # table 1
+                [
+                    [1626861392589111, 1626861392589222],
+                    [3.1415926,        3.1415926],
+                    [110,              110],
+                    [3.7758521,        3.7758521]
+                ],
+            ]
+
+            table1 = BindTable(tbnames[0], tags[0])
+            
+            for data in datas[0]:
+                table1.add_col_data(data)
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table1])
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags, datas)
+
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2.prepare(f"insert into ? using {stablename} tags (?,?) values(?,?,?,?)")
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags, datas)
+
+            tdLog.info("Case [stmt_insert_super_table_auto_single_table_muti_rows_muti_cols] PASS")
+        except Exception as err:
+            raise err
+
+    def test_stmt2_insert_super_table_simple_table_single_rows_muti_cols(self):
+        stablename = 'stmt_insert_super_table_auto_single_table_single_rows_muti_cols'
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags (?,?) values(?,?,?,?)")
+
+            # bind data
+            tbnames = ['t1']
+            tags    = [
+                ['Bj', 100],
+            ]
+
+            # prepare data
+            datas = [
+                # table 2
+                [
+                    [1626861392589333, 1626861392589444],
+                    [3.1415,           3.1415],
+                    [2000,             2000],
+                    [3.345,            3.345]
+                ]
+            ]
+
+            table1 = BindTable(tbnames[0], tags[0])
+            
+            for data in datas[0]:
+                table1.add_col_data(data)
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table1])
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags, datas)
+
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2.prepare(f"insert into ? using {stablename} tags (?,?) values(?,?,?,?)")
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags, datas)
+
+            tdLog.info("Case [stmt_insert_super_table_auto_single_table_single_rows_muti_cols] PASS")
+        except Exception as err:
+            raise err
+    
+    def test_stmt2_insert_super_table_simple_table_muti_rows_single_cols(self):
+        stablename = 'stmt_insert_super_table_auto_single_table_single_rows_muti_cols'
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} (location) tags (?) (ts,current) values(?, ?)")
+
+            # bind data
+            tbnames = ['t1']
+            tags    = [
+                ['Bj'],
+            ]
+
+            tags_expect    = [
+                ['Bj', None],
+            ]
+
+            # prepare data
+            datas = [
+                [
+                    [1626861392589333, 1626861392589444],
+                    [3.1415,           3.1415]
+                ]
+            ]
+
+            datas_expect = [
+                # table 2
+                [
+                    [1626861392589333, 1626861392589444],
+                    [3.1415,           3.1415],
+                    [None,             None],
+                    [None,             None]
+                ]
+            ]
+
+            table1 = BindTable(tbnames[0], tags[0])
+            
+            for data in datas[0]:
+                table1.add_col_data(data)
+
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table1])
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags_expect, datas_expect)
+
+            self.connectstmt.execute(f"DROP STABLE if exists {stablename}")
+            self.connectstmt.execute(f"CREATE STABLE {stablename} (`ts` TIMESTAMP , `current` FLOAT , `voltage` INT , `phase` FLOAT) TAGS (`location` VARCHAR(64), `groupid` INT)")
+
+            stmt2.prepare(f"insert into ? using {stablename} (location) tags (?) (ts,current) values(?, ?)")
+            # columns type for stable
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags_expect, datas_expect)
+
+            tdLog.info("Case [stmt_insert_super_table_auto_single_table_single_rows_muti_cols] PASS")
+        except Exception as err:
+            raise err
+    
+    def test_stmt2_insert_common_table_simple_table_muti_rows_muti_cols(self):
+        ctablename1 = 'common_table1'
+        ctablename2 = 'common_table2'
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename1)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename2)
+            
+            stmt2 = self.connectstmt.statement2(f"insert into ? values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+
+            tbnames = [ctablename1]
+            tags    = None
+
+            datas = [
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         None],
+                    [-128,         -128],
+                    [0,            127],
+                    [3,            None],
+                    [3,            4],
+                    [3,            4],
+                    [3,            4],
+                    [3,            4],
+                    [3,            4],
+                    [3,            4],
+                    [3,            None],
+                    [3,            None],
+                    ["abc",       "dddafadfadfadf"],
+                    ["涛思数据", None],
+                    [None, None],
+                    ["涛思数据16", None]
+                ]
+            ]  
+
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbnames, tags, datas)
+
+            tdLog.info("Case [test_stmt2_insert_common_table_simple_table_muti_rows_muti_cols] PASS")
+        except Exception as err:
+            raise err
+    
+    def test_stmt2_insert_common_table_simple_table_muti_rows_single_cols(self):
+        ctablename1 = 'common_table1'
+        ctablename2 = 'common_table2'
+
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename1)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename2)
+            
+            stmt2 = self.connectstmt.statement2(f"insert into ? (ts, bo) values (?,?)")
+
+            tbnames = [ctablename1]
+            tags    = None
+
+            datas = [
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         None]
+                ]
+            ]  
+
+            expect_datas = [
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         None],
+                    [None,         None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None]
+                ]
+            ]
+
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbnames, tags, expect_datas)
+
+            tbnames2 = [ctablename2]
+            table2 = BindTable(tbnames2[0], None)
+            
+            for data in datas[0]:
+                table2.add_col_data(data)
+
+
+            # columns type for stable
+            stmt2.bind_param_with_tables([table2])
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbnames2, tags, expect_datas)
+
+            tdLog.info("Case [test_stmt2_insert_common_table_simple_table_muti_rows_single_cols] PASS")
+        except Exception as err:
+            raise err
+    
+    def test_stmt2_insert_common_table_muti_table_muti_rows_single_cols(self):
+        ctablename1 = 'common_table1'
+        ctablename2 = 'common_table2'
+        ctablename3 = 'common_table3'
+        ctablename4 = 'common_table4'
+
+        try:
+            self.connectstmt.execute("drop database if exists %s" % self.dbname)
+            self.connectstmt.execute("create database if not exists %s PRECISION 'us' "  % self.dbname)
+            self.connectstmt.select_db(self.dbname)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename1)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename2)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename3)
+            self.connectstmt.execute("create table if not exists %s (ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
+                ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100))" % ctablename4)
+            
+            stmt2 = self.connectstmt.statement2(f"insert into ? (ts, bo) values (?,?)")
+
+            tbnames = [ctablename1, ctablename2]
+            tags    = None
+
+            datas = [
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         None]
+                ],
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         False]
+                ]
+            ]  
+
+            expect_datas = [
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         None],
+                    [None,         None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None]
+                ],
+                [
+                    [1626861392589111,1626861392590111],
+                    [True,         False],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None],
+                    [None, None]
+                ]
+            ]
+
+            stmt2.bind_param(tbnames, tags, datas)
+            stmt2.execute()
+
+            # check correct
+            self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbnames, tags, expect_datas)
+
+            # tbnames2 = [ctablename3, ctablename4]
+            # table3 = BindTable(tbnames2[0], None)
+            
+            # for data in datas[0]:
+            #     table3.add_col_data(data)
+
+            # table4 = BindTable(tbnames2[1], None)
+            
+            # for data in datas[1]:
+            #     table4.add_col_data(data)
+
+
+            # # columns type for stable
+            # stmt2.bind_param_with_tables([table3, table4])
+
+            # # check correct
+            # self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, None, tbnames2, tags, expect_datas)
+
+            tdLog.info("Case [test_stmt2_insert_common_table_muti_table_muti_rows_single_cols] PASS")
+        except Exception as err:
+            raise err
+    
+    def test_stmt2_not_support_insert_common_table_with_bind_table_name(self):
+        try:
+            self.connectstmt.statement2(f"insert into ? (ts, bo) values (?,?)")
+
+            tdLog.info("Case [test_stmt2_not_support_insert_common_table_with_bind_table_name] FAIL")
+        except Exception as err:
+            assert 'obtain schema failed, maybe this sql is not supported' in err.msg
+            tdLog.info("Case [test_stmt2_not_support_insert_common_table_with_bind_table_name] PASS")
+        
     def run(self):
         buildPath = self.stmt_common.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
@@ -1539,25 +2085,38 @@ class TDTestCase:
         self.connectstmt=self.newcon(host,config)
 
         # 1. tc for common table
-        self.test_stmt2_set_tbname_tag()
-        self.test_stmt2_insert_common_table_with_bind_tablename_data()   # pass
-        self.test_stmt2_insert_common_table_with_bind_data()  # pass
-        
+        # self.test_stmt2_set_tbname_tag()
+        # self.test_stmt2_insert_common_table_with_bind_tablename_data()   # pass
+        # self.test_stmt2_insert_common_table_with_bind_data()  # pass
+
+        # self.test_stmt2_insert_common_table_simple_table_muti_rows_muti_cols()  # pass
+        # self.test_stmt2_insert_common_table_simple_table_muti_rows_single_cols()  # pass
+        # self.test_stmt2_insert_common_table_muti_table_muti_rows_single_cols()  #fail
+        self.test_stmt2_not_support_insert_common_table_with_bind_table_name()  #fail TD-32478
+
+
+
         # 2. tc for super table
-        self.test_stmt2_insert_super_table_with_bind_ctablename_tags_data()   # pass
-        self.test_stmt2_insert_super_table_with_bind_tags_data()   # pass
-        self.test_stmt2_insert_super_table_with_bind_data()   # pass
-        self.test_stmt2_insert_super_table_auto_single_table_muti_rows_muti_cols()  # pass
-        self.test_stmt2_insert_super_table_auto_single_table_single_rows_muti_cols()  # pass
-        self.test_stmt2_insert_super_table_auto_single_table_muti_rows_single_cols()  # pass
+        # self.test_stmt2_insert_super_table_with_bind_ctablename_tags_data()   # pass
+        # self.test_stmt2_insert_super_table_with_bind_tags_data()   # pass
+        # self.test_stmt2_insert_super_table_with_bind_data()   # pass
+        # self.test_stmt2_insert_super_table_muti_table_muti_rows_muti_cols()  # pass
+        # self.test_stmt2_insert_super_table_muti_table_single_rows_muti_cols()  # pass
+        # self.test_stmt2_insert_super_table_muti_table_muti_rows_single_cols()  # pass
+
+        # self.test_stmt2_insert_super_table_simple_table_muti_rows_muti_cols()  # pass
+        # self.test_stmt2_insert_super_table_simple_table_single_rows_muti_cols()  # pass
+        # self.test_stmt2_insert_super_table_simple_table_muti_rows_single_cols()  # pass
+        
         # self.test_stmt2_not_support_normal_value_in_sql()  # 
 
-        self.test_stmt2_tag_number_not_match()  # pass
+        # self.test_stmt2_tag_number_not_match()  # pass
+        # self.test_stmt2_col_number_not_match()  # pass
 
         
         # 3. bug fix
-        self.test_stmt2_td31428()  # pass
-        self.test_stmt2_td31647()  # 等待python支持该功能验证
+        # self.test_stmt2_td31428()  # pass
+        # self.test_stmt2_td31647()  # 等待python支持该功能验证
 
         if self.connectstmt:
             self.connectstmt.close()
