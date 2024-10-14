@@ -476,7 +476,10 @@ impl Cli {
                 )
         })
         .bind(addr)
-        .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
+        .map_err(|err| {
+            tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
+            anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})")
+        })?
         .run();
 
         tokio::select! {
@@ -511,11 +514,12 @@ impl Cli {
             flight.tcp.replace(addr);
         }
 
+        let addr = flight.tcp.unwrap().clone();
         flight
             .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await
             .map_err(|err| {
-                tracing::error!("grpc error: {:?}", err);
+                tracing::error!("grpc(addr:{}) init error: {:?}", addr, err);
                 err
             })?;
 
