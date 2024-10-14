@@ -427,7 +427,9 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
 
   for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-    if (matchIndex < minMatchIndex) {
+    if (minMatchIndex == SYNC_INDEX_INVALID) {
+      minMatchIndex = matchIndex;
+    } else if (matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
@@ -2900,7 +2902,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
       n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
-                    (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
+                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
     n += tsnprintf(buf + n, len - n, "%s", "}");
 
