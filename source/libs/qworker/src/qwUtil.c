@@ -539,7 +539,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
     }
 
     if (dbFName[0] && tbName[0]) {
-      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)snprintf(tbInfo.tbFName, sizeof(tbInfo.tbFName), "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }

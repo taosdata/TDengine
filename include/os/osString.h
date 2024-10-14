@@ -59,12 +59,13 @@ typedef enum { M2C = 0, C2M } ConvType;
 
 #endif
 
-#define tstrncpy(dst, src, size)   \
-  do {                             \
+#define tstrncpy(dst, src, size)         \
+  do {                                   \
     (void)strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;           \
+    (dst)[(size) - 1] = 0;               \
   } while (0)
 
+int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
 #define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
 #define TAOS_STRCAT(_dst, _src) ((void)strcat(_dst, _src))
@@ -87,7 +88,7 @@ bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs
 int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
 int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);
-int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len);
+int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len, int32_t bufSize);
 int32_t taosHexDecode(const char *src, char *dst, int32_t len);
 
 int32_t taosWcharWidth(TdWchar wchar);

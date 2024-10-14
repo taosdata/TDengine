@@ -482,71 +482,75 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  return taos_print_row_with_size(str, INT32_MAX, row, fields, num_fields);
+}
+int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields){
   int32_t len = 0;
   for (int i = 0; i < num_fields; ++i) {
-    if (i > 0) {
+    if (i > 0 && len < size - 1) {
       str[len++] = ' ';
     }
 
     if (row[i] == NULL) {
-      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
+      len += snprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_USMALLINT:
-        len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UINT:
-        len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UBIGINT:
-        len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += sprintf(str + len, "%f", fv);
+        len += snprintf(str + len, size - len, "%f", fv);
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += sprintf(str + len, "%lf", dv);
+        len += snprintf(str + len, size - len, "%lf", dv);
       } break;
 
       case TSDB_DATA_TYPE_VARBINARY: {
         void    *data = NULL;
-        uint32_t size = 0;
+        uint32_t tmp = 0;
         int32_t  charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (taosAscii2Hex(row[i], charLen, &data, &size) < 0) {
+        if (taosAscii2Hex(row[i], charLen, &data, &tmp) < 0) {
           break;
         }
-        (void)memcpy(str + len, data, size);
-        len += size;
+        uint32_t copyLen = TMIN(size - len - 1, tmp);
+        (void)memcpy(str + len, data, copyLen);
+        len += copyLen;
         taosMemoryFree(data);
       } break;
       case TSDB_DATA_TYPE_BINARY:
@@ -566,21 +570,28 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
           }
         }
 
-        (void)memcpy(str + len, row[i], charLen);
-        len += charLen;
+        uint32_t copyLen = TMIN(size - len - 1, charLen);
+        (void)memcpy(str + len, row[i], copyLen);
+        len += copyLen;
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }
+
+    if (len >= size - 1) {
+      break;
+    }
   }
-  str[len] = 0;
+  if (len < size){
+    str[len] = 0;
+  }
 
   return len;
 }
@@ -945,7 +956,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     if (required) *required = strlen(pTscObj->db) + 1;
     TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
   } else {
-    (void)strcpy(database, pTscObj->db);
+    tstrncpy(database, pTscObj->db, len);
     code = 0;
   }
 _return:

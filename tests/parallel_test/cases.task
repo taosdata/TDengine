@@ -6,7 +6,6 @@
 
 ,,n,unit-test,bash test.sh
 
-
 #
 # army-test
 #
@@ -16,6 +15,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
@@ -284,7 +284,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5473.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py

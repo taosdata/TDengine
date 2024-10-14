@@ -924,7 +924,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema*          pSchema = req.schemaRow.pSchema + i;
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
-    (void)strcpy(field.name, pSchema->name);
+    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
 
     if (createDefaultCompress) {
       field.compress = createDefaultColCmprByType(pSchema->type);
@@ -939,7 +939,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t i = 0; i < req.schemaTag.nCols; i++) {
     SSchema* pSchema = req.schemaTag.pSchema + i;
     SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
-    (void)strcpy(field.name, pSchema->name);
+    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
     RAW_NULL_CHECK(taosArrayPush(pReq.pTags, &field));
   }
 
@@ -1242,7 +1242,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (pTableBatch == NULL) {
       SVgroupCreateTableBatch tBatch = {0};
       tBatch.info = pInfo;
-      (void)strcpy(tBatch.dbName, pRequest->pDb);
+      tstrncpy(tBatch.dbName, pRequest->pDb, TSDB_DB_NAME_LEN);
 
       tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
       RAW_NULL_CHECK(tBatch.req.pArray);
