@@ -1564,6 +1564,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     );
     let qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
+    tracing::info!(num = workers, "create flat stream concurrent workers");
     for i in 0..workers {
         let count = count.clone();
         let context = context.clone();
