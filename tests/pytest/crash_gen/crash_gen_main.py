@@ -900,8 +900,19 @@ class StateEmpty(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
+        # Check for successful database creation task execution:
+        # First, the method checks if the task list \
+        # includes a task that successfully created a database. \
+        # This is because the transition from an empty state (no database) \
+        # to a state where a database exists must rely on the successful creation of the database.
         if (self.hasSuccess(tasks, TaskCreateDb)
-        ):  # at EMPTY, if there's succes in creating DB
+        ):  # at EMPTY, if there's success in creating DB
+            # Confirm there are no database deletion tasks:
+            # Then, the method confirms that there are no tasks for \
+            # deleting the database in the task list. \
+            # This check ensures that no destructive actions, \
+            # such as database deletion, occur during the state transition process, \
+            # thus maintaining the correctness and continuity of the state.
             if (not self.hasTask(tasks, TaskDropDb)):  # and no drop_db tasks
                 # we must have at most one. TODO: compare numbers
                 self.assertAtMostOneSuccess(tasks, TaskCreateDb)
