@@ -146,7 +146,7 @@ jobs:
 
       - name: Build explorer
         run: |
-          cargo make taos-explorer
+          cargo make explorer
 
       - name: Copy files
         run: |
