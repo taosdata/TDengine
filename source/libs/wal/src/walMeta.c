@@ -253,6 +253,7 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
   int j = 0;
 
   // both of the lists in asc order
+  /*
   for (int i = 0; i < actualFileNum; i++) {
     SWalFileInfo* pLogInfo = taosArrayGet(actualLogList, i);
     while (j < metaFileNum) {
@@ -268,6 +269,7 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
       }
     }
   }
+  */
 
   taosArrayClear(metaLogList);
 
@@ -400,6 +402,17 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+void printFileSet(SArray* fileSet) {
+  int32_t sz = taosArrayGetSize(fileSet);
+  for (int32_t i = 0; i < sz; i++) {
+    SWalFileInfo* pFileInfo = taosArrayGet(fileSet, i);
+    wInfo("firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64 ", createTs:%" PRId64
+          ", closeTs:%" PRId64,
+          pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset, pFileInfo->createTs,
+          pFileInfo->closeTs);
+  }
+}
+
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
@@ -460,6 +473,9 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   taosArraySort(actualLog, compareWalFileInfo);
 
+  wInfo("vgId:%d, wal path:%s, actual log file num:%" PRId64, pWal->cfg.vgId, pWal->path, taosArrayGetSize(actualLog));
+  printFileSet(actualLog);
+
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int     actualFileNum = taosArrayGetSize(actualLog);
   int64_t firstVerPrev = pWal->vers.firstVer;
@@ -473,6 +489,10 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   if (code) {
     TAOS_RETURN(code);
   }
+
+  wInfo("vgId:%d, wal path:%s, meta log file num:%" PRId64, pWal->cfg.vgId, pWal->path,
+        taosArrayGetSize(pWal->fileInfoSet));
+  printFileSet(pWal->fileInfoSet);
 
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
 
@@ -1123,6 +1143,10 @@ int32_t walLoadMeta(SWal* pWal) {
   }
   (void)taosCloseFile(&pFile);
   taosMemoryFree(buf);
+
+  wInfo("vgId:%d, load meta file: %s, fileInfoSet size:%" PRId64, pWal->cfg.vgId, fnameStr,
+        taosArrayGetSize(pWal->fileInfoSet));
+  printFileSet(pWal->fileInfoSet);
 
   TAOS_RETURN(code);
 }
