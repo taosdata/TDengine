@@ -734,7 +734,7 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
-  transQueueRemoveByFilter(&conn->reqsSentOut, filterToDebug_timeoutMsg, NULL, &set, -1);
+  // transQueueRemoveByFilter(&conn->reqsSentOut, filterToDebug_timeoutMsg, NULL, &set, -1);
 
   if (pInst->startReadTimer == 0) {
     return;
@@ -746,42 +746,12 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
   code = cliConnRemoveTimeoutMsg(conn);
   if (code != 0) {
     tDebug("%s conn %p do remove timeout msg", CONN_GET_INST_LABEL(conn), conn);
+    if (!cliMayRecycleConn(conn)) {
+      TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+    }
+  } else {
+    TAOS_UNUSED(cliMayRecycleConn(conn));
   }
-  // QUEUE_INIT(&set);
-  // SListFilterArg arg = {.id = 0, .pInst = pInst};
-  // transQueueRemoveByFilter(&conn->reqsSentOut, filterToRmTimoutReq, &arg, &set, -1);
-
-  // while (!QUEUE_IS_EMPTY(&set)) {
-  //   queue* el = QUEUE_HEAD(&set);
-  //   QUEUE_REMOVE(el);
-  //   SCliReq*  pReq = QUEUE_DATA(el, SCliReq, q);
-  //   STraceId* trace = &pReq->msg.info.traceId;
-  //   tDebug("%s conn %p req %s timeout, start to free", CONN_GET_INST_LABEL(conn), conn,
-  //   TMSG_INFO(pReq->msg.msgType));
-
-  //   SReqCtx*  pCtx = pReq ? pReq->ctx : NULL;
-  //   STransMsg resp = {0};
-  //   resp.code = TSDB_CODE_RPC_TIMEOUT;
-  //   resp.msgType = pReq ? pReq->msg.msgType + 1 : 0;
-  //   resp.info.cliVer = pInst->compatibilityVer;
-  //   resp.info.ahandle = pCtx ? pCtx->ahandle : 0;
-  //   resp.info.handle = pReq->msg.info.handle;
-  //   if (pReq) {
-  //     resp.info.traceId = pReq->msg.info.traceId;
-  //   }
-
-  //   pReq->seq = 0;
-  //   code = cliNotifyCb(conn, pReq, &resp);
-  //   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
-  //     continue;
-  //   } else {
-  //     // already notify user
-  //     destroyReq(pReq);
-  //     // destroyReqWrapper(pReq, pThrd);
-  //   }
-  // }
-
-  return;
 }
 void cliConnTimeout__checkReq(uv_timer_t* handle) {
   SCliConn* conn = handle->data;
@@ -921,7 +891,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     arg->param2 = thrd;
 
     STrans* pInst = thrd->pInst;
-    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, 10 * CONN_PERSIST_TIME(pInst->idleTime));
+    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, (10 * CONN_PERSIST_TIME(pInst->idleTime) / 3));
   }
 }
 
@@ -3923,7 +3893,7 @@ int32_t transHeapUpdateFailTs(SHeap* heap, SCliConn* p) {
 }
 
 int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
-  if (p->inHeap == 0 && heap == NULL || heap->heap == NULL) {
+  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
     return 0;
   }
   heapRemove(heap->heap, &p->node);
