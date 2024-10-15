@@ -397,16 +397,16 @@ sql select case when f1 then f1 when f1 + 1 then f1 + 1 else f1 is null end from
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 1 then
+if $data00 != 1.000000000 then
  return -1
 endi
-if $data10 != 1 then
+if $data10 != 1.000000000 then
  return -1
 endi
-if $data20 != 5 then
+if $data20 != 5.000000000 then
  return -1
 endi
-if $data30 != 1 then
+if $data30 != 1.000000000 then
  return -1
 endi
 
@@ -414,16 +414,16 @@ sql select case when f1 then 3 when ts then ts end from tba1;
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 1664176501000 then
+if $data00 != @22-09-26 15:15:01.000@ then
  return -1
 endi
-if $data10 != 3 then
+if $data10 != @70-01-01 08:00:00.003@ then
  return -1
 endi
-if $data20 != 3 then
+if $data20 != @70-01-01 08:00:00.003@ then
  return -1
 endi
-if $data30 != 1664176504000 then
+if $data30 != @22-09-26 15:15:04.000@ then
  return -1
 endi
 
@@ -657,16 +657,16 @@ sql select case when f1 is not null then case when f1 <= 0 then f1 else f1 * 10 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 0 then
+if $data00 != 0.000000000 then
  return -1
 endi
-if $data10 != 10 then
+if $data10 != 10.000000000 then
  return -1
 endi
-if $data20 != 50 then
+if $data20 != 50.000000000 then
  return -1
 endi
-if $data30 != -1 then
+if $data30 != -1.000000000 then
  return -1
 endi
 
@@ -830,16 +830,16 @@ sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != a then
+if $data00 != @70-01-01 08:00:00.000@ then
  return -1
 endi
-if $data10 != 0 then
+if $data10 != @70-01-01 08:00:00.000@ then
  return -1
 endi
-if $data20 != 11 then
+if $data20 != @70-01-01 08:00:00.011@ then
  return -1
 endi
-if $data30 != 1664176504 then
+if $data30 != @22-09-26 15:15:04.000@ then
  return -1
 endi
 
@@ -1043,22 +1043,105 @@ sql select distinct tbname, case t1 when t2 then t1 else t1 + 100 end from sta o
 if $rows != 5 then 
   return -1
 endi
-if $data01 != 0 then
+if $data01 != 0.000000000 then
  return -1
 endi
-if $data11 != 1 then
+if $data11 != 1.000000000 then
  return -1
 endi
 if $data21 != NULL then
  return -1
 endi
-if $data31 != 101 then
+if $data31 != 101.000000000 then
  return -1
 endi
-if $data41 != 103 then
+if $data41 != 103.000000000 then
  return -1
 endi
 
 sql_error select case when sum(f1) then sum(f1)-abs(f1) end from tba1;
+
+sql drop database if exists test_db;
+sql create database test_db vgroups 5;
+sql use test_db;
+sql create stable test_stable (ts TIMESTAMP,c_int INT,c_uint INT UNSIGNED, c_bigint BIGINT, c_ubigint BIGINT UNSIGNED, c_float FLOAT, c_double DOUBLE, c_binary BINARY(20), c_smallint SMALLINT, c_usmallint SMALLINT UNSIGNED, c_tinyint TINYINT,c_utinyint TINYINT UNSIGNED,c_bool BOOL,c_nchar NCHAR(20), c_varchar VARCHAR(20), c_varbinary VARBINARY(20), c_geometry GEOMETRY(50)) tags(tag_id INT);
+sql create table t_test using test_stable tags(1);
+sql insert into t_test values ('2022-09-30 15:15:01',123,456,1234567890,9876543210,123.45,678.90,'binary_val',32767,65535,127,255,true,'涛思数据','varchar_val', '1101', 'point(10 10)');
+
+sql select case when c_int > 100 then c_float else c_int end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 123.45000 then
+ return -1
+endi
+
+sql select case when c_bigint > 100000 then c_double else c_bigint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 678.900000000 then
+ return -1
+endi
+
+sql select case when c_bool then c_bool else c_utinyint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+
+sql select case when c_smallint > 30000 then c_usmallint else c_smallint end as result from t_test;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 65535 then
+ return -1
+endi
+
+sql select case when c_binary = 'binary_val' then c_nchar else c_binary end as result from t_test;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 涛思数据 then
+ return -1
+endi
+
+sql select case when c_bool then c_int else c_bool end as result from t_test;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 123 then
+ return -1
+endi
+
+sql select case when ts > '2022-01-01 00:00:00' then c_bool else ts end as result from t_test;
+if $data00 != @70-01-01 08:00:00.001@ then
+ return -1
+endi
+
+sql select case when c_double > 100 then c_nchar else c_double end as result from t_test;
+if $data00 != 涛思数据 then
+  return -1
+endi
+
+sql select case when c_double > 100 then c_varchar else c_double end as result from t_test;
+if $data00 != varchar_val then
+  return -1
+endi
+
+sql select case when c_bool then c_varbinary else c_varchar end as result from t_test;
+if $data00 != null then
+  return -1;
+endi
+sql select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
+
+if $data00 != varchar_val then
+  return -1
+endi
+sql_error select case when c_double > 100 then c_varbinary else c_geometry end as result from t_test;
+sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
+sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

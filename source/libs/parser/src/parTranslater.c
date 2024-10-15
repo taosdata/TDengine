@@ -3186,8 +3186,45 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
   return TSDB_CODE_SUCCESS;
 }
 
+extern int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
+static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
+  if (commonType->type < TSDB_DATA_TYPE_NULL || commonType->type >= TSDB_DATA_TYPE_MAX || 
+      newType->type < TSDB_DATA_TYPE_NULL || newType->type >= TSDB_DATA_TYPE_MAX) {
+        return false;
+    }
+  if (commonType->type == TSDB_DATA_TYPE_NULL) {
+      *commonType = *newType;
+      return true;
+  }
+  if (newType->type == TSDB_DATA_TYPE_NULL) {
+      return true;
+  }
+  if (commonType->type == newType->type) {
+      if (commonType->bytes < newType->bytes) {
+        *commonType = *newType;
+      }
+      return true;
+  }
+  int8_t type1 = commonType->type;
+  int8_t type2 = newType->type;
+  int8_t resultType;
+  if (type1 < type2) {
+    resultType = gDisplyTypes[type1][type2];
+  } else {
+    resultType = gDisplyTypes[type2][type1];
+  }
+  if (resultType == -1) {
+      return false;
+  } else if (resultType == 0) {
+      return false;
+  } else {
+      commonType->type = resultType;
+      commonType->bytes = (commonType->bytes >= newType->bytes) ? commonType->bytes : newType->bytes;
+      return true;
+  }
+}
+
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
-  bool   first = true;
   bool   allNullThen = true;
   SNode* pNode = NULL;
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
@@ -3206,10 +3243,16 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       continue;
     }
     allNullThen = false;
-    if (first || dataTypeComp(&pCaseWhen->node.resType, &pThenExpr->resType) < 0) {
-      pCaseWhen->node.resType = pThenExpr->resType;
+    if (!selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType)) {
+      pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return DEAL_RES_ERROR;
     }
-    first = false;
+  }
+
+  SExprNode* pElseExpr = (SExprNode*)pCaseWhen->pElse;
+  if (pElseExpr && !selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType)) {
+    pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return DEAL_RES_ERROR;
   }
 
   if (allNullThen) {
