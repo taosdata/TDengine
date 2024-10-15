@@ -514,7 +514,7 @@ impl Cli {
             flight.tcp.replace(addr);
         }
 
-        let addr = flight.tcp.unwrap().clone();
+        let addr = flight.tcp.expect("grpc address is required");
         flight
             .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await

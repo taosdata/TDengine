@@ -34,5 +34,5 @@ pub(super) async fn handle_get_heap() -> impl Responder {
 #[get("/debug/pprof/heap")]
 pub(super) async fn handle_get_heap() -> impl Responder {
     tracing::warn!("Not supported on Windows");
-    return HttpResponse::Forbidden().finish();
+    HttpResponse::Forbidden().finish()
 }
