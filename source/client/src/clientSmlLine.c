@@ -451,6 +451,10 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 
     if (info->dataFormat) {
       bool isAligned = isSmlColAligned(info, cnt, &kv);
+      if (kv.type == TSDB_DATA_TYPE_BINARY && valueEscaped) {
+        taosArrayPush(info->escapedStringList, &kv.value);
+        kv.value = NULL;
+      }
       freeSSmlKv(&kv);
       if(!isAligned){
         return TSDB_CODE_SUCCESS;
