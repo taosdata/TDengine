@@ -589,6 +589,7 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
 
 void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   SSdb *pSdb = pMnode->pSdb;
+  if (pTrans != NULL) mInfo("vgId:1, trans:%d, release transaction", pTrans->id);
   sdbRelease(pSdb, pTrans);
 }
 
@@ -1131,10 +1132,11 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   if (!sendRsp) {
     return;
   } else {
-    mInfo("trans:%d, send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id, mndTransStr(pTrans->stage),
-          pTrans->failedTimes, code);
+    mInfo("vgId:1, trans:%d, start to send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id,
+          mndTransStr(pTrans->stage), pTrans->failedTimes, code);
   }
 
+  mInfo("vgId:1, trans:%d, start to lock rpc array", pTrans->id);
   taosWLockLatch(&pTrans->lockRpcArray);
   int32_t size = taosArrayGetSize(pTrans->pRpcArray);
   if (size <= 0) {
@@ -1155,8 +1157,8 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       if (i != 0 && code == 0) {
         code = TSDB_CODE_MNODE_NOT_FOUND;
       }
-      mInfo("trans:%d, client:%d send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code, mndTransStr(pTrans->stage),
-            pInfo->ahandle);
+      mInfo("vgId:1, trans:%d, client:%d start to send rsp, code:0x%x stage:%s app:%p", pTrans->id, i, code,
+            mndTransStr(pTrans->stage), pInfo->ahandle);
 
       SRpcMsg rspMsg = {.code = code, .info = *pInfo};
 
@@ -1199,6 +1201,9 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       }
 
       tmsgSendRsp(&rspMsg);
+
+      mInfo("vgId:1, trans:%d, client:%d send rsp finished, code:0x%x stage:%s app:%p", pTrans->id, i, code,
+            mndTransStr(pTrans->stage), pInfo->ahandle);
     }
   }
   taosArrayClear(pTrans->pRpcArray);
@@ -1338,10 +1343,10 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
   char    detail[1024] = {0};
-  int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
+  int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
                          pAction->epSet.numOfEps, pAction->epSet.inUse);
   for (int32_t i = 0; i < pAction->epSet.numOfEps; ++i) {
-    len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
+    len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
                     pAction->epSet.eps[i].port);
   }
 
@@ -1495,7 +1500,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     return code;
   }
 
-  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
+  mInfo("trans:%d, execute %d actions serial, current action:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pActions, action);
@@ -1637,6 +1642,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     pTrans->code = code;
     bool continueExec = true;
     if (code != 0 && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+      taosMsleep(100);
       continueExec = true;
     } else {
       continueExec = false;
@@ -1767,7 +1773,8 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool to
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_UNDO_ACTION;
-    mInfo("trans:%d, stage from rollback to undoAction", pTrans->id);
+    pTrans->actionPos = 0;
+    mInfo("trans:%d, stage from rollback to undoAction, actionPos:%d", pTrans->id, pTrans->actionPos);
     continueExec = true;
   } else {
     pTrans->failedTimes++;
@@ -2017,14 +2024,14 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
-    int32_t len = snprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
+    int32_t len = tsnprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
                            pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
     SEpSet  epset = pTrans->lastEpset;
     if (epset.numOfEps > 0) {
-      len += snprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
+      len += tsnprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
                       TMSG_INFO(pTrans->lastMsgType), epset.numOfEps, epset.inUse);
       for (int32_t i = 0; i < pTrans->lastEpset.numOfEps; ++i) {
-        len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+        len += tsnprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
       }
     }
     STR_WITH_MAXSIZE_TO_VARSTR(lastInfo, detail, pShow->pMeta->pSchemas[cols].bytes);

@@ -42,7 +42,7 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
   int32_t numOfExisted = taosArrayGetSize(pMsg->pUpdateNodes);
-  for (int k = 0; k < numOfExisted; ++k) {
+  for (int32_t k = 0; k < numOfExisted; ++k) {
     if (pTaskEpset->nodeId == *(int32_t*)taosArrayGet(pMsg->pUpdateNodes, k)) {
       return true;
     }
@@ -56,7 +56,7 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   streamMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
-  for (int j = 0; j < num; ++j) {
+  for (int32_t j = 0; j < num; ++j) {
     SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, j);
 
     bool exist = existInHbMsg(pMsg, pTaskEpset);

@@ -3651,6 +3651,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair*
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
   CHECK_NAME(checkUserName(pCxt, pUserName));
+  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);

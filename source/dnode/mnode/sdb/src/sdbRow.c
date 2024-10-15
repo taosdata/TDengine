@@ -42,6 +42,7 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
   // remove attached object such as trans
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
   if (deleteFp != NULL) {
+    mInfo("vgId:1, deleteFp:%p, type:%s", deleteFp, sdbTableName(pRow->type));
     (void)(*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 

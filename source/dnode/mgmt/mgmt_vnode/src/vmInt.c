@@ -311,6 +311,8 @@ static void *vmOpenVnodeInThread(void *param) {
       snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
       vnodeDestroy(pCfg->vgId, path, pMgmt->pTfs, 0);
       pThread->updateVnodesList = true;
+      pThread->dropped++;
+      (void)atomic_add_fetch_32(&pMgmt->state.dropVnodes, 1);
       continue;
     }
 
@@ -352,8 +354,8 @@ static void *vmOpenVnodeInThread(void *param) {
     (void)atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
   }
 
-  dInfo("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
-        pThread->failed);
+  dInfo("thread:%d, numOfVnodes:%d, opened:%d dropped:%d failed:%d", pThread->threadIndex, pThread->vnodeNum,
+        pThread->opened, pThread->dropped, pThread->failed);
   return NULL;
 }
 
@@ -427,7 +429,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   taosMemoryFree(threads);
   taosMemoryFree(pCfgs);
 
-  if (pMgmt->state.openVnodes != pMgmt->state.totalVnodes) {
+  if ((pMgmt->state.openVnodes + pMgmt->state.dropVnodes) != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
     terrno = TSDB_CODE_VND_INIT_FAILED;
     return -1;
@@ -774,6 +776,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   }
 
   pMgmt->state.openVnodes = 0;
+  pMgmt->state.dropVnodes = 0;
   dInfo("restore %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {

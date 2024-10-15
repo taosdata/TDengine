@@ -105,6 +105,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
     return false;
   }
 }
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -150,10 +151,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
+    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    } break;
     default:
       break;
   }

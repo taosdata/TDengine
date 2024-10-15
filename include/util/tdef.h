@@ -325,7 +325,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
-#define TSDB_FQDN_LEN             128
+#define TSDB_FQDN_LEN             TD_FQDN_LEN
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
@@ -644,6 +644,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
 #ifdef __cplusplus
 }
 #endif

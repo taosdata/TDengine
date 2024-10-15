@@ -157,7 +157,7 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   pHead->contLen = htonl(len);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+  void   *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
   int32_t ret = 0;
   if ((ret = tSerializeSDropIdxReq(pBuf, len - sizeof(SMsgHead), &req)) < 0) {
     terrno = ret;
@@ -662,6 +662,8 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
 
   pNew->pTags = NULL;
   pNew->pColumns = NULL;
+  pNew->pCmpr = NULL;
+  pNew->pTags = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 

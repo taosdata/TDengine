@@ -2273,9 +2273,9 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = snprintf(name, sizeof(name), "%s", pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
   } else {
-    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
   if (pCol->projRefIdx > 0) {
     len = taosHashBinary(name, strlen(name));
