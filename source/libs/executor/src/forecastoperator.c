@@ -155,7 +155,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   if (code != 0) return code;
 
   int32_t len = strlen(pSupp->algoOpt);
-  int64_t every = (pSupp->maxTs - pSupp->minTs) / (pSupp->numOfRows + 1);
+  int64_t every = (pSupp->maxTs - pSupp->minTs) / (pSupp->numOfRows - 1);
   int64_t start = pSupp->maxTs + every;
   bool    hasStart = taosAnalGetOptInt(pSupp->algoOpt, "start", &start);
   if (!hasStart) {
