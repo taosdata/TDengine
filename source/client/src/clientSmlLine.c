@@ -574,22 +574,32 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       do {
         // cnt begin 0, add ts so + 2
         if (unlikely(cnt + 2 > info->currSTableMeta->tableInfo.numOfColumns)) {
+          info->dataFormat = false;
+          info->reRun = true;
           break;
         }
         // bind data
         ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
         if (unlikely(ret != TSDB_CODE_SUCCESS)) {
           uDebug("smlBuildCol error, retry");
+          info->dataFormat = false;
+          info->reRun = true;
           break;
         }
         if (cnt >= taosArrayGetSize(info->maxColKVs)) {
+          info->dataFormat = false;
+          info->reRun = true;
           break;
         }
         SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxColKVs, cnt);
         if (kv.type != maxKV->type) {
+          info->dataFormat = false;
+          info->reRun = true;
           break;
         }
         if (unlikely(!IS_SAME_KEY)) {
+          info->dataFormat = false;
+          info->reRun = true;
           break;
         }
 
