@@ -1255,6 +1255,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
+  taosArrayDestroyP(info->escapedStringList, taosMemoryFree);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1293,6 +1294,11 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->childTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->tableUids = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->superTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables || NULL == info->tableUids) {
+    uError("create SSmlHandle failed");
+    goto cleanup;
+  }
+
   taosHashSetFreeFp(info->superTables, smlDestroySTableMeta);
   taosHashSetFreeFp(info->childTables, smlDestroyTableInfo);
 
@@ -1303,9 +1309,10 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
-
-  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables || NULL == info->tableUids) {
-    uError("create SSmlHandle failed");
+  info->escapedStringList = taosArrayInit(8, POINTER_BYTES);
+  if (info->tagJsonArray == NULL || info->valueJsonArray == NULL ||
+      info->preLineTagKV == NULL || info->escapedStringList == NULL) {
+    uError("SML:0x%" PRIx64 " failed to allocate memory", info->id);
     goto cleanup;
   }
 
@@ -1563,6 +1570,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
   }
 
+  taosArrayClearP(info->escapedStringList, taosMemoryFree);
   memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;
   info->currTableDataCtx = NULL;

@@ -571,47 +571,42 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     }
 
     if (info->dataFormat) {
-      // cnt begin 0, add ts so + 2
-      if (unlikely(cnt + 2 > info->currSTableMeta->tableInfo.numOfColumns)) {
-        info->dataFormat = false;
-        info->reRun = true;
-        freeSSmlKv(&kv);
-        return TSDB_CODE_SUCCESS;
-      }
-      // bind data
-      ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
-      if (unlikely(ret != TSDB_CODE_SUCCESS)) {
-        uDebug("smlBuildCol error, retry");
-        info->dataFormat = false;
-        info->reRun = true;
-        freeSSmlKv(&kv);
-        return TSDB_CODE_SUCCESS;
-      }
-      if (cnt >= taosArrayGetSize(info->maxColKVs)) {
-        info->dataFormat = false;
-        info->reRun = true;
-        freeSSmlKv(&kv);
-        return TSDB_CODE_SUCCESS;
-      }
-      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxColKVs, cnt);
-      if (kv.type != maxKV->type) {
-        info->dataFormat = false;
-        info->reRun = true;
-        freeSSmlKv(&kv);
-        return TSDB_CODE_SUCCESS;
-      }
-      if (unlikely(!IS_SAME_KEY)) {
-        info->dataFormat = false;
-        info->reRun = true;
-        freeSSmlKv(&kv);
-        return TSDB_CODE_SUCCESS;
-      }
+      do {
+        // cnt begin 0, add ts so + 2
+        if (unlikely(cnt + 2 > info->currSTableMeta->tableInfo.numOfColumns)) {
+          break;
+        }
+        // bind data
+        ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
+        if (unlikely(ret != TSDB_CODE_SUCCESS)) {
+          uDebug("smlBuildCol error, retry");
+          break;
+        }
+        if (cnt >= taosArrayGetSize(info->maxColKVs)) {
+          break;
+        }
+        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxColKVs, cnt);
+        if (kv.type != maxKV->type) {
+          break;
+        }
+        if (unlikely(!IS_SAME_KEY)) {
+          break;
+        }
 
-      if (unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > maxKV->length)) {
-        maxKV->length = kv.length;
-        info->needModifySchema = true;
+        if (unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > maxKV->length)) {
+          maxKV->length = kv.length;
+          info->needModifySchema = true;
+        }
+      }while (0);
+
+      if (kv.type == TSDB_DATA_TYPE_BINARY && valueEscaped) {
+        taosArrayPush(info->escapedStringList, &kv.value);
+        kv.value = NULL;
       }
       freeSSmlKv(&kv);
+      if (info->reRun){
+        return TSDB_CODE_SUCCESS;
+      }
     } else {
       if (currElement->colArray == NULL) {
         currElement->colArray = taosArrayInit_s(sizeof(SSmlKv), 1);
@@ -743,6 +738,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     }
 
     clearColValArraySml(info->currTableDataCtx->pValues);
+    taosArrayClearP(info->escapedStringList, taosMemoryFree);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
