@@ -1419,9 +1419,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAppendTablePostHandle(pStmt, param));
+  } else {
+    STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
-
-  STMT_ERR_RET(stmtAddBatch2(pStmt));
 
   pStmt->stat.bindDataUs4 += taosGetTimestampUs() - startUs4;
 
@@ -1623,6 +1623,10 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
+  }
+
+  if (pStmt->sql.stbInterlaceMode) {
+    STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
