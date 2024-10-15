@@ -262,7 +262,7 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
   return TSDB_CODE_SUCCESS;
 }
 
-void isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
+bool isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
   // cnt begin 0, add ts so + 2
   if (unlikely(cnt + 2 > info->currSTableMeta->tableInfo.numOfColumns)) {
     goto END;
@@ -288,11 +288,12 @@ void isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
     maxKV->length = kv->length;
     info->needModifySchema = true;
   }
-  return;
+  return true;
 
 END:
   info->dataFormat = false;
   info->reRun = true;
+  return false;
 }
 
 bool isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
