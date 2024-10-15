@@ -554,13 +554,14 @@ class MyTDSql:
             self._conn = taosrest.connect(url=self.url)
         else:
             self._conn = taosws.connect(host=hostAddr, port=port, database=dbName)
-        print("-----dbName", dbName)
         self._cursor = self._conn.cursor()
         self.cfgPath = cfgPath
         self.queryRows = 0
         self.queryCols = 0
         self.affectedRows = 0
         self.line = str()
+        self._hostAddr = hostAddr
+        self._port = port
 
     # def init(self, cursor, log=True):
     #     self.cursor = cursor
@@ -672,7 +673,7 @@ class MyTDSql:
         try:
             # TODO refactor
             # TODO add database to source conn, not redefine here
-            self._conn = taosws.connect(host="127.0.0.1", port=6041, database=dbName)
+            self._conn = taosws.connect(host=self._hostAddr, port=self._port, database=dbName)
             self._conn.schemaless_insert(line, taosws.PySchemalessProtocol.Line, precision, 1, 1)
             self.recordSmlLine(line)
             # Logging.info(f"Inserted influxDb Line: {line}")

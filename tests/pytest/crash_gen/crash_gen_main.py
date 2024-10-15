@@ -1517,7 +1517,6 @@ class Task():
 
         # Now pick a database, and stick with it for the duration of the task execution
         dbName = self._db.getName()
-        print("!!db-", dbName)
         wt.dbName = dbName
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
@@ -2477,20 +2476,15 @@ class TaskCreateConsumers(StateTransitionTask):
         return state.canCreateConsumers()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-
-        if Config.getConfig().connector_type == 'native':
+        if Config.getConfig().connector_type == 'rest':
+            print(" Restful not support tmq consumers")
+            return
+        else:
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
             # wt.execSql("use db")    # should always be in place
             if sTable.hasTopics(wt.getDbConn()):
                 sTable.createConsumer(wt.getDbConn(), random.randint(1, 10))
                 pass
-        elif Config.getConfig().connector_type == 'rest':
-            print(" Restful not support tmq consumers")
-            return
-        else:
-            # TODO WS supported
-            print("TMQ in Websocket TODO supported")
-            return
 
 class TaskDropTsmas(StateTransitionTask):
 
@@ -2680,8 +2674,8 @@ class TdSuperTable:
 
     def createConsumer(self, dbc, Consumer_nums):
 
-        def generateConsumer(current_topic_list):
-            consumer = Consumer({"group.id": "tg2", "td.connect.user": "root", "td.connect.pass": "taosdata"})
+        def generateConsumerNative(current_topic_list):
+            consumer = Consumer({"group.id": "tg_native", "td.connect.user": "root", "td.connect.pass": "taosdata", "auto.offset.reset": random.choice(["earliest", "latest"])})
             topic_list = []
             for topic in current_topic_list:
                 topic_list.append(topic)
@@ -2702,10 +2696,36 @@ class TdSuperTable:
                 pass
             return
 
+        def generateConsumerWs(current_topic_list):
+            consumer = taosws.Consumer({"td.connect.websocket.scheme": "ws", "group.id": "tg_ws", "auto.offset.reset": random.choice(["earliest", "latest"])})
+            topic_list = []
+            for topic in current_topic_list:
+                topic_list.append(topic)
+
+            try:
+                consumer.subscribe(topic_list)
+
+                # consumer with random work life
+                time_start = time.time()
+                while 1:
+                    res = consumer.poll(1)
+                    if res:
+                        consumer.commit(res)
+                        if time.time() - time_start > random.randint(5, 50):
+                            break
+                consumer.unsubscribe()
+                consumer.close()
+            except TmqError as err: # topic deleted by other threads
+                pass
+            return
+
         # mulit Consumer
         current_topic_list = self.getTopicLists(dbc)
         for i in range(Consumer_nums):
-            consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
+            if Config.getConfig().connector_type == 'native':
+                consumer_inst = threading.Thread(target=generateConsumerNative, args=(current_topic_list,))
+            else:
+                consumer_inst = threading.Thread(target=generateConsumerWs, args=(current_topic_list,))
             self._ConsumerInsts.append(consumer_inst)
 
         for ConsumerInst in self._ConsumerInsts:
