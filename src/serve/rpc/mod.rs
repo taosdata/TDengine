@@ -1229,6 +1229,7 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RpcConfig {
     pub tcp: Option<SocketAddr>,
     pub unix: Option<PathBuf>,

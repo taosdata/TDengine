@@ -254,10 +254,10 @@
 
         <el-table-column
           :label="$t('datasource.status')"
-          prop="statusText"
+          prop="status"
           min-width="170"
           sortable
-          :sort-method="getSortMethod('statusText')"
+          :sort-method="getSortMethod('status')"
           :filters="statusFilters"
           :filter-method="filterHandler"
         >
@@ -279,11 +279,11 @@
                   style="max-height: 200px; overflow: auto"
                 ></div>
                 <span style="width: 80px; display: inline-block">{{
-                  scope.row.statusText
+                    textOfstatus(scope.row.status)
                 }}</span>
               </el-tooltip>
               <span style="width: 80px; display: inline-block" v-else>{{
-                scope.row.statusText
+                textOfstatus(scope.row.status)
               }}</span>
               <template
                 v-if="
@@ -528,6 +528,16 @@ export default {
     },
     isDisabled() {
       return this.multipleSelection.length < 1;
+    },
+  },
+  watch: {
+    "$i18n.locale": {
+      deep: true,
+      async handler(val) {
+        this.statusFilters.forEach((item) => {
+          item.text = this.textOfstatus(item.value);
+        });
+      },
     },
   },
   methods: {
@@ -868,17 +878,18 @@ export default {
               });
               dataSourceFilterSet[item.from_expand.id] = true;
             }
+
+            item["statusText"] = this.textOfstatus(item.status);
             if (!statusFilterSet[item.status]) {
               this.statusFilters.push({
                 value: item.status,
-                text: this.handleDSStatus(item.status),
+                text: item.statusText,
               });
               statusFilterSet[item.status] = true;
             }
             
             (item["taskid"] = item.id), (item["localname"] = item.name);
             item["localtype"] = item.from_expand.id;
-            item["statusText"] = this.handleDSStatus(item.status);
             item["target"] = item.to_expand ? item.to_expand.subject : "";
             item["created_at"] = item.created_at
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
@@ -1128,7 +1139,7 @@ export default {
         });
       });
     },
-    handleDSStatus(value) {
+    textOfstatus(value) {
       return this.$t("statuses." + value);
     },
     handleClearInterval() {
@@ -1155,7 +1166,15 @@ export default {
         let value2 = b[prop];
         if (value2 === undefined || value2 === null) {
           return 1;
+        } else if (value1 === undefined || value1 === null) {
+          return -1;
         }
+
+        if (_this["textOf" + prop]) {
+          value1 = _this["textOf" + prop](value1);
+          value2 = _this["textOf" + prop](value2);
+        }
+
         if (value1 > value2) {
           return 1;
         } else if (value1 < value2) {
@@ -1173,7 +1192,18 @@ export default {
             }
             let thisProp = _this.sortProps[i];
             let thisOrder = _this.sortProps[i+1];
-            let r = sort(a[thisProp], b[thisProp], thisOrder);
+            let va = a[thisProp];
+            let vb = b[thisProp];
+            if (_this["textOf" + thisProp]) {
+              if (va) {
+                va = _this["textOf" + thisProp](va);
+              }
+              if (vb) {
+                vb = _this["textOf" + thisProp](vb);
+              }
+            }
+
+            let r = sort(va, vb, thisOrder);
             if (r !== 0) {
               return r;
               // return reverse ? r * -1 : r;

@@ -39,6 +39,7 @@ use arrow_schema::{ArrowError, Field};
 use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
+use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
 use futures_util::{Sink, Stream, StreamExt};
 use rhai::{Dynamic, Engine, Scope};
@@ -2772,7 +2773,23 @@ async fn consume_flat_record(
         return Ok(());
     }
     if taos.is_none() {
-        taos.replace(pool.get().await?);
+        match pool.get().await {
+            Ok(new_taos) => {
+                taos.replace(new_taos);
+            }
+            Err(e) => {
+                let pool_status = pool.status();
+                if pool_status.available == 0 && matches!(e, PoolError::Timeout(TimeoutType::Wait))
+                {
+                    let new_size = pool_status.max_size + parser.global().concurrent_limit();
+                    pool.resize(new_size);
+                    tracing::warn!(new_size, "connection pool resized");
+                    taos.replace(pool.get().await?);
+                } else {
+                    Err(e).context("get taos connection from pool error")?
+                }
+            }
+        }
     }
 
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
