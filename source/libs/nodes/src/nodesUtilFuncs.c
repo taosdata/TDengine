@@ -691,6 +691,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SGroupSortPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       code = makeNode(type, sizeof(SIntervalPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      code = makeNode(type, sizeof(SMergeIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
@@ -1619,6 +1621,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
