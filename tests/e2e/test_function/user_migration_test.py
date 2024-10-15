@@ -134,7 +134,6 @@ def input_data():
         (True, True, True),
     ],
 )
-@pytest.mark.skip(reason="由于库不兼容，容器内的需要等待出 3.3.3.0 发布之后再重新构建镜像，暂时不执行")
 def test_migration_user(passwords, privileges, whitelist, input_data):
     """
     用例概述：测试迁移用户
