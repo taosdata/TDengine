@@ -2119,12 +2119,14 @@ int sml_ts5528_test(){
     int32_t totalRows = 0;
     pRes = taos_schemaless_insert_raw(taos, sql[i], strlen(sql[i]), &totalRows, TSDB_SML_LINE_PROTOCOL,
                                       TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-    taos_free_result(pRes);
     int code = taos_errno(pRes);
+    taos_free_result(pRes);
     if (code != 0) {
+      taos_close(taos);
       return code;
     }
   }
+  taos_close(taos);
   printf("%s result success\n", __FUNCTION__);
   return 0;
 }
