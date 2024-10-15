@@ -144,12 +144,6 @@ option(
     OFF
 )
 
-option(
-    BUILD_WITH_ANALYSIS
-    "If build with analysis"
-    ON
-)
-
 ENDIF ()
 
 IF(NOT TD_ENTERPRISE)
@@ -157,14 +151,7 @@ MESSAGE("switch s3 off with community version")
 set(BUILD_S3 OFF)
 set(BUILD_WITH_S3 OFF)
 set(BUILD_WITH_COS OFF)
-set(BUILD_WITH_ANALYSIS OFF)
 ENDIF ()
-
-IF(${BUILD_WITH_ANALYSIS})
-    message("build with analysis")
-    set(BUILD_S3 ON)
-    set(BUILD_WITH_S3 ON)
-ENDIF()
 
 IF(${BUILD_S3})
 

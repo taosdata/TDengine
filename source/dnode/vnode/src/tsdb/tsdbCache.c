@@ -221,6 +221,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   rocksdb_writebatch_t *writebatch = rocksdb_writebatch_create();
 
+  TAOS_CHECK_GOTO(taosThreadMutexInit(&pTsdb->rCache.writeBatchMutex, NULL), &lino, _err6) ;
+
   pTsdb->rCache.writebatch = writebatch;
   pTsdb->rCache.my_comparator = cmp;
   pTsdb->rCache.options = options;
@@ -232,6 +234,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   TAOS_RETURN(code);
 
+_err6:
+  rocksdb_writebatch_destroy(writebatch);
 _err5:
   rocksdb_close(pTsdb->rCache.db);
 _err4:
@@ -250,6 +254,7 @@ _err:
 
 static void tsdbCloseRocksCache(STsdb *pTsdb) {
   rocksdb_close(pTsdb->rCache.db);
+  (void)taosThreadMutexDestroy(&pTsdb->rCache.writeBatchMutex);
   rocksdb_flushoptions_destroy(pTsdb->rCache.flushoptions);
   rocksdb_writebatch_destroy(pTsdb->rCache.writebatch);
   rocksdb_readoptions_destroy(pTsdb->rCache.readoptions);
@@ -1077,7 +1082,9 @@ static int32_t tsdbCachePutToRocksdb(STsdb *pTsdb, SLastKey *pLastKey, SLastCol 
   }
 
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
+  (void)taosThreadMutexLock(&pTsdb->rCache.writeBatchMutex);
   rocksdb_writebatch_put(wb, (char *)pLastKey, ROCKS_KEY_LEN, rocks_value, vlen);
+  (void)taosThreadMutexUnlock(&pTsdb->rCache.writeBatchMutex);
 
   taosMemoryFree(rocks_value);
 
@@ -1767,10 +1774,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
     if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       SLastCol lastCol = *pLastCol;
-      TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&lastCol, NULL), NULL, _exit);
+      if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&lastCol, NULL))) {
+        tsdbLRUCacheRelease(pCache, h, false);
+        TAOS_CHECK_GOTO(code, NULL, _exit);
+      }
 
       if (taosArrayPush(pLastArray, &lastCol) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
     } else {
@@ -1780,28 +1791,33 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
       if (taosArrayPush(pLastArray, &noneCol) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
 
       if (!remainCols) {
         if ((remainCols = taosArrayInit(numKeys, sizeof(SIdxKey))) == NULL) {
           code = terrno;
+          tsdbLRUCacheRelease(pCache, h, false);
           goto _exit;
         }
       }
       if (!ignoreFromRocks) {
         if ((ignoreFromRocks = taosArrayInit(numKeys, sizeof(bool))) == NULL) {
           code = terrno;
+          tsdbLRUCacheRelease(pCache, h, false);
           goto _exit;
         }
       }
       if (taosArrayPush(remainCols, &(SIdxKey){i, key}) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
       bool ignoreRocks = pLastCol ? (pLastCol->cacheStatus == TSDB_LAST_CACHE_NO_CACHE) : false;
       if (taosArrayPush(ignoreFromRocks, &ignoreRocks) == NULL) {
         code = terrno;
+        tsdbLRUCacheRelease(pCache, h, false);
         goto _exit;
       }
     }
@@ -1822,6 +1838,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         SLastCol lastCol = *pLastCol;
         code = tsdbCacheReallocSLastCol(&lastCol, NULL);
         if (code) {
+          tsdbLRUCacheRelease(pCache, h, false);
           (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
           TAOS_RETURN(code);
         }

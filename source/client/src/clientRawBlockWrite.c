@@ -926,7 +926,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema*          pSchema = req.schemaRow.pSchema + i;
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
-    (void)strcpy(field.name, pSchema->name);
+    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
 
     if (createDefaultCompress) {
       field.compress = createDefaultColCmprByType(pSchema->type);
@@ -941,7 +941,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t i = 0; i < req.schemaTag.nCols; i++) {
     SSchema* pSchema = req.schemaTag.pSchema + i;
     SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
-    (void)strcpy(field.name, pSchema->name);
+    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
     RAW_NULL_CHECK(taosArrayPush(pReq.pTags, &field));
   }
 
@@ -1244,7 +1244,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (pTableBatch == NULL) {
       SVgroupCreateTableBatch tBatch = {0};
       tBatch.info = pInfo;
-      (void)strcpy(tBatch.dbName, pRequest->pDb);
+      tstrncpy(tBatch.dbName, pRequest->pDb, TSDB_DB_NAME_LEN);
 
       tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
       RAW_NULL_CHECK(tBatch.req.pArray);
@@ -1769,8 +1769,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     RAW_NULL_CHECK(tbName);
 
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
-    (void)strcpy(pName.dbname, pRequest->pDb);
-    (void)strcpy(pName.tname, tbName);
+    tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
+    tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
     RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
 
@@ -1928,15 +1928,15 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
     uDebug(LOG_ID_TAG " write raw metadata block tbname:%s", LOG_ID_VALUE, tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
-    (void)strcpy(pName.dbname, pRequest->pDb);
-    (void)strcpy(pName.tname, tbName);
+    tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
+    tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
     // find schema data info
     SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, tbName, strlen(tbName));
     SVgroupInfo    vg = {0};
     RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg));
     if (pCreateReqDst) {  // change stable name to get meta
-      (void)strcpy(pName.tname, pCreateReqDst->ctb.stbName);
+      tstrncpy(pName.tname, pCreateReqDst->ctb.stbName, TSDB_TABLE_NAME_LEN);
     }
     RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
 

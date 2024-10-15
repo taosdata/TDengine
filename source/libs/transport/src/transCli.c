@@ -3118,6 +3118,10 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
     transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
   }
+
+  if (pReq->msgType == TDMT_SCH_DROP_TASK) {
+    TAOS_UNUSED(transReleaseCliHandle(pReq->info.handle));
+  }
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
   return 0;
 
@@ -3166,6 +3170,10 @@ int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* 
     destroyReq(pCliMsg);
     transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+  }
+
+  if (pReq->msgType == TDMT_SCH_DROP_TASK) {
+    TAOS_UNUSED(transReleaseCliHandle(pReq->info.handle));
   }
   transReleaseExHandle(transGetRefMgt(), *transpointId);
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
