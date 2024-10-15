@@ -14,7 +14,7 @@
 #include <windows.h>
 #endif
 
-#include "./avro_parser.hpp"
+#include "avro_parser.hpp"
 
 #include <azure/core/io/body_stream.hpp>
 #include <azure/storage/common/crypt.hpp>
