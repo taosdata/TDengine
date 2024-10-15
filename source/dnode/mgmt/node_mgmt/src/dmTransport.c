@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
-#include "tversion.h"
 #include "tanal.h"
+#include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -471,7 +471,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  rpcInit.startReadTimer = 1;
+  rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
