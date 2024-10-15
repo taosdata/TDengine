@@ -3213,15 +3213,20 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
-  if (resultType == -1) {
+  if (resultType == -1 || resultType == 0) {
       return false;
-  } else if (resultType == 0) {
-      return false;
-  } else {
-      commonType->type = resultType;
-      commonType->bytes = (commonType->bytes >= newType->bytes) ? commonType->bytes : newType->bytes;
-      return true;
+  } 
+  if (resultType == commonType->type){
+    return true;
   }
+  if(resultType == newType->type) {
+    *commonType = *newType;
+    return true;
+  }
+  commonType->type = resultType;
+  commonType->bytes = TYPE_BYTES[resultType];
+  return true;
+
 }
 
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
