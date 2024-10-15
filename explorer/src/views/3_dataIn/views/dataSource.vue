@@ -1183,8 +1183,7 @@ export default {
           if (!_this.sortProps) {
             return 0;
           }
-          // let reverse = (_this.sortProps[0] === prop &&_this.sortProps[1] === "ascending");
-          // console.log("reverse:", reverse);
+          // let reverse = (_this.sortProps[0] === prop &&_this.sortProps[1] === "descending");
 
           for (let i = 0; i < _this.sortProps.length; i+=2) {
             if (prop === _this.sortProps[i]) {
@@ -1202,11 +1201,13 @@ export default {
                 vb = _this["textOf" + thisProp](vb);
               }
             }
+            // if (reverse) {
+            //   thisOrder = (thisOrder === "ascending" ? "descending" : "ascending");
+            // }
 
-            let r = sort(va, vb, thisOrder);
+            let r = sort(va, vb, "ascending");
             if (r !== 0) {
               return r;
-              // return reverse ? r * -1 : r;
             }
           }
           return 0;
@@ -1243,7 +1244,6 @@ export default {
         }
       }
       this.sortProps = newSortProps;
-      console.log("sortProps:", this.sortProps);
     },
     filterBatchIds(permitStatus) {
       let result = [];
