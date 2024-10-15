@@ -113,13 +113,12 @@ def test_case_base(input_data):
 )
 def test_case_base_0(database, collection, start, end, expected, input_data):
     """
-    用例概述: mongodb 用例, 测试分库分表，${y}, ${j}
+    用例概述: mongodb 用例, 测试分库分表
     数据源信息: 192.168.1.45:27017, 用户名密码:admin/tbase125!
     用例步骤：
     1. 使用 agent
     2. 配置数据库名,表名,数据起始时间
     3. 查询模版: {"createtime":{"$gte":${start_datetime},"$lt":${end_datetime}}}
-    4. 数据起始时间: '2020-01-01 00:00:00+08:00' - '2020-03-01 00:00:00+08:00'
 
     验证点：
     1. 数据正常写入
