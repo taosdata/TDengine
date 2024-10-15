@@ -471,7 +471,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   taosArraySort(actualLog, compareWalFileInfo);
 
-  wInfo("vgId:%d, wal path:%s, actual log file num:%" PRId64, pWal->cfg.vgId, pWal->path, taosArrayGetSize(actualLog));
+  wInfo("vgId:%d, wal path:%s, actual log file num:%d", pWal->cfg.vgId, pWal->path,
+        (int32_t)taosArrayGetSize(actualLog));
   printFileSet(actualLog);
 
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
@@ -488,8 +489,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     TAOS_RETURN(code);
   }
 
-  wInfo("vgId:%d, wal path:%s, meta log file num:%" PRId64, pWal->cfg.vgId, pWal->path,
-        taosArrayGetSize(pWal->fileInfoSet));
+  wInfo("vgId:%d, wal path:%s, meta log file num:%d", pWal->cfg.vgId, pWal->path,
+        (int32_t)taosArrayGetSize(pWal->fileInfoSet));
   printFileSet(pWal->fileInfoSet);
 
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
@@ -1143,8 +1144,8 @@ int32_t walLoadMeta(SWal* pWal) {
   (void)taosCloseFile(&pFile);
   taosMemoryFree(buf);
 
-  wInfo("vgId:%d, load meta file: %s, fileInfoSet size:%" PRId64, pWal->cfg.vgId, fnameStr,
-        taosArrayGetSize(pWal->fileInfoSet));
+  wInfo("vgId:%d, load meta file: %s, fileInfoSet size:%d", pWal->cfg.vgId, fnameStr,
+        (int32_t)taosArrayGetSize(pWal->fileInfoSet));
   printFileSet(pWal->fileInfoSet);
 
   TAOS_RETURN(code);
