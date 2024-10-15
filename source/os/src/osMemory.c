@@ -168,7 +168,7 @@ void startTrace() {
   Dwarf_Ptr errarg = 0;
 
   FILE *fp = fopen("/proc/self/maps", "r");
-  fscanf(fp, "%lx-", &addr);
+  ret = fscanf(fp, "%lx-", &addr);
   fclose(fp);
 
   ret = dwarf_init_path("/proc/self/exe", NULL, 0, DW_GROUPNUMBER_ANY, NULL, errarg, &tDbg, NULL);
