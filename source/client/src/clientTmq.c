@@ -831,8 +831,8 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
       }
 
       code = innerCommit(tmq, pTopic->topicName, &pVg->offsetInfo.endOffset, pVg, pParamSet);
-      if (code != 0){
-        tqDebugC("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, code:%s, current offset version:%" PRId64 ", ordinal:%d/%d",
+      if (code != 0 && code != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE){
+        tqErrorC("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, code:%s, current offset version:%" PRId64 ", ordinal:%d/%d",
                  tmq->consumerId, pTopic->topicName, pVg->vgId, tstrerror(code), pVg->offsetInfo.endOffset.version, j + 1, numOfVgroups);
       }
     }
@@ -857,7 +857,7 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
     return;
   }
   code = innerCommitAll(tmq, pParamSet);
-  if (code != 0){
+  if (code != 0 && code != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE){
     tqErrorC("consumer:0x%" PRIx64 " innerCommitAll failed, code:%s", tmq->consumerId, tstrerror(code));
   }
 
@@ -1270,7 +1270,9 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
+      tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    }
     goto END;
   }
 
