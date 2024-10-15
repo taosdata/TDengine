@@ -71,7 +71,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
 
   int32_t size = taosArrayGetSize(pWinStates);
   int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
-  if (!isFlushedState(pFileState, pKey->ts, 0)|| index >= 0) {
+  if (!isFlushedState(pFileState, pKey->ts, 0)|| index >= 0 || size == 0) {
     // find the first position which is smaller than the pKey
     if (index >= 0) {
       SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
