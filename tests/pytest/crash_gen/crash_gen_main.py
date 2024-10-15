@@ -4836,9 +4836,9 @@ class TaskAddData(StateTransitionTask):
                         if "unsigned" in tag_dict[tag_name].lower():
                             bind_type = bind_type.replace(" unsigned", "_unsigned")
                         if bind_type == "varbinary" or bind_type == "geometry":
-                            tags.append(getattr(taosws, f'{bind_type}_to_tag')((row[len(col_dict) + i + 1]).encode('utf-8')))  # Dynamically call the appropriate binding method
+                            tags.append(getattr(taosws, f'{bind_type}s_to_tag')((row[len(col_dict) + i + 1]).encode('utf-8')))  # Dynamically call the appropriate binding method
                         else:
-                            tags.append(getattr(taosws, f'{bind_type}_to_tag')(row[len(col_dict) + i + 1]))  # Dynamically call the appropriate binding method
+                            tags.append(getattr(taosws, f'{bind_type}s_to_tag')(row[len(col_dict) + i + 1]))  # Dynamically call the appropriate binding method
                     stmt.set_tbname_tags(tb_name, tags)
 
                 # Dynamic value binding based on value_types list
@@ -4858,9 +4858,9 @@ class TaskAddData(StateTransitionTask):
                             raise RuntimeError(f"Invalid precision: {precision}")
                     else:
                         if bind_type == "varbinary" or bind_type == "geometry":
-                            getattr(taosws, f'{bind_type}_to_column')(row[1 + j].encode('utf-8'))
+                            getattr(taosws, f'{bind_type}s_to_column')(row[1 + j].encode('utf-8'))
                         else:
-                            getattr(taosws, f'{bind_type}_to_column')(row[1 + j])  # Dynamically call the appropriate binding method
+                            getattr(taosws, f'{bind_type}s_to_column')(row[1 + j])  # Dynamically call the appropriate binding method
                 stmt.bind_param(values)
             return stmt
         except Exception as e:  # Any exception at all
