@@ -32,7 +32,7 @@ typedef struct {
   SArray*     blocks;   // SSDataBlock*
   SArray*     windows;  // STimeWindow
   uint64_t    groupId;
-  int64_t     numOfRows;
+  int64_t     cachedRows;
   int32_t     curWinIndex;
   STimeWindow curWin;
   SResultRow* pResultRow;
@@ -191,7 +191,9 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
-      qDebug("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, numOfBlocks, pBlock->info.rows);
+      pSupp->cachedRows += pBlock->info.rows;
+      qDebug("group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, numOfBlocks,
+             pBlock->info.rows, pSupp->cachedRows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
@@ -199,7 +201,9 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       anomalyAggregateBlocks(pOperator);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
-      qDebug("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
+      pSupp->cachedRows = pBlock->info.rows;
+      qDebug("group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId,
+             pBlock->info.rows, pSupp->cachedRows);
       code = anomalyCacheBlock(pInfo, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -253,6 +257,10 @@ static void anomalyDestroyOperatorInfo(void* param) {
 }
 
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pSrc) {
+  if (pInfo->anomalySup.cachedRows > ANAL_ANOMALY_WINDOW_MAX_ROWS) {
+    return TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS;
+  }
+
   SSDataBlock* pDst = NULL;
   int32_t      code = createOneDataBlock(pSrc, true, &pDst);
 
@@ -491,7 +499,7 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   int32_t numOfWins = taosArrayGetSize(pSupp->windows);
-  qDebug("group:%" PRId64 ", wins:%d, rows:%" PRId64, pSupp->groupId, numOfWins, pSupp->numOfRows);
+  qDebug("group:%" PRId64 ", wins:%d, rows:%" PRId64, pSupp->groupId, numOfWins, pSupp->cachedRows);
   for (int32_t w = 0; w < numOfWins; ++w) {
     STimeWindow* pWindow = taosArrayGet(pSupp->windows, w);
     if (w == 0) {
@@ -611,7 +619,7 @@ _OVER:
 
   taosArrayClear(pSupp->blocks);
   taosArrayClear(pSupp->windows);
-  pSupp->numOfRows = 0;
+  pSupp->cachedRows = 0;
   pSupp->curWin.ekey = 0;
   pSupp->curWin.skey = 0;
   pSupp->curWinIndex = 0;

@@ -37,6 +37,7 @@ typedef struct {
   int64_t  numOfRows;
   uint64_t groupId;
   int64_t  optRows;
+  int64_t  cachedRows;
   int32_t  numOfBlocks;
   int16_t  resTsSlot;
   int16_t  resValSlot;
@@ -72,6 +73,10 @@ static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int
 }
 
 static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
+  if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
+    return TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS;
+  }
+
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   SAnalBuf* pBuf = &pSupp->analBuf;
@@ -383,7 +388,9 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
-      qDebug("group:%" PRId64 ", blocks:%d, cache block rows:%" PRId64, pSupp->groupId, numOfBlocks, pBlock->info.rows);
+      pSupp->cachedRows += pBlock->info.rows;
+      qDebug("group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, numOfBlocks,
+             pBlock->info.rows, pSupp->cachedRows);
       code = forecastCacheBlock(pSupp, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
@@ -392,7 +399,9 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _end);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
-      qDebug("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
+      pSupp->cachedRows = pBlock->info.rows;
+      qDebug("group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, pBlock->info.rows,
+             pSupp->cachedRows);
       code = forecastCacheBlock(pSupp, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
