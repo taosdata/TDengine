@@ -515,6 +515,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .fsyncPeriod = 0,
                  .rollPeriod = -1,
                  .segSize = -1,
+                 .committed = -1,
                  .retentionPeriod = 0,
                  .retentionSize = 0,
                  .level = TAOS_WAL_FSYNC,
