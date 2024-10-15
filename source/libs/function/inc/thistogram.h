@@ -16,6 +16,8 @@
 #ifndef TDENGINE_HISTOGRAM_H
 #define TDENGINE_HISTOGRAM_H
 
+#include "functionResInfoInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,51 +26,28 @@ extern "C" {
 
 #define MAX_HISTOGRAM_BIN 500
 
-typedef struct SHistBin {
-  double  val;
-  int64_t num;
-
-#if !defined(USE_ARRAYLIST)
-  double  delta;
-  int32_t index;  // index in min-heap list
-#endif
-} SHistBin;
-
 typedef struct SHeapEntry {
   void*  pData;
   double val;
 } SHeapEntry;
 
-typedef struct SHistogramInfo {
-  int64_t numOfElems;
-  int32_t numOfEntries;
-  int32_t maxEntries;
-  double  min;
-  double  max;
-#if defined(USE_ARRAYLIST)
-  SHistBin* elems;
-#else
-  tSkipList*              pList;
-  SMultiwayMergeTreeInfo* pLoserTree;
-  int32_t                 maxIndex;
-  bool                    ordered;
-#endif
-} SHistogramInfo;
+struct SHistogramInfo;
+struct SHistBin;
 
-int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto);
-SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins);
+int32_t tHistogramCreate(int32_t numOfEntries, struct SHistogramInfo** pHisto);
+struct SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins);
 
-int32_t tHistogramAdd(SHistogramInfo** pHisto, double val);
-int32_t tHistogramSum(SHistogramInfo* pHisto, double v, int64_t *res);
+int32_t tHistogramAdd(struct SHistogramInfo** pHisto, double val);
+int32_t tHistogramSum(struct SHistogramInfo* pHisto, double v, int64_t *res);
 
-int32_t         tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, double** pVal);
-int32_t         tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries,
-                                SHistogramInfo** pResHistogram);
-void            tHistogramDestroy(SHistogramInfo** pHisto);
+int32_t         tHistogramUniform(struct SHistogramInfo* pHisto, double* ratio, int32_t num, double** pVal);
+int32_t         tHistogramMerge(struct SHistogramInfo* pHisto1, struct SHistogramInfo* pHisto2, int32_t numOfEntries,
+                                struct SHistogramInfo** pResHistogram);
+void            tHistogramDestroy(struct SHistogramInfo** pHisto);
 
-void tHistogramPrint(SHistogramInfo* pHisto);
+void tHistogramPrint(struct SHistogramInfo* pHisto);
 
-int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val);
+int32_t histoBinarySearch(struct SHistBin* pEntry, int32_t len, double val);
 
 SHeapEntry* tHeapCreate(int32_t numOfEntries);
 void        tHeapSort(SHeapEntry* pEntry, int32_t len);

@@ -347,13 +347,6 @@ typedef struct SCountWindowNode {
   int64_t   windowSliding;
 } SCountWindowNode;
 
-typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
-} SAnomalyWindowNode;
-
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -449,8 +442,6 @@ typedef struct SSelectStmt {
   bool          hasTailFunc;
   bool          hasInterpFunc;
   bool          hasInterpPseudoColFunc;
-  bool          hasForecastFunc;
-  bool          hasForecastPseudoColFunc;
   bool          hasLastRowFunc;
   bool          hasLastFunc;
   bool          hasTimeLineFunc;

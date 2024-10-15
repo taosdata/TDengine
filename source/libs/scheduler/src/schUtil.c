@@ -63,10 +63,10 @@ int32_t schDumpEpSet(SEpSet *pEpSet, char** ppRes) {
   }
 
   int32_t n = 0;
-  n += snprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
+  n += tsnprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     SEp *pEp = &pEpSet->eps[i];
-    n += snprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
+    n += tsnprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
   }
 
   *ppRes = str;
@@ -297,16 +297,13 @@ uint64_t schGenTaskId(void) { return atomic_add_fetch_64(&schMgmt.taskId, 1); }
 
 #ifdef BUILD_NO_CALL
 uint64_t schGenUUID(void) {
-  static uint64_t hashId = 0;
+  static uint32_t hashId = 0;
   static int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid) - 1);
+    int32_t code = taosGetSystemUUID32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
-    } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
     }
   }
 
@@ -314,7 +311,7 @@ uint64_t schGenUUID(void) {
   uint64_t pid = taosGetPId();
   int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
 
-  uint64_t id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+  uint64_t id = ((uint64_t)((hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }
 #endif

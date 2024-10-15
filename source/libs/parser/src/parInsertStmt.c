@@ -218,6 +218,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
+      }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;
         goto end;
@@ -565,6 +569,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         val.nData = output;
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;

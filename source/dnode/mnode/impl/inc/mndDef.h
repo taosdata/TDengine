@@ -78,9 +78,6 @@ typedef enum {
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
   MND_OPER_BALANCE_VGROUP_LEADER,
-  MND_OPER_CREATE_ANODE,
-  MND_OPER_UPDATE_ANODE,
-  MND_OPER_DROP_ANODE
 } EOperType;
 
 typedef enum {
@@ -234,24 +231,6 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
   char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
-
-typedef struct {
-  int32_t nameLen;
-  char*   name;
-} SAnodeAlgo;
-
-typedef struct {
-  int32_t  id;
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int32_t  version;
-  int32_t  urlLen;
-  int32_t  numOfAlgos;
-  int32_t  status;
-  SRWLatch lock;
-  char*    url;
-  SArray** algos;
-} SAnodeObj;
 
 typedef struct {
   int32_t    id;
