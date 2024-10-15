@@ -36,8 +36,8 @@ typedef struct {
   int64_t  minTs;
   int64_t  numOfRows;
   uint64_t groupId;
+  int64_t  optRows;
   int32_t  numOfBlocks;
-  int32_t  optRows;
   int16_t  resTsSlot;
   int16_t  resValSlot;
   int16_t  resLowSlot;
@@ -114,24 +114,61 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteDataEnd(pBuf);
   if (code != 0) return code;
 
+  code = taosAnalBufWriteOptStr(pBuf, "option", pSupp->algoOpt);
+  if (code != 0) return code;
+
+  code = taosAnalBufWriteOptStr(pBuf, "algo", pSupp->algoName);
+  if (code != 0) return code;
+
+  const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
+  if (pSupp->inputPrecision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
+  if (pSupp->inputPrecision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
+  code = taosAnalBufWriteOptStr(pBuf, "prec", prec);
+  if (code != 0) return code;
+
+  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
+  bool    hasWncheck = taosAnalGetOptInt(pSupp->algoOpt, "wncheck", &wncheck);
+  if (!hasWncheck) {
+    qDebug("forecast wncheck not found from %s, use default:%" PRId64, pSupp->algoOpt, wncheck);
+  }
+  code = taosAnalBufWriteOptInt(pBuf, "wncheck", wncheck);
+  if (code != 0) return code;
+
+  bool noConf = (pSupp->resHighSlot == -1 && pSupp->resLowSlot == -1);
+  code = taosAnalBufWriteOptInt(pBuf, "return_conf", !noConf);
+  if (code != 0) return code;
+
+  pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
+  bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
+  if (!hasRows) {
+    qDebug("forecast rows not found from %s, use default:%" PRId64, pSupp->algoOpt, pSupp->optRows);
+  }
+  code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
+  if (code != 0) return code;
+
+  int64_t conf = ANAL_FORECAST_DEFAULT_CONF;
+  bool    hasConf = taosAnalGetOptInt(pSupp->algoOpt, "conf", &conf);
+  if (!hasConf) {
+    qDebug("forecast conf not found from %s, use default:%" PRId64, pSupp->algoOpt, conf);
+  }
+  code = taosAnalBufWriteOptInt(pBuf, "conf", conf);
+  if (code != 0) return code;
+
   int32_t len = strlen(pSupp->algoOpt);
   int64_t every = (pSupp->maxTs - pSupp->minTs) / (pSupp->numOfRows + 1);
   int64_t start = pSupp->maxTs + every;
-  bool    hasStart = taosAnalGetOptStr(pSupp->algoOpt, "start", NULL, 0);
+  bool    hasStart = taosAnalGetOptInt(pSupp->algoOpt, "start", &start);
   if (!hasStart) {
     qDebug("forecast start not found from %s, use %" PRId64, pSupp->algoOpt, start);
-    code = taosAnalBufWriteOptInt(pBuf, "start", start);
-    if (code != 0) return code;
   }
+  code = taosAnalBufWriteOptInt(pBuf, "start", start);
+  if (code != 0) return code;
 
-  bool hasEvery = taosAnalGetOptStr(pSupp->algoOpt, "every", NULL, 0);
+  bool hasEvery = taosAnalGetOptInt(pSupp->algoOpt, "every", &every);
   if (!hasEvery) {
     qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
-    code = taosAnalBufWriteOptInt(pBuf, "every", every);
-    if (code != 0) return code;
   }
-
-  code = taosAnalBufWriteOptStr(pBuf, "option", pSupp->algoOpt);
+  code = taosAnalBufWriteOptInt(pBuf, "every", every);
   if (code != 0) return code;
 
   code = taosAnalBufClose(pBuf);
@@ -489,58 +526,6 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
   int32_t code = tsosAnalBufOpen(pBuf, 2);
   if (code != 0) goto _OVER;
-
-  code = taosAnalBufWriteOptStr(pBuf, "algo", pSupp->algoName);
-  if (code != 0) goto _OVER;
-
-  bool returnConf = (pSupp->resHighSlot == -1 || pSupp->resLowSlot == -1);
-  code = taosAnalBufWriteOptStr(pBuf, "return_conf", returnConf ? "true" : "false");
-  if (code != 0) goto _OVER;
-
-  bool hasAlpha = taosAnalGetOptStr(pSupp->algoOpt, "alpha", NULL, 0);
-  if (!hasAlpha) {
-    qDebug("forecast alpha not found from %s, use default:%f", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_ALPHA);
-    code = taosAnalBufWriteOptFloat(pBuf, "alpha", ANAL_FORECAST_DEFAULT_ALPHA);
-    if (code != 0) goto _OVER;
-  }
-
-  char tmpOpt[32] = {0};
-  bool hasParam = taosAnalGetOptStr(pSupp->algoOpt, "param", tmpOpt, sizeof(tmpOpt));
-  if (!hasParam) {
-    qDebug("forecast param not found from %s, use default:%s", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PARAM);
-    code = taosAnalBufWriteOptStr(pBuf, "param", ANAL_FORECAST_DEFAULT_PARAM);
-    if (code != 0) goto _OVER;
-  }
-
-  bool hasPeriod = taosAnalGetOptInt(pSupp->algoOpt, "period", NULL);
-  if (!hasPeriod) {
-    qDebug("forecast period not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_PERIOD);
-    code = taosAnalBufWriteOptInt(pBuf, "period", ANAL_FORECAST_DEFAULT_PERIOD);
-    if (code != 0) goto _OVER;
-  }
-
-  bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
-  if (!hasRows) {
-    pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
-    qDebug("forecast rows not found from %s, use default:%d", pSupp->algoOpt, pSupp->optRows);
-    code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
-    if (code != 0) goto _OVER;
-  }
-
-  const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
-  if (pSupp->inputPrecision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
-  if (pSupp->inputPrecision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
-  code = taosAnalBufWriteOptStr(pBuf, "prec", prec);
-  if (code != 0) goto _OVER;
-
-  if (returnConf) {
-    bool hasConf = taosAnalGetOptStr(pSupp->algoOpt, "conf", NULL, 0);
-    if (!hasConf) {
-      qDebug("forecast conf not found from %s, use default:%d", pSupp->algoOpt, ANAL_FORECAST_DEFAULT_CONF);
-      code = taosAnalBufWriteOptInt(pBuf, "conf", ANAL_FORECAST_DEFAULT_CONF);
-      if (code != 0) goto _OVER;
-    }
-  }
 
   code = taosAnalBufWriteColMeta(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   if (code != 0) goto _OVER;

@@ -342,12 +342,6 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
 
-  code = taosAnalBufWriteOptStr(&analBuf, "algo", pInfo->algoName);
-  if (code != 0) goto _OVER;
-
-  code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);
-  if (code != 0) goto _OVER;
-
   code = taosAnalBufWriteColMeta(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   if (code != 0) goto _OVER;
 
@@ -397,6 +391,20 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   if (code != 0) goto _OVER;
 
   code = taosAnalBufWriteOptStr(&analBuf, "option", pInfo->anomalyOpt);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteOptStr(&analBuf, "algo", pInfo->algoName);
+  if (code != 0) goto _OVER;
+
+  code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);
+  if (code != 0) goto _OVER;
+
+  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
+  bool    hasWncheck = taosAnalGetOptInt(pInfo->anomalyOpt, "wncheck", &wncheck);
+  if (!hasWncheck) {
+    qDebug("anomaly_window wncheck not found from %s, use default:%" PRId64, pInfo->anomalyOpt, wncheck);
+  }
+  code = taosAnalBufWriteOptInt(&analBuf, "wncheck", wncheck);
   if (code != 0) goto _OVER;
 
   code = taosAnalBufClose(&analBuf);

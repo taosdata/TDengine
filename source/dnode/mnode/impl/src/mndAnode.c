@@ -702,8 +702,10 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
   code = tjsonGetDoubleValue(pJson, "version", &tmp);
   pObj->version = (int32_t)(tmp * 1000);
+#if 0
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   if (pObj->version <= 0) return TSDB_CODE_MND_ANODE_INVALID_VERSION;
+#endif
 
   SJson *details = tjsonGetObjectItem(pJson, "details");
   if (details == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
