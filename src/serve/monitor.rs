@@ -170,7 +170,7 @@ impl Monitor {
         );
         let tasks = self.tasks.clone();
         if let Some(fqdn) = &self.cfg.fqdn {
-            tracing::info!("nonitor is enabled");
+            tracing::info!("monitor is enabled");
             let url = format!("http://{}:{}/general-metric", fqdn, self.cfg.port);
             let controller = self.controller.clone();
             tokio::spawn(
