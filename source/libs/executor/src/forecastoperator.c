@@ -351,7 +351,8 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
-      forecastAggregateBlocks(pSupp, pResBlock);
+      code = forecastAggregateBlocks(pSupp, pResBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
       qDebug("group:%" PRId64 ", new group, cache block rows:%" PRId64, pSupp->groupId, pBlock->info.rows);
@@ -368,7 +369,8 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   if (numOfBlocks > 0) {
     qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
-    forecastAggregateBlocks(pSupp, pResBlock);
+    code = forecastAggregateBlocks(pSupp, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
@@ -556,7 +558,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
 
 _OVER:
   if (code != 0) {
-    taosAnalBufClose(pBuf);
+    (void)taosAnalBufClose(pBuf);
     taosAnalBufDestroy(pBuf);
   }
   return code;

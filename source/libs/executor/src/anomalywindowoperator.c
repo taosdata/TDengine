@@ -420,7 +420,7 @@ _OVER:
   return code;
 }
 
-static void anomalyAggregateRows(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+static int32_t anomalyAggregateRows(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*                  pExprSup = &pOperator->exprSupp;
@@ -429,14 +429,17 @@ static void anomalyAggregateRows(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   SResultRow*                 pResRow = pSupp->pResultRow;
   int32_t                     numOfOutput = pOperator->exprSupp.numOfExprs;
 
-  if (setResultRowInitCtx(pResRow, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset) == 0) {
+  int32_t code = setResultRowInitCtx(pResRow, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
+  if (code == 0) {
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pSupp->curWin, 0);
-    applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                    pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+    code = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &pInfo->twAggSup.timeWindowData,
+                                           pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
   }
+
+  return code;
 }
 
-static void anomalyBuildResult(SOperatorInfo* pOperator) {
+static int32_t anomalyBuildResult(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*                  pExprSup = &pOperator->exprSupp;
@@ -444,10 +447,14 @@ static void anomalyBuildResult(SOperatorInfo* pOperator) {
   SResultRow*                 pResRow = pInfo->anomalySup.pResultRow;
 
   doUpdateNumOfRows(pExprSup->pCtx, pResRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
-  copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pResRow, pExprSup->pCtx, pRes,
-                           pExprSup->rowEntryInfoOffset, pTaskInfo);
-  pRes->info.rows += pResRow->numOfRows;
+  int32_t code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pResRow, pExprSup->pCtx, pRes,
+                                          pExprSup->rowEntryInfoOffset, pTaskInfo);
+  if (code == 0) {
+    pRes->info.rows += pResRow->numOfRows;
+  }
+
   clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+  return code;
 }
 
 static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
@@ -540,13 +547,15 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
         if (rowsInBlock > 0) {
           qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg", pSupp->groupId,
                  b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
-          anomalyAggregateRows(pOperator, pBlock);
+          code = anomalyAggregateRows(pOperator, pBlock);
+          QUERY_CHECK_CODE(code, lino, _OVER);
           rowsInBlock = 0;
         }
         if (rowsInWin > 0) {
           qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, build result",
                  pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
-          anomalyBuildResult(pOperator);
+          code = anomalyBuildResult(pOperator);
+          QUERY_CHECK_CODE(code, lino, _OVER);
           rowsInWin = 0;
         }
         if (anomalyFindWindow(pSupp, tsList[r]) == 0) {
@@ -567,7 +576,8 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
       if (lastRow && rowsInBlock > 0) {
         qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, agg since lastrow",
                pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
-        anomalyAggregateRows(pOperator, pBlock);
+        code = anomalyAggregateRows(pOperator, pBlock);
+        QUERY_CHECK_CODE(code, lino, _OVER);
         rowsInBlock = 0;
       }
     }
@@ -575,7 +585,8 @@ static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     if (lastBlock && rowsInWin > 0) {
       qTrace("group:%" PRId64 ", block:%d win:%d, riwin:%d riblock:%d, build result since lastblock", pSupp->groupId, b,
              pSupp->curWinIndex, rowsInWin, rowsInBlock);
-      anomalyBuildResult(pOperator);
+      code = anomalyBuildResult(pOperator);
+      QUERY_CHECK_CODE(code, lino, _OVER);
       rowsInWin = 0;
     }
   }
