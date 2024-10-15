@@ -1251,6 +1251,7 @@ typedef struct SCollectFillExprsCtx {
   int32_t     code;
   SNodeList* pFillExprs;
   SNodeList* pNotFillExprs;
+  bool        skipFillCols;
 } SCollectFillExprsCtx;
 
 static EDealRes collectFillExpr(SNode* pNode, void* pContext) {
@@ -1264,8 +1265,12 @@ static EDealRes collectFillExpr(SNode* pNode, void* pContext) {
     return DEAL_RES_ERROR;
   }
 
-  if (partFillCtx.hasFillCol) {
-    pCollectFillCtx->code = nodesCloneNode(pNode, &pNew);
+  if (partFillCtx.hasFillCol && !pCollectFillCtx->skipFillCols) {
+    if (nodeType(pNode) == QUERY_NODE_ORDER_BY_EXPR) {
+      pCollectFillCtx->code = nodesCloneNode(((SOrderByExprNode*)pNode)->pExpr, &pNew);
+    } else {
+      pCollectFillCtx->code = nodesCloneNode(pNode, &pNew);
+    }
     if (pCollectFillCtx->code == TSDB_CODE_SUCCESS) {
       pCollectFillCtx->code = nodesListMakeStrictAppend(&pCollectFillCtx->pFillExprs, pNew);
     }
@@ -1290,7 +1295,18 @@ static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SN
   if (!collectFillCtx.pPseudoCols) return terrno;
 
   // TODO wjm test pSelect->isDistinct == true
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FILL, collectFillExpr, &collectFillCtx);
+  // nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FILL, collectFillExpr, &collectFillCtx);
+  nodesWalkExprs(pSelect->pGroupByList, collectFillExpr, &collectFillCtx);
+  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+    nodesWalkExprs(pSelect->pOrderByList, collectFillExpr, &collectFillCtx);
+  }
+  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+    nodesWalkExprs(pSelect->pProjectionList, collectFillExpr, &collectFillCtx);
+  }
+  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
+    collectFillCtx.skipFillCols = true;
+    nodesWalkExpr(pSelect->pHaving, collectFillExpr, &collectFillCtx);
+  }
   if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
     void* pIter = taosHashIterate(collectFillCtx.pPseudoCols, 0);
     while (pIter) {
