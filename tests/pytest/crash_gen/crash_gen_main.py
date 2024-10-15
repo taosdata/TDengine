@@ -2709,6 +2709,7 @@ class TdSuperTable:
                 time_start = time.time()
                 while 1:
                     res = consumer.poll(1)
+
                     if res:
                         consumer.commit(res)
                         if time.time() - time_start > random.randint(5, 50):
@@ -4758,7 +4759,7 @@ class TaskAddData(StateTransitionTask):
         elif precision == "ns":
             return int(ts.timestamp() * 1000000000)
 
-    def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict, precision):
+    def bindRowNative(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict, precision):
         """
         Binds rows of data to a TaosStmt object row by row.
 
@@ -4793,10 +4794,10 @@ class TaskAddData(StateTransitionTask):
                 values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
                 for j, col_name in enumerate(col_dict):
                     bind_type = col_dict[col_name].lower()
-                    if "unsigned" in col_dict[col_name].lower():
+                    if "unsigned" in bind_type:
                         bind_type = bind_type.replace("unsigned", "_unsigned")
                     if j == 0:
-                        getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
+                        getattr(values[j], bind_type)(self._transTs(row[1 + j], precision))  # Dynamically call the appropriate binding method
                     else:
                         if bind_type == "varbinary" or bind_type == "geometry":
                             getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
@@ -4805,7 +4806,65 @@ class TaskAddData(StateTransitionTask):
                 stmt.bind_param(values)
             return stmt
         except Exception as e:  # Any exception at all
-            self.logError(f"func bind_row_by_row error: {e}")
+            self.logError(f"func bindRowNative error: {e}")
+            raise
+
+    def bindRowWS(self, stmt, lines, tag_dict, col_dict, precision):
+        # TODO test
+        """
+        Binds rows of data to a TaosStmt object row by row.
+
+        Args:
+            stmt (taosws.TaosStmt): The TaosStmt object to bind the data to.
+            lines (list): The list of rows containing the data to bind.
+            tag_dict (dict): A dictionary mapping tag names to their corresponding types.
+            col_dict (dict): A dictionary mapping column names to their corresponding types.
+
+        Returns:
+            taosws.TaosStmt: The TaosStmt object with the data bound.
+
+        """
+        try:
+            tb_name = None
+            for row in lines:
+                if tb_name != row[0]:
+                    tb_name = row[0]
+                    # Dynamic tag binding based on tag_types list
+                    tags = list()  # Dynamically set the count of tags
+                    for i, tag_name in enumerate(tag_dict):
+                        bind_type = tag_dict[tag_name].lower()
+                        if "unsigned" in tag_dict[tag_name].lower():
+                            bind_type = bind_type.replace(" unsigned", "_unsigned")
+                        if bind_type == "varbinary" or bind_type == "geometry":
+                            tags.append(getattr(taosws, f'{bind_type}_to_tag')((row[len(col_dict) + i + 1]).encode('utf-8')))  # Dynamically call the appropriate binding method
+                        else:
+                            tags.append(getattr(taosws, f'{bind_type}_to_tag')(row[len(col_dict) + i + 1]))  # Dynamically call the appropriate binding method
+                    stmt.set_tbname_tags(tb_name, tags)
+
+                # Dynamic value binding based on value_types list
+                values = list()  # Dynamically set the count of columns
+                for j, col_name in enumerate(col_dict):
+                    bind_type = col_dict[col_name].lower()
+                    if "unsigned" in bind_type:
+                        bind_type = bind_type.replace("unsigned", "_unsigned")
+                    if j == 0:
+                        if precision == "ms":
+                            values.append(getattr(taosws, f'millis_timestamps_to_column')(self._transTs(row[1 + j], precision)))
+                        elif precision == "us":
+                            values.append(getattr(taosws, f'micros_timestamps_to_column')(self._transTs(row[1 + j], precision)))
+                        elif precision == "ns":
+                            values.append(getattr(taosws, f'nanos_timestamps_to_column')(self._transTs(row[1 + j], precision)))
+                        else:
+                            raise RuntimeError(f"Invalid precision: {precision}")
+                    else:
+                        if bind_type == "varbinary" or bind_type == "geometry":
+                            getattr(taosws, f'{bind_type}_to_column')(row[1 + j].encode('utf-8'))
+                        else:
+                            getattr(taosws, f'{bind_type}_to_column')(row[1 + j])  # Dynamically call the appropriate binding method
+                stmt.bind_param(values)
+            return stmt
+        except Exception as e:  # Any exception at all
+            self.logError(f"func bindRowWs error: {e}")
             raise
 
     def _addDataBySTMT(self, db: Database, dbc):
@@ -4821,7 +4880,8 @@ class TaskAddData(StateTransitionTask):
         """
         lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
         # TODO replace dbc
-        conn = taos.connect(database=db.getName())
+        # conn = taos.connect(database=db.getName())
+        dbc.execute(f'use {db.getName()}')
         dbc.query(f'select `precision` from information_schema.ins_databases where name = "{db.getName()}"')
         res = dbc.getQueryResult()
         precision = res[0][0]
@@ -4833,8 +4893,8 @@ class TaskAddData(StateTransitionTask):
             tag_placeholders = ', '.join(['?' for _ in tag_dict])
             value_placeholders = ', '.join(['?' for _ in col_dict])
             sql = f"INSERT INTO ? USING {fullTableName} TAGS({tag_placeholders}) VALUES({value_placeholders})"
-            stmt = conn.statement(sql)
-            self.bind_row_by_row(stmt, lines, tag_dict, col_dict, precision)
+            stmt = dbc.stmtStatement(sql)
+            self.bindRowNative(stmt, lines, tag_dict, col_dict, precision)
             stmt.execute()
             stmt.close()
         except Exception as e:  # Any exception at all
@@ -4842,7 +4902,6 @@ class TaskAddData(StateTransitionTask):
             raise
         finally:
             self._unlockTableIfNeeded(fullTableName)
-            conn.close()
 
     def _format_sml(self, data, rowType="tag"):
         """

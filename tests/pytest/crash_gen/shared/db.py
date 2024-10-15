@@ -536,6 +536,10 @@ class DbConnWS(DbConn):
     def influxdbLineInsert(self, line, ts_type=None, dbName=""):
         return self._tdSql.influxdbLineInsertWs(line, ts_type, dbName)
 
+    def stmtStatement(self, sql):
+        stmt = self._tdSql._conn.statement()
+        stmt.prepare(sql)
+        return stmt
 
 class MyTDSql:
     # Class variables
@@ -813,6 +817,10 @@ class DbConnNative(DbConn):
 
     def influxdbLineInsert(self, line, ts_type=None, dbName=""):
         return self._tdSql.influxdbLineInsertNative(line, ts_type, dbName)
+
+    def stmtStatement(self, sql):
+        return self._tdSql._conn.statement(sql)
+
 
 
 class DbManager():
