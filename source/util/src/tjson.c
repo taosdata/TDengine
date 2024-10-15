@@ -194,27 +194,10 @@ int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal) { *pVal = (int64_t)((cJSON*)pJson)->valuedouble; }
-
-void tjsonGetObjectValueDouble(const SJson* pJson, double* pVal) { *pVal = ((cJSON*)pJson)->valuedouble; }
-
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
-  }
-  strcpy(pVal, p);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t tjsonGetStringValue2(const SJson* pJson, const char* pName, char* pVal, int32_t maxLen) {
-  char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
-  if (NULL == p) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t len = strlen(p);
-  if (len >= maxLen-1) {
-    return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pVal, p);
   return TSDB_CODE_SUCCESS;

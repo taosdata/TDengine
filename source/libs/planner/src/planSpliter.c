@@ -431,7 +431,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   strcpy(pWStart->functionName, "_wstart");
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
   (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
@@ -463,7 +463,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   strcpy(pWEnd->functionName, "_wend");
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
   (void)taosHashBinary(name, len);
   strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
 
@@ -939,18 +939,6 @@ static int32_t stbSplSplitCount(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   }
 }
 
-static int32_t stbSplSplitAnomalyForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
-}
-
-static int32_t stbSplSplitAnomaly(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (pCxt->pPlanCxt->streamQuery) {
-    return stbSplSplitAnomalyForStream(pCxt, pInfo);
-  } else {
-    return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
-  }
-}
-
 static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -963,8 +951,6 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
       return stbSplSplitEvent(pCxt, pInfo);
     case WINDOW_TYPE_COUNT:
       return stbSplSplitCount(pCxt, pInfo);
-    case WINDOW_TYPE_ANOMALY:
-      return stbSplSplitAnomaly(pCxt, pInfo);
     default:
       break;
   }
@@ -2014,8 +2000,7 @@ typedef struct SQnodeSplitInfo {
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
-      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) &&
-      QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
       ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {
     pInfo->pSplitNode = pNode;
     pInfo->pSubplan = pSubplan;

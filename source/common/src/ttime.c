@@ -997,7 +997,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
-  length += snprintf(ts + length, fractionLen, format, mod);
+  length += tsnprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", &ptm);
 
   tstrncpy(buf, ts, bufLen);
