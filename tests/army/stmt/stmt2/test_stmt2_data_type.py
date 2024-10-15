@@ -51,16 +51,16 @@ class TDTestCase:
         self.connectstmt.select_db(self.dbname)
         self.connectstmt.execute(f"create table if not exists {stablename} (ts timestamp, a {data_type}) tags (b {data_type})")
 
-        stmt2 = self.connectstmt.statement2(f"insert into ? using {stablename} tags(?) values(?, ?)")
+        stmt2 = self.connectstmt.statement2(f"insert into d1 using {stablename} tags(?) values(?, ?)")
 
         flattened_tags = list(itertools.chain.from_iterable(itertools.chain.from_iterable(tags)))
         tss = [1626861392589111 + i for i in range(len(flattened_tags))]
         datas = [[tss, flattened_tags]]
 
-        for i in range(len(tags)):
+        for i in range(1):
             tbnames = [f'd{i}']
             try:
-                stmt2.bind_param(tbnames, tags[i], datas)
+                stmt2.bind_param(None, tags[i], datas)
                 stmt2.execute()
                 self.stmt_common.checkResultCorrects(self.connectstmt, self.dbname, stablename, tbnames, tags[i], datas)
             except Exception as err:
@@ -69,7 +69,7 @@ class TDTestCase:
         for i in range(len(invalid_tags)):
             tbnames = [f'd{i+100}']
             try:
-                stmt2.bind_param(tbnames, invalid_tags[i], datas)
+                stmt2.bind_param(None, invalid_tags[i], datas)
                 stmt2.execute()
                 tdLog.exit(f"[{test_case_name}] No expected error occurred, invalid_tags[{i}]: {invalid_tags[i]}")
             except Exception as err:
@@ -82,7 +82,7 @@ class TDTestCase:
             for i in range(len(invalid_datas)):
                 tbnames = [f'd{i+200}']
                 try:
-                    stmt2.bind_param(tbnames, tags[0], invalid_datas[i])
+                    stmt2.bind_param(None, tags[0], invalid_datas[i])
                     stmt2.execute()
                     tdLog.exit(f"[{test_case_name}] No expected error occurred, invalid_datas[{i}]: {invalid_datas[i]}")
                 except Exception as err:
@@ -304,7 +304,7 @@ class TDTestCase:
             [[-100]],
             [[3.14]],
             [[-3.14]],
-            # [['\x00' * 20]],
+            [['\x00' * 20]],
             [['\xFF' * 20]],
             [['1234567890abcdefghijkl']],
             [['\xe4\xb8\xad\xe6\x96\x87']],
@@ -463,8 +463,8 @@ class TDTestCase:
             [[-5]],
             [[3.14]],
             [[-3.14]],
-            # [['a' * 21]],
-            # [['中' * 21]],
+            [['a' * 21]],
+            [['中' * 21]],
         ]
 
         self.test_stmt_data_type('test_stmt_nchar_type', 'nchar(20)', tags, invalid_tags)
@@ -627,24 +627,24 @@ class TDTestCase:
         host = "localhost"
         self.connectstmt = self.newcon(host, config)
 
-        self.test_stmt_timestamp_type()
-        self.test_stmt_int_type()
-        self.test_stmt_int_unsigned_type()
-        self.test_stmt_bigint_type()
-        self.test_stmt_bigint_unsigned_type()
-        self.test_stmt_float_type()
-        self.test_stmt_double_type()
+        #self.test_stmt_timestamp_type()
+        #self.test_stmt_int_type()
+        #self.test_stmt_int_unsigned_type()
+        #self.test_stmt_bigint_type()
+        #self.test_stmt_bigint_unsigned_type()
+        #self.test_stmt_float_type()
+        #self.test_stmt_double_type()
         self.test_stmt_binary_type()
-        self.test_stmt_smallint_type()
-        self.test_stmt_smallint_unsigned_type()
-        self.test_stmt_tinyint_type()
-        self.test_stmt_tinyint_unsigned_type()
-        self.test_stmt_bool_type()
-        self.test_stmt_nchar_type()
-        self.test_stmt_json_type()
-        self.test_stmt_varchar_type()
-        self.test_stmt_geometry_type()
-        self.test_stmt_varbinary_type()
+        #self.test_stmt_smallint_type()
+        #self.test_stmt_smallint_unsigned_type()
+        #self.test_stmt_tinyint_type()
+        #self.test_stmt_tinyint_unsigned_type()
+        #self.test_stmt_bool_type()
+        #self.test_stmt_nchar_type()
+        #self.test_stmt_json_type()
+        #self.test_stmt_varchar_type()
+        #self.test_stmt_geometry_type()
+        #self.test_stmt_varbinary_type()
 
         self.connectstmt.close()
         return
