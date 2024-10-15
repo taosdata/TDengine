@@ -253,7 +253,6 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
   int j = 0;
 
   // both of the lists in asc order
-  /*
   for (int i = 0; i < actualFileNum; i++) {
     SWalFileInfo* pLogInfo = taosArrayGet(actualLogList, i);
     while (j < metaFileNum) {
@@ -269,7 +268,6 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
       }
     }
   }
-  */
 
   taosArrayClear(metaLogList);
 
@@ -553,6 +551,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   // repair ts of files
   TAOS_CHECK_RETURN(walRepairLogFileTs(pWal, &updateMeta));
 
+  printFileSet(pWal->fileInfoSet);
   // update meta file
   if (updateMeta) {
     TAOS_CHECK_RETURN(walSaveMeta(pWal));
