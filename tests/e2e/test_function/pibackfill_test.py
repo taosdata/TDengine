@@ -64,7 +64,7 @@ def test_multicol_template(input_data):
     assert (
         metrics["current"]["written_rows"] == rows_count
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 
 @pytest.mark.sanity
 def test_singlecol_template(input_data):
@@ -85,7 +85,7 @@ def test_singlecol_template(input_data):
     assert (
         row_count == metrics["current"]["written_rows"]
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 
 @pytest.mark.sanity
 def test_singlecol_point(input_data):
@@ -106,7 +106,7 @@ def test_singlecol_point(input_data):
     assert (
         row_count == metrics["current"]["written_rows"]
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 
 @pytest.mark.skip
 def test_TemplateForAFElementFile_performance_s1():

@@ -5,8 +5,8 @@ from:
   fromhost: pibackfill://{0}/ci_test
   system_configuration: PI Data Archive and Asset Framework (AF) Server
   PISystemName: WIN-2OA23UM12TN
-  BackfillStartTime: '2024-06-01T00:00:00+08:00'
-  BackfillEndTime: '2024-06-10T00:00:00+08:00'
+  BackfillStartTime: '2024-08-01T00:00:00+08:00'
+  BackfillEndTime: '2024-08-01T00:05:00+08:00'
   model: single-column
   single-column: true
   log_level: info
