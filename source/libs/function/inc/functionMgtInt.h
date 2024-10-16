@@ -64,6 +64,71 @@ extern "C" {
 
 #define FUNC_UDF_ID_START 5000
 
+#define FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(n) ((uint64_t)1 << n)
+#define FUNC_PARAM_SUPPORT_ALL_TYPE         FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(0)
+#define FUNC_PARAM_SUPPORT_NUMERIC_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(1)
+#define FUNC_PARAM_SUPPORT_VAR_TYPE         FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(2)
+#define FUNC_PARAM_SUPPORT_STRING_TYPE      FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(3)
+#define FUNC_PARAM_SUPPORT_BOOL_TYPE        FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(4)
+#define FUNC_PARAM_SUPPORT_TINYINT_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(5)
+#define FUNC_PARAM_SUPPORT_SMALLINT_TYPE    FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(6)
+#define FUNC_PARAM_SUPPORT_INT_TYPE         FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(7)
+#define FUNC_PARAM_SUPPORT_BIGINT_TYPE      FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(8)
+#define FUNC_PARAM_SUPPORT_FLOAT_TYPE       FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(9)
+#define FUNC_PARAM_SUPPORT_DOUBLE_TYPE      FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(10)
+#define FUNC_PARAM_SUPPORT_VARCHAR_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(11)
+#define FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE   FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(12)
+#define FUNC_PARAM_SUPPORT_NCHAR_TYPE       FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(13)
+#define FUNC_PARAM_SUPPORT_UTINYINT_TYPE    FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(14)
+#define FUNC_PARAM_SUPPORT_USMALLINT_TYPE   FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(15)
+#define FUNC_PARAM_SUPPORT_UINT_TYPE        FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(16)
+#define FUNC_PARAM_SUPPORT_UBIGINT_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(17)
+#define FUNC_PARAM_SUPPORT_JSON_TYPE        FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(18)
+#define FUNC_PARAM_SUPPORT_VARB_TYPE        FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(19)
+#define FUNC_PARAM_SUPPORT_GEOMETRY_TYPE    FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(20)
+#define FUNC_PARAM_SUPPORT_INTEGER_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(21)
+#define FUNC_PARAM_SUPPORT_NULL_TYPE        FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(22)
+#define FUNC_PARAM_SUPPORT_UNIX_TS_TYPE     FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(23)
+
+
+
+#define FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(n) ((uint64_t)1 << n)
+#define FUNC_PARAM_SUPPORT_EXPR_NODE                    FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(0)
+#define FUNC_PARAM_SUPPORT_VALUE_NODE                   FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(1)
+#define FUNC_PARAM_SUPPORT_OPERATOR_NODE                FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(2)
+#define FUNC_PARAM_SUPPORT_FUNCTION_NODE                FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(3)
+#define FUNC_PARAM_SUPPORT_LOGIC_CONDITION_NODE         FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(4)
+#define FUNC_PARAM_SUPPORT_CASE_WHEN_NODE               FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(5)
+#define FUNC_PARAM_SUPPORT_COLUMN_NODE                  FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(6)
+#define FUNC_PARAM_SUPPORT_NOT_VALUE_NODE               FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(7)
+
+#define FUNC_PARAM_SUPPORT_NODE_MAX 7
+
+#define FUNC_ERR_RET(c)                \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+      return _code;                    \
+    }                                  \
+  } while (0)
+#define FUNC_RET(c)                    \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+    }                                  \
+    return _code;                      \
+  } while (0)
+#define FUNC_ERR_JRET(c)              \
+  do {                                \
+    code = c;                         \
+    if (code != TSDB_CODE_SUCCESS) {  \
+      terrno = code;                  \
+      goto _return;                   \
+    }                                 \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

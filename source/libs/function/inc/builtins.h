@@ -22,16 +22,54 @@ extern "C" {
 
 #include "functionMgtInt.h"
 
+struct SFunctionParaInfo;
+
 typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
 typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlocInfo);
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
+#define MAX_FUNC_PARA_NUM 16
+
+typedef struct SParamRange {
+  double   dMinVal;
+  double   dMaxVal;
+} SParamRange;
+
+typedef struct SParamInfo {
+  bool        isLastParam;
+  int8_t      startParam;
+  int8_t      endParam;
+  uint64_t    validDataType;
+  uint64_t    validNodeType;
+  bool        hasRange;
+  bool        isTs; // used for input parameter
+  bool        isPK; // used for input parameter
+  bool        isFixedValue; // used for input parameter
+  bool        hasColumn; // used for input parameter, parameter must contain columns
+  bool        isFirstLast; // special check for first and last
+  bool        isTimeUnit; // used for input parameter, need check whether time unit is valid
+  bool        isHistogramBin; // used for input parameter, need check whether histogram bin is valid
+  uint8_t     fixedValueSize;
+  char        fixedStrValue[MAX_FUNC_PARA_NUM][16]; // used for input parameter
+  int32_t     fixedNumValue[MAX_FUNC_PARA_NUM]; // used for input parameter
+  SParamRange range;
+} SParamInfo;
+
+typedef struct SFunctionParaInfo {
+  int8_t     minParamNum;
+  int8_t     maxParamNum;
+  uint8_t    paramInfoPattern;
+  SParamInfo inputParaInfo[MAX_FUNC_PARA_NUM][MAX_FUNC_PARA_NUM];
+  SParamInfo outputParaInfo;
+} SFunctionParaInfo;
+
 typedef struct SBuiltinFuncDefinition {
   const char*                name;
   EFunctionType              type;
   uint64_t                   classification;
+  SFunctionParaInfo          parameters;
   FTranslateFunc             translateFunc;
   FFuncDataRequired          dataRequiredFunc;
   FFuncDynDataRequired       dynDataRequiredFunc;
