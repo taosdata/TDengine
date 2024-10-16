@@ -1258,11 +1258,9 @@ static int32_t doStreamForceFillImpl(SOperatorInfo* pOperator) {
   SStreamAggSupporter*     pAggSup = pInfo->pStreamAggSup;
   SColumnInfoData*         pTsCol = taosArrayGet(pInfo->pSrcBlock->pDataBlock, pInfo->primaryTsCol);
   TSKEY*                   tsCol = (TSKEY*)pTsCol->pData;
-  if (pFillInfo->type == TSDB_FILL_PREV) {
-    for (int32_t i = 0; i < pBlock->info.rows; i++){
-      code = keepBlockRowInDiscBuf(pOperator, pFillInfo, pBlock, tsCol, i, groupId, pFillSup->rowSize);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+  for (int32_t i = 0; i < pBlock->info.rows; i++){
+    code = keepBlockRowInDiscBuf(pOperator, pFillInfo, pBlock, tsCol, i, groupId, pFillSup->rowSize);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   code = pAggSup->stateStore.streamStateGroupPut(pAggSup->pState, groupId, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1323,10 +1321,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
       (*ppRes) = resBlock;
       goto _end;
     }
-
-    if (pInfo->pFillInfo->type == TSDB_FILL_PREV) {
-      pInfo->pStreamAggSup->stateStore.streamStateClearExpiredState(pInfo->pStreamAggSup->pState);
-    }
+    pInfo->pStreamAggSup->stateStore.streamStateClearExpiredState(pInfo->pStreamAggSup->pState);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     goto _end;
@@ -1393,9 +1388,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    if (pInfo->pFillInfo->type == TSDB_FILL_PREV) {
-      pInfo->pStreamAggSup->stateStore.streamStateClearExpiredState(pInfo->pStreamAggSup->pState);
-    }
+    pInfo->pStreamAggSup->stateStore.streamStateClearExpiredState(pInfo->pStreamAggSup->pState);
     setStreamOperatorCompleted(pOperator);
   }
 
@@ -1655,24 +1648,6 @@ _end:
   return code;
 }
 
-int32_t initForceFillDownStream(SOperatorInfo* downstream) {
-  SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-
-  if (downstream == NULL) {
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
-  }
-
-  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    code = initForceFillDownStream(downstream->pDownstream[0]);
-    return code;
-  }
-  SStreamScanInfo* pInfo = (SStreamScanInfo*) downstream->info;
-  pInfo->useGetResultRange = true;
-  return code;
-}
-
 int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -1755,9 +1730,6 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
                   pTaskInfo);
 
   if (triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    code = initForceFillDownStream(downstream);
-    QUERY_CHECK_CODE(code, lino, _error);
-
     pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamForceFillNext, NULL, destroyStreamFillOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   } else {

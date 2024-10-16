@@ -116,7 +116,7 @@ void initIntervalSlicePoint(SStreamAggSupporter* pAggSup, STimeWindow* pTWin, in
   pPoint->pLastRow = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pAggSup->resultRowSize - pAggSup->stateKeySize);
 }
 
-static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, STimeWindow* pTWin, int64_t groupId,
+static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
                                            SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -126,26 +126,28 @@ static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterv
                                                       &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  qDebug("===stream=== set stream twa next point buf.ts:%" PRId64 ", groupId:%" PRId64 ", res:%d",
+  qDebug("===stream=== set stream twa next point buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d",
          curKey.ts, curKey.groupId, *pWinCode);
 
   initIntervalSlicePoint(pAggSup, pTWin, groupId, pCurPoint);
 
-  SWinKey prevKey = {.groupId = groupId};
-  SET_WIN_KEY_INVALID(prevKey.ts);
-  int32_t prevVLen = 0;
-  int32_t prevWinCode = TSDB_CODE_SUCCESS;
-  code = pAggSup->stateStore.streamStateGetPrev(pAggSup->pState, &curKey, &prevKey,
-                                                (void**)&pPrevPoint->pResPos, &prevVLen, &prevWinCode);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (needPrev) {
+    SWinKey prevKey = {.groupId = groupId};
+    SET_WIN_KEY_INVALID(prevKey.ts);
+    int32_t prevVLen = 0;
+    int32_t prevWinCode = TSDB_CODE_SUCCESS;
+    code = pAggSup->stateStore.streamStateGetPrev(pAggSup->pState, &curKey, &prevKey, (void**)&pPrevPoint->pResPos,
+                                                  &prevVLen, &prevWinCode);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  if (prevWinCode == TSDB_CODE_SUCCESS) {
-    STimeWindow prevSTW = {.skey = prevKey.ts};
-    prevSTW.ekey = taosTimeGetIntervalEnd(prevSTW.skey, pInterval);
-    initIntervalSlicePoint(pAggSup, &prevSTW, groupId, pPrevPoint);
-  } else {
-    SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.skey);
-    SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.ekey);
+    if (prevWinCode == TSDB_CODE_SUCCESS) {
+      STimeWindow prevSTW = {.skey = prevKey.ts};
+      prevSTW.ekey = taosTimeGetIntervalEnd(prevSTW.skey, pInterval);
+      initIntervalSlicePoint(pAggSup, &prevSTW, groupId, pPrevPoint);
+    } else {
+      SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.skey);
+      SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.ekey);
+    }
   }
 
 _end:
@@ -244,10 +246,10 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     }
 
     int32_t winCode = TSDB_CODE_SUCCESS;
-    code = getIntervalSliceCurStateBuf(&pInfo->streamAggSup, &pInfo->interval, &curWin, groupId, &curPoint, &prevPoint, &winCode);
+    code = getIntervalSliceCurStateBuf(&pInfo->streamAggSup, &pInfo->interval, pInfo->hasInterpoFunc, &curWin, groupId, &curPoint, &prevPoint, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && prevPoint.pLastRow->key != prevPoint.winKey.win.ekey) {
+    if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && prevPoint.pLastRow->key != prevPoint.winKey.win.ekey) {
       code = setIntervalSliceOutputBuf(&prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -266,13 +268,13 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     QUERY_CHECK_CODE(code, lino, _end);
 
     resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
-    if (IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && curPoint.winKey.win.skey != curTs) {
+    if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && curPoint.winKey.win.skey != curTs) {
       doStreamSliceInterpolation(prevPoint.pLastRow, curPoint.winKey.win.skey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_START);
     }
     forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, curWin.ekey, binarySearchForKey, NULL,
                                            TSDB_ORDER_ASC);
     int32_t prevEndPos = (forwardRows - 1) + startPos;
-    if (winCode != TSDB_CODE_SUCCESS) {
+    if (pInfo->hasInterpoFunc && winCode != TSDB_CODE_SUCCESS) {
       int32_t endRowId = getQualifiedRowNumDesc(pSup, pBlock, tsCols, prevEndPos, false);
       TSKEY endRowTs = tsCols[endRowId];
       transBlockToSliceResultRow(pBlock, endRowId, endRowTs, curPoint.pLastRow, 0, NULL, NULL);
@@ -387,7 +389,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
 
     code = setInputDataBlock(&pOperator->exprSupp, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = doStreamIntervalSliceAggImpl(pOperator, pBlock, pInfo->pUpdatedMap, pInfo->pDeletedMap);
+    code = doStreamIntervalSliceAggImpl(pOperator, pBlock, pInfo->pUpdatedMap, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
     
   }
@@ -435,7 +437,7 @@ _end:
 
 int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
                                     int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic,
-                                    SInterval* pInterval) {
+                                    SInterval* pInterval, bool hasInterpoFunc) {
   SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -447,10 +449,11 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     code =
-        initIntervalSliceDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, pInterval);
+        initIntervalSliceDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, pInterval, hasInterpoFunc);
     return code;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
+  pScanInfo->useGetResultRange = hasInterpoFunc;
   pScanInfo->igCheckUpdate = true;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
@@ -472,6 +475,18 @@ _end:
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   return code;
+}
+
+static bool windowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols) {
+  bool  needed = false;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SExprInfo* pExpr = pCtx[i].pExpr;
+    if (fmIsIntervalInterpoFunc(pCtx[i].functionId)) {
+      needed = true;
+      break;
+    }
+  }
+  return needed;
 }
 
 int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
@@ -564,6 +579,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->destHasPrimaryKey = pIntervalPhyNode->window.destHasPrimaryKey;
   pInfo->pOperator = pOperator;
   pInfo->hasFill = false;
+  pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -574,7 +590,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   initStreamBasicInfo(&pInfo->basic);
   if (downstream) {
     code = initIntervalSliceDownStream(downstream, &pInfo->streamAggSup, pPhyNode->type, pInfo->primaryTsIndex,
-                                       &pInfo->twAggSup, &pInfo->basic, &pInfo->interval);
+                                       &pInfo->twAggSup, &pInfo->basic, &pInfo->interval, pInfo->hasInterpoFunc);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = appendDownstream(pOperator, &downstream, 1);
