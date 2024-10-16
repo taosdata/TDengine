@@ -133,7 +133,7 @@ static void doScan(SMeta *pMeta) {
   }
 }
 
-int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
+static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
   int32_t lino;
@@ -144,7 +144,11 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   // create handle
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+
+  if (strncmp(metaDir, VNODE_META_TMP_DIR, strlen(VNODE_META_TMP_DIR)) == 0) {
+    taosRemoveDir(path);
+  }
 
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
@@ -243,6 +247,169 @@ _exit:
     *ppMeta = pMeta;
   }
   return code;
+}
+
+bool generateNewMeta = false;
+
+static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
+  SMeta  *pNewMeta = NULL;
+  SMeta  *pMeta = *ppMeta;
+  SVnode *pVnode = pMeta->pVnode;
+
+  metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
+
+  // Open a new meta for orgainzation
+  int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
+  if (code) {
+    return code;
+  }
+
+  code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL);
+  if (code) {
+    return code;
+  }
+
+  // i == 0, scan super table
+  // i == 1, scan normal table and child table
+  for (int i = 0; i < 2; i++) {
+    TBC    *uidCursor = NULL;
+    int32_t counter = 0;
+
+    code = tdbTbcOpen(pMeta->pUidIdx, &uidCursor, NULL);
+    if (code) {
+      metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+      return code;
+    }
+
+    code = tdbTbcMoveToFirst(uidCursor);
+    if (code) {
+      metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+      tdbTbcClose(uidCursor);
+      return code;
+    }
+
+    for (;;) {
+      const void *pKey;
+      int         kLen;
+      const void *pVal;
+      int         vLen;
+
+      if (tdbTbcGet(uidCursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+        break;
+      }
+
+      tb_uid_t    uid = *(tb_uid_t *)pKey;
+      SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+      if ((i == 0 && (pUidIdxVal->suid && pUidIdxVal->suid == uid))          // super table
+          || (i == 1 && (pUidIdxVal->suid == 0 || pUidIdxVal->suid != uid))  // normal table and child table
+      ) {
+        counter++;
+        if (i == 0) {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter, "super", uid);
+        } else {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter,
+                   pUidIdxVal->suid == 0 ? "normal" : "child", uid);
+        }
+
+        // fetch table entry
+        void *value = NULL;
+        int   valueSize = 0;
+        if (tdbTbGet(pMeta->pTbDb,
+                     &(STbDbKey){
+                         .version = pUidIdxVal->version,
+                         .uid = uid,
+                     },
+                     sizeof(uid), &value, &valueSize) == 0) {
+          SDecoder   dc = {0};
+          SMetaEntry me = {0};
+          tDecoderInit(&dc, value, valueSize);
+          if (metaDecodeEntry(&dc, &me) == 0) {
+            if (metaHandleEntry(pNewMeta, &me) != 0) {
+              metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
+            }
+          }
+          tDecoderClear(&dc);
+        }
+        tdbFree(value);
+      }
+
+      code = tdbTbcMoveToNext(uidCursor);
+      if (code) {
+        metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
+        return code;
+      }
+    }
+
+    tdbTbcClose(uidCursor);
+  }
+
+  code = metaCommit(pNewMeta, pNewMeta->txn);
+  if (code) {
+    metaError("vgId:%d failed to commit, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = metaFinishCommit(pNewMeta, pNewMeta->txn);
+  if (code) {
+    metaError("vgId:%d failed to finish commit, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  if ((code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL)) != 0) {
+    metaError("vgId:%d failed to begin new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+  }
+  metaClose(&pNewMeta);
+  metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
+  return 0;
+}
+
+int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
+  int32_t code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  if (code) {
+    return code;
+  }
+
+  if (generateNewMeta) {
+    // backup the old meta
+    char path[TSDB_FILENAME_LEN] = {0};
+    char oldMetaPath[TSDB_FILENAME_LEN] = {0};
+    char newMetaPath[TSDB_FILENAME_LEN] = {0};
+    char backupMetaPath[TSDB_FILENAME_LEN] = {0};
+
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+    snprintf(oldMetaPath, sizeof(oldMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_DIR);
+    snprintf(newMetaPath, sizeof(newMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_TMP_DIR);
+    snprintf(backupMetaPath, sizeof(backupMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_BACKUP_DIR);
+
+    if (taosCheckExistFile(backupMetaPath)) {
+      metaError("vgId:%d backup meta already exists, please check", TD_VID(pVnode));
+      return TSDB_CODE_FAILED;
+    }
+
+    code = metaGenerateNewMeta(ppMeta);
+    if (code) {
+      metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    }
+
+    metaClose(ppMeta);
+    if (taosRenameFile(oldMetaPath, backupMetaPath) != 0) {
+      metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+      return terrno;
+    }
+
+    // rename the new meta to old meta
+    if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
+      metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+      return terrno;
+    }
+    code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
+    if (code) {
+      metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
