@@ -37,7 +37,7 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsSIMDEnable = 0;
+char tsSIMDEnable = 1;
 char tsAVX512Enable = 0;
 char tsSSE42Supported = 0;
 char tsAVXSupported = 0;

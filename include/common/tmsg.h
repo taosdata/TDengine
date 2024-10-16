@@ -159,8 +159,6 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
   TSDB_MGMT_TABLE_USER_FULL,
-  TSDB_MGMT_TABLE_ANODE,
-  TSDB_MGMT_TABLE_ANODE_FULL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -262,7 +260,6 @@ typedef enum ENodeType {
   QUERY_NODE_COUNT_WINDOW,
   QUERY_NODE_COLUMN_OPTIONS,
   QUERY_NODE_TSMA_OPTIONS,
-  QUERY_NODE_ANOMALY_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -348,9 +345,6 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
   QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE,
-  QUERY_NODE_CREATE_ANODE_STMT,
-  QUERY_NODE_DROP_ANODE_STMT,
-  QUERY_NODE_UPDATE_ANODE_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -392,8 +386,6 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
   QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
   QUERY_NODE_SHOW_TSMAS_STMT,
-  QUERY_NODE_SHOW_ANODES_STMT,
-  QUERY_NODE_SHOW_ANODES_FULL_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
@@ -416,7 +408,6 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN,
   QUERY_NODE_LOGIC_PLAN_GROUP_CACHE,
   QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
-  QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -468,9 +459,6 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
-  QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY,
-  QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY,
-  QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -1104,22 +1092,6 @@ typedef struct {
 
 int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
-
-typedef struct {
-  int32_t dnodeId;
-  int64_t analVer;
-} SRetrieveAnalAlgoReq;
-
-typedef struct {
-  int64_t   ver;
-  SHashObj* hash;  // algoname:algotype -> SAnalUrl
-} SRetrieveAnalAlgoRsp;
-
-int32_t tSerializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tDeserializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tSerializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-int32_t tDeserializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-void    tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp* pRsp);
 
 typedef struct {
   int8_t alterType;
@@ -1795,7 +1767,6 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
-  int64_t     analVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1861,7 +1832,6 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
   int32_t   statusSeq;
   int64_t   ipWhiteVer;
-  int64_t   analVer;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -2407,30 +2377,6 @@ typedef struct {
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
-
-typedef struct {
-  int32_t urlLen;
-  int32_t sqlLen;
-  char*   url;
-  char*   sql;
-} SMCreateAnodeReq;
-
-int32_t tSerializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq* pReq);
-int32_t tDeserializeSMCreateAnodeReq(void* buf, int32_t bufLen, SMCreateAnodeReq* pReq);
-void    tFreeSMCreateAnodeReq(SMCreateAnodeReq* pReq);
-
-typedef struct {
-  int32_t anodeId;
-  int32_t sqlLen;
-  char*   sql;
-} SMDropAnodeReq, SMUpdateAnodeReq;
-
-int32_t tSerializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq);
-int32_t tDeserializeSMDropAnodeReq(void* buf, int32_t bufLen, SMDropAnodeReq* pReq);
-void    tFreeSMDropAnodeReq(SMDropAnodeReq* pReq);
-int32_t tSerializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
-int32_t tDeserializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
-void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;

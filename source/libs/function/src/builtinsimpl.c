@@ -19,7 +19,6 @@
 #include "functionResInfoInt.h"
 #include "query.h"
 #include "querynodes.h"
-#include "tanal.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
@@ -3341,11 +3340,6 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
     *nextFrom = from + 1;
     return true;
   }
-}
-
-bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(float);
-  return true;
 }
 
 int32_t diffResultIsNull(SqlFunctionCtx* pCtx, SFuncInputRow* pRow){

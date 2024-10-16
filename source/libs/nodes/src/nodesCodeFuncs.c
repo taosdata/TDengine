@@ -97,8 +97,6 @@ const char* nodesNodeName(ENodeType type) {
       return "WindowOffset";
     case QUERY_NODE_COUNT_WINDOW:
       return "CountWindow";
-    case QUERY_NODE_ANOMALY_WINDOW:
-      return "AnomalyWindow";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -155,12 +153,6 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateQnodeStmt";
     case QUERY_NODE_DROP_QNODE_STMT:
       return "DropQnodeStmt";
-    case QUERY_NODE_CREATE_ANODE_STMT:
-      return "CreateAnodeStmt";
-    case QUERY_NODE_DROP_ANODE_STMT:
-      return "DropAnodeStmt";
-    case QUERY_NODE_UPDATE_ANODE_STMT:
-      return "UpdateAnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -221,10 +213,6 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowModulesStmt";
     case QUERY_NODE_SHOW_QNODES_STMT:
       return "ShowQnodesStmt";
-    case QUERY_NODE_SHOW_ANODES_STMT:
-      return "ShowAnodesStmt";
-    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return "ShowAnodesFullStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:
       return "ShowSnodesStmt";
     case QUERY_NODE_SHOW_BNODES_STMT:
@@ -340,8 +328,6 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicIndefRowsFunc";
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return "LogicInterpFunc";
-    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
-      return "LogicForecastFunc";
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return "LogicGroupCache";
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -376,10 +362,6 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiMergeCountWindow";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       return "PhysiStreamCountWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
-      return "PhysiMergeAnomalyWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY:
-      return "PhysiStreamAnomalyWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -433,8 +415,6 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiInterpFunc";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return "PhysiStreamInterpFunc";
-    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
-      return "PhysiForecastFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -1370,30 +1350,6 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkInterpFuncLogicPlanStreamNodeOption, jsonToStreamNodeOption, &pNode->streamNodeOption);
-  }
-
-  return code;
-}
-
-static const char* jkForecastFuncLogicPlanFuncs = "Funcs";
-
-static int32_t logicForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
-  const SForecastFuncLogicNode* pNode = (const SForecastFuncLogicNode*)pObj;
-
-  int32_t code = logicPlanNodeToJson(pObj, pJson);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkForecastFuncLogicPlanFuncs, pNode->pFuncs);
-  }
-
-  return code;
-}
-
-static int32_t jsonToLogicForecastFuncNode(const SJson* pJson, void* pObj) {
-  SForecastFuncLogicNode* pNode = (SForecastFuncLogicNode*)pObj;
-
-  int32_t code = jsonToLogicPlanNode(pJson, pObj);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkForecastFuncLogicPlanFuncs, &pNode->pFuncs);
   }
 
   return code;
@@ -3150,36 +3106,6 @@ static int32_t jsonToPhysiCountWindowNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkAnomalyWindowPhysiPlanAnomalyKey = "AnomalyKey";
-static const char* jkAnomalyWindowPhysiPlanAnomalyOption = "AnomalyOpt";
-
-static int32_t physiAnomalyWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SAnomalyWindowPhysiNode* pNode = (const SAnomalyWindowPhysiNode*)pObj;
-
-  int32_t code = physiWindowNodeToJson(pObj, pJson);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, nodeToJson, pNode->pAnomalyKey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkAnomalyWindowPhysiPlanAnomalyOption, pNode->anomalyOpt);
-  }
-  return code;
-}
-
-static int32_t jsonToPhysiAnomalyWindowNode(const SJson* pJson, void* pObj) {
-  SAnomalyWindowPhysiNode* pNode = (SAnomalyWindowPhysiNode*)pObj;
-
-  int32_t code = jsonToPhysiWindowNode(pJson, pObj);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, &pNode->pAnomalyKey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkAnomalyWindowPhysiPlanAnomalyOption, pNode->anomalyOpt);
-  }
-
-  return code;
-}
-
 static const char* jkPartitionPhysiPlanExprs = "Exprs";
 static const char* jkPartitionPhysiPlanPartitionKeys = "PartitionKeys";
 static const char* jkPartitionPhysiPlanTargets = "Targets";
@@ -3383,37 +3309,6 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkInterpFuncPhysiPlanStreamNodeOption, jsonToStreamNodeOption, &pNode->streamNodeOption);
-  }
-
-  return code;
-}
-
-static const char* jkForecastFuncPhysiPlanExprs = "Exprs";
-static const char* jkForecastFuncPhysiPlanFuncs = "Funcs";
-
-static int32_t physiForecastFuncNodeToJson(const void* pObj, SJson* pJson) {
-  const SForecastFuncPhysiNode* pNode = (const SForecastFuncPhysiNode*)pObj;
-
-  int32_t code = physicPlanNodeToJson(pObj, pJson);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkForecastFuncPhysiPlanExprs, pNode->pExprs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkForecastFuncPhysiPlanFuncs, pNode->pFuncs);
-  }
-
-  return code;
-}
-
-static int32_t jsonToPhysiForecastFuncNode(const SJson* pJson, void* pObj) {
-  SForecastFuncPhysiNode* pNode = (SForecastFuncPhysiNode*)pObj;
-
-  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkForecastFuncPhysiPlanExprs, &pNode->pExprs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkForecastFuncPhysiPlanFuncs, &pNode->pFuncs);
   }
 
   return code;
@@ -4982,36 +4877,6 @@ static int32_t jsonToCountWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkCountWindowSliding, &pNode->windowSliding);
-  }
-  return code;
-}
-
-static const char* jkAnomalyWindowTsPrimaryKey = "AnomalyTsPrimaryKey";
-static const char* jkAnomalyWindowExpr = "AnomalyWindowExpr";
-static const char* jkAnomalyWindowOption = "AnomalyWindowOpt";
-
-static int32_t anomalyWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SAnomalyWindowNode* pNode = (const SAnomalyWindowNode*)pObj;
-
-  int32_t code = tjsonAddObject(pJson, jkAnomalyWindowTsPrimaryKey, nodeToJson, pNode->pCol);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkAnomalyWindowExpr, nodeToJson, pNode->pExpr);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkAnomalyWindowOption, pNode->anomalyOpt);
-  }
-  return code;
-}
-
-static int32_t jsonToAnomalyWindowNode(const SJson* pJson, void* pObj) {
-  SAnomalyWindowNode* pNode = (SAnomalyWindowNode*)pObj;
-
-  int32_t code = jsonToNodeObject(pJson, jkAnomalyWindowTsPrimaryKey, &pNode->pCol);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkAnomalyWindowExpr, (SNode**)&pNode->pExpr);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkAnomalyWindowOption, pNode->anomalyOpt);
   }
   return code;
 }
@@ -6723,39 +6588,6 @@ static int32_t dropQnodeStmtToJson(const void* pObj, SJson* pJson) { return drop
 
 static int32_t jsonToDropQnodeStmt(const SJson* pJson, void* pObj) { return jsonToDropComponentNodeStmt(pJson, pObj); }
 
-static const char* jkCreateAnodeStmtUrl = "Url";
-static const char*  jkUpdateDropANodeStmtId = "AnodeId";
-
-static int32_t createAnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SCreateAnodeStmt* pNode = (const SCreateAnodeStmt*)pObj;
-  return tjsonAddStringToObject(pJson, jkCreateAnodeStmtUrl, pNode->url);
-}
-
-static int32_t jsonToCreateAnodeStmt(const SJson* pJson, void* pObj) {
-  SCreateAnodeStmt* pNode = (SCreateAnodeStmt*)pObj;
-  return tjsonGetStringValue(pJson, jkCreateAnodeStmtUrl, pNode->url);
-}
-
-static int32_t updateAnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SUpdateAnodeStmt* pNode = (const SUpdateAnodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkUpdateDropANodeStmtId, pNode->anodeId);
-}
-
-static int32_t jsonToUpdateAnodeStmt(const SJson* pJson, void* pObj) {
-  SUpdateAnodeStmt* pNode = (SUpdateAnodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
-}
-
-static int32_t dropAnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SDropAnodeStmt* pNode = (const SDropAnodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkUpdateDropANodeStmtId, pNode->anodeId);
-}
-
-static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
-  SDropAnodeStmt* pNode = (SDropAnodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
-}
-
 static int32_t createSnodeStmtToJson(const void* pObj, SJson* pJson) {
   return createComponentNodeStmtToJson(pObj, pJson);
 }
@@ -7321,14 +7153,6 @@ static int32_t showQnodesStmtToJson(const void* pObj, SJson* pJson) { return sho
 
 static int32_t jsonToShowQnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
-static int32_t showAnodesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
-
-static int32_t jsonToShowAnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
-
-static int32_t showAnodesFullStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
-
-static int32_t jsonToShowAnodesFullStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
-
 static int32_t showArbGroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowArbGroupsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
@@ -7865,8 +7689,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return windowOffsetNodeToJson(pObj, pJson);
     case QUERY_NODE_COUNT_WINDOW:
       return countWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_ANOMALY_WINDOW:
-      return anomalyWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -7919,12 +7741,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createQnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_QNODE_STMT:
       return dropQnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_ANODE_STMT:
-      return createAnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_ANODE_STMT:
-      return dropAnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_UPDATE_ANODE_STMT:
-      return updateAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -7975,10 +7791,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return showQnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_ANODES_STMT:
-      return showAnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return showAnodesFullStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
@@ -8068,8 +7880,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicIndefRowsFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return logicInterpFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
-      return logicForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return logicGroupCacheNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -8130,8 +7940,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       return physiCountWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
-      return physiAnomalyWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return physiPartitionNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
@@ -8141,8 +7949,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return physiInterpFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
-      return physiForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -8234,8 +8040,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToWindowOffsetNode(pJson, pObj);
     case QUERY_NODE_COUNT_WINDOW:
       return jsonToCountWindowNode(pJson, pObj);
-    case QUERY_NODE_ANOMALY_WINDOW:
-      return jsonToAnomalyWindowNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
@@ -8338,10 +8142,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowMnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return jsonToShowQnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_ANODES_STMT:
-      return jsonToShowAnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return jsonToShowAnodesFullStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
@@ -8439,8 +8239,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return jsonToLogicInterpFuncNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
-      return jsonToLogicForecastFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return jsonToLogicGroupCacheNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -8501,8 +8299,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       return jsonToPhysiCountWindowNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
-      return jsonToPhysiAnomalyWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return jsonToPhysiPartitionNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
@@ -8512,8 +8308,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       return jsonToPhysiInterpFuncNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
-      return jsonToPhysiForecastFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
