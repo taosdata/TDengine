@@ -1222,7 +1222,8 @@ void clearExpiredState(SStreamFileState* pFileState) {
       int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
       qTrace("%s at line %d res:%d", __func__, __LINE__, code_file);
 
-      streamStateFillDel_rocksdb(pFileState->pFileStore, pKey);
+      code_file = streamStateFillDel_rocksdb(pFileState->pFileStore, pKey);
+      qTrace("%s at line %d res %d", __func__, __LINE__, code_file);
     }
     taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
   }

@@ -248,7 +248,9 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && prevPoint.pLastRow->key != prevPoint.winKey.win.ekey) {
-      setIntervalSliceOutputBuf(&prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+      code = setIntervalSliceOutputBuf(&prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
       doStreamSliceInterpolation(prevPoint.pLastRow, prevPoint.winKey.win.ekey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_END);
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &prevPoint.winKey.win, 1);
@@ -256,10 +258,13 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
                                              0, pBlock->info.rows, numOfOutput);
       QUERY_CHECK_CODE(code, lino, _end);
       SWinKey prevKey = {.ts = prevPoint.winKey.win.skey, .groupId = prevPoint.winKey.groupId};
-      saveWinResult(&prevKey, prevPoint.pResPos, pInfo->pUpdatedMap);
+      code = saveWinResult(&prevKey, prevPoint.pResPos, pInfo->pUpdatedMap);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    setIntervalSliceOutputBuf(&curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+    code = setIntervalSliceOutputBuf(&curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
     if (IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && curPoint.winKey.win.skey != curTs) {
       doStreamSliceInterpolation(prevPoint.pLastRow, curPoint.winKey.win.skey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_START);
@@ -278,7 +283,8 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    saveWinResult(&curKey, curPoint.pResPos, pInfo->pUpdatedMap);
+    code = saveWinResult(&curKey, curPoint.pResPos, pInfo->pUpdatedMap);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &curPoint.winKey.win, 1);
     code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
