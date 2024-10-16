@@ -414,16 +414,16 @@ sql select case when f1 then 3 when ts then ts end from tba1;
 if $rows != 4 then 
   return -1
 endi
-if $data00 != @22-09-26 15:15:01.000@ then
+if $data00 != 1664176501000 then
  return -1
 endi
-if $data10 != @70-01-01 08:00:00.003@ then
+if $data10 != 3 then
  return -1
 endi
-if $data20 != @70-01-01 08:00:00.003@ then
+if $data20 != 3 then
  return -1
 endi
-if $data30 != @22-09-26 15:15:04.000@ then
+if $data30 != 1664176504000 then
  return -1
 endi
 
@@ -830,16 +830,16 @@ sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != @70-01-01 08:00:00.000@ then
+if $data00 != a then
  return -1
 endi
-if $data10 != @70-01-01 08:00:00.000@ then
+if $data10 != 0 then
  return -1
 endi
-if $data20 != @70-01-01 08:00:00.011@ then
+if $data20 != 11 then
  return -1
 endi
-if $data30 != @22-09-26 15:15:04.000@ then
+if $data30 != 1664176504 then
  return -1
 endi
 
@@ -1117,7 +1117,7 @@ if $data00 != 123 then
 endi
 
 sql select case when ts > '2022-01-01 00:00:00' then c_bool else ts end as result from t_test;
-if $data00 != @70-01-01 08:00:00.001@ then
+if $data00 != 1 then
  return -1
 endi
 
@@ -1131,17 +1131,18 @@ if $data00 != varchar_val then
   return -1
 endi
 
-sql select case when c_bool then c_varbinary else c_varchar end as result from t_test;
-if $data00 != null then
-  return -1;
-endi
 sql select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
-
 if $data00 != varchar_val then
   return -1
 endi
+
+sql select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
+if $data00 != true then
+  return -1
+endi
+
 sql_error select case when c_double > 100 then c_varbinary else c_geometry end as result from t_test;
-sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
 sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
+sql_error select case when c_bool then c_varbinary else c_varchar end as result from t_test;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
