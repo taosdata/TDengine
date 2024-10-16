@@ -19,7 +19,6 @@
 #include "functionResInfoInt.h"
 #include "query.h"
 #include "querynodes.h"
-#include "tanal.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
@@ -1713,11 +1712,11 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
   char slopBuf[64] = {0};
   char interceptBuf[64] = {0};
-  int  n = snprintf(slopBuf, 64, "%.6lf", param02);
+  int  n = tsnprintf(slopBuf, 64, "%.6lf", param02);
   if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
     (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param02);
   }
-  n = snprintf(interceptBuf, 64, "%.6lf", param12);
+  n = tsnprintf(interceptBuf, 64, "%.6lf", param12);
   if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
     (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param12);
   }
@@ -1909,9 +1908,9 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         }
 
         if (i == pCtx->numOfParams - 1) {
-          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
+          len += tsnprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
         } else {
-          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
+          len += tsnprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
         }
       }
 
@@ -3341,11 +3340,6 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
     *nextFrom = from + 1;
     return true;
   }
-}
-
-bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(float);
-  return true;
 }
 
 int32_t diffResultIsNull(SqlFunctionCtx* pCtx, SFuncInputRow* pRow){

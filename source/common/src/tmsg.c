@@ -40,7 +40,6 @@
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 
-#include "tanal.h"
 #include "tcol.h"
 #include "tlog.h"
 
@@ -1454,7 +1453,6 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ipWhiteVer));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->analVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pReq->clusterCfg.monitorParas));
 
   tEndEncode(&encoder);
@@ -1579,10 +1577,6 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->analVer));
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDeserializeSMonitorParas(&decoder, &pReq->clusterCfg.monitorParas));
   }
 
@@ -1658,7 +1652,6 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->statusSeq));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ipWhiteVer));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->analVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -1709,10 +1702,6 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ipWhiteVer));
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->analVer));
   }
 
   tEndDecode(&decoder);
@@ -3122,108 +3111,6 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
-
-int32_t tSerializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
-  tEncoderInit(&encoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
-  if (pReq->urlLen > 0) {
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->url, pReq->urlLen));
-  }
-  ENCODESQL();
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSMCreateAnodeReq(void *buf, int32_t bufLen, SMCreateAnodeReq *pReq) {
-  SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-
-  tDecoderInit(&decoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
-  if (pReq->urlLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
-  }
-
-  DECODESQL();
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  return code;
-}
-
-void tFreeSMCreateAnodeReq(SMCreateAnodeReq *pReq) {
-  taosMemoryFreeClear(pReq->url);
-  FREESQL();
-}
-
-int32_t tSerializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
-  tEncoderInit(&encoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->anodeId));
-  ENCODESQL();
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq) {
-  SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-
-  tDecoderInit(&decoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->anodeId));
-  DECODESQL();
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  return code;
-}
-
-void tFreeSMDropAnodeReq(SMDropAnodeReq *pReq) { FREESQL(); }
-
-int32_t tSerializeSMUpdateAnodeReq(void *buf, int32_t bufLen, SMUpdateAnodeReq *pReq) {
-  return tSerializeSMDropAnodeReq(buf, bufLen, pReq);
-}
-
-int32_t tDeserializeSMUpdateAnodeReq(void *buf, int32_t bufLen, SMUpdateAnodeReq *pReq) {
-  return tDeserializeSMDropAnodeReq(buf, bufLen, pReq);
-}
-
-void tFreeSMUpdateAnodeReq(SMUpdateAnodeReq *pReq) { tFreeSMDropAnodeReq(pReq); }
 
 int32_t tSerializeSCreateDnodeReq(void *buf, int32_t bufLen, SCreateDnodeReq *pReq) {
   SEncoder encoder = {0};

@@ -60,3 +60,88 @@ TEST(osSystemTest, osSystem1) {
   (void)printf("cpu info: %s\n", tmp);
   ASSERT_EQ(res, 0);
 }
+
+
+TEST(osSystemTest, systemUUIDTest) {
+  char uuid1[38];
+  memset(uuid1, 0, sizeof(uuid1));
+  taosGetSystemUUIDLimit36(uuid1, sizeof(uuid1));
+  ASSERT_EQ(strlen(uuid1), 36);
+
+  char uuid2[34];
+  memset(uuid2, 0, sizeof(uuid2));
+  taosGetSystemUUIDLimit36(uuid2, sizeof(uuid2));
+  ASSERT_EQ(strlen(uuid2), 33);
+
+  char uuid3[36];
+  memset(uuid3, 0, sizeof(uuid3));
+  taosGetSystemUUIDLimit36(uuid3, sizeof(uuid3));
+  ASSERT_EQ(strlen(uuid3), 35);
+
+  char uuid4[2];
+  memset(uuid4, 0, sizeof(uuid4));
+  taosGetSystemUUIDLimit36(uuid4, sizeof(uuid4));
+  ASSERT_EQ(strlen(uuid4), 1);
+
+  char uuid5[36];
+  memset( uuid5, 0, sizeof(uuid5));
+  taosGetSystemUUIDLimit36(uuid5, sizeof(uuid5));
+  ASSERT_EQ(strlen(uuid5), 35);
+
+  char uuid6[37];
+  memset( uuid6, 0, sizeof(uuid6));
+  taosGetSystemUUIDLimit36(uuid6, sizeof(uuid6));
+  ASSERT_EQ(strlen(uuid6), 36);
+
+  char uuid7[1];
+  memset(uuid7, 0, sizeof(uuid7));
+  taosGetSystemUUIDLimit36(uuid7, sizeof(uuid7));
+  ASSERT_EQ(strlen(uuid7), 0);
+}
+
+TEST(osSystemTest, systemUUIDTest2) {
+  char uuid1[38];
+  memset(uuid1, 0, sizeof(uuid1));
+  taosGetSystemUUIDLen(uuid1, sizeof(uuid1));
+  ASSERT_EQ(strlen(uuid1), sizeof(uuid1) - 1);
+
+  char uuid2[34];
+  memset(uuid2, 0, sizeof(uuid2));
+  taosGetSystemUUIDLen(uuid2, sizeof(uuid2));
+  ASSERT_EQ(strlen(uuid2), sizeof(uuid2) - 1);
+
+  char uuid3[36];
+  memset(uuid3, 0, sizeof(uuid3));
+  taosGetSystemUUIDLen(uuid3, sizeof(uuid3));
+  ASSERT_EQ(strlen(uuid3), sizeof(uuid3) - 1);
+
+  char uuid4[2];
+  memset(uuid4, 0, sizeof(uuid4));
+  taosGetSystemUUIDLen(uuid4, sizeof(uuid4));
+  ASSERT_EQ(strlen(uuid4), sizeof(uuid4) - 1);
+
+  char uuid5[36];
+  memset( uuid5, 0, sizeof(uuid5));
+  taosGetSystemUUIDLen(uuid5, sizeof(uuid5));
+  ASSERT_EQ(strlen(uuid5), sizeof(uuid5) - 1);
+
+  char uuid6[37];
+  memset( uuid6, 0, sizeof(uuid6));
+  taosGetSystemUUIDLen(uuid6, sizeof(uuid6));
+  ASSERT_EQ(strlen(uuid6), sizeof(uuid6) - 1);
+
+  char uuid7[1];
+  memset(uuid7, 0, sizeof(uuid7));
+  taosGetSystemUUIDLen(uuid7, sizeof(uuid7));
+  ASSERT_EQ(strlen(uuid7), sizeof(uuid7) - 1);
+
+  char uuid8[40];
+  memset(uuid8, 0, sizeof(uuid8));
+  taosGetSystemUUIDLen(uuid8, sizeof(uuid8));
+  ASSERT_EQ(strlen(uuid8), sizeof(uuid8) - 1);
+
+  char uuid9[73];
+  memset(uuid9, 0, sizeof(uuid9));
+  taosGetSystemUUIDLen(uuid9, sizeof(uuid9));
+  ASSERT_EQ(strlen(uuid9), sizeof(uuid9) - 1);
+}

@@ -74,8 +74,6 @@ const char *sdbTableName(ESdbType type) {
       return "grant";
     case SDB_ARBGROUP:
       return "arb_group";
-    case SDB_ANODE:
-      return "anode";
     default:
       return "undefine";
   }
