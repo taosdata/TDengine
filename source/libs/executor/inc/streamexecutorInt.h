@@ -30,6 +30,16 @@ extern "C" {
 #define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
 #define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
 
+#define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
+#define IS_VALID_WIN_KEY(ts)               ((ts) != INT64_MIN)
+#define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
+
+#define IS_NORMAL_INTERVAL_OP(op)                                    \
+  ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || \
+   (op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL)
+
+#define IS_CONTINUE_INTERVAL_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL)
+
 typedef struct SSliceRowData {
   TSKEY key;
   char  pRowVal[];
@@ -73,9 +83,23 @@ int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, 
 void    resetStreamFillSup(SStreamFillSupporter* pFillSup);
 void    setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup);
 
+int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap);
+
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 
-void reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
+void             reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
+SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index);
+int32_t          getDownstreamRes(struct SOperatorInfo* downstream, SSDataBlock** ppRes, SColumnInfo** ppPkCol);
+void             destroyFlusedppPos(void* ppRes);
+void             doBuildStreamIntervalResult(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
+                                             SGroupResInfo* pGroupResInfo);
+void             transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
+                                            int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol);
+int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId, bool ignoreNull);
+
+int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                              SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
+                                              struct SOperatorInfo** ppOptInfo);
 
 #ifdef __cplusplus
 }

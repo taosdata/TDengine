@@ -330,9 +330,11 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerTyp
     int64_t   now = taosGetTimestampMs();
 
     STimeWindow window = getAlignQueryTimeWindow(&interval, now - trigger);
-    p->pBlock->info.window = window;
+    p->pBlock->info.window.skey = window.skey;
+    p->pBlock->info.window.ekey = TMAX(now, window.ekey);
     p->pBlock->info.type = STREAM_GET_RESULT;
-    stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, window.skey, window.ekey);
+    stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64,
+            p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
   } else {
     p->pBlock->info.type = STREAM_GET_ALL;
   }

@@ -25,6 +25,7 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "ttime.h"
 
 #include "operator.h"
 #include "query.h"
@@ -3397,9 +3398,7 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
          isTimeSlice(pInfo);
 }
 
-static int32_t copyGetResultBlock(SSDataBlock* dest, const SSDataBlock* src) {
-  TSKEY start = src->info.window.skey;
-  TSKEY end = src->info.window.ekey;
+static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
   int32_t code = blockDataEnsureCapacity(dest, 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3635,7 +3634,11 @@ FETCH_NEXT_BLOCK:
       case STREAM_GET_RESULT: {
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->updateResIndex = 0;
-        code = copyGetResultBlock(pInfo->pUpdateRes, pBlock);
+        TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
+        if (pInfo->useGetResultRange == true) {
+          endKey = pBlock->info.window.ekey;
+        }
+        code = copyGetResultBlock(pInfo->pUpdateRes, pBlock->info.window.skey, endKey);
         QUERY_CHECK_CODE(code, lino, _end);
         pInfo->pUpdateInfo->maxDataVersion = -1;
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
@@ -4445,6 +4448,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
   pInfo->pFillSup = NULL;
+  pInfo->useGetResultRange = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

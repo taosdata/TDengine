@@ -536,6 +536,7 @@ typedef struct SStreamScanInfo {
   SSDataBlock*   pCheckpointRes;
   int8_t         pkColType;
   int32_t        pkColLen;
+  bool           useGetResultRange;
 } SStreamScanInfo;
 
 typedef struct {
@@ -818,6 +819,10 @@ typedef struct SStreamFillOperatorInfo {
   int32_t               primaryTsCol;
   int32_t               primarySrcSlotId;
   SStreamFillInfo*      pFillInfo;
+  SStreamAggSupporter*  pStreamAggSup;
+  SArray*               pCloseTs;
+  SArray*               pUpdated;
+  SGroupResInfo         groupResInfo;
 } SStreamFillOperatorInfo;
 
 typedef struct SStreamTimeSliceOperatorInfo {
@@ -850,7 +855,31 @@ typedef struct SStreamTimeSliceOperatorInfo {
   SGroupResInfo         groupResInfo;
   bool                  ignoreNull;
   bool                  isHistoryOp;
+  struct SOperatorInfo* pOperator;
 } SStreamTimeSliceOperatorInfo;
+
+typedef struct SStreamIntervalSliceOperatorInfo {
+  SSteamOpBasicInfo     basic;
+  SOptrBasicInfo        binfo;
+  STimeWindowAggSupp    twAggSup;
+  SStreamAggSupporter   streamAggSup;
+  SExprSupp             scalarSup;
+  SInterval             interval;
+  bool                  recvCkBlock;
+  SSDataBlock*          pCheckpointRes;
+  int32_t               primaryTsIndex;
+  SSHashObj*            pUpdatedMap;  // SWinKey
+  SArray*               pUpdated;     // SWinKey
+  SSHashObj*            pDeletedMap;
+  SArray*               pDelWins;
+  SSDataBlock*          pDelRes;
+  int32_t               delIndex;
+  bool                  destHasPrimaryKey;
+  int64_t               endTs;
+  SGroupResInfo         groupResInfo;
+  struct SOperatorInfo* pOperator;
+  bool                  hasFill;
+} SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)

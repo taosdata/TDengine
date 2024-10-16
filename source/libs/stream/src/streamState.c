@@ -229,6 +229,7 @@ int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void*
 
 int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
   if (pState->pFileState) {
+    // todo(liuyao) 改这里
     return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
   }
   return streamStateFillGet_rocksdb(pState, key, pVal, pVLen);
@@ -316,8 +317,8 @@ int32_t streamStateFillGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const vo
   return streamStateFillGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
 }
 
-int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  return streamStateGetGroupKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  return streamStateFillGetGroupKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
 }
 
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key) {
@@ -581,4 +582,13 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
     return -1;
   }
   return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
+}
+
+void streamStateClearExpiredState(SStreamState* pState) {
+  clearExpiredState(pState->pFileState);
+}
+
+int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                           int32_t* pWinCode) {
+  return getRowStatePrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
 }

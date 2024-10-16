@@ -29,8 +29,6 @@
 
 #define STREAM_TIME_SLICE_OP_STATE_NAME      "StreamTimeSliceHistoryState"
 #define STREAM_TIME_SLICE_OP_CHECKPOINT_NAME "StreamTimeSliceOperator_Checkpoint"
-#define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
-#define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
 
 int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap) {
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), NULL, 0);
@@ -146,6 +144,11 @@ static void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup) {
 
 void destroyStreamTimeSliceOperatorInfo(void* param) {
   SStreamTimeSliceOperatorInfo* pInfo = (SStreamTimeSliceOperatorInfo*)param;
+  if (pInfo->pOperator) {
+    cleanupResultInfoInStream(pInfo->pOperator->pTaskInfo, pInfo->streamAggSup.pState, &pInfo->pOperator->exprSupp,
+                              &pInfo->groupResInfo);
+    pInfo->pOperator = NULL;
+  }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   resetPrevAndNextWindow(pInfo->pFillSup);
@@ -353,7 +356,7 @@ _end:
   }
 }
 
-static SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index) {
+SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index) {
   if (!pRowVal) {
     return NULL;
   }
@@ -608,8 +611,8 @@ static int32_t getQualifiedRowNumAsc(SExprSupp* pExprSup, SSDataBlock* pBlock, i
   return -1;
 }
 
-static int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId,
-                                      bool ignoreNull) {
+int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId,
+                               bool ignoreNull) {
   TSKEY   ts = tsCols[rowId];
   int32_t resRow = -1;
   for (; rowId >= 0; rowId--) {
@@ -1219,8 +1222,8 @@ static bool needAdjustValue(SSlicePoint* pPoint, TSKEY ts, void* pPkVal, SStream
   return false;
 }
 
-static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
-                                  int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol) {
+void transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
+                                int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
@@ -1344,7 +1347,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
   }
   right = needAdjustValue(&curPoint, tsCols[startPos], pPkVal, pFillSup, false, pFillSup->type);
   if (right) {
-    transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
+    transBlockToSliceResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
     bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
     code = saveTimeSliceWinResultInfo(pAggSup, &pInfo->twAggSup, &curPoint.key, pInfo->pUpdatedMap, needDel,
                                       pInfo->pDeletedMap);
@@ -1363,7 +1366,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     }
     left = needAdjustValue(&nextPoint, tsCols[leftRowId], pPkVal, pFillSup, true, pFillSup->type);
     if (left) {
-      transBlockToResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
+      transBlockToSliceResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
       bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
       code = saveTimeSliceWinResultInfo(pAggSup, &pInfo->twAggSup, &nextPoint.key, pInfo->pUpdatedMap,
                                         needDel, pInfo->pDeletedMap);
@@ -1388,7 +1391,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     }
     right = needAdjustValue(&curPoint, tsCols[startPos], pPkVal, pFillSup, false, pFillSup->type);
     if (right) {
-      transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
+      transBlockToSliceResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow, pFillSup->rowSize, pPkVal, pPkColDataInfo);
       bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
       code = saveTimeSliceWinResultInfo(pAggSup, &pInfo->twAggSup, &curPoint.key, pInfo->pUpdatedMap, needDel,
                                         pInfo->pDeletedMap);
@@ -1680,7 +1683,7 @@ _end:
   return code;
 }
 
-static int32_t setAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SSHashObj* pUpdatedMap) {
+int32_t setAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SSHashObj* pUpdatedMap) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   int64_t          groupId = 0;
@@ -1793,7 +1796,6 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
         pInfo->recvCkBlock = true;
         pAggSup->stateStore.streamStateCommit(pAggSup->pState);
         doStreamTimeSliceSaveCheckpoint(pOperator);
-        pInfo->recvCkBlock = true;
         code = copyDataBlock(pInfo->pCheckpointRes, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
         continue;
@@ -2075,6 +2077,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
+  pInfo->pOperator = pOperator;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,

@@ -23,11 +23,6 @@
 #define NUM_OF_CACHE_WIN 64
 #define MAX_NUM_OF_CACHE_WIN 128
 
-int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
-  SWinKey* pWin2 = taosArrayGet(pDatas, pos);
-  return winKeyCmprImpl((SWinKey*)pWin1, pWin2);
-}
-
 int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -57,7 +52,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, &start);
     for (int32_t i = 0; i < NUM_OF_CACHE_WIN; i++) {
       SWinKey tmpKey = {.groupId = pKey->groupId};
-      int32_t tmpRes = streamStateGetGroupKVByCur_rocksdb(pCur, &tmpKey, NULL, 0);
+      int32_t tmpRes = streamStateFillGetGroupKVByCur_rocksdb(pCur, &tmpKey, NULL, 0);
       if (tmpRes != TSDB_CODE_SUCCESS) {
         break;
       }
@@ -134,7 +129,7 @@ int32_t getStateFromRocksdbByCur(SStreamFileState* pFileState, SStreamStateCur* 
   int32_t lino = 0;
   void*   tmpVal = NULL;
   int32_t len = 0;
-  (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+  (*pWinCode) = streamStateFillGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
   if ((*pWinCode) == TSDB_CODE_SUCCESS) {
     SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
     if (!pNewPos || !pNewPos->pRowBuff) {
@@ -167,7 +162,7 @@ int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     SStreamStateCur* pCur = streamStateFillSeekKeyNext_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
-    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    (*pWinCode) = streamStateFillGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && ppVal != NULL) {
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       if (!pNewPos || !pNewPos->pRowBuff) {
@@ -188,7 +183,7 @@ int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     SStreamStateCur* pCur = streamStateFillSeekKeyNext_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
-    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    (*pWinCode) = streamStateFillGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
     if ((*pWinCode) == TSDB_CODE_SUCCESS) {
       if (ppVal != NULL) {
         SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
@@ -241,7 +236,7 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
-    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    (*pWinCode) = streamStateFillGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
     if ((*pWinCode) == TSDB_CODE_SUCCESS) {
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       if (!pNewPos || !pNewPos->pRowBuff) {
@@ -270,7 +265,7 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
     void*            tmpVal = NULL;
     int32_t          len = 0;
-    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    (*pWinCode) = streamStateFillGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
     if ((*pWinCode) == TSDB_CODE_SUCCESS) {
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       if (!pNewPos || !pNewPos->pRowBuff) {

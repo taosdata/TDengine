@@ -3359,7 +3359,7 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   return streamStateDel_rocksdb(pState, &tmp);
 }
 
-int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateFillGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
@@ -3422,7 +3422,7 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key) {
   SStreamStateCur* pCur = streamStateFillGetCur_rocksdb(pState, key);
   if (pCur) {
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, key, NULL, 0);
+    int32_t code = streamStateFillGetGroupKVByCur_rocksdb(pCur, key, NULL, 0);
     if (code == 0) return pCur;
     streamStateFreeCur(pCur);
   }
@@ -4237,6 +4237,16 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   }
   // skip ttl expired data
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_next(pCur->iter);
+  }
+
+  if (rocksdb_iter_valid(pCur->iter)) {
+    int64_t curGroupId;
+    size_t  kLen = 0;
+    char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    TAOS_UNUSED(parKeyDecode((void*)&curGroupId, keyStr));
+    if (curGroupId > groupId) return ;
+
     rocksdb_iter_next(pCur->iter);
   }
 }
@@ -5148,3 +5158,61 @@ int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname) {
   return code;
 }
 #endif
+
+SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key) {
+  stDebug("streamStateSeekKeyPrev_rocksdb");
+  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
+
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  pCur->number = pState->number;
+
+  char buf[128] = {0};
+  int  len = winKeyEncode((void*)key, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_prev(pCur->iter);
+  }
+
+  if (rocksdb_iter_valid(pCur->iter)) {
+    SWinKey curKey;
+    size_t  kLen = 0;
+    char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    TAOS_UNUSED(winKeyDecode((void*)&curKey, keyStr));
+    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+      return pCur;
+    }
+    rocksdb_iter_prev(pCur->iter);
+    return pCur;
+  }
+
+  streamStateFreeCur(pCur);
+  return NULL;
+}
+
+int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  if (!pCur) {
+    return -1;
+  }
+  uint64_t groupId = pKey->groupId;
+
+  int32_t code = streamStateGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  if (code == 0) {
+    if (pKey->groupId == groupId) {
+      return 0;
+    }
+    if (pVal != NULL) {
+      taosMemoryFree((void*)*pVal);
+      *pVal = NULL;
+    }
+  }
+  return -1;
+}

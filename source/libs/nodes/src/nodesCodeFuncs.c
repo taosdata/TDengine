@@ -5748,6 +5748,7 @@ static const char* jkSelectStmtHasAggFuncs = "HasAggFuncs";
 static const char* jkSelectStmtInterpFuncs = "HasInterpFuncs";
 static const char* jkSelectStmtInterpFill = "InterpFill";
 static const char* jkSelectStmtInterpEvery = "InterpEvery";
+static const char* jkSelectStmtTwaOrElapsedFuncs = "HasTwaOrElapsedFuncs";
 
 static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   const SSelectStmt* pNode = (const SSelectStmt*)pObj;
@@ -5797,6 +5798,9 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSelectStmtInterpFuncs, pNode->hasInterpFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSelectStmtTwaOrElapsedFuncs, pNode->hasTwaOrElapsedFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtInterpFill, nodeToJson, pNode->pFill);
@@ -5856,6 +5860,9 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSelectStmtInterpFuncs, &pNode->hasInterpFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSelectStmtTwaOrElapsedFuncs, &pNode->hasTwaOrElapsedFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtInterpFill, &pNode->pFill);

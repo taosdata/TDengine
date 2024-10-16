@@ -142,6 +142,12 @@ int32_t streamFileStateGroupPut(SStreamFileState* pFileState, int64_t groupId, v
 void streamFileStateGroupCurNext(SStreamStateCur* pCur);
 int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
 SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
+int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
+int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
+                           int32_t* pVLen, int32_t* pWinCode);
+
+//twa
+void clearExpiredState(SStreamFileState* pFileState);
 
 #ifdef __cplusplus
 }

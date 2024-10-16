@@ -30,6 +30,8 @@
 #define MIN_NUM_SEARCH_BUCKET          128
 #define MAX_ARRAY_SIZE                 1024
 #define MAX_GROUP_ID_NUM               200000
+#define NUM_OF_CACHE_WIN               64
+#define MAX_NUM_OF_CACHE_WIN           128
 
 #define TASK_KEY               "streamFileState"
 #define STREAM_STATE_INFO_NAME "StreamStateCheckPoint"
@@ -67,6 +69,11 @@ struct SStreamFileState {
 };
 
 typedef SRowBuffPos SRowBuffInfo;
+
+int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
+  SWinKey* pWin2 = taosArrayGet(pDatas, pos);
+  return winKeyCmprImpl((SWinKey*)pWin1, pWin2);
+}
 
 int32_t stateHashBuffRemoveFn(void* pBuff, const void* pKey, size_t keyLen) {
   SRowBuffPos** pos = tSimpleHashGet(pBuff, pKey, keyLen);
@@ -108,6 +115,17 @@ void* intervalCreateStateKey(SRowBuffPos* pPos, int64_t num) {
   SWinKey* pWinKey = pPos->pKey;
   pStateKey->key = *pWinKey;
   pStateKey->opNum = num;
+  return pStateKey;
+}
+
+void* defaultCreateStateKey(SRowBuffPos* pPos, int64_t num) {
+  SWinKey* pStateKey = taosMemoryCalloc(1, sizeof(SWinKey));
+  if (pStateKey == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return NULL;
+  }
+  SWinKey* pWinKey = pPos->pKey;
+  *pStateKey = *pWinKey;
   return pStateKey;
 }
 
@@ -171,7 +189,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   int32_t    cap = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
-  if (type == STREAM_STATE_BUFF_HASH) {
+  if (type == STREAM_STATE_BUFF_HASH || type == STREAM_STATE_BUFF_HASH_SEARCH) {
     pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
     pFileState->stateBuffCleanupFn = stateHashBuffCleanupFn;
     pFileState->stateBuffRemoveFn = stateHashBuffRemoveFn;
@@ -200,7 +218,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
     pFileState->stateBuffCleanupFn = stateHashBuffCleanupFn;
     pFileState->stateBuffRemoveFn = stateHashBuffRemoveFn;
     pFileState->stateBuffRemoveByPosFn = stateHashBuffRemoveByPosFn;
-    pFileState->stateBuffCreateStateKeyFn = intervalCreateStateKey;
+    pFileState->stateBuffCreateStateKeyFn = defaultCreateStateKey;
 
     pFileState->stateFileRemoveFn = hashSortFileRemoveFn;
     pFileState->stateFileGetFn = hashSortFileGetFn;
@@ -212,6 +230,11 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
   QUERY_CHECK_NULL(pFileState->freeBuffs, code, lino, _end, terrno);
   QUERY_CHECK_NULL(pFileState->rowStateBuff, code, lino, _end, terrno);
   QUERY_CHECK_NULL(pFileState->cfName, code, lino, _end, terrno);
+
+  if (type == STREAM_STATE_BUFF_HASH_SEARCH) {
+    pFileState->searchBuff = tSimpleHashInit(MIN_NUM_SEARCH_BUCKET, hashFn);
+    QUERY_CHECK_NULL(pFileState->searchBuff, code, lino, _end, terrno);
+  }
 
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
@@ -230,8 +253,7 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
   pFileState->pGroupIdMap = tSimpleHashInit(1024, hashFn);
   QUERY_CHECK_NULL(pFileState->pGroupIdMap, code, lino, _end, terrno);
 
-  // todo(liuyao) optimize
-  if (type == STREAM_STATE_BUFF_HASH) {
+  if (type == STREAM_STATE_BUFF_HASH || type == STREAM_STATE_BUFF_HASH_SEARCH) {
     code = recoverSnapshot(pFileState, checkpointId);
   } else if (type == STREAM_STATE_BUFF_SORT) {
     code = recoverSesssion(pFileState, checkpointId);
@@ -1160,6 +1182,9 @@ void streamFileStateGroupCurNext(SStreamStateCur* pCur) {
     return;
   }
 
+  int64_t gpId = *(int64_t*)tSimpleHashGetKey(pCur->pHashData, NULL);
+  pCur->minGpId = TMAX(pCur->minGpId, gpId);
+
   SSHashObj* pHash = pFileState->pGroupIdMap;
   pCur->pHashData = tSimpleHashIterate(pHash, pCur->pHashData, &pCur->hashIter);
   if (!pCur->pHashData) {
@@ -1167,8 +1192,6 @@ void streamFileStateGroupCurNext(SStreamStateCur* pCur) {
     streamStateParTagSeekKeyNext_rocksdb(pFileState->pFileStore, pCur->minGpId, pCur);
     return;
   }
-  int64_t gpId = *(int64_t*)tSimpleHashGetKey(pCur->pHashData, NULL);
-  pCur->minGpId = TMIN(pCur->minGpId, gpId);
 }
 
 int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen) {
@@ -1182,4 +1205,165 @@ int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, voi
 
 SSHashObj* getGroupIdCache(SStreamFileState* pFileState) {
   return pFileState->pGroupIdMap;
+}
+
+void clearExpiredState(SStreamFileState* pFileState) {
+  SSHashObj* pSearchBuff = pFileState->searchBuff;
+  void*      pIte = NULL;
+  int32_t    iter = 0;
+  while ((pIte = tSimpleHashIterate(pFileState->searchBuff, pIte, &iter)) != NULL) {
+    SArray* pWinStates = *((void**)pIte);
+    int32_t size = taosArrayGetSize(pWinStates);
+    for (int32_t i = 0; i < size - 1; i++) {
+      SWinKey* pKey = taosArrayGet(pWinStates, i);
+      int32_t  code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
+      qTrace("%s at line %d res:%d", __func__, __LINE__, code_buff);
+
+      int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, code_file);
+
+      streamStateFillDel_rocksdb(pFileState->pFileStore, pKey);
+    }
+    taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
+  }
+}
+
+int32_t getStateSearchRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
+                           int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  code = addRowBuffIfNotExist(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SArray*    pWinStates = NULL;
+  SSHashObj* pSearchBuff = getSearchBuff(pFileState);
+  void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
+  if (ppBuff) {
+    pWinStates = (SArray*)(*ppBuff);
+  } else {
+    pWinStates = taosArrayInit(16, sizeof(SWinKey));
+    QUERY_CHECK_NULL(pWinStates, code, lino, _end, terrno);
+
+    code = tSimpleHashPut(pSearchBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  // recover
+  if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
+    TSKEY            ts = getFlushMark(pFileState);
+    SWinKey          start = {.groupId = pKey->groupId, .ts = INT64_MAX};
+    void*            pState = getStateFileStore(pFileState);
+    SStreamStateCur* pCur = streamStateSeekKeyPrev_rocksdb(pState, &start);
+    for (int32_t i = 0; i < NUM_OF_CACHE_WIN; i++) {
+      SWinKey tmpKey = {.groupId = pKey->groupId};
+      int32_t tmpRes = streamStateGetGroupKVByCur_rocksdb(pCur, &tmpKey, NULL, 0);
+      if (tmpRes != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      void* tmp = taosArrayPush(pWinStates, &tmpKey);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      streamStateCurPrev_rocksdb(pCur);
+    }
+    taosArraySort(pWinStates, winKeyCmprImpl);
+    streamStateFreeCur(pCur);
+  }
+
+  int32_t size = taosArrayGetSize(pWinStates);
+  int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
+  if (!isFlushedState(pFileState, pKey->ts, 0)|| index >= 0) {
+    // find the first position which is smaller than the pKey
+    if (index >= 0) {
+      SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
+      if (winKeyCmprImpl(pTmpKey, pKey) == 0) {
+        goto _end;
+      }
+    }
+    index++;
+    void* tmp = taosArrayInsert(pWinStates, index, pKey);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  }
+
+  if (size >= MAX_NUM_OF_CACHE_WIN) {
+    int32_t num = size - NUM_OF_CACHE_WIN;
+    taosArrayRemoveBatch(pWinStates, 0, num, NULL);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
+                           int32_t* pVLen, int32_t* pWinCode) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SArray*    pWinStates = NULL;
+  SSHashObj* pSearchBuff = getSearchBuff(pFileState);
+  void*      pState = getStateFileStore(pFileState);
+  void**     ppBuff = (void**) tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
+  if (ppBuff) {
+    pWinStates = (SArray*)(*ppBuff);
+  } else {
+    qDebug("===stream=== search buff is empty.group id:%" PRId64, pKey->groupId);
+    SStreamStateCur* pCur = streamStateSeekKeyPrev_rocksdb(pState, pKey);
+    void*            tmpVal = NULL;
+    int32_t          len = 0;
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    if ((*pWinCode) == TSDB_CODE_SUCCESS) {
+      SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
+      if (!pNewPos || !pNewPos->pRowBuff) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      memcpy(pNewPos->pRowBuff, tmpVal, len);
+      taosMemoryFreeClear(tmpVal);
+      *pVLen = getRowStateRowSize(pFileState);
+      (*ppVal) = pNewPos;
+    }
+    streamStateFreeCur(pCur);
+    return code;
+  }
+  int32_t size = taosArrayGetSize(pWinStates);
+  int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
+  if (index >= 0) {
+    SWinKey* pCurKey = taosArrayGet(pWinStates, index);
+    if (winKeyCmprImpl(pCurKey, pKey) == 0) {
+      index--;
+    } else {
+      qDebug("%s failed at line %d since do not find cur SWinKey. trigger may be force window close", __func__, __LINE__);
+    }
+  }
+  if (index == -1) {
+    SStreamStateCur* pCur = streamStateSeekKeyPrev_rocksdb(pState, pKey);
+    void*            tmpVal = NULL;
+    int32_t          len = 0;
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)&tmpVal, &len);
+    if ((*pWinCode) == TSDB_CODE_SUCCESS) {
+      SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
+      if (!pNewPos || !pNewPos->pRowBuff) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      memcpy(pNewPos->pRowBuff, tmpVal, len);
+      taosMemoryFreeClear(tmpVal);
+      *pVLen = getRowStateRowSize(pFileState);
+      (*ppVal) = pNewPos;
+    }
+    streamStateFreeCur(pCur);
+    return code;
+  } else {
+    SWinKey* pPrevKey = taosArrayGet(pWinStates, index);
+    *pResKey = *pPrevKey;
+    return getHashSortRowBuff(pFileState, pResKey, ppVal, pVLen, pWinCode);
+  }
+  (*pWinCode) = TSDB_CODE_FAILED;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
