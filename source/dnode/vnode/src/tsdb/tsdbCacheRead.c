@@ -14,6 +14,7 @@
  */
 
 #include "functionMgt.h"
+#include "functionResInfo.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcommon.h"

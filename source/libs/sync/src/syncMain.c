@@ -2897,12 +2897,12 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     char    buf[256];
     int32_t len = 256;
     int32_t n = 0;
-    n += snprintf(buf + n, len - n, "%s", "{");
+    n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
-      n += snprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
+      n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
-    n += snprintf(buf + n, len - n, "%s", "}");
+    n += tsnprintf(buf + n, len - n, "%s", "}");
 
     sInfo("vgId:%d, %s, peersEpset%d, %s, inUse:%d", ths->vgId, str, i, buf, ths->peersEpset->inUse);
   }

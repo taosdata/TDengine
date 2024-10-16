@@ -56,7 +56,7 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
+  if (taosGetSystemUUIDU64(&schMgmt.sId)) {
     qError("generate schedulerId failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
   }

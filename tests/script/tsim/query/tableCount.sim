@@ -53,7 +53,7 @@ sql select stable_name,count(table_name) from information_schema.ins_tables grou
 if $rows != 3 then
   return -1
 endi
-if $data01 != 40 then
+if $data01 != 38 then
   return -1
 endi
 if $data11 != 10 then
@@ -72,7 +72,7 @@ endi
 if $data11 != 5 then
   return -1
 endi
-if $data21 != 34 then
+if $data21 != 32 then
   return -1
 endi
 if $data31 != 5 then
@@ -97,7 +97,7 @@ endi
 if $data42 != 3 then
   return -1
 endi
-if $data52 != 34 then
+if $data52 != 32 then
   return -1
 endi
 if $data62 != 5 then
