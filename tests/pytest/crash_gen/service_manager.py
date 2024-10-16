@@ -298,7 +298,7 @@ enable = true
         return DirPath(self.getRunDir() + "/log")
 
     def getHostAddr(self):
-        return "127.0.0.1"
+        return "localhost"
 
     def getServiceCmdLine(self): # to start the instance
         if Config.getConfig().track_memory_leaks:
@@ -389,7 +389,6 @@ enable = true
         self._subProcess.stop()
         if Config.getConfig().connector_type != "native":
             if os.path.exists(self.getTaosadapterExecFile()):
-                print("self._taosAdapterSubProcess----", self._taosAdapterSubProcess)
                 self._taosAdapterSubProcess.stop()
         self._subProcess = None
         self._taosAdapterSubProcess = None
@@ -760,12 +759,18 @@ class ServiceManager:
         return True
 
     def _procIpcAll(self):
+        id_out = 1 
+        id_in = 1 
         while self.isActive():
+            print(f"outer loop: {id_out}")
+            id_out += 1
             Progress.emit(Progress.SERVICE_HEART_BEAT)
             for ti in self._tInsts: # all thread objects should always be valid
             # while self.isRunning() or self.isRestarting() :  # for as long as the svc mgr thread is still here
                 status = ti.getStatus()
                 if  status.isRunning():
+                    print(f"in loop: {id_in}")
+                    id_in += 1
                     # th = ti.getSmThread()
                     ti.procIpcBatch()  # regular processing,
                     if  status.isStopped():

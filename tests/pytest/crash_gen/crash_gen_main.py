@@ -1080,7 +1080,7 @@ class StateMechine:
 
         sTable = self._db.getFixedSuperTable()
 
-        if sTable.hasRegTables(dbc):  # no regular tables
+        if not sTable.hasRegTables(dbc):  # no regular tables
             # print("debug=====*\n"*100)
             Logging.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
 
@@ -1163,7 +1163,7 @@ class StateMechine:
                                     'TaskDropStreamTables': 10, 'TaskPauseStreams': 1, 'TaskResumeStreams': 1,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
                                     'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10, 'TaskCreateView': 10, 'TaskCreateIndex': 10,
-                                    'TaskCreateTopic': 3,
+                                    'TaskCreateTopic': 3, 'TaskCompactDb': 1,
                                     'TaskCreateConsumers': 10,
                                     'TaskCreateSuperTable': 10}  # TaskType : balance_matrixs of task
 
@@ -1950,6 +1950,170 @@ class TaskDropDb(StateTransitionTask):
 
         Logging.debug("[OPS] database dropped at {}".format(time.time()))
 
+
+class TaskCompactDb(StateTransitionTask):
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        # TODO Confirm: db is empty or has data?
+        return state.canDropDb()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+
+        try:
+            self.queryWtSql(wt, "COMPACT DATABASE {}".format(
+                self._db.getName()))  # compact database maybe failed
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskCompactDb error: {errno2}-{err}")
+            raise
+
+        Logging.debug("[OPS] Compacting database at {}".format(time.time()))
+
+class TaskBalanceVgroup(StateTransitionTask):
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        # TODO Confirm: db is empty or has data?
+        return state.canDropDb()
+
+    def genBalanceVgroupSql(self, vgid=None):
+        sql = list()
+        sql.append("BALANCE VGROUP")
+        sql.append("BALANCE VGROUP LEADER")
+        if vgid is not None:
+            sql.append("BALANCE VGROUP LEADER ON {}".format(vgid))
+        return random.choice(sql)
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            self.execWtSql(wt, "use {}".format(dbname))
+            dbc.query("show vgroups")
+            vgIds = dbc.getQueryResult()
+            vgIdList = [v[0] for v in vgIds]
+            balanceSql = self.genBalanceVgroupSql(random.choice(vgIdList))
+            self.execWtSql(wt, balanceSql)
+            Logging.debug("[OPS] balancing vgroup at {}".format(time.time()))
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskBalanceVgroup error: {errno2}-{err}")
+            raise
+
+class TaskSplitVgroup(StateTransitionTask):
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        # TODO Confirm: db is empty or has data?
+        return state.canDropDb()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            self.execWtSql(wt, "use {}".format(dbname))
+            dbc.query("show vgroups")
+            vgIds = dbc.getQueryResult()
+            vgIdList = [v[0] for v in vgIds]
+            splitSql = f"SPLIT VGROUP {random.choice(vgIdList)}"
+            self.execWtSql(wt, splitSql)
+            Logging.debug("[OPS] split vgroup at {}".format(time.time()))
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskSplitVgroup error: {errno2}-{err}")
+            raise
+
+class TaskAlterRep(StateTransitionTask):
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        # TODO Confirm: db is empty or has data?
+        return state.canDropDb()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            if Config.getConfig().num_replicas == 1:
+                Logging.debug("Skipping task, replicas must > 1")
+                return
+            dbc.query(f'select `replica` from information_schema.ins_databases where name = "{dbname}";')
+            replica = dbc.getQueryResult()[0][0]
+            destRep = 1 if replica == 3 else 1
+            splitSql = f"ALTER DATABASE {dbname} replica {destRep}"
+            self.execWtSql(wt, splitSql)
+            Logging.debug("[OPS] alter replica at {}".format(time.time()))
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskAlterRep error: {errno2}-{err}")
+            raise
+
+class TaskRedistribute(StateTransitionTask):
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        # TODO Confirm: db is empty or has data?
+        return state.canDropDb()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        try:
+            dbname = self._db.getName()
+            dbc = wt.getDbConn()
+
+            if not self._db.exists(dbc):
+                Logging.debug("Skipping task, no DB yet")
+                return
+            if Config.getConfig().num_dnodes - Config.getConfig().num_replicas <= 0:
+                Logging.debug("Skipping task, num_dnodes must > num_replicas")
+                return
+            dbc.query(f'select `replica` from information_schema.ins_databases where name = "{dbname}";')
+            replica = dbc.getQueryResult()[0][0]
+
+            dbc.query(f"show {dbname}.vgroups")
+            vgIds = dbc.getQueryResult()
+            vgIdList = [v[0] for v in vgIds]
+            randVg = random.choice(vgIdList)
+
+            dbc.query("show dnodes")
+            dnodeIds = dbc.getQueryResult()
+            dnodeIdList = [v[0] for v in dnodeIds]
+            redDnodeList = random.sample(dnodeIdList, replica)
+            redDnodeStr = " ".join(f"dnode {id}" for id in redDnodeList) + " "
+            redSql = f"REDISTRIBUTE VGROUP {randVg} {redDnodeStr}"
+            self.execWtSql(wt, redSql)
+            Logging.debug("[OPS] alter replica at {}".format(time.time()))
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            self.logError(f"func TaskRedistribute error: {errno2}-{err}")
+            raise
 
 class TaskCreateStream(StateTransitionTask):
     maxSelectItems = 5
@@ -2768,8 +2932,7 @@ class TdSuperTable:
     def hasRegTables(self, dbc: DbConn):
 
         if dbc.existsSuperTable(self._dbName, self._stName):
-
-            return dbc.query("SELECT * FROM {}.{}".format(self._dbName, self._stName)) > 0
+            return dbc.query('SELECT * FROM information_schema.ins_tables where db_name = "{}"'.format(self._dbName)) > 0
         else:
             return False
 
@@ -5561,9 +5724,24 @@ class MainExec:
         global gSvcMgr
         gSvcMgr = self._svcMgr = ServiceManager(
             Config.getConfig().num_dnodes)  # save it in a global variable TODO: hack alert
+        # TODO Confirm
+        # now block at _procIpcAll
+        # commit out by jayden at 10.16
+        # gSvcMgr.run()  # run to some end state
+        # gSvcMgr = self._svcMgr = None
+        
+        
+        # TODO Confirm new add by jayden at 10.16
+        gSvcMgr.startTaosServices()  # we start, don't run
 
-        gSvcMgr.run()  # run to some end state
-        gSvcMgr = self._svcMgr = None
+        self._clientMgr = ClientManager()
+        ret = None
+        try:
+            ret = self._clientMgr.run(self._svcMgr)  # stop TAOS service inside
+        except requests.exceptions.ConnectionError as err:
+            Logging.warning("Failed to open REST connection to DB: {}".format(err))
+            # don't raise
+        return ret
 
     def _buildCmdLineParser(self):
         parser = argparse.ArgumentParser(
