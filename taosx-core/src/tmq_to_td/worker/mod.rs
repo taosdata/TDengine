@@ -21,8 +21,30 @@ use tracing::Instrument;
 
 use super::TaosConnection;
 
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum MessageType {
+    DataOnly = 1,
+    MetaOnly,
+    MetaData,
+}
+
+impl std::fmt::Display for MessageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (*self as u8).fmt(f)
+    }
+}
+
 pub struct RawMessage {
+    /// Message ID.
     pub mid: usize,
+    /// Message type.
+    ///
+    /// 0: unexpected.
+    /// 1: meta only.
+    /// 2: data only.
+    /// 3: meta and data with schema changes.
+    pub mty: MessageType,
     /// TMQ raw data.
     pub raw: RawMeta,
     /// TMQ schema changes in deserialized JSON format.
@@ -32,9 +54,19 @@ pub struct RawMessage {
 }
 
 impl RawMessage {
+    pub fn raw_only(mid: usize, mty: MessageType, raw: RawMeta) -> Self {
+        Self {
+            mid,
+            mty,
+            raw,
+            meta: None,
+            data: None,
+        }
+    }
     pub fn meta_only(mid: usize, raw: RawMeta, meta: Option<JsonMeta>) -> Self {
         Self {
             mid,
+            mty: MessageType::MetaOnly,
             raw,
             meta,
             data: None,
@@ -44,6 +76,7 @@ impl RawMessage {
     pub fn data_only(mid: usize, raw: RawMeta, data: Vec<RawBlock>) -> Self {
         Self {
             mid,
+            mty: MessageType::DataOnly,
             raw,
             meta: None,
             data: Some(data),
@@ -58,6 +91,7 @@ impl RawMessage {
     ) -> Self {
         Self {
             mid,
+            mty: MessageType::MetaData,
             raw,
             meta,
             data: Some(data),
@@ -119,7 +153,9 @@ impl RawMessage {
 pub enum WriteStrategy {
     /// Default strategy, prefer raw data if possible.
     #[default]
-    Default,
+    Auto,
+    /// Use raw2raw only for best performance.
+    Raw,
     /// Prefer interlace mode.
     Interlace,
     /// Prefer stmt, fallback to block-by-block if raw data failed.
@@ -133,11 +169,12 @@ pub enum WriteStrategy {
 impl From<&str> for WriteStrategy {
     fn from(s: &str) -> Self {
         match s {
+            "raw" => WriteStrategy::Raw,
             "stmt" => WriteStrategy::Stmt,
             "sql" => WriteStrategy::Sql,
             "interlace" => WriteStrategy::Interlace,
             "block" => WriteStrategy::Block,
-            _ => WriteStrategy::Default,
+            _ => WriteStrategy::Auto,
         }
     }
 }
@@ -155,7 +192,8 @@ impl From<&WriteStrategy> for &str {
             WriteStrategy::Stmt => "stmt",
             WriteStrategy::Sql => "sql",
             WriteStrategy::Block => "block",
-            WriteStrategy::Default => "default",
+            WriteStrategy::Raw => "raw",
+            WriteStrategy::Auto => "auto",
         }
     }
 }
@@ -169,7 +207,7 @@ impl WriteStrategy {
     pub fn from_env() -> Self {
         std::env::var("TMQ_MESSAGE_WRITE_STRATEGY")
             .map(|s| s.into())
-            .unwrap_or(WriteStrategy::Default)
+            .unwrap_or(WriteStrategy::Auto)
     }
 
     #[inline]
@@ -184,12 +222,17 @@ impl WriteStrategy {
 
     #[inline]
     pub fn is_default(&self) -> bool {
-        matches!(self, WriteStrategy::Default)
+        matches!(self, WriteStrategy::Auto)
     }
 
     #[inline]
     pub fn require_blocks(&self) -> bool {
-        !self.is_default()
+        !self.is_default() && !self.without_json_meta()
+    }
+
+    #[inline]
+    pub fn without_json_meta(&self) -> bool {
+        matches!(self, WriteStrategy::Raw)
     }
 }
 #[derive(Clone)]
@@ -213,38 +256,43 @@ impl WriteOptions {
 
     async fn parse_meta_only(&self, meta: &Meta, metrics: &TmqMetrics) -> Result<RawMessage> {
         let raw = meta.as_raw_meta().await?;
-        let json_meta = meta
-            .as_json_meta()
-            .in_current_span()
-            .await
-            .context("Fetch json meta error")
-            .ok();
+        let json_meta = if !self.actions.is_empty() || !self.strategy.without_json_meta() {
+            meta.as_json_meta()
+                .in_current_span()
+                .await
+                .context("Fetch json meta error")
+                .ok()
+        } else {
+            None
+        };
         metrics.add_messages_of_meta(1);
         Ok(RawMessage::meta_only(self.next_mid(), raw, json_meta))
     }
     async fn parse_data(&self, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
-        let raw = data.as_raw_data().await?;
+        let raw = unsafe {
+            std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
+                data.as_raw_data().await?,
+            )
+        };
+
+        if self.actions.is_empty() || self.strategy.require_blocks() {
+            return Ok(RawMessage::raw_only(
+                self.next_mid(),
+                MessageType::DataOnly,
+                raw,
+            ));
+        }
         // if !self.actions.is_empty() || self.strategy.require_blocks() {
         let mut vec = Vec::new();
-        while let Some(raw) = data
+        while let Some(block) = data
             .fetch_raw_block()
             .await
             .context("Fetch raw block error")?
         {
-            vec.push(raw);
+            vec.push(block);
         }
         metrics.add_messages_of_data(1);
-        Ok(RawMessage::data_only(
-            self.next_mid(),
-            unsafe { std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw) },
-            vec,
-        ))
-        // } else {
-        //     metrics.add_messages_of_data(1);
-        //     Ok(RawMessage::raw_only(self.next_mid(), unsafe {
-        //         std::mem::transmute(raw)
-        //     }))
-        // }
+        Ok(RawMessage::data_only(self.next_mid(), raw, vec))
     }
     async fn parse_meta_data(
         &self,
@@ -253,6 +301,13 @@ impl WriteOptions {
         metrics: &TmqMetrics,
     ) -> Result<RawMessage> {
         let raw = meta.as_raw_meta().await?;
+        if self.actions.is_empty() && self.strategy.without_json_meta() {
+            return Ok(RawMessage::raw_only(
+                self.next_mid(),
+                MessageType::MetaData,
+                raw,
+            ));
+        }
         let json_meta = meta
             .as_json_meta()
             .in_current_span()
@@ -1040,6 +1095,7 @@ impl Worker {
         let elapsed = now.elapsed();
         tracing::debug!(
             mid,
+            mty = message.mty as u8,
             elapsed = elapsed.as_millis(),
             rows,
             bytes = message.raw.raw_len(),
@@ -1054,6 +1110,10 @@ impl Worker {
             // Print error no matter how we will deal with it, so that we can know what happened.
             tracing::info!(error = format!("{err:#}"), "Write raw data error: {err:#}");
             let code = *err.code().deref();
+            if message.meta.is_none() && message.data.is_none() {
+                tracing::error!("Write raw into target error: {err:#}");
+                return Err(err).context("Write raw meta into target error");
+            }
             if let Some(meta) = &message.meta {
                 match code {
                     // Table not exist error codes.
