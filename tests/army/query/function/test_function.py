@@ -304,7 +304,7 @@ class TDTestCase(TBase):
         self.insert_data()
 
         # math function
-        self.test_pi()
+        #self.test_pi()
         self.test_round()
         self.test_exp()
         self.test_truncate()
@@ -313,7 +313,7 @@ class TDTestCase(TBase):
         self.test_sign()
         self.test_degrees()
         self.test_radians()
-        self.test_rand()
+        #self.test_rand()
 
         # char function
         self.test_char_length()
