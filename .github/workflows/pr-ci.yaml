@@ -112,7 +112,7 @@ jobs:
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp ./target/debug/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/release/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
           cd ..
           tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
           cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
@@ -135,7 +135,7 @@ jobs:
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/release/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_explorer:
     needs: remove_artifacts
