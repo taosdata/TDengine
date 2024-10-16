@@ -11,7 +11,7 @@ use rhai_dylib::rhai::{config::hashing::set_hashing_seed, Engine};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::{collections::HashMap, sync::Arc};
-use tracing::warn;
+use tracing::{instrument, warn};
 
 use super::Parse;
 
@@ -219,6 +219,7 @@ fn init_data_field(name: &str, data_type: DataType, cast_from: &str) -> Field {
     )]))
 }
 impl Udt {
+    #[instrument(skip_all)]
     fn parse_data(&self, item_raw_data: &str) -> Result<Vec<Dynamic>, super::ParseError> {
         if self.udt.ast.is_none() {
             let parse_error = self.udt.error.as_ref().unwrap();
@@ -228,15 +229,12 @@ impl Udt {
             )));
         }
 
-        let _map = ENGINE
+        let map = ENGINE
             .parse_json(item_raw_data, true)
-            .map_err(|rhai_error| {
-                tracing::error!("json parse error, the raw string: {}", item_raw_data);
-                super::ParseError::UdtError(*rhai_error)
-            })?;
+            .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
 
         let mut scope = Scope::new();
-        scope.push("data", _map);
+        scope.push("data", map);
 
         // 约定返回的数据为
         ENGINE
@@ -246,6 +244,7 @@ impl Udt {
 }
 
 impl Parse for Udt {
+    #[instrument(skip_all)]
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,
@@ -271,7 +270,13 @@ impl Parse for Udt {
                 continue;
             }
 
-            let rslt = self.parse_data(string_array_raw_data.value(i))?;
+            let rslt = match self.parse_data(string_array_raw_data.value(i)) {
+                Ok(res) => res,
+                Err(e) => {
+                    tracing::error!("udt parse data error: {e:?}");
+                    continue;
+                }
+            };
 
             for row_value in rslt {
                 // 将 row_value 转换为 其表达类型的值

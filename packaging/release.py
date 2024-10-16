@@ -22,10 +22,9 @@ test_process = ""
 # connector name
 pi_connector = "pi"
 opc_connector = "opc"
-mqtt_connector = "mqtt"
 influxdb_connector = "influxdb"
 opentsdb_connector = "opentsdb"
-all_connectors = [pi_connector, opc_connector, mqtt_connector, influxdb_connector, opentsdb_connector]
+all_connectors = [pi_connector, opc_connector, influxdb_connector, opentsdb_connector]
 
 class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
@@ -176,7 +175,7 @@ def init_build_info():
         help='Set the compilation mode of a submodule separately')
     parser.add_argument('-c', '--cpu_type', help='cpu [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] ')
     parser.add_argument('-o', '--objective', choices=['taosx', 'agent'], help='target package type(taosx, agent)')
-    parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
+    parser.add_argument('-t', '--test_process', help='test single process(pi,opc,taosx,package)')
     parser.add_argument('-ob', '--only_build', nargs='?', const=get_install_path(), help='only build taosx into this path.)')
     parser.add_argument('-vn', '--ver_number', help='tdengine enterprise version')
     parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
@@ -341,45 +340,11 @@ def build_and_install_opc_on_windows(mode):
         sys.exit()
 
 
-def build_and_install_mqtt_on_windows(mode):
-    print("buildAndInstallMQTT on windows start...")
-    mqtt_connector_path = os.path.join(taosx_dir, "plugins", "mqtt")
-    os.chdir(mqtt_connector_path)
-    print(mqtt_connector_path)
-    os.environ["GOOS"] = "windows"
-    os.environ["GOARCH"] = "amd64"
-    mqtt_app_name = "taosx-mqtt.exe"
-    base_build = f"go build -o dist/{mqtt_app_name}"
-    extend = f" -ldflags \"" \
-             f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={release_info.Commit} " \
-             f"-X \'github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={release_info.BuildTime}\'\""
-    build = base_build + extend
-    print(build)
-    os.system(build)
-
-    mqtt_install_path = os.path.join(release_info.InstallPath, "plugins", "mqtt")
-    init_directory(mqtt_install_path)
-    mqtt_path = os.path.join(mqtt_connector_path, "dist", mqtt_app_name)
-    try:
-        shutil.copy2(mqtt_path, mqtt_install_path)
-    except FileNotFoundError as e:
-        print("Build MQTT failed: ", e.strerror)
-        sys.exit()
-
-
 def build_and_install_opc(mode):
     if release_info.OS == 'Windows':
         build_and_install_opc_on_windows(mode)
     else:
         print('buildAndInstallOPC not supported on operating system:', release_info.OS)
-        sys.exit()
-
-
-def build_and_install_mqtt(mode):
-    if release_info.OS == 'Windows':
-        build_and_install_mqtt_on_windows(mode)
-    else:
-        print('buildAndInstallMQTT not supported on operating system:', release_info.OS)
         sys.exit()
 
 def copy_taosx_service_file(taosx_install_path):
@@ -656,9 +621,6 @@ def init_install_directory():
     pi_install_path = os.path.join(release_info.InstallPath, "plugins", pi_connector)
     init_directory(pi_install_path)
 
-    mqtt_install_path = os.path.join(release_info.InstallPath, "plugins", mqtt_connector)
-    init_directory(mqtt_install_path)
-
     influxdb_install_path = os.path.join(release_info.InstallPath, "plugins", influxdb_connector)
     init_directory(influxdb_install_path)
 
@@ -678,9 +640,6 @@ def test_handle_windows(process):
     elif process == opc_connector:
         print("Calling OPC function...")
         build_and_install_opc("Debug")
-    elif process == mqtt_connector:
-        print("Calling MQTT function...")
-        build_and_install_mqtt("Debug")
     elif process == "package":
         print("Calling Package function...")
         package()
@@ -739,9 +698,6 @@ if __name__ == '__main__':
             elif opc_connector == task.Name:
                 print("build taosx-opc")
                 build_and_install_opc(task.VersionMode)
-            elif mqtt_connector == task.Name:
-                print("build taosx-mqtt")
-                build_and_install_mqtt(task.VersionMode)
             elif influxdb_connector == task.Name:
                 print("build influxdb_connector")
                 build_and_install_influxdb(task.VersionMode)

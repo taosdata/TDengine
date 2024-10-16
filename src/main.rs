@@ -609,8 +609,6 @@ fn init_tracing_layers(
             .boxed(),
     );
 
-    // layers.push(filter_layer.boxed());
-
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
     {

@@ -6,6 +6,7 @@ use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
+pub mod defer;
 pub mod dsn;
 pub mod duration;
 pub mod files;

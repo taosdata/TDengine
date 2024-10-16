@@ -214,9 +214,6 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
     if let Ok(info) = opc::info() {
         plugins.push(info)
     }
-    if let Ok(info) = mqtt::info() {
-        plugins.push(info)
-    }
     if let Ok(info) = influxdb::info() {
         plugins.push(info)
     }

@@ -2809,9 +2809,13 @@ async fn consume_flat_record(
             continue;
         }
         let instant = std::time::Instant::now();
-        let batch = parser
-            .parse_message_from_records(batch, true)
-            .context("Transformer parse error")?;
+        let batch = tokio::task::spawn_blocking({
+            let parser = parser.clone();
+            let batch = batch.clone();
+            move || parser.parse_message_from_records(&batch, true)
+        })
+        .await?
+        .context("Transformer parse error")?;
         if tracing::event_enabled!(tracing::Level::TRACE) {
             let elapsed = instant.elapsed();
             tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
@@ -2941,7 +2945,7 @@ async fn consume_flat_record(
                         }
                     }
                 }
-                metrics.add_processed_rows(num_rows as u64);
+                // metrics.add_processed_rows(num_rows as u64);
             }
         }
     }
@@ -3267,7 +3271,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
             error!("Write ack error: {err:#}");
             err
         })?;
-        info!("Ack done");
+        tracing::trace!("Ack done");
         Ok(ack_writer)
     });
 
