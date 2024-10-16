@@ -282,6 +282,17 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
 }
 
 static void walAlignVersions(SWal* pWal) {
+  if (pWal->cfg.committed > 0 && pWal->cfg.committed != pWal->vers.snapshotVer) {
+    wWarn("vgId:%d, snapshotVer:%" PRId64 " in wal is different from commited:%" PRId64
+          ". in vnode/mnode. align with it.",
+          pWal->cfg.vgId, pWal->vers.snapshotVer, pWal->cfg.committed);
+    pWal->vers.snapshotVer = pWal->cfg.committed;
+  }
+  if (pWal->vers.snapshotVer < 0 && pWal->vers.firstVer > 0) {
+    wWarn("vgId:%d, snapshotVer:%" PRId64 " in wal is an invalid value. align it with firstVer:%" PRId64 ".",
+          pWal->cfg.vgId, pWal->vers.snapshotVer, pWal->vers.firstVer);
+    pWal->vers.snapshotVer = pWal->vers.firstVer;
+  }
   if (pWal->vers.firstVer > pWal->vers.snapshotVer + 1) {
     wWarn("vgId:%d, firstVer:%" PRId64 " is larger than snapshotVer:%" PRId64 " + 1. align with it.", pWal->cfg.vgId,
           pWal->vers.firstVer, pWal->vers.snapshotVer);

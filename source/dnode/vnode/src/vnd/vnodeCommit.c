@@ -257,6 +257,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   code = vnodeDecodeInfo(pData, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  pInfo->config.walCfg.committed = pInfo->state.committed;
 _exit:
   if (code) {
     if (pFile) {
