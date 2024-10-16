@@ -96,7 +96,7 @@ mod tests {
     fn test_eval_as_success() {
         let builder: ExprValueBuilder = serde_json::from_str(r#"{ "expr": "a - b"}"#).unwrap();
         let batch = RecordBatch::try_from_iter([
-            ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            ("a", Arc::new(Int64Array::from(vec![1, 3, 3])) as ArrayRef),
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
         .unwrap();
@@ -109,8 +109,9 @@ mod tests {
         assert_eq!(*field.data_type(), DataType::Boolean);
         assert_eq!(value.len(), 3);
         let arr = value.as_any().downcast_ref::<BooleanArray>().unwrap();
-        assert!(arr.value(0));
+
+        assert!(!arr.value(0));
         assert!(arr.value(1));
-        assert!(arr.value(2));
+        assert!(!arr.value(2));
     }
 }
