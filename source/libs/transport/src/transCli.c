@@ -506,9 +506,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
              (taosHashGetSize(conn->pQTable) != 0)) {
     tDebug("%s conn %p do balance directly", CONN_GET_INST_LABEL(conn), conn);
     TAOS_UNUSED(transHeapBalance(conn->heap, conn));
-  } else if ((transQueueSize(&conn->reqsToSend) == 0) &&
-             ((pInst->shareConnLimit >= 4) && ((transQueueSize(&conn->reqsSentOut) > 0) &&
-                                               transQueueSize(&conn->reqsSentOut) < pInst->shareConnLimit / 2))) {
+  } else {
     SCliConn* topConn = NULL;
     if (conn->heap != NULL) {
       code = transHeapGet(conn->heap, &topConn);
