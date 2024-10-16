@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mnode.h"
+#include "osFile.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
@@ -415,6 +416,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
+    if (taosCloseFile(&pFile) != 0) {
+      encryptError("failed to close file:%p", pFile);
+    }
     taosCloseLog();
     taosCleanupArgs();
     return ret;
