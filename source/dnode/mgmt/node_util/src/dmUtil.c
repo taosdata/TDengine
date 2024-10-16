@@ -74,6 +74,7 @@ void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   }
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
+  osUpdate();
   pInfo->disk_used = tsDataSpace.size.used;
   pInfo->disk_total = tsDataSpace.size.total;
   code = taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
