@@ -125,7 +125,7 @@ int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
 int32_t simDebugFlag = 131;
 
-int32_t tqClientDebug = 0;
+int32_t tqClientDebugFlag = 0;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;

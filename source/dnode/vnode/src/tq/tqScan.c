@@ -293,6 +293,54 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
   return code;
 }
 
+static int32_t buildCreateTbInfo(SMqDataRsp* pRsp, SVCreateTbReq* pCreateTbReq){
+  int32_t code = 0;
+  void*   createReq = NULL;
+  if (pRsp->createTableNum == 0) {
+    pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
+    if (pRsp->createTableLen == NULL) {
+      code = terrno;
+      goto END;
+    }
+    pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
+    if (pRsp->createTableReq == NULL) {
+      code = terrno;
+      goto END;
+    }
+  }
+
+  uint32_t len = 0;
+  tEncodeSize(tEncodeSVCreateTbReq, pCreateTbReq, len, code);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto END;
+  }
+  createReq = taosMemoryCalloc(1, len);
+  if (createReq == NULL){
+    code = terrno;
+    goto END;
+  }
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, createReq, len);
+  code = tEncodeSVCreateTbReq(&encoder, pCreateTbReq);
+  tEncoderClear(&encoder);
+  if (code < 0) {
+    goto END;
+  }
+  if (taosArrayPush(pRsp->createTableLen, &len) == NULL){
+    code = terrno;
+    goto END;
+  }
+  if (taosArrayPush(pRsp->createTableReq, &createReq) == NULL){
+    code = terrno;
+    goto END;
+  }
+  pRsp->createTableNum++;
+
+  return 0;
+END:
+  taosMemoryFree(createReq);
+  return code;
+}
 
 static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded){
   int32_t code = 0;
@@ -312,7 +360,8 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   }
 
   SSubmitTbData* pSubmitTbDataRet = NULL;
-  code = tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet);
+  int64_t createTime = INT64_MAX;
+  code = tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet, &createTime);
   if (code != 0) {
     tqError("vgId:%d, failed to retrieve block", pTq->pVnode->config.vgId);
     goto END;
@@ -330,46 +379,13 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     }
   }
   if (pHandle->fetchMeta != WITH_DATA && pSubmitTbDataRet->pCreateTbReq != NULL) {
-    if (pRsp->createTableNum == 0) {
-      pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
-      if (pRsp->createTableLen == NULL) {
-        code = terrno;
-        goto END;
-      }
-      pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
-      if (pRsp->createTableReq == NULL) {
-        code = terrno;
+    if (pSubmitTbDataRet->ctimeMs - createTime <= 1000) {  // judge if table is already created to avoid sending crateTbReq
+      code = buildCreateTbInfo(pRsp, pSubmitTbDataRet->pCreateTbReq);
+      if (code != 0){
+        tqError("vgId:%d, failed to build create table info", pTq->pVnode->config.vgId);
         goto END;
       }
     }
-
-    uint32_t len = 0;
-    tEncodeSize(tEncodeSVCreateTbReq, pSubmitTbDataRet->pCreateTbReq, len, code);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto END;
-    }
-    void*    createReq = taosMemoryCalloc(1, len);
-    if (createReq == NULL){
-      code = terrno;
-      goto END;
-    }
-    SEncoder encoder = {0};
-    tEncoderInit(&encoder, createReq, len);
-    code = tEncodeSVCreateTbReq(&encoder, pSubmitTbDataRet->pCreateTbReq);
-    tEncoderClear(&encoder);
-    if (code < 0) {
-      taosMemoryFree(createReq);
-      goto END;
-    }
-    if (taosArrayPush(pRsp->createTableLen, &len) == NULL){
-      taosMemoryFree(createReq);
-      goto END;
-    }
-    if (taosArrayPush(pRsp->createTableReq, &createReq) == NULL){
-      taosMemoryFree(createReq);
-      goto END;
-    }
-    pRsp->createTableNum++;
   }
   if (pHandle->fetchMeta == ONLY_META && pSubmitTbDataRet->pCreateTbReq == NULL) {
     goto END;

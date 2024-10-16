@@ -24,12 +24,9 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqFatalC(...) do { if (cDebugFlag & DEBUG_FATAL || tqClientDebug) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebug) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN || tqClientDebug)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, tqDebugFlag, __VA_ARGS__); }}       while(0)
-#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebug)  { taosPrintLog("TQ  ", DEBUG_INFO, tqDebugFlag, __VA_ARGS__); }}            while(0)
-#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTraceC(...) do { if (cDebugFlag & DEBUG_TRACE || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
@@ -957,7 +954,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  tqClientDebug = rsp.debugFlag;
+  tqClientDebugFlag = rsp.debugFlag;
   tDestroySMqHbRsp(&rsp);
 
 END:
