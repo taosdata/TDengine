@@ -497,10 +497,34 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     }
     addConnToPool(pThrd->pool, conn);
     return 1;
-  } else if ((transQueueSize(&conn->reqsToSend) == 0) &&
-             ((pInst->shareConnLimit >= 2) && (transQueueSize(&conn->reqsSentOut) > 0) &&
-              transQueueSize(&conn->reqsSentOut) <= pInst->shareConnLimit / 2)) {
+  } else if ((transQueueSize(&conn->reqsToSend) == 0) && (transQueueSize(&conn->reqsSentOut) == 0) &&
+             (taosHashGetSize(conn->pQTable) != 0)) {
+    tDebug("%s conn %p do balance directly", CONN_GET_INST_LABEL(conn), conn, conn);
     TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+  } else if ((transQueueSize(&conn->reqsToSend) == 0) &&
+             ((pInst->shareConnLimit >= 4) && ((transQueueSize(&conn->reqsSentOut) > 0) &&
+                                               transQueueSize(&conn->reqsSentOut) < pInst->shareConnLimit / 2))) {
+    SCliConn* topConn = NULL;
+    if (conn->heap != NULL) {
+      code = transHeapGet(conn->heap, &topConn);
+      if (code != 0) {
+        tDebug("%s conn %p failed to get top conn since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+        return 0;
+      }
+
+      if (topConn == conn) {
+        return 0;
+      }
+      int32_t topReqs = transQueueSize(&topConn->reqsSentOut) + transQueueSize(&topConn->reqsToSend);
+      int32_t currReqs = transQueueSize(&conn->reqsSentOut) + transQueueSize(&conn->reqsToSend);
+      if (topReqs <= currReqs) {
+        return 0;
+      } else {
+        tDebug("%s conn %p do balance conn heap since top conn has more reqs, topConnReqs:%d, currConnReqs:%d",
+               CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
+        TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+      }
+    }
   }
   return 0;
 }
