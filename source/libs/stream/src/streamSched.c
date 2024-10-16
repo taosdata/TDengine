@@ -22,7 +22,7 @@ static void streamTaskSchedHelper(void* param, void* tmrId);
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
   int64_t delaySchema = pTask->info.delaySchedParam;
   if (delaySchema != 0 && pTask->info.fillHistory == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    int32_t ref = streamMetaAcquireOneTask(pTask);
     stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
             pTask->info.delaySchedParam);
 
@@ -80,7 +80,7 @@ void streamTaskResumeInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  streamMetaAcquireOneTask(pTask);
+  int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);
   streamTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer, &pTask->schedInfo.pIdleTimer,
                  pTask->pMeta->vgId, "resume-task-tmr");
 }

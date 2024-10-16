@@ -692,7 +692,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   STaskId       id = {.streamId = pReq->streamId, .taskId = pReq->taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if ((ppTask != NULL) && ((*ppTask) != NULL)) {
-    streamMetaAcquireOneTask(*ppTask);
+    int32_t unusedRetRef = streamMetaAcquireOneTask(*ppTask);
     SStreamTask* pTask = *ppTask;
 
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {

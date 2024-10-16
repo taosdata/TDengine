@@ -753,9 +753,10 @@ int32_t streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t task
   return code;
 }
 
-void streamMetaAcquireOneTask(SStreamTask* pTask) {
+int32_t streamMetaAcquireOneTask(SStreamTask* pTask) {
   int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
   stTrace("s-task:%s acquire task, ref:%d", pTask->id.idStr, ref);
+  return ref;
 }
 
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
@@ -866,7 +867,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
-    // it is an fill-history task, remove the related stream task's id that points to it
+    // it is a fill-history task, remove the related stream task's id that points to it
     if (pTask->info.fillHistory == 0) {
       int32_t ret = atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
