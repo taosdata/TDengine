@@ -17,6 +17,7 @@ import time
 import sys
 from itertools import combinations
 from faker import Faker
+from datetime import datetime, timedelta
 import subprocess
 from Query.queryutil.createdata import *
 from taostest import TDCase
@@ -553,8 +554,8 @@ class TDTestQuery(TDCase):
 
     def cache_test(self,replica,func):
         dbname = 'db_cache'
-        table_num = random.randint(10000,50000)
-        table_per_row = random.randint(20,50)
+        table_num = random.randint(1000,5000)
+        table_per_row = random.randint(50,5000)
                
         if func == 'insert':
             self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
@@ -566,11 +567,19 @@ class TDTestQuery(TDCase):
         elif func == 'multi_insert':
             self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
             self.base_sql_count(dbname,table_num,table_per_row)
-            #self.insert_data_multi(dbname)
-            self.insert_data_multi_ok()
+            #self.insert_data_multi_bak1(dbname)
+            self.insert_data_multi()
             self.base_sql_count('%s_both' %dbname,table_num,table_per_row) 
             self.base_sql_count('%s_last_value' %dbname,table_num,table_per_row)
             self.base_sql_count('%s_last_row' %dbname,table_num,table_per_row)  
+        elif func == 'multi_delete_lastts':
+            self.delete_lastts_data_multi()
+        elif func == 'multi_delete_one_tenth_tables_lastts_data':
+            self.delete_one_tenth_tables_lastts_data_multi()
+        elif func == 'multi_delete_all':
+            self.delete_all_data_multi()
+        elif func == 'multi_add_one_row':
+            self.add_sample_ts_data_multi()
         elif func == 'base_insert':
             self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
             self.base_sql_count(dbname,table_num,table_per_row)
@@ -603,13 +612,10 @@ class TDTestQuery(TDCase):
             self.sql_last_check('%s'%dbname,"select last(phase) from meters;")
             self.sql_last_check('%s'%dbname,"select last_row(phase) from meters;")
             
-            # self.sql_last_check('%s'%dbname,"select last(groupid) from meters;")
-            # self.sql_last_check('%s'%dbname,"select last_row(groupid) from meters;")
-            
-            self.sql_last_check('%s'%dbname,"select last(ts) from meters group by tbname;")
-            self.sql_last_check('%s'%dbname,"select last_row(ts) from meters group by tbname;")
-            self.sql_last_check('%s'%dbname,"select last(ts) from meters partition by tbname;")
-            self.sql_last_check('%s'%dbname,"select last_row(ts) from meters partition by tbname;")
+            self.sql_last_check('%s'%dbname,"select last(ts) from meters group by tbname order by tbname;")
+            self.sql_last_check('%s'%dbname,"select last_row(ts) from meters group by tbname order by tbname;")
+            self.sql_last_check('%s'%dbname,"select last(ts) from meters partition by tbname order by tbname;")
+            self.sql_last_check('%s'%dbname,"select last_row(ts) from meters partition by tbname order by tbname;")
                         
             self.sql_last_check('%s'%dbname,"select last(ts) from meters group by tbname order by ts ;")
             self.sql_last_check('%s'%dbname,"select last_row(ts) from meters group by tbname order by ts ;")
@@ -693,7 +699,7 @@ class TDTestQuery(TDCase):
             insert_select_sql = "insert into %s_last_row.stb%d select * from %s.stb%d;" %(dbname,i,dbname,i)
             self.tdSql.query(insert_select_sql) 
             
-    def insert_data_multi(self,dbname):         
+    def insert_data_multi_bak1(self,dbname):         
         #drop
         self.tdSql.execute("drop database if exists %s_both;" %dbname) 
         self.tdSql.execute("drop database if exists %s_last_value;" %dbname) 
@@ -747,7 +753,7 @@ class TDTestQuery(TDCase):
             #self.tdSql.execute("%s;%s;%s;" %(insert_select_sql_both,insert_select_sql_last_value,insert_select_sql_last_row)) 
 
                 
-    def insert_data_multi_bak(self):   
+    def insert_data_multi_bak2(self):   
         #lock = threading.Lock()
         t11 = threading.Thread(target=self.both_insert, args=())
         t12 = threading.Thread(target=self.last_value_insert, args=())
@@ -762,18 +768,21 @@ class TDTestQuery(TDCase):
         t13.join()
         
                 
-    def insert_data_multi_ok(self):   
+    def insert_data_multi(self):   
         t11 = threading.Thread(target=self.base_insert, args=("both",))  
         t12 = threading.Thread(target=self.base_insert, args=("last_value",))  
         t13 = threading.Thread(target=self.base_insert, args=("last_row",))  
+        t14 = threading.Thread(target=self.base_insert, args=("none",))  
             
         t11.start()   
         t12.start()  
-        t13.start()  
+        t13.start() 
+        t14.start()   
         
         t11.join()
         t12.join()
         t13.join()
+        t14.join()
             
         
     def base_insert(self,db_suffix):   
@@ -843,7 +852,199 @@ class TDTestQuery(TDCase):
         
         endTime = time.time() 
         self.logger.info("-------DB :%s_%s create\insert over, cost %d s-------"%(dbname,db_suffix,endTime - startTime))
-                   
+        
+        self.alter_cachemodel('db_cache_none')
+        
+       
+    def delete_lastts_data_multi(self):   
+        t10 = threading.Thread(target=self.base_delete_lastts, args=("",)) 
+        t11 = threading.Thread(target=self.base_delete_lastts, args=("_both",))  
+        t12 = threading.Thread(target=self.base_delete_lastts, args=("_last_value",))  
+        t13 = threading.Thread(target=self.base_delete_lastts, args=("_last_row",))  
+        t14 = threading.Thread(target=self.base_delete_lastts, args=("_none",))  
+            
+        t10.start()
+        t11.start()   
+        t12.start()  
+        t13.start()  
+        t14.start() 
+        
+        t10.join()
+        t11.join()
+        t12.join()
+        t13.join()
+        t14.join()
+            
+        
+    def base_delete_lastts(self,db_suffix):   
+        dbname = 'db_cache'  
+        startTime = time.time()
+        #共用taos线程会出问题，所以分开可以避免
+        cur1 = taos.connect(host="%s" %(self.service_host), user="root", password="taosdata", config="/etc/taos/")
+        self.logger.info("-------DB :%s%s conn init-------"%(dbname,db_suffix))
+        
+        #get last ts
+        self.logger.info("-------get DB :%s%s last ts--------"%(dbname,db_suffix))
+        get_lastts_sql = "select last_row(ts) from %s.meters;" %dbname
+        result = cur1.query(get_lastts_sql)
+        results = result.fetch_all()
+        lastts_value = results[0][0]
+               
+        #create table & insert data
+        show_create_sql = "show %s.tables;" %dbname
+        rows = self.tdSql.query(show_create_sql).row_count  
+               
+        self.logger.info("------- start delete DB: %s%s table last ts data --delete ts=%s-----"%(dbname,db_suffix,lastts_value))
+        for i in range(rows):
+            delete_table_lastts_sql = "delete from %s%s.stb%d where ts = '%s';" %(dbname,db_suffix,i,lastts_value)
+            cur1.execute(delete_table_lastts_sql)
+        self.logger.info("------- delete DB: %s%s table last ts data over -------"%(dbname,db_suffix))   
+        
+        endTime = time.time() 
+        self.logger.info("-------DB :%s%s delete over, cost %d s-------"%(dbname,db_suffix,endTime - startTime))
+        
+        self.alter_cachemodel('db_cache_none')
+
+       
+    def delete_one_tenth_tables_lastts_data_multi(self):  
+        last_ts_offset = random.randint(1,10)
+        t10 = threading.Thread(target=self.base_delete_one_tenth_tables_lastts, args=("",last_ts_offset,)) 
+        t11 = threading.Thread(target=self.base_delete_one_tenth_tables_lastts, args=("_both",last_ts_offset,))  
+        t12 = threading.Thread(target=self.base_delete_one_tenth_tables_lastts, args=("_last_value",last_ts_offset,))  
+        t13 = threading.Thread(target=self.base_delete_one_tenth_tables_lastts, args=("_last_row",last_ts_offset,))  
+        t14 = threading.Thread(target=self.base_delete_one_tenth_tables_lastts, args=("_none",last_ts_offset,)) 
+            
+        t10.start()
+        t11.start()   
+        t12.start()  
+        t13.start()  
+        t14.start()  
+        
+        t10.join()
+        t11.join()
+        t12.join()
+        t13.join()
+        t14.join()
+            
+        
+    def base_delete_one_tenth_tables_lastts(self,db_suffix,last_ts_offset):   
+        dbname = 'db_cache'  
+        startTime = time.time()
+        #共用taos线程会出问题，所以分开可以避免
+        cur1 = taos.connect(host="%s" %(self.service_host), user="root", password="taosdata", config="/etc/taos/")
+        self.logger.info("-------DB :%s%s conn init-------"%(dbname,db_suffix))
+        
+        #get last ts
+        self.logger.info("-------get DB :%s%s last ts--------"%(dbname,db_suffix))
+        get_last_n_ts_sql = "select ts from %s.stb0 order by ts desc limit 1 offset %d ;" %(dbname,last_ts_offset)
+        result = cur1.query(get_last_n_ts_sql)
+        results = result.fetch_all()
+        lastts_value = results[0][0]
+               
+        #create table & insert data
+        show_create_sql = "show %s.tables;" %dbname
+        rows = self.tdSql.query(show_create_sql).row_count  
+               
+        self.logger.info("------- start delete DB: %s%s one_tenth table last ts data --delete ts >= %s-----"%(dbname,db_suffix,lastts_value))
+        for i in range(rows):
+            delete_table_lastts_sql = "delete from %s%s.stb%d where ts >= '%s';" %(dbname,db_suffix,i/10,lastts_value)
+            cur1.execute(delete_table_lastts_sql)
+        self.logger.info("------- delete DB: %s%s one_tenth table last ts data over -------"%(dbname,db_suffix))   
+        
+        endTime = time.time() 
+        self.logger.info("-------DB :%s%s delete over, cost %d s-------"%(dbname,db_suffix,endTime - startTime))
+
+        self.alter_cachemodel('db_cache_none')
+        
+       
+    def delete_all_data_multi(self):  
+        t11 = threading.Thread(target=self.base_delete_all, args=("_both",))  
+        t12 = threading.Thread(target=self.base_delete_all, args=("_last_value",))  
+        t13 = threading.Thread(target=self.base_delete_all, args=("_last_row",))  
+        t14 = threading.Thread(target=self.base_delete_all, args=("_none",))  
+            
+        t11.start()   
+        t12.start()  
+        t13.start()  
+        t14.start() 
+        
+        t11.join()
+        t12.join()
+        t13.join()
+        t14.join()
+            
+        
+    def base_delete_all(self,db_suffix):   
+        dbname = 'db_cache'  
+        startTime = time.time()
+        #共用taos线程会出问题，所以分开可以避免
+        cur1 = taos.connect(host="%s" %(self.service_host), user="root", password="taosdata", config="/etc/taos/")
+        self.logger.info("-------DB :%s%s conn init-------"%(dbname,db_suffix))
+               
+        self.logger.info("------- start delete DB: %s%s all data -----"%(dbname,db_suffix))
+        delete_all_sql = "delete from %s%s.meters;" %(dbname,db_suffix)
+        cur1.execute(delete_all_sql)
+        self.logger.info("------- delete DB: %s%s all data over -------"%(dbname,db_suffix))   
+        
+        endTime = time.time() 
+        self.logger.info("-------DB :%s%s delete over, cost %d s-------"%(dbname,db_suffix,endTime - startTime))
+        
+        self.alter_cachemodel('db_cache_none')
+        
+                
+    def add_sample_ts_data_multi(self):  
+        sample_ts_range = timedelta(random.randint(-10,10),hours = random.randint(0,23),minutes = random.randint(0,59),seconds = random.randint(0,59)) 
+        t10 = threading.Thread(target=self.base_add_sample_ts_data, args=("",sample_ts_range,)) 
+        t11 = threading.Thread(target=self.base_add_sample_ts_data, args=("_both",sample_ts_range,))  
+        t12 = threading.Thread(target=self.base_add_sample_ts_data, args=("_last_value",sample_ts_range,))  
+        t13 = threading.Thread(target=self.base_add_sample_ts_data, args=("_last_row",sample_ts_range,))  
+        t14 = threading.Thread(target=self.base_add_sample_ts_data, args=("_none",sample_ts_range,))  
+            
+        t10.start()
+        t11.start()   
+        t12.start()  
+        t13.start()  
+        t14.start()  
+        
+        t10.join()
+        t11.join()
+        t12.join()
+        t13.join()
+        t14.join()
+            
+        
+    def base_add_sample_ts_data(self,db_suffix,sample_ts_range):   
+        dbname = 'db_cache'  
+        startTime = time.time()
+        #共用taos线程会出问题，所以分开可以避免
+        cur1 = taos.connect(host="%s" %(self.service_host), user="root", password="taosdata", config="/etc/taos/")
+        self.logger.info("-------DB :%s%s conn init-------"%(dbname,db_suffix))
+        
+        #get last ts
+        self.logger.info("-------get DB :%s%s last ts--------"%(dbname,db_suffix))
+        get_lastts_sql = "select last_row(ts) from %s.meters;" %dbname
+        result = cur1.query(get_lastts_sql)
+        results = result.fetch_all()
+        lastts_value = results[0][0]
+        print(lastts_value,sample_ts_range)
+        insert_ts_value = lastts_value + sample_ts_range
+                
+        #create table & insert data
+        show_create_sql = "show %s.tables;" %dbname
+        rows = self.tdSql.query(show_create_sql).row_count  
+               
+        self.logger.info("------- start insert DB: %s%s table sample ts data --old ts=%s---add new ts=%s--------"%(dbname,db_suffix,lastts_value,insert_ts_value))
+        for i in range(rows):
+            insert_table_sample_ts_sql = "insert into %s%s.stb%d (ts) values('%s');" %(dbname,db_suffix,i,insert_ts_value)
+            cur1.execute(insert_table_sample_ts_sql)
+        self.logger.info("------- insert DB: %s%s table sample ts data over -------"%(dbname,db_suffix))   
+        
+        endTime = time.time() 
+        self.logger.info("-------DB :%s%s insert over, cost %d s-------"%(dbname,db_suffix,endTime - startTime))
+        
+        self.alter_cachemodel('db_cache_none')
+        
+                                       
     def both_insert(self):   
         dbname = 'db_cache'   
         #lock.acquire() 
@@ -879,16 +1080,241 @@ class TDTestQuery(TDCase):
             
             insert_select_sql = "insert into %s_both.stb%d select * from %s.stb%d;" %(dbname,i,dbname,i)
             self.tdSql.query(insert_select_sql)
+            
+        #lock.release()
+       
+    def last_value_insert(self):   
+        dbname = 'db_cache' 
+        #lock.acquire()     
+        #drop
+        self.tdSql.execute("drop database if exists %s_last_value;" %dbname) 
+        #create
+        vgroups = random.randint(1,20)
+        replica = random.randint(1,3)
+        cachesize = random.randint(1,100)
+        print(vgroups,replica,cachesize)
+        self.tdSql.execute("create database %s_last_value vgroups %d replica %d cachesize %d cachemodel 'last_value';" %(dbname,vgroups,replica,cachesize)) 
+                            
+        #create stable
+        show_create_sql = "show create stable  %s.meters;" %dbname
+        self.tdSql.query(show_create_sql)
+        create_stable_value = self.tdSql.getData(0,1) 
+        create_stable_value = create_stable_value.replace("CREATE STABLE ","CREATE STABLE %s_last_value."%dbname)
+        self.tdSql.execute("use %s_last_value;" %dbname)
+        self.tdSql.execute("%s;" %create_stable_value)  
+                  
+        #create table & insert data
+        show_create_sql = "show %s.tables;" %dbname
+        rows = self.tdSql.query(show_create_sql).row_count
+        
+        #self.tdSql.execute("use %s_last_value;" %dbname) 
+        for i in range(rows):
+            #self.tdSql.execute("use %s_last_value;" %dbname) 
+            show_create_sql = "show create table %s.stb%d;" %(dbname,i)
+            self.tdSql.query(show_create_sql)
+            create_table_value = self.tdSql.getData(0,1)   
+            create_table_value = create_table_value.replace("CREATE TABLE ","CREATE TABLE %s_last_value."%dbname).replace("USING ","USING %s_last_value."%dbname)            
+            self.tdSql.query("%s;" %create_table_value) 
+            
+            insert_select_sql = "insert into %s_last_value.stb%d select * from %s.stb%d;" %(dbname,i,dbname,i)
+            self.tdSql.query(insert_select_sql)
+            
+        #lock.release()
+       
+    def last_row_insert(self):   
+        dbname = 'db_cache'
+        #lock.acquire()       
+        #drop
+        self.tdSql.execute("drop database if exists %s_last_row;" %dbname) 
+        #create
+        vgroups = random.randint(1,20)
+        replica = random.randint(1,3)
+        cachesize = random.randint(1,100)
+        print(vgroups,replica,cachesize)
+        self.tdSql.execute("create database %s_last_row vgroups %d replica %d cachesize %d cachemodel 'last_row';" %(dbname,vgroups,replica,cachesize)) 
+                            
+        #create stable
+        show_create_sql = "show create stable  %s.meters;" %dbname
+        self.tdSql.query(show_create_sql)
+        create_stable_value = self.tdSql.getData(0,1) 
+        create_stable_value = create_stable_value.replace("CREATE STABLE ","CREATE STABLE %s_last_row."%dbname)
+        self.tdSql.execute("use %s_last_row;" %dbname) 
+        self.tdSql.execute("%s;" %create_stable_value) 
+ 
+        #create table & insert data
+        show_create_sql = "show %s.tables;" %dbname
+        rows = self.tdSql.query(show_create_sql).row_count
+        
+        #self.tdSql.execute("use %s_last_row;" %dbname) 
+        for i in range(rows):
+            #self.tdSql.execute("use %s_last_row;" %dbname) 
+            show_create_sql = "show create table %s.stb%d;" %(dbname,i)
+            self.tdSql.query(show_create_sql)
+            create_table_value = self.tdSql.getData(0,1)    
+            create_table_value = create_table_value.replace("CREATE TABLE ","CREATE TABLE %s_last_row."%dbname).replace("USING ","USING %s_last_row."%dbname)          
+            self.tdSql.query("%s;" %create_table_value) 
+            
+            insert_select_sql = "insert into %s_last_row.stb%d select * from %s.stb%d;" %(dbname,i,dbname,i)
+            self.tdSql.query(insert_select_sql)
+        
+        #lock.release()
 
-                                                                      
+    def sql_last_check_new(self,sql,dbname):
+        
+        self.tdSql.query(sql) 
+        none_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        both_sql = sql.replace("%s"%dbname,"%s_both"%dbname)    
+        self.tdSql.query(both_sql) 
+        both_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+          
+        last_value_sql = sql.replace("%s"%dbname,"%s_last_value"%(dbname))   
+        self.tdSql.query(last_value_sql)  
+        last_value_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        last_row_sql = sql.replace("%s"%dbname,"%s_last_row"%(dbname))   
+        self.tdSql.query(last_row_sql)   
+        last_row_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+        
+        last_row_sql = sql.replace("%s"%dbname,"%s_none"%(dbname))   
+        self.tdSql.query(last_row_sql)   
+        none_new_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+           
+        self.tdSql.checkEqual(none_value,both_value) 
+        self.tdSql.checkEqual(none_value,last_value_value) 
+        self.tdSql.checkEqual(none_value,last_row_value) 
+        self.tdSql.checkEqual(none_value,none_new_value) 
+        
+        # self.data_check(none_value,both_value) 
+        # self.data_check(none_value,last_value_value) 
+        # self.data_check(none_value,last_row_value)   
+        
+    def sql_last_check(self,dbname,sql):
+        
+        self.tdSql.execute("use %s;" %dbname) 
+        self.tdSql.query(sql) 
+        none_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        self.tdSql.execute("use %s_both;" %dbname) 
+        self.tdSql.query(sql) 
+        both_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        self.tdSql.execute("use %s_last_value;" %dbname)
+        self.tdSql.query(sql)  
+        last_value_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        self.tdSql.execute("use %s_last_row;" %dbname) 
+        self.tdSql.query(sql)  
+        last_row_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+            
+        self.tdSql.execute("use %s_none;" %dbname) 
+        self.tdSql.query(sql)  
+        none_new_value = self.tdSql.getData(0,0) 
+        self.tdSql.execute("reset query cache;")
+           
+        self.tdSql.checkEqual(none_value,both_value) 
+        self.tdSql.checkEqual(none_value,last_value_value) 
+        self.tdSql.checkEqual(none_value,last_row_value) 
+        self.tdSql.checkEqual(none_value,none_new_value) 
+        
+        # self.data_check(none_value,both_value) 
+        # self.data_check(none_value,last_value_value) 
+        # self.data_check(none_value,last_row_value)            
+
+    def data_check(self, elm, expect_elm , throw=True) -> bool:
+        """
+        用途：用于在比较元素相等
+        输入：两元素
+        返回：正常，失败
+        """
+        if elm == expect_elm:
+            self.logger.debug(f"checkEqual success, elm={elm} expect_elm={expect_elm}")
+            return True
+        else:
+            if throw:
+                raise AssertionError(f"checkEqual error, elm={elm} expect_elm={expect_elm}")
+            else:
+                self._set_error_msg(f"checkEqual error, elm={elm} expect_elm={expect_elm}")
+                return False
+
+    def alter_cachemodel(self,dbname):
+        i = random.randint(0,5)
+        cachesize = random.randint(1,666)
+        if i ==0:
+            self.logger.info("======this case test cachemodel none =========") 
+            # sql = "flush database %s ;"  %(dbname)  #select tbname,last_row(ts) from db_cache_none.meters partition by tbname order by tbname limit 3; 
+            # self.tdSql.query(sql,queryTimes=1)  
+        elif i ==1:
+            self.logger.info("======this case test cachemodel last_row =========")
+            sql = "alter database %s cachemodel 'last_row' cachesize %d;"  %(dbname,cachesize)
+            self.tdSql.query(sql,queryTimes=1)  
+        elif i ==2:
+            self.logger.info("======this case test cachemodel last_value =========")
+            sql = "alter database %s cachemodel 'last_value' cachesize %d;"  %(dbname,cachesize)
+            self.tdSql.query(sql,queryTimes=1)
+        else:
+            self.logger.info("======this case test cachemodel both =========")
+            sql = "alter database %s cachemodel 'both' cachesize %d;"  %(dbname,cachesize)
+            self.tdSql.query(sql,queryTimes=1)
+        #pass
+                                                                              
     def run(self):
         startTime = time.time() 
         
         #self.countdb_diy(replica=1,func='count')
         #self.cache_test(replica=1,func='insert')
-        self.cache_test(replica=1,func='multi_insert')
         #self.cache_test(replica=1,func='base_insert')
+        
+        self.cache_test(replica=1,func='multi_insert')
         self.cache_test(replica=1,func='querylast')
+        
+        for i in range(300):
+            self.logger.info("-------delete last ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_delete_lastts')        
+            self.cache_test(replica=1,func='querylast')
+            self.logger.info("-------add sample ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_add_one_row')        
+            self.cache_test(replica=1,func='querylast')
+            self.logger.info("-------delete one/tenth tables last ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_delete_one_tenth_tables_lastts_data')        
+            self.cache_test(replica=1,func='querylast')
+            
+        self.logger.info("-------delete all data in range(%d)--------"%(i))
+        self.cache_test(replica=1,func='multi_delete_all') 
+        self.insert_data_multi()   
+        self.cache_test(replica=1,func='querylast')
+        
+        for i in range(300):
+            self.logger.info("-------delete last ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_delete_lastts')        
+            self.cache_test(replica=1,func='querylast')
+            self.logger.info("-------add sample ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_add_one_row')        
+            self.cache_test(replica=1,func='querylast')
+            self.logger.info("-------delete one/tenth tables last ts in range(%d)--------"%(i))
+            self.cache_test(replica=1,func='multi_delete_one_tenth_tables_lastts_data')        
+            self.cache_test(replica=1,func='querylast')
+            
+        
+        # for i in range(3):
+        #     # self.logger.info("-------delete last ts in range(%d)--------"%(i))
+        #     # self.cache_test(replica=1,func='multi_delete_lastts')    
+        #     # self.logger.info("-------add sample ts in range(%d)--------"%(i))
+        #     # self.cache_test(replica=1,func='multi_add_one_row')  
+        #     self.logger.info("-------delete one/tenth tables last ts in range(%d)--------"%(i))
+        #     self.cache_test(replica=1,func='multi_delete_one_tenth_tables_lastts_data')        
+        #     self.cache_test(replica=1,func='querylast')
+        #     self.cache_test(replica=1,func='multi_delete_all')        
+        #     self.cache_test(replica=1,func='querylast')
 
         endTime = time.time()
         
