@@ -355,8 +355,8 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
     return code;
   }
 
-  if (metaBegin(pNewMeta, META_BEGIN_HEAP_NIL) != 0) {
-    metaError("vgId:%d failed to begin new meta", TD_VID(pVnode));
+  if ((code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL)) != 0) {
+    metaError("vgId:%d failed to begin new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
   }
   metaClose(&pNewMeta);
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
@@ -370,11 +370,6 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   }
 
   if (generateNewMeta) {
-    code = metaGenerateNewMeta(ppMeta);
-    if (code) {
-      metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
-    }
-
     // backup the old meta
     char path[TSDB_FILENAME_LEN] = {0};
     char oldMetaPath[TSDB_FILENAME_LEN] = {0};
@@ -385,6 +380,16 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     snprintf(oldMetaPath, sizeof(oldMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_DIR);
     snprintf(newMetaPath, sizeof(newMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_TMP_DIR);
     snprintf(backupMetaPath, sizeof(backupMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_BACKUP_DIR);
+
+    if (taosCheckExistFile(backupMetaPath)) {
+      metaError("vgId:%d backup meta already exists, please check", TD_VID(pVnode));
+      return TSDB_CODE_FAILED;
+    }
+
+    code = metaGenerateNewMeta(ppMeta);
+    if (code) {
+      metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    }
 
     metaClose(ppMeta);
     if (taosRenameFile(oldMetaPath, backupMetaPath) != 0) {
