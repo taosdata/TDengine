@@ -9,7 +9,7 @@ target_include_directories(tcsTest
 
 target_link_libraries(tcsTest
     tcs
-    gtest_main
+    common gtest_main
 )
 enable_testing()
 add_test(
