@@ -98,24 +98,23 @@ class TDTestCase:
             tdsql.checkData(0, 1, 10)
             tdsql.checkData(1, 1, 30)
     
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 < 20 or v1 > 30)) order by t1")
-            # tdsql.checkRows(1)
-            # 
-            # tdsql.checkData(0, 1, 20)
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 < 20 or v1 >= 30)) order by t1")
-            # tdsql.checkRows(2)
-            # 
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 != 1)) order by t1")
-            # tdsql.checkRows(2)
-            # 
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 > 2)) order by t1")
-            # tdsql.checkRows(1)
-            # 
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 == 2)) order by t1")
-            # tdsql.checkRows(1)
-            # 
-            # tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 > 10 and v1 < 30)) order by t1")
-            # tdsql.checkRows(1)
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 < 20 or v1 > 30)) order by t1")
+            tdsql.checkRows(1)
+
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 < 20 or v1 >= 30)) order by t1")
+            tdsql.checkRows(2)
+
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 != 1)) order by t1")
+            tdsql.checkRows(2)
+
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 > 2)) order by t1")
+            tdsql.checkRows(1)
+
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (t1 == 2)) order by t1")
+            tdsql.checkRows(1)
+
+            tdsql.query(f"select * from {dbname}.{stbname} where not(not (v1 > 10 and v1 < 30)) order by t1")
+            tdsql.checkRows(1)
 
     def run(self):
         dbname = "db"
