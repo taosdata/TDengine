@@ -13,7 +13,7 @@ if(${BUILD_WITH_ROCKSDB})
     target_link_libraries(
       stream
       PUBLIC rocksdb tdb
-      PRIVATE  os util transport qcom executor wal index
+      PRIVATE  os util transport qcom executor wal index tcs
     )
     target_include_directories(
       stream
@@ -32,13 +32,13 @@ if(${BUILD_WITH_ROCKSDB})
     target_link_libraries(
       stream
       PUBLIC rocksdb tdb
-      PRIVATE  os util transport qcom executor wal index
+      PRIVATE  os util transport qcom executor wal index tcs
     )
     else() 
       target_link_libraries(
         stream
         PUBLIC rocksdb tdb
-        PRIVATE  os util transport qcom executor wal index
+        PRIVATE  os util transport qcom executor wal index tcs
       )
       target_include_directories(
         stream

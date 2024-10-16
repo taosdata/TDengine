@@ -1,6 +1,6 @@
-aux_source_directory(src TOS_SRC)
+aux_source_directory(src TCS_SRC)
 
-add_library(tcs STATIC ${TOS_SRC})
+add_library(tcs STATIC ${TCS_SRC})
 target_include_directories(
     tcs
     PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"

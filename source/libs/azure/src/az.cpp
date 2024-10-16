@@ -49,13 +49,13 @@ static void azDumpCfgByEp(int8_t epIndex) {
                 "%-24s %s\n"
                 "%-24s %s\n"
                 "%-24s %s\n"
-    //          "%-24s %s\n"
+                "%-24s %s\n"
                 "%-24s %s\n"
                 "%-24s %s\n",
                 "hostName", tsS3Hostname[epIndex],
                 "bucketName", tsS3BucketName,
                 "protocol", "https only",
-    //"uristyle", (uriStyleG[epIndex] == S3UriStyleVirtualHost ? "virtualhost" : "path"),
+                "uristyle", "path only",
                 "accessKey", tsS3AccessKeyId[epIndex],
                 "accessKeySecret", tsS3AccessKeySecret[epIndex]);
   // clang-format on

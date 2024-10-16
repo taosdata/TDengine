@@ -43,6 +43,7 @@ int32_t tcsInit() {
     tcs.GetObjectsByPrefix = s3GetObjectsByPrefix;
     tcs.DeleteObjects = s3DeleteObjects;
     tcs.GetObjectToFile = s3GetObjectToFile;
+
   } else if (TOS_PROTO_ABLOB == proto) {
     tcs.Begin = azBegin;
     tcs.End = azEnd;
@@ -74,19 +75,19 @@ int32_t tcsCheckCfg() {
   int32_t code = 0;
 
   if (!tsS3Enabled) {
-    (void)fprintf(stderr, "s3 not configured.\n");
+    (void)fprintf(stderr, "tcs not configured.\n");
     TAOS_RETURN(code);
   }
 
   code = tcsInit();
   if (code != 0) {
-    (void)fprintf(stderr, "failed to initialize s3.\n");
+    (void)fprintf(stderr, "failed to initialize tcs.\n");
     TAOS_RETURN(code);
   }
 
   code = tcs.CheckCfg();
   if (code != 0) {
-    (void)fprintf(stderr, "failed to check s3.\n");
+    (void)fprintf(stderr, "failed to check tcs.\n");
     TAOS_RETURN(code);
   }
 
