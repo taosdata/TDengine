@@ -14,39 +14,15 @@
  */
 
 #include "tcs.h"
-
 #include "os.h"
 #include "taoserror.h"
+#include "tcsInt.h"
 #include "tglobal.h"
 
 #include "az.h"
 #include "cos.h"
 
-extern int8_t tsS3Ablob;
-
-typedef enum {
-  TOS_PROTO_NIL,
-  TOS_PROTO_S3,
-  TOS_PROTO_ABLOB,
-} STosProto;
-
-typedef struct {
-  int32_t (*Begin)();
-  void (*End)();
-  int32_t (*CheckCfg)();
-
-  int32_t (*PutObjectFromFileOffset)(const char* file, const char* object_name, int64_t offset, int64_t size);
-  int32_t (*GetObjectBlock)(const char* object_name, int64_t offset, int64_t size, bool check, uint8_t** ppBlock);
-
-  void (*DeleteObjectsByPrefix)(const char* prefix);
-
-  int32_t (*PutObjectFromFile2)(const char* file, const char* object, int8_t withcp);
-  int32_t (*GetObjectsByPrefix)(const char* prefix, const char* path);
-  int32_t (*DeleteObjects)(const char* object_name[], int nobject);
-  int32_t (*GetObjectToFile)(const char* object_name, const char* fileName);
-} STcs;
-
-static STcs tcs;
+STcs tcs;
 
 int32_t tcsInit() {
   int32_t code = 0;
@@ -108,12 +84,6 @@ int32_t tcsCheckCfg() {
     TAOS_RETURN(code);
   }
 
-  code = s3Begin();
-  if (code != 0) {
-    (void)fprintf(stderr, "failed to begin s3.\n");
-    TAOS_RETURN(code);
-  }
-
   code = tcs.CheckCfg();
   if (code != 0) {
     (void)fprintf(stderr, "failed to check s3.\n");
@@ -134,15 +104,3 @@ int32_t tcsGetObjectBlock(const char* object_name, int64_t offset, int64_t size,
 }
 
 void tcsDeleteObjectsByPrefix(const char* prefix) { return tcs.DeleteObjectsByPrefix(prefix); }
-
-int32_t tcsPutObjectFromFile2(const char* file, const char* object, int8_t withcp) {
-  return tcs.PutObjectFromFile2(file, object, withcp);
-}
-
-int32_t tcsGetObjectsByPrefix(const char* prefix, const char* path) { return tcs.GetObjectsByPrefix(prefix, path); }
-
-int32_t tcsDeleteObjects(const char* object_name[], int nobject) { return tcs.DeleteObjects(object_name, nobject); }
-
-int32_t tcsGetObjectToFile(const char* object_name, const char* fileName) {
-  return tcs.GetObjectToFile(object_name, fileName);
-}
