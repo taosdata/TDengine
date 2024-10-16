@@ -1158,7 +1158,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
     if (old == 0) {
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s start checkpoint-ready monitor in 10s, ref:%d ", pTask->id.idStr, ref);
-      streamMetaAcquireOneTask(pTask);
+      int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);
 
       streamTmrStart(chkptReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
                      "chkpt-ready-monitor");
