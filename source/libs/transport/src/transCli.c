@@ -480,6 +480,7 @@ int32_t cliGetReqBySeq(SCliConn* conn, int64_t seq, int32_t msgType, SCliReq** p
 int8_t cliMayRecycleConn(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
     cliResetConnTimer(conn);
@@ -496,6 +497,10 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     }
     addConnToPool(pThrd->pool, conn);
     return 1;
+  } else if ((transQueueSize(&conn->reqsToSend) == 0) &&
+             ((pInst->shareConnLimit >= 2) && (transQueueSize(&conn->reqsSentOut) > 0) &&
+              transQueueSize(&conn->reqsSentOut) <= pInst->shareConnLimit / 2)) {
+    TAOS_UNUSED(transHeapBalance(conn->heap, conn));
   }
   return 0;
 }
