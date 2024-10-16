@@ -4,6 +4,7 @@
 #include <queue>
 
 #include "tcs.h"
+#include "tcsInt.h"
 
 int32_t tcsInitEnv() {
   int32_t code = 0;
@@ -19,7 +20,21 @@ int32_t tcsInitEnv() {
   tsS3AccessKeySecret[0] = "<access-key-secret/account-key>";
   tsS3BucketName = "<bucket/container-name>";
   */
+
+  const char *hostname = "endpoint/<account-name>.blob.core.windows.net";
+  const char *accessKeyId = "<access-key-id/account-name>";
+  const char *accessKeySecret = "<access-key-secret/account-key>";
+  const char *bucketName = "<bucket/container-name>";
+
+  tstrncpy(&tsS3Hostname[0][0], hostname, TSDB_FQDN_LEN);
+  tstrncpy(&tsS3AccessKeyId[0][0], accessKeyId, TSDB_FQDN_LEN);
+  tstrncpy(&tsS3AccessKeySecret[0][0], accessKeySecret, TSDB_FQDN_LEN);
+  tstrncpy(tsS3BucketName, bucketName, TSDB_FQDN_LEN);
+
+  tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
+
   tsS3Enabled = true;
+  tsS3Ablob = true;
 
   return code;
 }
@@ -28,11 +43,10 @@ int32_t tcsInitEnv() {
 TEST(TcsTest, InterfaceTest) {
   int code = 0;
 
-  if (!tsS3Enabled) {
-    (void)fprintf(stderr, "tcs not configured.\n");
-
-    return;
-  }
+  code = tcsInitEnv();
+  GTEST_ASSERT_EQ(code, 0);
+  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsS3Ablob, 1);
 
   code = tcsInit();
   GTEST_ASSERT_EQ(code, 0);

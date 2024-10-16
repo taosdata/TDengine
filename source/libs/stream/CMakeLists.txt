@@ -12,8 +12,8 @@ if(${BUILD_WITH_ROCKSDB})
   if (${BUILD_CONTRIB})
     target_link_libraries(
       stream
-      PUBLIC rocksdb tdb
-      PRIVATE  os util transport qcom executor wal index tcs
+      PUBLIC rocksdb tdb tcs
+      PRIVATE  os util transport qcom executor wal index
     )
     target_include_directories(
       stream
@@ -31,14 +31,14 @@ if(${BUILD_WITH_ROCKSDB})
     )
     target_link_libraries(
       stream
-      PUBLIC rocksdb tdb
-      PRIVATE  os util transport qcom executor wal index tcs
+      PUBLIC rocksdb tdb tcs
+      PRIVATE  os util transport qcom executor wal index
     )
     else() 
       target_link_libraries(
         stream
-        PUBLIC rocksdb tdb
-        PRIVATE  os util transport qcom executor wal index tcs
+        PUBLIC rocksdb tdb tcs
+        PRIVATE  os util transport qcom executor wal index
       )
       target_include_directories(
         stream
@@ -59,4 +59,3 @@ endif(${BUILD_WITH_ROCKSDB})
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
-

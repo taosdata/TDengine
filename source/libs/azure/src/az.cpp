@@ -72,8 +72,6 @@ static int32_t azListBucket(char const *bucketname) {
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
 
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
     std::string containerName = bucketname;
@@ -216,8 +214,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
 
-    std::string                 accountURL = tsS3Hostname[0];
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+    std::string accountURL = tsS3Hostname[0];
 
     accountURL = "https://" + accountURL;
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
@@ -277,8 +274,6 @@ int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t si
 
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
-
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
 
     accountURL = "https://" + accountURL;
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
@@ -353,8 +348,6 @@ void azDeleteObjectsByPrefix(const char *prefix) {
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
 
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
     std::string containerName = tsS3BucketName;
@@ -414,8 +407,6 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
 
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
     std::string containerName = tsS3BucketName;
@@ -449,8 +440,6 @@ int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
 
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
-
-    StorageSharedKeyCredential *pSharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
 
     BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
 
