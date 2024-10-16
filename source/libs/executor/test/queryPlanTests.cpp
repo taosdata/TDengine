@@ -195,6 +195,8 @@ SNode* qptCreateStreamScanPhysiNode(int32_t nodeType);
 SNode* qptCreateSysTableScanPhysiNode(int32_t nodeType);
 SNode* qptCreateBlockDistScanPhysiNode(int32_t nodeType);
 SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType);
+SNode* qptCreateTableCountScanPhysiNode(int32_t nodeType);
+
 SNode* qptCreateProjectPhysiNode(int32_t nodeType);
 SNode* qptCreateMergeJoinPhysiNode(int32_t nodeType);
 SNode* qptCreateHashAggPhysiNode(int32_t nodeType);
@@ -208,6 +210,7 @@ SNode* qptCreateMergeAlignedIntervalPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamIntervalPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamFinalIntervalPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamSemiIntervalPhysiNode(int32_t nodeType);
+SNode* qptCreateStreamMidIntervalPhysiNode(int32_t nodeType);
 SNode* qptCreateFillPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamFillPhysiNode(int32_t nodeType);
 SNode* qptCreateSessionPhysiNode(int32_t nodeType);
@@ -218,6 +221,19 @@ SNode* qptCreateStateWindowPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamStatePhysiNode(int32_t nodeType);
 SNode* qptCreatePartitionPhysiNode(int32_t nodeType);
 SNode* qptCreateStreamPartitionPhysiNode(int32_t nodeType);
+SNode* qptCreateIndefRowsFuncPhysiNode(int32_t nodeType);
+SNode* qptCreateInterpFuncPhysiNode(int32_t nodeType);
+SNode* qptCreateMergeEventPhysiNode(int32_t nodeType);
+SNode* qptCreateStreamEventPhysiNode(int32_t nodeType);
+SNode* qptCreateCountWindowPhysiNode(int32_t nodeType);
+SNode* qptCreateStreamCountWindowPhysiNode(int32_t nodeType);
+SNode* qptCreateHashJoinPhysiNode(int32_t nodeType);
+SNode* qptCreateGroupCachePhysiNode(int32_t nodeType);
+SNode* qptCreateDynQueryCtrlPhysiNode(int32_t nodeType);
+SNode* qptCreateDataDispatchPhysiNode(int32_t nodeType);
+SNode* qptCreateDataInsertPhysiNode(int32_t nodeType);
+SNode* qptCreateDataQueryInsertPhysiNode(int32_t nodeType);
+
 
 SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, "tagScan", qptCreateTagScanPhysiNode},
@@ -251,23 +267,23 @@ SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, "streamState", qptCreateStreamStatePhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_PARTITION, "partition", qptCreatePartitionPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, "streamPartition", qptCreateStreamPartitionPhysiNode},
-  {QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_DISPATCH, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_INSERT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_DELETE, "", NULL},
+  {QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, "indefRowsFunc", qptCreateIndefRowsFuncPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, "interpFunc", qptCreateInterpFuncPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_DISPATCH, "dataDispatch", qptCreateDataDispatchPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_INSERT, "dataInseret", qptCreateDataInsertPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT, "dataQueryInsert", qptCreateDataQueryInsertPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_DELETE, "dataDelete", NULL},
   {QUERY_NODE_PHYSICAL_SUBPLAN, "", NULL},
   {QUERY_NODE_PHYSICAL_PLAN, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL, "", NULL}
+  {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, "tableCountScan", qptCreateTableCountScanPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, "eventWindow", qptCreateMergeEventPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, "streamEventWindow", qptCreateStreamEventPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, "hashJoin", qptCreateHashJoinPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, "groupCache", qptCreateGroupCachePhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL, "dynQueryCtrl", qptCreateDynQueryCtrlPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT, "countWindow", qptCreateCountWindowPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, "streamCountWindow", qptCreateStreamCountWindowPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL, "streamMidInterval", qptCreateStreamMidIntervalPhysiNode}
 };
 
 
@@ -282,7 +298,7 @@ SQPTPlan qptPlans[] = {
 #define QPT_CORRECT_HIGH_PROB() (qptCtx.param.correctExpected || QPT_HIGH_PROB())
 #define QPT_NCORRECT_LOW_PROB() (!qptCtx.param.correctExpected && QPT_LOW_PROB())
 
-
+#define QPT_VALID_DESC(_desc) ((_desc) && (QUERY_NODE_DATABLOCK_DESC == nodeType(_desc)))
 
 SQPTCtx qptCtx = {0};
 SQPTCtrl qptCtrl = {1, 0, 0, 0, 0};
@@ -1438,19 +1454,6 @@ SNode* qptMakeConditionNode() {
   return pNode;
 }
 
-SNode* qptMakeDataBlockDescNode() {
-  if (QPT_NCORRECT_LOW_PROB()) {
-    return qptMakeRandNode(NULL);
-  }
-
-  SDataBlockDescNode* pDesc = NULL;
-  assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
-  
-  pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? qptCtx.buildCtx.nextBlockId++ : QPT_RAND_INT_V;
-  pDesc->precision = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.db.precision : QPT_RAND_INT_V;
-
-  return (SNode*)pDesc;
-}
 
 SNode* qptMakeSlotDescNode(const char* pName, const SNode* pNode, int16_t slotId, bool output, bool reserve) {
   SSlotDescNode* pSlot = NULL;
@@ -1473,6 +1476,75 @@ SNode* qptMakeSlotDescNode(const char* pName, const SNode* pNode, int16_t slotId
   
   return (SNode*)pSlot;
 }
+
+
+SNode* qptMakeDataBlockDescNode(bool forSink) {
+  if (QPT_NCORRECT_LOW_PROB()) {
+    return qptMakeRandNode(NULL);
+  }
+
+  SDataBlockDescNode* pDesc = NULL;
+  assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+  
+  pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? (forSink ? (qptCtx.buildCtx.nextBlockId - 1) : qptCtx.buildCtx.nextBlockId++) : QPT_RAND_INT_V;
+  pDesc->precision = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.db.precision : QPT_RAND_INT_V;
+
+  return (SNode*)pDesc;
+}
+
+SNode* qptMakeDataBlockDescNodeFromNode(bool forSink) {
+  if (QPT_NCORRECT_LOW_PROB()) {
+    return qptMakeRandNode(NULL);
+  }
+
+  SDataBlockDescNode* pDesc = NULL;
+  SDataBlockDescNode* pInput = qptCtx.buildCtx.pCurr ? qptCtx.buildCtx.pCurr->pOutputDataBlockDesc : NULL;
+  SNode* pTmp = NULL, *pTmp2 = NULL;
+
+  if (QPT_VALID_DESC(pInput)) {
+    if (QPT_CORRECT_HIGH_PROB()) {
+      nodesCloneNode((SNode*)pInput, (SNode**)&pDesc);
+    } else {
+      assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+
+      pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? pInput->dataBlockId : QPT_RAND_INT_V;
+      pDesc->precision = QPT_CORRECT_HIGH_PROB() ? pInput->precision : QPT_RAND_INT_V;
+      pDesc->totalRowSize = QPT_CORRECT_HIGH_PROB() ? pInput->totalRowSize : QPT_RAND_INT_V;
+      pDesc->outputRowSize = QPT_CORRECT_HIGH_PROB() ? pInput->outputRowSize : QPT_RAND_INT_V;
+
+      FOREACH(pTmp, pInput->pSlots) {
+        if (QPT_RAND_BOOL_V) {
+          nodesCloneNode(pTmp, &pTmp2);
+          qptNodesListMakeStrictAppend(&pDesc->pSlots, pTmp2);
+        }
+      }
+    }
+  } else {
+    assert(0 == nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc));
+    
+    pDesc->dataBlockId = QPT_CORRECT_HIGH_PROB() ? (forSink ? (qptCtx.buildCtx.nextBlockId - 1) : qptCtx.buildCtx.nextBlockId++) : QPT_RAND_INT_V;
+    pDesc->precision = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.db.precision : QPT_RAND_INT_V;
+    pDesc->totalRowSize = QPT_RAND_INT_V;
+    pDesc->outputRowSize = QPT_RAND_INT_V;
+
+    int32_t slotNum = taosRand() % QPT_MAX_COLUMN_NUM;
+    for (int32_t i = 0; i < slotNum; ++i) {
+      pTmp2 = qptMakeExprNode(NULL);
+      if (QPT_CORRECT_HIGH_PROB()) {
+        pTmp = qptMakeSlotDescNode(NULL, pTmp2, i, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V);
+        nodesDestroyNode(pTmp2);
+      } else {
+        pTmp = pTmp2;
+      }
+
+      qptNodesListMakeStrictAppend(&pDesc->pSlots, pTmp);
+    }
+  }
+
+  return (SNode*)pDesc;
+}
+
+
 
 SNode* qptMakeTargetNode(SNode* pNode, int16_t dataBlockId, int16_t slotId, SNode** pOutput) {
   if (QPT_NCORRECT_LOW_PROB()) {
@@ -1547,7 +1619,7 @@ SPhysiNode* qptCreatePhysiNode(int32_t nodeType) {
   pPhysiNode->dynamicOp = qptGetDynamicOp();
   pPhysiNode->inputTsOrder = qptGetCurrTsOrder();
 
-  pPhysiNode->pOutputDataBlockDesc = (SDataBlockDescNode*)qptMakeDataBlockDescNode();
+  pPhysiNode->pOutputDataBlockDesc = (SDataBlockDescNode*)qptMakeDataBlockDescNode(false);
 
   return pPhysiNode;
 }
@@ -1649,7 +1721,7 @@ void qptCreateTableScanPseudoCols(       int16_t blockId, SNodeList** ppList) {
 
 
 void qptAddDataBlockSlots(SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  if (NULL == pDataBlockDesc) {
+  if (NULL == pDataBlockDesc || QUERY_NODE_DATABLOCK_DESC != nodeType(pDataBlockDesc)) {
     return;
   }
   
@@ -1838,35 +1910,36 @@ void qptMakeAppendToTargetList(SNodeList* pInputList, int16_t blockId, SNodeList
   }
 }
 
-void qptCreateScanPhysiNodeImpl(         SScanPhysiNode* pScanPhysiNode) {
-  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pScanPhysiNode->node.pOutputDataBlockDesc) ? pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId : taosRand();
-  qptCreateTableScanCols(blockId, &pScanPhysiNode->pScanCols);
+void qptCreateScanPhysiNodeImpl(         SScanPhysiNode* pScan) {
+  SDataBlockDescNode* pDesc = pScan->node.pOutputDataBlockDesc;
+  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && QPT_VALID_DESC(pDesc)) ? pDesc->dataBlockId : taosRand();
+  qptCreateTableScanCols(blockId, &pScan->pScanCols);
 
-  qptAddDataBlockSlots(pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc);
+  qptAddDataBlockSlots(pScan->pScanCols, pDesc);
 
   if (taosRand() % 2) {
-    blockId = (QPT_CORRECT_HIGH_PROB() && pScanPhysiNode->node.pOutputDataBlockDesc) ? pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId : taosRand();
-    qptCreateTableScanPseudoCols(blockId, &pScanPhysiNode->pScanPseudoCols);
+    blockId = (QPT_CORRECT_HIGH_PROB() && QPT_VALID_DESC(pDesc)) ? pDesc->dataBlockId : taosRand();
+    qptCreateTableScanPseudoCols(blockId, &pScan->pScanPseudoCols);
   }
   
-  qptAddDataBlockSlots(pScanPhysiNode->pScanPseudoCols, pScanPhysiNode->node.pOutputDataBlockDesc);
+  qptAddDataBlockSlots(pScan->pScanPseudoCols, pDesc);
   
-  pScanPhysiNode->uid = qptCtx.param.correctExpected ? qptCtx.param.tbl.uid : taosRand();
-  pScanPhysiNode->suid = qptCtx.param.correctExpected ? qptCtx.param.tbl.suid : taosRand();
-  pScanPhysiNode->tableType = qptCtx.param.correctExpected ? qptCtx.param.tbl.tblType : taosRand();
-  pScanPhysiNode->groupOrderScan = (taosRand() % 2) ? true : false;
+  pScan->uid = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
+  pScan->suid = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.suid : taosRand();
+  pScan->tableType = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.tblType : taosRand();
+  pScan->groupOrderScan = (taosRand() % 2) ? true : false;
 
   SName tblName = {0};
   toName(1, qptCtx.param.db.dbName, qptCtx.param.tbl.tblName, &tblName);
-  if (qptCtx.param.correctExpected || QPT_RAND_BOOL_V) {
-    memcpy(&pScanPhysiNode->tableName, &tblName, sizeof(SName));
+  if (QPT_CORRECT_HIGH_PROB()) {
+    memcpy(&pScan->tableName, &tblName, sizeof(SName));
   } else {
-    pScanPhysiNode->tableName.acctId = 0;
-    pScanPhysiNode->tableName.dbname[0] = 0;
-    pScanPhysiNode->tableName.tname[0] = 0;
+    pScan->tableName.acctId = 0;
+    pScan->tableName.dbname[0] = 0;
+    pScan->tableName.tname[0] = 0;
   }
   
-  qptCtx.buildCtx.currTsOrder = (qptCtx.param.correctExpected) ? qptCtx.buildCtx.currTsOrder : QPT_RAND_ORDER_V;
+  qptCtx.buildCtx.currTsOrder = QPT_CORRECT_HIGH_PROB() ? qptCtx.buildCtx.currTsOrder : QPT_RAND_ORDER_V;
 }
 
 
@@ -2011,6 +2084,11 @@ SNode* qptCreateLastRowScanPhysiNode(int32_t nodeType) {
   return (SNode*)pPhysiNode;
 }
 
+SNode* qptCreateTableCountScanPhysiNode(int32_t nodeType) {
+  return qptCreateLastRowScanPhysiNode(nodeType);
+}
+
+
 SNode* qptCreateProjectPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 
@@ -2090,10 +2168,11 @@ SNode* qptCreateHashAggPhysiNode(int32_t nodeType) {
   SAggPhysiNode* pAgg = (SAggPhysiNode*)pPhysiNode;
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeExprList(&pAgg->pExprs);
+  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_EXPR, blockId, &pAgg->pExprs);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
   qptMakeTargetList(QPT_NODE_EXPR, blockId, &pAgg->pGroupKeys);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
@@ -2249,6 +2328,12 @@ SNode* qptCreateStreamSemiIntervalPhysiNode(int32_t nodeType) {
   return qptCreateIntervalPhysiNode(nodeType);
 }
 
+
+SNode* qptCreateStreamMidIntervalPhysiNode(int32_t nodeType) {
+  return qptCreateIntervalPhysiNode(nodeType); 
+}
+
+
 SNode* qptCreateFillPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 
@@ -2363,6 +2448,227 @@ SNode* qptCreateStreamPartitionPhysiNode(int32_t nodeType) {
   return (SNode*)pPhysiNode;
 }
 
+
+SNode* qptCreateIndefRowsFuncPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SIndefRowsFuncPhysiNode* pFunc = (SIndefRowsFuncPhysiNode*)pPhysiNode;
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_EXPR, blockId, &pFunc->pExprs);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_FUNCTION, blockId, &pFunc->pFuncs);
+
+  return (SNode*)pPhysiNode;
+}
+
+
+SNode* qptCreateInterpFuncPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SInterpFuncPhysiNode* pFunc = (SInterpFuncPhysiNode*)pPhysiNode;
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_EXPR, blockId, &pFunc->pExprs);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_FUNCTION, blockId, &pFunc->pFuncs);
+
+  qptGetRandTimeWindow(&pFunc->timeRange);
+
+  pFunc->interval = taosRand();
+  pFunc->intervalUnit = qptGetRandTimestampUnit();
+
+  pFunc->fillMode = qptGetRandFillMode();
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeNodeListNode(QPT_NODE_VALUE, &pFunc->pFillValues);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeColumnNode(&pFunc->pTimeSeries);
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateMergeEventPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SEventWinodwPhysiNode* pEvent = (SEventWinodwPhysiNode*)pPhysiNode;
+
+  qptCreateWindowPhysiNode(&pEvent->window);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pEvent->pStartCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pEvent->pEndCond);
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateStreamEventPhysiNode(int32_t nodeType) {
+  return qptCreateMergeEventPhysiNode(nodeType);
+}
+
+SNode* qptCreateCountWindowPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)pPhysiNode;
+
+  qptCreateWindowPhysiNode(&pCount->window);
+
+  pCount->windowCount = taosRand();
+  pCount->windowSliding = taosRand();
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateStreamCountWindowPhysiNode(int32_t nodeType) {
+  return qptCreateCountWindowPhysiNode(nodeType);
+}
+
+SNode* qptCreateHashJoinPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SHashJoinPhysiNode* pJoin = (SHashJoinPhysiNode*)pPhysiNode;
+
+  pJoin->joinType = (EJoinType)(taosRand() % JOIN_TYPE_MAX_VALUE + (QPT_CORRECT_HIGH_PROB() ? 0 : 1));
+  pJoin->subType = (EJoinSubType)(taosRand() % JOIN_STYPE_MAX_VALUE + (QPT_CORRECT_HIGH_PROB() ? 0 : 1));
+  qptMakeWindowOffsetNode(&pJoin->pWindowOffset);
+  qptMakeLimitNode(&pJoin->pJLimit);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeColumnList(&pJoin->pOnLeft);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeColumnList(&pJoin->pOnRight);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->leftPrimExpr);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->rightPrimExpr);
+
+  pJoin->leftPrimSlotId = qptGetInputSlotId(qptCtx.buildCtx.pChild ? qptCtx.buildCtx.pChild->pOutputDataBlockDesc : NULL);
+  pJoin->rightPrimSlotId = qptGetInputSlotId(qptCtx.buildCtx.pChild ? qptCtx.buildCtx.pChild->pOutputDataBlockDesc : NULL);
+
+  pJoin->timeRangeTarget = QPT_CORRECT_HIGH_PROB() ? (taosRand() % 3) : taosRand();
+  qptGetRandTimeWindow(&pJoin->timeRange);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pLeftOnCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pRightOnCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pFullOnCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  int16_t blockId = (QPT_CORRECT_HIGH_PROB() && pPhysiNode->pOutputDataBlockDesc) ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : taosRand();
+  qptMakeTargetList(QPT_NODE_EXPR, blockId, &pJoin->pTargets);
+
+  for (int32_t i = 0; i < 2; i++) {
+    pJoin->inputStat[i].inputRowNum = taosRand();
+    pJoin->inputStat[i].inputRowSize = taosRand();
+  }
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pPrimKeyCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pColEqCond);
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_CORRECT_HIGH_PROB() ? true : false, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeExprNode(&pJoin->pTagEqCond);
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateGroupCachePhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SGroupCachePhysiNode* pGroup = (SGroupCachePhysiNode*)pPhysiNode;
+
+  pGroup->grpColsMayBeNull = QPT_RAND_BOOL_V;
+  pGroup->grpByUid = QPT_RAND_BOOL_V;
+  pGroup->globalGrp = QPT_RAND_BOOL_V;
+  pGroup->batchFetch = QPT_RAND_BOOL_V;
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeColumnList(&pGroup->pGroupCols);
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateDynQueryCtrlPhysiNode(int32_t nodeType) {
+  SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
+
+  SDynQueryCtrlPhysiNode* pDyn = (SDynQueryCtrlPhysiNode*)pPhysiNode;
+
+  pDyn->qType = QPT_CORRECT_HIGH_PROB() ? DYN_QTYPE_STB_HASH : (EDynQueryType)taosRand();
+
+  SStbJoinDynCtrlBasic* pJoin = &pDyn->stbJoin;
+  pJoin->batchFetch = QPT_RAND_BOOL_V;
+  pJoin->vgSlot[0] = taosRand();
+  pJoin->vgSlot[1] = taosRand();
+  pJoin->uidSlot[0] = taosRand();
+  pJoin->uidSlot[1] = taosRand();
+  pJoin->srcScan[0] = QPT_RAND_BOOL_V;
+  pJoin->srcScan[1] = QPT_RAND_BOOL_V;
+
+  return (SNode*)pPhysiNode;
+}
+
+SNode* qptCreateDataSinkNode(int32_t nodeType) {
+  SDataSinkNode* pSinkNode = NULL;
+  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSinkNode));
+  assert(pSinkNode);
+
+  if (QPT_CORRECT_HIGH_PROB() && qptCtx.buildCtx.pCurr && qptCtx.buildCtx.pCurr->pOutputDataBlockDesc) {
+    pSinkNode->pInputDataBlockDesc = (SDataBlockDescNode*)qptMakeDataBlockDescNodeFromNode(true);
+  } else {
+    pSinkNode->pInputDataBlockDesc = (SDataBlockDescNode*)qptMakeDataBlockDescNode(true);
+  }
+  
+  return (SNode*)pSinkNode;
+}
+
+SNode* qptCreateDataDispatchPhysiNode(int32_t nodeType) {
+  return (SNode*)qptCreateDataSinkNode(nodeType); 
+}
+
+SNode* qptCreateDataInsertPhysiNode(int32_t nodeType) {
+  SDataInserterNode* pInserter = (SDataInserterNode*)qptCreateDataSinkNode(nodeType); 
+
+  pInserter->numOfTables = taosRand();
+  pInserter->size = taosRand();
+  pInserter->pData = QPT_RAND_BOOL_V ? taosMemoryMalloc(1) : NULL;
+
+  return (SNode*)pInserter;
+}
+
+SNode* qptCreateDataQueryInsertPhysiNode(int32_t nodeType) {
+  SQueryInserterNode* pInserter = (SQueryInserterNode*)qptCreateDataSinkNode(nodeType); 
+
+  qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
+  qptMakeColumnList(&pInserter->pCols);
+
+  pInserter->tableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
+  pInserter->stableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.suid : taosRand();
+  pInserter->tableType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE) : (taosRand() % TSDB_TABLE_MAX);
+  pInserter->tableName[0] = QPT_RAND_BOOL_V ? 'a' : taosRand();
+  pInserter->vgId = qptCtx.param.vnode.vgId;
+  memcpy(&pInserter->epSet, &qptCtx.param.vnode.epSet, sizeof(pInserter->epSet));
+  pInserter->explain = QPT_RAND_BOOL_V;
+  
+  return (SNode*)pInserter;
+}
 
 
 SNode* qptCreatePhysicalPlanNode(int32_t nodeIdx) {
