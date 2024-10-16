@@ -16,14 +16,14 @@
         {
             "dbinfo": {
                 "name": "dbrate",
-                "drop": "yes",
-                "vgroups": 2
+                "vgroups": 1,
+                "drop": "yes"
             },
             "super_tables": [
                 {
                     "name": "meters",
                     "child_table_exists": "no",
-                    "childtable_count": 10,
+                    "childtable_count": 1,
                     "childtable_prefix": "d",
                     "insert_mode": "@STMT_MODE",
                     "interlace_rows": @INTERLACE_MODE,

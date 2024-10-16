@@ -198,16 +198,20 @@ def findContextValue(context, label):
 
 def writeTemplateInfo(resultFile):
     # create info
-    context = readFileContext(templateFile)
+    context    = readFileContext(templateFile)
     vgroups    = findContextValue(context, "vgroups")
     childCount = findContextValue(context, "childtable_count")
     insertRows = findContextValue(context, "insert_rows")
-    line = f"vgroups = {vgroups}\nchildtable_count = {childCount}\ninsert_rows = {insertRows}\n\n"
+    bindVGroup = findContextValue(context, "thread_bind_vgroup")
+    nThread    = findContextValue(context, "thread_count")
+    if bindVGroup.lower().find("yes") != -1:
+        nThread = vgroups
+    line = f"thread_bind_vgroup = {bindVGroup}\nvgroups            = {vgroups}\nchildtable_count   = {childCount}\ninsert_rows        = {insertRows}\ninsertThreads      = {nThread} \n\n"
     print(line)
     appendFileContext(resultFile, line)
 
 
-def totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed):
+def totalCompressRate(stmt, interlace, resultFile, spent, spentReal, writeSpeed, writeReal, min, avg, p90, p99, max, querySpeed):
     global Number
     # flush
     command = 'taos -s "flush database dbrate;"'
@@ -220,7 +224,7 @@ def totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed):
     # read compress rate
     command = 'taos -s "show table distributed dbrate.meters\G;"'
     rets = runRetList(command)
-    print(rets)
+    #print(rets)
 
     str1 = rets[5]
     arr = str1.split(" ")
@@ -234,46 +238,88 @@ def totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed):
     str2 = arr[6]
     pos  = str2.find("=[")
     rate = str2[pos+2:]
-    print("rate =" + rate)
 
     # total data file size
     #dataSize = getFolderSize(f"{dataDir}/vnode/")
     #dataSizeMB = int(dataSize/1024/1024)
 
     # appand to file
-    
+
+    # %("No", "stmtMode", "interlaceRows", "spent", "spent-real", "writeSpeed", "write-real", "query-QPS", "dataSize", "rate")    
     Number += 1
-    context =  "%10s %10s %15s %10s %10s %30s %15s\n"%( Number, stmt, interlace, str(totalSize)+" MB", rate+"%", writeSpeed + " Records/second", querySpeed)
+    '''
+    context =  "%2s %6s %10s %10s %10s %15s %15s %16s %16s %16s %16s %16s %8s %8s %8s\n"%(
+          Number, stmt, interlace, spent + "s", spentReal + "s",  writeSpeed + " rows/s", writeReal + " rows/s", 
+          min, avg, p90, p99, max,
+          querySpeed, str(totalSize) + " MB", rate + "%")
+    '''
+    context =  "%2s %8s %10s %10s %16s %16s %12s %12s %12s %12s %12s %12s %10s %10s %10s\n"%(
+          Number, stmt, interlace, spent + "s", spentReal + "s",  writeSpeed + "r/s", writeReal + "r/s",
+          min, avg, p90, p99, max + "ms",
+          querySpeed, str(totalSize) + " MB", rate + "%")
+
     showLog(context)
     appendFileContext(resultFile, context)
+
+def cutEnd(line, start, endChar):
+    pos = line.find(endChar, start)
+    if pos == -1:
+        return line[start:]
+    return line[start : pos]
+
+def findValue(context, pos, key,  endChar,command):
+    pos = context.find(key, pos)
+    if pos == -1:
+        print(f"error, run command={command} output not found \"{key}\" keyword. context={context}")
+        exit(1)
+    pos += len(key)
+    value = cutEnd(context, pos, endChar)
+    return (value, pos)
 
 def testWrite(jsonFile):
     command = f"taosBenchmark -f {jsonFile}"
     output, context = run(command, 60000)
+    print(context)
+    
     # SUCC: Spent 0.960248 (real 0.947154) seconds to insert rows: 100000 with 1 thread(s) into dbrate 104139.76 (real 105579.45) records/second
 
-    # find second real
-    pos = context.find("(real ")
+    # spent
+    key  = "Spent "
+    pos  = -1
+    pos1 = 0
+    while pos1 != -1: # find last "Spent "
+        pos1 = context.find(key, pos1)
+        if pos1 != -1:
+            pos = pos1  # update last found
+            pos1 += len(key)
     if pos == -1:
-        print(f"error, run command={command} output not found first \"(real\" keyword. error={context}")
+        print(f"error, run command={command} output not found \"{key}\" keyword. context={context}")
         exit(1)
-    pos = context.find("(real ", pos + 5)
+    pos += len(key)
+    spent = cutEnd(context, pos, ".")
+
+    # spent-real
+    spentReal, pos = findValue(context, pos, "(real ", ".", command)
+
+    # writeSpeed
+    key = "into "
+    pos = context.find(key, pos)
     if pos == -1:
-        print(f"error, run command={command} output not found second \"(real\" keyword. error={context}")
-        exit(1)    
-
-    pos += 5
-    length = len(context)
-    while pos < length and context[pos] == ' ':
-        pos += 1
-    end = context.find(".", pos)
-    if end == -1:
-        print(f"error, run command={command} output not found second \".\" keyword. error={context}")
+        print(f"error, run command={command} output not found \"{key}\" keyword. context={context}")
         exit(1)
+    pos += len(key)
+    writeSpeed, pos = findValue(context, pos, " ",     ".", command)
+    # writeReal
+    writeReal,  pos = findValue(context, pos, "(real ", ".", command)
 
-    speed = context[pos: end]
-    #print(f"write pos ={pos} end={end} speed={speed}\n output={context} \n")
-    return speed
+    # delay 
+    min, pos = findValue(context, pos, "min: ", ",", command)
+    avg, pos = findValue(context, pos, "avg: ", ",", command)
+    p90, pos = findValue(context, pos, "p90: ", ",", command)
+    p99, pos = findValue(context, pos, "p99: ", ",", command)
+    max, pos = findValue(context, pos, "max: ", "ms", command)
+   
+    return (spent, spentReal, writeSpeed, writeReal, min, avg, p90, p99, max)
 
 def testQuery():
     command = f"taosBenchmark -f json/query.json"
@@ -308,13 +354,13 @@ def doTest(stmt, interlace, resultFile):
 
     # run taosBenchmark
     t1 = time.time()
-    writeSpeed = testWrite(jsonFile)
+    spent, spentReal, writeSpeed, writeReal, min, avg, p90, p99, max = testWrite(jsonFile)
     t2 = time.time()
     # total write speed
     querySpeed = testQuery()
 
     # total compress rate
-    totalCompressRate(stmt, interlace, resultFile, writeSpeed, querySpeed)
+    totalCompressRate(stmt, interlace, resultFile, spent, spentReal, writeSpeed, writeReal, min, avg, p90, p99, max, querySpeed)
 
 
 def main():
@@ -333,7 +379,17 @@ def main():
     # json info
     writeTemplateInfo(resultFile)
     # head
-    context = "\n%10s %10s %15s %10s %10s %30s %15s\n"%("No", "stmtMode", "interlaceRows", "dataSize", "rate", "writeSpeed", "query-QPS")
+    '''
+    context =  "%3s %8s %10s %10s %10s %15s %15s %10s %10s %10s %10s %10s %8s %8s %8s\n"%(
+                  "No", "stmtMode", "interlace", "spent", "spent-real", "writeSpeed", "write-real",
+                  "min", "avg", "p90", "p99", "max",
+                  "query-QPS", "dataSize", "rate")
+    '''                  
+    context =  "%2s %8s %10s %10s %16s %16s %12s %12s %12s %12s %12s %12s %10s %10s %10s\n"%(
+                  "No", "stmtMode", "interlace", "spent", "spent-real", "writeSpeed", "write-real",
+                  "min", "avg", "p90", "p99", "max",
+                  "query-QPS", "dataSize", "rate")
+
     appendFileContext(resultFile, context)
 
 
