@@ -5910,7 +5910,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
   } else {
     code = TSDB_CODE_INVALID_PARA;
-    tsdbError("invalid mr.me.type:%d %s, code:%s", mr.me.type, tstrerror(code));
+    tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));
     metaReaderClear(&mr);
     return code;
   }
