@@ -278,31 +278,19 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                                                  \
-  do {                                                                                                       \
-    if (id > 0) {                                                                                            \
-      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                                     \
-      if (exh2 == NULL || id != exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
-               exh2 ? exh2->refId : 0, id);                                                                  \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      }                                                                                                      \
-    } else if (id == 0) {                                                                                    \
-      tTrace("handle step2");                                                                                \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
-      if (exh2 == NULL || id == exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1, id, \
-               exh2 ? exh2->refId : 0);                                                                      \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      } else {                                                                                               \
-        id = exh1->refId;                                                                                    \
-      }                                                                                                      \
-    } else if (id < 0) {                                                                                     \
-      tTrace("handle step3");                                                                                \
-      goto _return2;                                                                                         \
-    }                                                                                                        \
+#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                                                 \
+  do {                                                                                                      \
+    if (id > 0) {                                                                                           \
+      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                                    \
+      if (exh2 == NULL || exh1 != exh2  || (exh2 != NULL && exh2->refId != id)) {                           \
+        tError("handle not match, exh1:%p, exh2:%p, refId:%"PRId64"", exh1, exh2, id);                      \
+        code = TSDB_CODE_INVALID_MSG;                                                                       \
+        goto _return1;                                                                                      \
+      }                                                                                                     \
+    } else {                                                                                                \
+      tError("invalid handle to release");                                                                  \
+      goto _return2;                                                                                        \
+    }                                                                                                       \
   } while (0)
 
 int32_t transInitBuffer(SConnBuffer* buf);
