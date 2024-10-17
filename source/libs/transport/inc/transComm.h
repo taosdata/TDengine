@@ -313,7 +313,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg,
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
 int32_t transFreeConnById(void* shandle, int64_t transpointId);
 
-int32_t transSendResponse(const STransMsg* msg);
+int32_t transSendResponse(STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);

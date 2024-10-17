@@ -235,7 +235,7 @@ typedef struct SRpcHandleInfo {
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
   int8_t       compressed;
-  RPC_TYPE     connType;
+  int16_t      connType;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -336,7 +336,7 @@ void *rpcReallocCont(void *ptr, int64_t contLen);
 // These functions should not be used on the server side
 // Please use tmsg<xx> functions, which are defined in tmsgcb.h
 int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
-int32_t rpcSendResponse(const SRpcMsg *pMsg);
+int32_t rpcSendResponse(SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int32_t rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
 

@@ -13,6 +13,7 @@
  */
 
 #include "transComm.h"
+#include "tversion.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -1932,8 +1933,13 @@ int32_t transReleaseSrvHandle(void *handle) { return 0; }
 void    transRefSrvHandle(void *handle) { return; }
 
 void    transUnrefSrvHandle(void *handle) { return; }
-int32_t transSendResponse(const STransMsg *msg) {
+int32_t transSendResponse(STransMsg *msg) {
   //
+  int32_t code = 0;
+  int32_t svrVer = 0;
+  code = taosVersionStrToInt(version, &svrVer);
+  msg->info.cliVer = svrVer;
+  msg->type = msg->info.connType;
   return transSendResp(msg);
 }
 int32_t transRegisterMsg(const STransMsg *msg) { return 0; }

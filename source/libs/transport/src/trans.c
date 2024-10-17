@@ -446,7 +446,7 @@ int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRp
 }
 int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }
 
-int32_t rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
+int32_t rpcSendResponse(SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
 void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 

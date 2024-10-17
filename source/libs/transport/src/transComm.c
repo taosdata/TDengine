@@ -1553,11 +1553,17 @@ void* procClientMsg(void* arg) {
     taosResetQitems(qall);
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
-      taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
-      transGetCb(pRpcMsg->type, (RpcCfp*)&fp);
+      taosThreadMutexLock(&mutex[1]);
+      if ((pRpcMsg->type & TD_ACORE_DSVR) != 0) {
+        transGetCb(TD_ACORE_DSVR, (RpcCfp*)&fp);
+      }
       taosThreadMutexUnlock(&mutex[1]);
-      fp(NULL, pRpcMsg, NULL);
+      if (fp != NULL) {
+        fp(NULL, pRpcMsg, NULL);
+      } else {
+        tError("failed to find callback for msg type:%d", pRpcMsg->type);
+      }
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }

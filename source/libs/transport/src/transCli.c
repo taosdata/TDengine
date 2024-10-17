@@ -15,6 +15,7 @@
 // clang-format off
 #include "transComm.h"
 #include "tmisce.h"
+#include "tversion.h"
 // clang-format on
 
 #ifndef TD_ACORE
@@ -3420,15 +3421,28 @@ void    transUnrefCliHandle(void* handle) { return; }
 int32_t transReleaseCliHandle(void* handle) { return 0; }
 int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   int32_t code = 0;
+  int32_t cliVer = 0;
+  code = taosVersionStrToInt(version, &cliVer);
+  // if (code != 0) {
+  //   dError("failed to convert version string:%s to int, code:%d", version, code);
+  //   goto _OVER;
+  // }
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
 
+  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   pReq->type = pTransInst->type;
+  pReq->info.connType = pReq->type;
+  pReq->info.cliVer = cliVer;
+
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
   return code;
 }
 
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  int32_t code;
+  int32_t cliVer = 0;
+  code = taosVersionStrToInt(version, &cliVer);
   return 0;
 }
 
