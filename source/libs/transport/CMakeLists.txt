@@ -24,6 +24,10 @@ if (${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV_TRANS})  
 
+if(${TD_ACORE})
+    add_definitions(-DTD_ACORE)
+endif(${TD_ACORE})
+
 if (${BUILD_TEST})
   add_subdirectory(test)
 endif(${BUILD_TEST})

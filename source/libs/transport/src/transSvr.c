@@ -16,6 +16,7 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
+#ifndef TD_ACORE
 static char* notify = "a";
 
 typedef struct {
@@ -1350,6 +1351,13 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   srv->numOfWorkerReady++;
 }
 
+#ifdef TD_ACORE
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+  int32_t code = 0;
+  return NULL;
+}
+#else
+
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
   int32_t code = 0;
 
@@ -1546,6 +1554,7 @@ End:
   terrno = code;
   return NULL;
 }
+#endif
 
 void uvHandleQuit(SSvrMsg* msg, SWorkThrd* thrd) {
   thrd->quit = true;
@@ -1678,39 +1687,6 @@ void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
   TAOS_UNUSED(transAsyncSend(pThrd->asyncPool, &msg->q));
-}
-
-void transCloseServer(void* arg) {
-  // impl later
-  SServerObj* srv = arg;
-
-  if (srv->inited) {
-    tDebug("send quit msg to accept thread");
-    TAOS_UNUSED(uv_async_send(srv->pAcceptAsync));
-    if (taosThreadJoin(srv->thread, NULL) != 0) {
-      tError("failed to join accept-thread");
-    }
-
-    SRV_RELEASE_UV(srv->loop);
-    for (int i = 0; i < srv->numOfThreads; i++) {
-      destroyWorkThrd(srv->pThreadObj[i]);
-    }
-  } else {
-    SRV_RELEASE_UV(srv->loop);
-  }
-
-  taosMemoryFree(srv->pThreadObj);
-  taosMemoryFree(srv->pAcceptAsync);
-  taosMemoryFree(srv->loop);
-
-  for (int i = 0; i < srv->numOfThreads; i++) {
-    if (srv->pipe[i] != NULL) {
-      taosMemoryFree(srv->pipe[i]);
-    }
-  }
-  taosMemoryFree(srv->pipe);
-
-  taosMemoryFree(srv);
 }
 
 void transRefSrvHandle(void* handle) {
@@ -1917,3 +1893,55 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
 }
 
 int32_t transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
+
+void transCloseServer(void* arg) {
+  // impl later
+  SServerObj* srv = arg;
+
+  if (srv->inited) {
+    tDebug("send quit msg to accept thread");
+    TAOS_UNUSED(uv_async_send(srv->pAcceptAsync));
+    if (taosThreadJoin(srv->thread, NULL) != 0) {
+      tError("failed to join accept-thread");
+    }
+
+    SRV_RELEASE_UV(srv->loop);
+    for (int i = 0; i < srv->numOfThreads; i++) {
+      destroyWorkThrd(srv->pThreadObj[i]);
+    }
+  } else {
+    SRV_RELEASE_UV(srv->loop);
+  }
+
+  taosMemoryFree(srv->pThreadObj);
+  taosMemoryFree(srv->pAcceptAsync);
+  taosMemoryFree(srv->loop);
+
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    if (srv->pipe[i] != NULL) {
+      taosMemoryFree(srv->pipe[i]);
+    }
+  }
+  taosMemoryFree(srv->pipe);
+
+  taosMemoryFree(srv);
+}
+#else
+
+int32_t transReleaseSrvHandle(void *handle) { return 0; }
+void    transRefSrvHandle(void *handle) { return; }
+
+void    transUnrefSrvHandle(void *handle) { return; }
+int32_t transSendResponse(const STransMsg *msg) { return 0; }
+int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
+int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
+void   *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *shandle) {
+    int32_t code = 0;
+    return NULL;
+}
+void transCloseServer(void *arg) {
+  // impl later
+  return;
+}
+
+#endif

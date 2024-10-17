@@ -17,6 +17,7 @@
 #include "tmisce.h"
 // clang-format on
 
+#ifndef TD_ACORE
 typedef struct {
   int32_t numOfConn;
   queue   msgQ;
@@ -2837,20 +2838,6 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   return 0;
 }
 
-void transCloseClient(void* arg) {
-  int32_t  code = 0;
-  SCliObj* cli = arg;
-  for (int i = 0; i < cli->numOfThreads; i++) {
-    code = cliSendQuit(cli->pThreadObj[i]);
-    if (code != 0) {
-      tError("failed to send quit to thread:%d, reason:%s", i, tstrerror(code));
-    }
-
-    destroyThrdObj(cli->pThreadObj[i]);
-  }
-  taosMemoryFree(cli->pThreadObj);
-  taosMemoryFree(cli);
-}
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
     return;
@@ -3076,7 +3063,6 @@ _exception:
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
   return code;
 }
-
 int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
@@ -3163,6 +3149,7 @@ _RETURN1:
   pReq->pCont = NULL;
   return code;
 }
+
 int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
   int32_t  code = 0;
   tsem2_t* sem = taosMemoryCalloc(1, sizeof(tsem2_t));
@@ -3412,3 +3399,43 @@ _exception:
 
   return code;
 }
+void transCloseClient(void* arg) {
+  int32_t  code = 0;
+  SCliObj* cli = arg;
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    code = cliSendQuit(cli->pThreadObj[i]);
+    if (code != 0) {
+      tError("failed to send quit to thread:%d, reason:%s", i, tstrerror(code));
+    }
+
+    destroyThrdObj(cli->pThreadObj[i]);
+  }
+  taosMemoryFree(cli->pThreadObj);
+  taosMemoryFree(cli);
+}
+#else
+
+void    transRefCliHandle(void* handle) { return; }
+void    transUnrefCliHandle(void* handle) { return; }
+int32_t transReleaseCliHandle(void* handle) { return 0; }
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) { return 0; }
+int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  return 0;
+}
+
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) { return 0; }
+int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) { return 0; }
+int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs) {
+  return 0;
+}
+int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) { return 0; }
+int32_t transAllocHandle(int64_t* refId) { return 0; }
+int32_t transFreeConnById(void* shandle, int64_t transpointId) { return 0; }
+
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+  return NULL;
+}
+void transCloseClient(void* arg) { return; }
+
+#endif
