@@ -6201,11 +6201,11 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     pResInfo->numOfRes = 0;
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
-      pInfo->dOutput = pInfo->p.val;
+      pInfo->dTwaRes = pInfo->p.val;
     } else if (pInfo->win.ekey == INT64_MAX || pInfo->win.skey == INT64_MIN) {  // no data in timewindow
-      pInfo->dOutput = 0;
+      pInfo->dTwaRes = 0;
     } else {
-      pInfo->dOutput = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
+      pInfo->dTwaRes = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
     }
 
     pResInfo->numOfRes = 1;

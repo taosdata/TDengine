@@ -378,6 +378,7 @@ typedef struct SStateStore {
   int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
+  void (*streamStateSetFillInfo)(SStreamState* pState);
   void (*streamStateClearExpiredState)(SStreamState* pState);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,

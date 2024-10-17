@@ -33,16 +33,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
 
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
-  void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
-  if (ppBuff) {
-    pWinStates = (SArray*)(*ppBuff);
-  } else {
-    pWinStates = taosArrayInit(16, sizeof(SWinKey));
-    QUERY_CHECK_NULL(pWinStates, code, lino, _end, terrno);
-
-    code = tSimpleHashPut(pSearchBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  addArrayBuffIfNotExist(pSearchBuff, pKey->groupId, &pWinStates);
 
   // recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
@@ -64,25 +55,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     streamStateFreeCur(pCur);
   }
 
-  int32_t size = taosArrayGetSize(pWinStates);
-  int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
-  if (!isFlushedState(pFileState, pKey->ts, 0)|| index >= 0 || size == 0) {
-    // find the first position which is smaller than the pKey
-    if (index >= 0) {
-      SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
-      if (winKeyCmprImpl(pTmpKey, pKey) == 0) {
-        goto _end;
-      }
-    }
-    index++;
-    void* tmp = taosArrayInsert(pWinStates, index, pKey);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-  }
-
-  if (size >= MAX_NUM_OF_CACHE_WIN) {
-    int32_t num = size - NUM_OF_CACHE_WIN;
-    taosArrayRemoveBatch(pWinStates, 0, num, NULL);
-  }
+  addSearchItem(pFileState, pWinStates, pKey);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

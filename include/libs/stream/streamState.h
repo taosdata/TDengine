@@ -108,6 +108,7 @@ int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, con
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 // twa
+void streamStateSetFillInfo(SStreamState* pState);
 void streamStateClearExpiredState(SStreamState* pState);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);

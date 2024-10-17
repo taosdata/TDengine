@@ -229,7 +229,6 @@ int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void*
 
 int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
   if (pState->pFileState) {
-    // todo(liuyao) 改这里
     return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
   }
   return streamStateFillGet_rocksdb(pState, key, pVal, pVLen);
@@ -289,7 +288,24 @@ int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, voi
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode) {
-  return streamStateGet(pState, key, pVal, pVLen, pWinCode);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = streamStateGet(pState, key, pVal, pVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
+  if (pSearchBuff != NULL) {
+    SArray* pWinStates = NULL;
+    code = addArrayBuffIfNotExist(pSearchBuff, key->groupId, &pWinStates);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = addSearchItem(pState->pFileState, pWinStates, key);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
@@ -586,6 +602,10 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
 
 void streamStateClearExpiredState(SStreamState* pState) {
   clearExpiredState(pState->pFileState);
+}
+
+void streamStateSetFillInfo(SStreamState* pState) {
+  setFillInfo(pState->pFileState);
 }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,

@@ -145,9 +145,12 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
 int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode);
+int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey);
 
 //twa
+void setFillInfo(SStreamFileState* pFileState);
 void clearExpiredState(SStreamFileState* pFileState);
+int32_t addArrayBuffIfNotExist(SSHashObj* pSearchBuff, uint64_t groupId, SArray** ppResStates);
 
 #ifdef __cplusplus
 }

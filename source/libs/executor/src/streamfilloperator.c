@@ -1636,6 +1636,7 @@ int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInter
     *pInterval = pInfo->interval;
     pInfo->hasFill = true;
     (*ppAggSup) = &pInfo->streamAggSup;
+    pInfo->streamAggSup.stateStore.streamStateSetFillInfo(pInfo->streamAggSup.pState);
   } else {
     code = TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
