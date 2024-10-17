@@ -714,6 +714,7 @@ class AnyState:
     CAN_DROP_TSMA = 4
     CAN_DROP_VIEW = 4
     CAN_DROP_INDEX = 4
+    CAN_KILL_COMPACT = 4 # TODO ?
     CAN_ADD_DATA = 5
     CAN_READ_DATA = 6
     CAN_DELETE_DATA = 6
@@ -807,7 +808,6 @@ class AnyState:
     def canDropIndex(self):
         return self._info[self.CAN_DROP_INDEX]
 
-
     def canAddData(self):
         return self._info[self.CAN_ADD_DATA]
 
@@ -816,6 +816,10 @@ class AnyState:
 
     def canDeleteData(self):
         return self._info[self.CAN_DELETE_DATA]
+
+    # todo confirm?
+    def canKillCompact(self):
+        return self._info[self.CAN_KILL_COMPACT]
 
     def assertAtMostOneSuccess(self, tasks, cls):
         sCnt = 0
@@ -1163,8 +1167,8 @@ class StateMechine:
                                     'TaskDropStreamTables': 10, 'TaskPauseStreams': 1, 'TaskResumeStreams': 1,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
                                     'TaskDeleteData': 10, 'TaskCreateDb': 10, 'TaskCreateStream': 10, 'TaskCreateTsma': 10, 'TaskCreateView': 10, 'TaskCreateIndex': 10,
-                                    'TaskCreateTopic': 3, 'TaskCompactDb': 1,
-                                    'TaskCreateConsumers': 10,
+                                    'TaskCreateTopic': 3, 'TaskCompactDb': 1, 'TaskBalanceVgroup': 1, 'TaskSplitVgroup': 1, 'TaskAlterRep': 1, 'TaskRedistribute': 1,
+                                    'TaskCreateConsumers': 10, 'TaskKillCompact': 1, 'TaskKillTransaction': 1,
                                     'TaskCreateSuperTable': 10}  # TaskType : balance_matrixs of task
 
         for task, weights in balance_TaskType_matrixs.items():
@@ -1959,7 +1963,7 @@ class TaskCompactDb(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         # TODO Confirm: db is empty or has data?
-        return state.canDropDb()
+        return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
 
@@ -1973,6 +1977,44 @@ class TaskCompactDb(StateTransitionTask):
 
         Logging.debug("[OPS] Compacting database at {}".format(time.time()))
 
+class TaskKillCompact(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canReadData()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        if sTable.hasCompacts(wt.getDbConn()):
+            sTable.killCompact(wt.getDbConn())  # kill one compact
+
+class TaskKillTransaction(StateTransitionTask):
+
+    @classmethod
+    def getEndState(cls):
+        return StateHasData()
+
+    @classmethod
+    def canBeginFrom(cls, state: AnyState):
+        return state.canReadData()
+
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+
+        sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
+        if sTable.hasTransactions(wt.getDbConn()):
+            sTable.killTrans(wt.getDbConn())  # kill one compact
+
 class TaskBalanceVgroup(StateTransitionTask):
     @classmethod
     def getEndState(cls):
@@ -1981,7 +2023,7 @@ class TaskBalanceVgroup(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         # TODO Confirm: db is empty or has data?
-        return state.canDropDb()
+        return state.canReadData()
 
     def genBalanceVgroupSql(self, vgid=None):
         sql = list()
@@ -2019,7 +2061,7 @@ class TaskSplitVgroup(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         # TODO Confirm: db is empty or has data?
-        return state.canDropDb()
+        return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         try:
@@ -2028,6 +2070,9 @@ class TaskSplitVgroup(StateTransitionTask):
 
             if not self._db.exists(dbc):
                 Logging.debug("Skipping task, no DB yet")
+                return
+            if Config.getConfig().num_dnodes - Config.getConfig().num_replicas <= 0:
+                Logging.debug("Skipping task, num_dnodes must > num_replicas")
                 return
             self.execWtSql(wt, "use {}".format(dbname))
             dbc.query("show vgroups")
@@ -2049,7 +2094,7 @@ class TaskAlterRep(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         # TODO Confirm: db is empty or has data?
-        return state.canDropDb()
+        return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         try:
@@ -2081,7 +2126,7 @@ class TaskRedistribute(StateTransitionTask):
     @classmethod
     def canBeginFrom(cls, state: AnyState):
         # TODO Confirm: db is empty or has data?
-        return state.canDropDb()
+        return state.canReadData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         try:
@@ -2956,6 +3001,43 @@ class TdSuperTable:
     def hasTopics(self, dbc: DbConn):
 
         return dbc.query("show topics") > 0
+
+    def hasCompacts(self, dbc: DbConn):
+        return dbc.query("show compacts") > 0
+
+    def killCompact(self, dbc: DbConn):
+        dbc.query("show compacts")
+        compacts = dbc.getQueryResult()
+        if len(compacts) == 0:
+            return
+        compactList = [compact[0] for compact in compacts]
+        randomCompact = random.choice(compactList)
+        try:
+            dbc.query('show compact {}'.format(randomCompact)) # just query, no need check
+            dbc.execute('kill compact {}'.format(randomCompact))
+            Logging.debug("[OPS] compact {} is killing at {}".format(randomCompact, time.time()))
+        except taos.error.ProgrammingError as err:
+            errno = Helper.convertErrno(err.errno)
+            if errno in [0x04B1]:  # Invalid compact id
+                pass
+
+    def hasTransactions(self, dbc: DbConn):
+        return dbc.query("show transactions") > 0
+
+    def killTrans(self, dbc: DbConn):
+        dbc.query("show transactions")
+        transactions = dbc.getQueryResult()
+        if len(transactions) == 0:
+            return
+        transList = [trans[0] for trans in transactions]
+        randomTrans = random.choice(transList)
+        try:
+            dbc.execute('kill transaction {}'.format(randomTrans))
+            Logging.debug("[OPS] trans {} is killing at {}".format(randomTrans, time.time()))
+        except taos.error.ProgrammingError as err:
+            errno = Helper.convertErrno(err.errno)
+            if errno in [0x03D1]:  # Invalid compact id
+                pass
 
     def dropTopics(self, dbc: DbConn, dbname=None, stb_name=None):
         dbc.query("show topics ")

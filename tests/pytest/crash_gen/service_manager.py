@@ -321,6 +321,9 @@ enable = true
         cols = dbc.getQueryResult() #  id,end_point,create_time
         return {c[1]:c[2] for c in cols} # {'xxx:6030':'time'}
 
+    def _hasSnode(self, dbc):
+        return len(self._getSnodes(dbc)) > 0
+
     def createDnode(self, dbt: DbTarget):
         """
         With a connection to the "first" EP, let's create a dnode for someone else who
@@ -350,8 +353,9 @@ enable = true
             dbc.close()
             return
 
-        sql = "CREATE SNODE ON DNODE 1;"
-        dbc.execute(sql)
+        if not self._hasSnode(dbc):
+            sql = "CREATE SNODE ON DNODE 1;"
+            dbc.execute(sql)
         dbc.close()
 
     def getStatus(self):

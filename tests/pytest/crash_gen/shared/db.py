@@ -583,8 +583,20 @@ class MyTDSql:
         # Logging.debug("Executing SQL: " + sql)
         # ret = None # TODO: use strong type here
         # try: # Let's not capture the error, and let taos.error.ProgrammingError pass through
-        ret = self._cursor.execute(sql)
-        # except taos.error.ProgrammingError as err:
+        # * but we must ignore it when split/alter rep/redistribute because Vnode is closed or removed
+        try:
+            ret = self._cursor.execute(sql)
+        except taos.error.ProgrammingError as err:
+            errno2 = Helper.convertErrno(err.errno)
+            Logging.warning("!!!!!!!!!!Taos SQL execution error: {}:{}, SQL: {}".format(errno2, err.msg, sql))
+            raise
+            # errno2 = Helper.convertErrno(err.errno)
+            # if (errno2 in [0x0503]):  # Vnode is closed or removed
+            #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
+            #     raise
+            #     return
+            # else:
+            #     raise
         #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
         #     raise CrashGenError(err.msg)
 
