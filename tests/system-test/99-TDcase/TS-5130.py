@@ -37,6 +37,7 @@ class TDTestCase:
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
+
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
 
