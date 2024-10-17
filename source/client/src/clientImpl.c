@@ -2196,6 +2196,10 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
     }
     pStart += colLen;
   }
+
+  // Ensure the complete structure of the block, including the blankfill field,
+  // even though it is not used on the client side.
+  len += sizeof(bool);
   return len;
 }
 
@@ -2341,6 +2345,11 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
     pStart1 += colLen1;
   }
 
+  // Ensure the complete structure of the block, including the blankfill field,
+  // even though it is not used on the client side.
+  // (void)memcpy(pStart1, pStart, sizeof(bool));
+  totalLen += sizeof(bool);
+
   *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
@@ -2367,7 +2376,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   }
 
   if (pResultInfo->pData == NULL) {
-    tscError("estimateJsonLen error: pData is NULL");
+    tscError("setResultDataPtr error: pData is NULL");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
