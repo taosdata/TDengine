@@ -1,0 +1,16 @@
+#匿名登录认证, , 单个主题订阅, 日志级别 info
+task_name: ci_oracle
+task_type: oracle
+
+from:
+  fromhost: oracle://{0}/ORCLPDB1
+  sql: select * from taosx_test_ci where t_time >= ${start} and t_time < ${end}
+  start: '2024-05-28T00:00:00+08:00'
+  end: '2024-05-31T00:00:00+08:00'
+  read_concurrency: 0
+
+to:
+  target_type: taos
+  target_dbname: ci_db_oracle
+
+task_exec_time: 10

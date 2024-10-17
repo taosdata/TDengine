@@ -1,0 +1,14 @@
+[Unit]
+Description=taosExplorer - GUI based management console for TDengine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/taos-explorer
+ExecStart=/usr/bin/taos-explorer
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

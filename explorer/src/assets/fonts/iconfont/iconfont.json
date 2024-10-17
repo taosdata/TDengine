@@ -1,0 +1,184 @@
+{
+  "id": "3857053",
+  "name": "taosexplorer",
+  "font_family": "element-icons",
+  "css_prefix_text": "el-icon-",
+  "description": "taosexplorer",
+  "glyphs": [
+    {
+      "icon_id": "22879319",
+      "name": "PREVIEW",
+      "font_class": "PREVIEW",
+      "unicode": "ea06",
+      "unicode_decimal": 59910
+    },
+    {
+      "icon_id": "23487633",
+      "name": "delete",
+      "font_class": "a-6",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "37704232",
+      "name": "Language",
+      "font_class": "Language-copy",
+      "unicode": "ed51",
+      "unicode_decimal": 60753
+    },
+    {
+      "icon_id": "9568084",
+      "name": "Language",
+      "font_class": "Language",
+      "unicode": "e659",
+      "unicode_decimal": 58969
+    },
+    {
+      "icon_id": "36018526",
+      "name": "data-metric",
+      "font_class": "data-metric",
+      "unicode": "e63a",
+      "unicode_decimal": 58938
+    },
+    {
+      "icon_id": "1322281",
+      "name": "icon_query",
+      "font_class": "chaxun",
+      "unicode": "e66b",
+      "unicode_decimal": 58987
+    },
+    {
+      "icon_id": "8980489",
+      "name": "query",
+      "font_class": "query",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
+      "icon_id": "1996869",
+      "name": "search",
+      "font_class": "search-tables",
+      "unicode": "e6d6",
+      "unicode_decimal": 59094
+    },
+    {
+      "icon_id": "7195251",
+      "name": "profile",
+      "font_class": "profile",
+      "unicode": "e63f",
+      "unicode_decimal": 58943
+    },
+    {
+      "icon_id": "36484660",
+      "name": "profile-copy",
+      "font_class": "profile-copy",
+      "unicode": "ed50",
+      "unicode_decimal": 60752
+    },
+    {
+      "icon_id": "29649891",
+      "name": "files",
+      "font_class": "files1",
+      "unicode": "ed4f",
+      "unicode_decimal": 60751
+    },
+    {
+      "icon_id": "3106400",
+      "name": "files-1",
+      "font_class": "files-",
+      "unicode": "e609",
+      "unicode_decimal": 58889
+    },
+    {
+      "icon_id": "3106404",
+      "name": "files",
+      "font_class": "files",
+      "unicode": "e60a",
+      "unicode_decimal": 58890
+    },
+    {
+      "icon_id": "1205913",
+      "name": "file-table",
+      "font_class": "file-table",
+      "unicode": "e682",
+      "unicode_decimal": 59010
+    },
+    {
+      "icon_id": "6802404",
+      "name": "3-Files",
+      "font_class": "-Files",
+      "unicode": "e779",
+      "unicode_decimal": 59257
+    },
+    {
+      "icon_id": "6802405",
+      "name": "2-Files",
+      "font_class": "-Files1",
+      "unicode": "e77a",
+      "unicode_decimal": 59258
+    },
+    {
+      "icon_id": "515380",
+      "name": "推特_twitter44",
+      "font_class": "tuitetwitter44",
+      "unicode": "e6ef",
+      "unicode_decimal": 59119
+    },
+    {
+      "icon_id": "1203642",
+      "name": "youtube",
+      "font_class": "youtube",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "4546495",
+      "name": "Linkedin",
+      "font_class": "Linkedin",
+      "unicode": "e637",
+      "unicode_decimal": 58935
+    },
+    {
+      "icon_id": "4937000",
+      "name": "github-fill",
+      "font_class": "github-fill",
+      "unicode": "e885",
+      "unicode_decimal": 59525
+    },
+    {
+      "icon_id": "26267561",
+      "name": "discord",
+      "font_class": "discord",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
+      "icon_id": "5651501",
+      "name": "停止",
+      "font_class": "tingzhi",
+      "unicode": "e67d",
+      "unicode_decimal": 59005
+    },
+    {
+      "icon_id": "20104502",
+      "name": "启动",
+      "font_class": "qidong",
+      "unicode": "e616",
+      "unicode_decimal": 58902
+    },
+    {
+      "icon_id": "16616259",
+      "name": "more",
+      "font_class": "more",
+      "unicode": "e68a",
+      "unicode_decimal": 59018
+    },
+    {
+      "icon_id": "10670579",
+      "name": "check more",
+      "font_class": "checkmore",
+      "unicode": "e6a8",
+      "unicode_decimal": 59048
+    }
+  ]
+}

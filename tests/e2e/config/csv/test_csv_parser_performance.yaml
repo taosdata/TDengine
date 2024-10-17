@@ -1,0 +1,70 @@
+"parser": {
+  "parser": {
+    "parse": {
+      "value": {
+        "json": ""
+      }
+    },
+    "model": {
+      "name": "tbl_{groupid}",
+      "using": "csv_meters",
+      "tags": [
+        "groupid",
+        "location"
+      ],
+      "columns": [
+        "ts",
+        "id",
+        "current",
+        "voltage",
+        "phase"
+      ]
+    },
+    "mutate": [
+      {
+        "map": {
+          "ts": {
+            "cast": "c0",
+            "as": "TIMESTAMP(ns)"
+          },
+          "id": {
+            "cast": "c1",
+            "as": "INT"
+          },
+          "current": {
+            "cast": "c2",
+            "as": "DOUBLE"
+          },
+          "phase": {
+            "cast": "c3",
+            "as": "DOUBLE"
+          },
+          "voltage": {
+            "cast": "c4",
+            "as": "INT"
+          },
+          "groupid": {
+            "cast": "c5",
+            "as": "INT"
+          },
+          "location": {
+            "cast": "c6",
+            "as": "varchar"
+          }
+        }
+      }
+    ]
+  },
+  "format": {
+    "currentPage": 1,
+    "pageCount": 7,
+    "pageSize": 20
+  },
+  "input": [
+    {"c0": "1711425023481780736","c1": "8","c2": "10.77","c3": "0.77","c4": "220","c5": "67164","c6": "Beijing"},
+    {"c0": "1711425023481799424","c1": "97","c2": "10.77","c3": "0.77","c4": "220","c5": "53337","c6": "Beijing"},
+    {"c0": "1711425023481806592","c1": "52","c2": "10.77","c3": "0.77","c4": "220","c5": "85554","c6": "Beijing"},
+    {"c0": "1711425023481811712","c1": "83","c2": "10.77","c3": "0.77","c4": "220","c5": "2939","c6": "Beijing"},
+    {"c0": "1711425023481816576","c1": "37","c2": "10.77","c3": "0.77","c4": "220","c5": "14405","c6": "Beijing"}
+  ]
+}

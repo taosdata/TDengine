@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "taosx-test"
+version = "0.1.0"
+description = ""
+authors = ["WANG Xu <feici02@outlook.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pytest = "^7.4.2"
+allure-pytest = "^2.13.2"
+pytest-timeout = "^2.2.0"
+semver = "^3.0.2"
+python-dateutil = "^2.9.0.post0"
+taos-ws-py = "^0.3.3"
+testng-taosx = {path = "/Users/wangxu/PycharmProjects/TestNG_taosX", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

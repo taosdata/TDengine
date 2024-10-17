@@ -1,0 +1,12 @@
+task_name: backup
+task_type: backup
+
+from:
+  fromhost: tmq+http://{0}/ci_backup
+
+to:
+  target_type: local
+  target_dbname: /tmp/ci_backup/
+
+trigger:
+  schedule: "@daily"

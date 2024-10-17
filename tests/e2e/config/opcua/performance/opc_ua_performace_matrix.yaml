@@ -1,0 +1,31 @@
+task_name: opcua
+task_type: opcua
+
+from:
+  fromhost: opcua://{1}/OPCUA/SimulationServer
+  connect_timeout: 10
+  interval: 1
+  request_timeout: 10
+  log_level: info
+  batch_timeout: 10
+  keep_raw_data: "false"
+  keep_raw_data_days: 1
+
+to:
+  target_type: taos
+  target_dbname: p_opcua
+
+task_exec_time: 10
+
+from_db_param_matrix:
+  stable_num: [1, 10, 100]
+
+
+param_matrix:
+  use_agent: [true, false]
+  collect_mode: [subscribe, observe]
+  write_concurrency: [0, 10, 20, 50, 128]
+  batch_size: [1000, 2000, 5000, 10000]
+  batch_timeout: [1, 10, 30, 60]
+  csv_config_file: ["opcua/performance/OPC_UA_10000_int_1_stb.csv", "opcua/performance/OPC_UA_10000_int_2_stb.csv", "opcua/performance/OPC_UA_10000_int_5_stb.csv", "opcua/performance/OPC_UA_10000_int_10_stb.csv"]
+  # csv_file: ["opcua/performance/OPC_UA_10000_int_2_stb.csv"]

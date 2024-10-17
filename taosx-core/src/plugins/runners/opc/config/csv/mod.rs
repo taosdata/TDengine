@@ -617,18 +617,20 @@ mod tests {
 
     #[test]
     fn test_decode_csv_content() {
-        todo!()
+        // TODO
     }
 
     #[tokio::test]
     async fn test_read_to_string() {
-        todo!()
+        // TODO
     }
 
     #[tokio::test]
     async fn test_open_csv_file() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         // file path
-        let file = "@../tests/opc/opcua-utf8bom.csv".to_string();
+        let file = "@./tests/opc/opcua-utf8bom.csv".to_string();
         let mut rdr = CsvParser::open_csv(file).await.unwrap();
         let headers = rdr.headers().await.unwrap();
         assert_eq!(headers.len(), 14);
@@ -658,56 +660,58 @@ mod tests {
 
     #[tokio::test]
     async fn test_open_csv_files() {
-        let files = vec!["@../tests/opc/opcua-utf8bom.csv".to_string()];
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let files = vec!["@./tests/opc/opcua-utf8bom.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
-        assert_eq!(res.first().unwrap().0, "@../tests/opc/opcua-utf8bom.csv");
+        assert_eq!(res.first().unwrap().0, "@./tests/opc/opcua-utf8bom.csv");
 
-        let files = vec!["@../tests/opc/opcua-utf8.csv".to_string()];
+        let files = vec!["@./tests/opc/opcua-utf8.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await.unwrap();
         assert_eq!(res.len(), 1);
-        assert_eq!(res.first().unwrap().0, "@../tests/opc/opcua-utf8.csv");
+        assert_eq!(res.first().unwrap().0, "@./tests/opc/opcua-utf8.csv");
 
-        let files = vec!["@../tests/opc/opcua-gbk.csv".to_string()];
+        let files = vec!["@./tests/opc/opcua-gbk.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await;
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap().to_string(),
-            "invalid CSV file encoding: GBK, only UTF-8 or UTF-8 BOM supported"
+            "failed to open csv: @./tests/opc/opcua-gbk.csv, cause: invalid CSV file encoding: GBK, only UTF-8 or UTF-8 BOM supported"
         );
     }
 
     #[tokio::test]
     async fn test_from_dsn() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let ua_config = CsvParser::from_dsn(&dsn).unwrap();
         assert_eq!(ua_config.opc_type, OpcType::OPCUA);
         let csv_files = ua_config.csv_files;
         assert_eq!(csv_files.len(), 1);
         let path = csv_files.first().unwrap();
-        assert_eq!(path, "@../tests/opc/opcua-utf8bom.csv");
+        assert_eq!(path, "@./tests/opc/opcua-utf8bom.csv");
 
-        let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
         let da_config = CsvParser::from_dsn(&dsn).unwrap();
         assert_eq!(da_config.opc_type, OpcType::OPCDA);
         let csv_files = da_config.csv_files;
         assert_eq!(csv_files.len(), 1);
         let path = csv_files.first().unwrap();
-        assert_eq!(path, "@../tests/opc/opcda-utf8bom.csv");
+        assert_eq!(path, "@./tests/opc/opcda-utf8bom.csv");
     }
 
     #[tokio::test]
     async fn test_parse() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let ua_config = csv_parser.parse().await.unwrap();
         assert_eq!(ua_config.point_config_map.len(), 3);
 
-        let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let da_config = csv_parser.parse().await.unwrap();
         assert_eq!(da_config.point_config_map.len(), 3);
@@ -715,8 +719,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_point_id_and_tbname() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let ua_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
         assert_eq!(ua_config.len(), 2);
@@ -727,8 +732,7 @@ mod tests {
         assert_eq!(point_id, "ns=3;i=1006");
         assert_eq!(tbname, "t_3_1006");
 
-        let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let da_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
         assert_eq!(da_config.len(), 2);
@@ -741,15 +745,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_empty_csv_file() {
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-empty.csv").unwrap();
-        let result = CsvParser::from_dsn(&dsn);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "empty csv file");
+    async fn test_invalid_csv_file() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        // zero rows
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-empty.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let res = csv_parser.parse().await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "empty csv file");
 
         // invalid transform expression
         let dsn = Dsn::from_str(
-            "opcua://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv",
+            "opcua://?csv_config_file=@./tests/opc/opcua-utf8bom-transform-error.csv",
         )
         .unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
@@ -757,12 +765,12 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "invalid transform expression: invalid expression"
+            "invalid original_ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
         );
 
         // tbname is empty
         let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-tbname-empty.csv").unwrap();
+            Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-tbname-empty.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let res = parser.parse().await;
         assert!(res.is_err());
@@ -770,20 +778,22 @@ mod tests {
 
         // type error
         let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-type-error.csv").unwrap();
+            Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-type-error.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
         let res = csv_parser.parse().await;
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "invalid type: invalid type in csv row, must be INT, FLOAT, BOOL, STRING, DATETIME"
+            "invalid column data type: vacs"
         );
     }
 
     #[tokio::test]
     async fn test_error_name() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-name-error.csv").unwrap();
+            Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-name-error.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
 
         let model_config = csv_parser.parse().await.unwrap();

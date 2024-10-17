@@ -1,0 +1,117 @@
+{
+  "name": "taos-explorer-ui",
+  "version": "1.8.1",
+  "description": "TDengine Explorer",
+  "author": "support@taosdata.com",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/oem.js serve dev",
+    "prd": "node scripts/oem.js serve prd",
+    "test": "node scripts/oem.js build test",
+    "preview": "node scripts/oem.js build pre",
+    "build": "node version.js && node scripts/oem.js",
+    "build:bin": "node version.js && node scripts/oem.js && cargo build --release",
+    "build:musl": "node version.js && node scripts/oem.js && cargo build --release --target x86_64-unknown-linux-musl",
+    "inspect": "vue-cli-service inspect",
+    "lint": "eslint --fix --ext  .js,.vue src",
+    "report": "vue-cli-service build --report"
+  },
+  "dependencies": {
+    "@tdengine/websocket": "=3.0.0",
+    "axios": "^0.21.1",
+    "babel-plugin-prismjs": "^2.1.0",
+    "clipboard-polyfill": "^4.0.1",
+    "core-js": "^3.12.1",
+    "crypto-js": "^4.1.1",
+    "date-fns": "^2.29.3",
+    "echarts": "^5.3.2",
+    "element-ui": "^2.15.8",
+    "file-saver": "^2.0.5",
+    "github-markdown-css": "^5.1.0",
+    "highlight.js": "^11.4.0",
+    "highlightjs": "^9.16.2",
+    "js-cookie": "^2.2.1",
+    "json-bigint": "^1.0.0",
+    "json2csv": "^5.0.7",
+    "jsoneditor": "^10.0.0",
+    "lodash": "^4.17.21",
+    "marked": "^4.2.12",
+    "mavon-editor": "^2.10.4",
+    "mitt": "^3.0.0",
+    "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
+    "node-sass": "^8.0.0",
+    "papaparse": "^5.4.1",
+    "prismjs": "^1.29.0",
+    "qs": "^6.12.3",
+    "table": "^6.8.0",
+    "validator": "^13.7.0",
+    "vue": "^2.7.8",
+    "vue-codemirror": "^4.0.6",
+    "vue-dompurify-html": "^4.1.4",
+    "vue-i18n": "^8.24.5",
+    "vue-paycard": "^0.7.0",
+    "vue-router": "^3.5.1",
+    "vuex": "^3.6.2",
+    "xterm": "^5.0.0",
+    "xterm-addon-fit": "^0.6.0",
+    "xterm-addon-search": "^0.10.0",
+    "xterm-addon-serialize": "^0.8.0",
+    "xterm-addon-webgl": "^0.13.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.16.7",
+    "@babel/plugin-proposal-optional-chaining": "^7.16.7",
+    "@vue/cli-plugin-babel": "^4.5.18",
+    "@vue/cli-plugin-eslint": "^4.5.18",
+    "@vue/cli-service": "^4.5.18",
+    "babel-eslint": "^10.1.0",
+    "babel-plugin-import": "^1.13.5",
+    "babel-plugin-transform-remove-console": "^6.9.4",
+    "compression-webpack-plugin": "^6.1.1",
+    "css-unicode-loader": "^1.0.3",
+    "eslint": "^6.8.0",
+    "eslint-plugin-vue": "^6.2.2",
+    "lint-staged": "8.1.5",
+    "sass-loader": "^10.2.0",
+    "svg-sprite-loader": "^6.0.7",
+    "vue-template-compiler": "^2.7.8"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "babel-eslint"
+    },
+    "rules": {
+      "no-debugger": "off",
+      "no-unused-vars": "off",
+      "vue/no-unused-components": "off",
+      "no-useless-escape": "off",
+      "no-unreachable": "off",
+      "no-case-declarations": "off",
+      "vue/comment-directive": "off"
+    },
+    "ignorePatterns": [
+      "/WebSocket/**",
+      "/src/assets/**"
+    ]
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "lint-staged": {
+    "src/**/*.{js,vue}": [
+      "npm run lint",
+      "git add"
+    ]
+  }
+}

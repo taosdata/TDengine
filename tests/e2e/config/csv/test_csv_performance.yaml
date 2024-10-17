@@ -1,0 +1,14 @@
+task_name: csv
+task_type: csv
+
+from:
+  fromhost: "csv:{0}"
+  skip: 0
+  has_header: "false"
+  batch_size: 1000
+
+to:
+  target_type: taos
+  target_dbname: perf_csv
+
+task_exec_time: 10

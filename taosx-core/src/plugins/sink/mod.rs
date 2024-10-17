@@ -39,6 +39,7 @@ use arrow_schema::{ArrowError, Field};
 use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
+use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
 use futures_util::{Sink, Stream, StreamExt};
 use rhai::{Dynamic, Engine, Scope};
@@ -1770,7 +1771,9 @@ fn get_transform_exprssion_by_id(
 mod handle_transform_tests {
     use crate::runners::opc::config::csv::CsvParser;
     use crate::sink::handle_transform;
-    use arrow::array::{Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray};
+    use arrow::array::{
+        Array, Float64Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray,
+    };
     use arrow::record_batch::RecordBatch;
     use arrow_schema::DataType;
     use arrow_schema::Field;
@@ -1782,6 +1785,8 @@ mod handle_transform_tests {
 
     #[tokio::test]
     async fn test_handle_transform() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let message = RecordMessage::from_record(
             RecordBatch::try_new(
                 Arc::new(Schema::new(vec![
@@ -1830,8 +1835,7 @@ mod handle_transform_tests {
             .unwrap(),
         );
 
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let model_config = parser.parse().await.unwrap();
 
@@ -1842,18 +1846,18 @@ mod handle_transform_tests {
             .column_by_name("value")
             .unwrap()
             .as_any()
-            .downcast_ref::<Int32Array>()
+            .downcast_ref::<Float64Array>()
             .unwrap()
             .values()
             .to_vec();
-        assert_eq!(value, vec![33, 12, 3]);
+        assert_eq!(value, vec![33.8, 12.0, 3.0]);
 
         let ts = transformed_msg
             .record()
             .column_by_name("ts")
             .unwrap()
             .as_any()
-            .downcast_ref::<TimestampMillisecondArray>()
+            .downcast_ref::<Int64Array>()
             .unwrap()
             .values()
             .to_vec();
@@ -1864,7 +1868,7 @@ mod handle_transform_tests {
             .column_by_name("received")
             .unwrap()
             .as_any()
-            .downcast_ref::<TimestampMillisecondArray>()
+            .downcast_ref::<Int64Array>()
             .unwrap()
             .values()
             .to_vec();
@@ -2772,7 +2776,23 @@ async fn consume_flat_record(
         return Ok(());
     }
     if taos.is_none() {
-        taos.replace(pool.get().await?);
+        match pool.get().await {
+            Ok(new_taos) => {
+                taos.replace(new_taos);
+            }
+            Err(e) => {
+                let pool_status = pool.status();
+                if pool_status.available == 0 && matches!(e, PoolError::Timeout(TimeoutType::Wait))
+                {
+                    let new_size = pool_status.max_size + parser.global().concurrent_limit();
+                    pool.resize(new_size);
+                    tracing::warn!(new_size, "connection pool resized");
+                    taos.replace(pool.get().await?);
+                } else {
+                    Err(e).context("get taos connection from pool error")?
+                }
+            }
+        }
     }
 
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);

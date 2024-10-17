@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+export HOST=192.168.2.11
+export ROOT_DIR=$(pwd)
+
+export TAOS_EXPLORER_HOST=$HOST
+export TAOS_EXPLORER_PORT=6060    # optional
+export TAOSX_HOST=$HOST
+export TAOSX_PORT=6050            # optional
+
+export TAOSADAPTER_HOST=$HOST
+export TAOSD_HOST=$HOST
+
+export TAOSX_LINUX_AGENT_HOST=$HOST
+export TAOSX_WINDOWS_AGENT_HOST=$HOST
+
+export TAOSX_LINUX_AGENT_ID=1
+export TAOSX_WINDOWS_AGENT_ID=2
+
+# Explorer login username/password, optional
+export EXPLORER_USERNAME=root
+export EXPLORER_PASSWORD=taosdata
+
+export TAOSD_SOURCE_HOST=192.168.1.45
+export TAOSBENCHMARK_HOST=$HOST
+
+export TAOS_GRANT_BINARY=192.168.2.13:/data/common/activation-code/taosGrant
+
+export RETRY_CHECK_METRICS=10
+
+export DELETE_TASK=True
+export DELETE_DB=True
+
+# For performance cases
+# export BRANCH_NAME=dev
+# export TAOSD_LOG_HOST=192.168.1.62
+
+# For tmq/legacy performance cases
+# 1. source driver: taos or tmq
+# 2. target/source protocol: ws or native
+# export DRIVER=taos
+# export TARGET_PROTOCOL=ws
+# export SOURCE_PROTOCOL=native
+
+# end

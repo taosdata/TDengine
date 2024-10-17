@@ -1,0 +1,3 @@
+No.,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name,tag::int::groupid
+1,device0.tagd0_0,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,,,tagd0_0,0
+2,device0.tagd0_1,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,,,tagd0_1,1

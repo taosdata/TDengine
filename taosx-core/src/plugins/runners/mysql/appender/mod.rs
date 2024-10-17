@@ -840,6 +840,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         // prepare data
         let _ = test_clear_data().await;

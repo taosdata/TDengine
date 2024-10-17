@@ -1,0 +1,36 @@
+[package]
+name = "taoslog"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = { version = "*", default-features = false }
+tracing-actix-web = { version = "*" }
+tracing = { version = "*", default-features = false }
+tracing-subscriber = { version = "*", default-features = false, features = [
+    "fmt",
+    "std",
+] }
+chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
+parking_lot = "0.12.3"
+snafu = "0.8.4"
+flate2 = "1.0"
+thread-id = "4.2.2"
+regex = "1"
+sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
+flume = "0.11.0"
+arrow-schema = "*"
+http = "0.2.12"
+nu-ansi-term = { version = "0.50.1", optional = true }
+rayon = "1"
+
+[dev-dependencies]
+crossbeam = "0.8.4"
+log = "0.4.22"
+rand = "0.8.5"
+tokio = { version = "*", features = ["full"] }
+tracing = { version = "*", features = ["log"] }
+tracing-log = "0.2.0"
+
+[features]
+ansi = ["dep:nu-ansi-term"]

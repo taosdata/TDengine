@@ -1,0 +1,5 @@
+序号,信息点编码,OPC点地址,type,stable,ts_col,received_ts_col,name_tag,name_device_name,value_col,enable
+序号,tbname,tag_name,type,stable,ts_col,received_ts_col,tag::varchar(40)::name,tag::VARCHAR(234)::device_name,value_col,enable
+1,meter_{TagName},device0.tagd0-0,int,stb_int,ts1,rts1,name_device0,device0,valuevalue,1
+2,meter_{TagName},device0.tagd0-1,varchar(256),stb_varchar,ts1,rts1,name_device0,device0,valuevalue,1
+3,meter_{TagName},device0.tagd0-2,double,stb_double,ts1,rts1,name_device0,device0,valuevalue,1

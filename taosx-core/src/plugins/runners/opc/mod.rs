@@ -764,16 +764,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_csv_headers() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
 
         let headers = get_csv_headers(&dsn).await.unwrap();
+        assert_eq!(headers.len(), 1);
 
-        dbg!(headers);
+        let header = headers.values().next().unwrap();
+        let cols = header.get_columns();
+        assert_eq!(cols.len(), 14);
     }
 
     #[test]
     fn test_get_temp_file() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let dsn = Dsn::from_str("opcua://").unwrap();
         let file = get_temp_file(&dsn, "certificate");
         assert!(file.is_none());
@@ -791,7 +797,7 @@ mod tests {
         file.read_to_string(&mut content).unwrap();
         assert_eq!(content, "hello\nworld");
 
-        let dsn = Dsn::from_str("opcua://?certificate=@../tests/opc/certificate.crt").unwrap();
+        let dsn = Dsn::from_str("opcua://?certificate=@./tests/opc/certificate.crt").unwrap();
         let file = get_temp_file(&dsn, "certificate");
         assert!(file.is_none());
     }

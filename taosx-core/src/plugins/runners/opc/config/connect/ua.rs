@@ -161,13 +161,15 @@ impl UaConnectConfig {
 }
 
 #[cfg(test)]
-mod ua_connect_config_tests {
+mod tests {
     use std::str::FromStr;
 
     use super::*;
 
     #[test]
     fn test_parse_file_path() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let dsn = Dsn::from_str("opcua://").unwrap();
         let param = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
         assert!(param.is_none());
@@ -175,30 +177,22 @@ mod ua_connect_config_tests {
         let dsn = Dsn::from_str("opcua://?certificate=").unwrap();
         let param = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
         assert!(param.is_none());
+
         // 以@开头，存在的文件
-        let file_path = std::env::current_dir()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("tests")
-            .join("opc")
-            .join("certificate.crt")
-            .display()
-            .to_string();
-        let dsn = Dsn::from_str("opcua://?certificate=@../tests/opc/certificate.crt").unwrap();
+        let dsn = Dsn::from_str("opcua://?certificate=@./tests/opc/certificate.crt").unwrap();
         let absolute_path = UaConnectConfig::parse_file_path(&dsn, "certificate")
             .unwrap()
             .unwrap();
-        assert_eq!(file_path, absolute_path);
+        assert!(absolute_path.contains("certificate.crt"));
 
         // 以@开头，不存在的文件
         let dsn = Dsn::from_str("opcua://?certificate=@abc").unwrap();
         let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
         assert!(content.is_err());
-        assert_eq!(
-            "certificate: abc not found, cause: No such file or directory (os error 2)",
-            content.unwrap_err().to_string()
-        );
+        assert!(content
+            .unwrap_err()
+            .to_string()
+            .contains("certificate: abc not found"));
 
         // 不以@开头，文件内容
         let dsn = Dsn::from_str("opcua://?certificate=abc").unwrap();

@@ -1,0 +1,24 @@
+task_name: legacy
+task_type: tdengine2.x
+
+from:
+  fromhost: taos+ws://root:taosdata@{0}/
+  mode: all
+  schema: only
+  unit: 1s
+  retro: 0s
+  interval: 1s
+  excursion: 500ms
+
+to:
+  target_type: taos
+  target_dbname: ci_legacy
+
+task_exec_time: 10
+
+source_db:
+  name: wide_legacy
+  stb_name: meters
+  stb_number: 1
+  subtable_number: 10
+  record_number_per_subtable: 10
