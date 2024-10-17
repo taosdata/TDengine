@@ -495,16 +495,12 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
   int32_t code = 0;
   char   *err = NULL;
 
-  SLRUCache            *pCache = pTsdb->lruCache;
-
-  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+  SLRUCache *pCache = pTsdb->lruCache;
 
   taosLRUCacheApply(pCache, tsdbCacheFlushDirty, pTsdb);
 
   rocksMayWrite(pTsdb, true);
   rocksdb_flush(pTsdb->rCache.db, pTsdb->rCache.flushoptions, &err);
-
-  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
 
   if (NULL != err) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
@@ -629,26 +625,6 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
   code = tsdbCachePutToLRU(pTsdb, pLastKey, &emptyCol, 1);
   if (code) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
-  }
-
-  TAOS_RETURN(code);
-}
-
-int32_t tsdbCacheCommitNoLock(STsdb *pTsdb) {
-  int32_t code = 0;
-  char   *err = NULL;
-
-  SLRUCache            *pCache = pTsdb->lruCache;
-
-  taosLRUCacheApply(pCache, tsdbCacheFlushDirty, pTsdb);
-
-  rocksMayWrite(pTsdb, true);
-  rocksdb_flush(pTsdb->rCache.db, pTsdb->rCache.flushoptions, &err);
-
-  if (NULL != err) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
-    rocksdb_free(err);
-    code = TSDB_CODE_FAILED;
   }
 
   TAOS_RETURN(code);
@@ -838,7 +814,7 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
+  code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
@@ -900,7 +876,7 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
+  code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
@@ -970,7 +946,7 @@ int32_t tsdbCacheDropNTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, bool h
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
+  code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
@@ -1019,7 +995,7 @@ int32_t tsdbCacheDropSTableColumn(STsdb *pTsdb, SArray *uids, int16_t cid, bool 
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
+  code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
@@ -1888,13 +1864,13 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   int     numKeys = 0;
   SArray *remainCols = NULL;
 
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+
   code = tsdbCacheCommit(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
   }
-
-  (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
   for (int i = 0; i < numCols; ++i) {
     int16_t cid = pTSchema->columns[i].colId;
