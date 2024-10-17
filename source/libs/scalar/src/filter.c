@@ -4679,6 +4679,9 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
       cell = cell->pNext;
     }
+    if (node->condType == LOGIC_COND_TYPE_NOT) {
+      stat->scalarMode = true;
+    }
 
     return DEAL_RES_CONTINUE;
   }
