@@ -1523,7 +1523,7 @@ void* processSvrMsg(void* arg) {
       taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
 
-      transGetCb(pRpcMsg->type, (void**)&fp);
+      transGetCb(pRpcMsg->type, (RpcCfp*)&fp);
 
       taosThreadMutexUnlock(&mutex[1]);
       fp(NULL, pRpcMsg, NULL);
@@ -1555,7 +1555,7 @@ void* procClientMsg(void* arg) {
       taosGetQitem(qall, (void**)&pRpcMsg);
       taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
-      transGetCb(pRpcMsg->type, (void**)&fp);
+      transGetCb(pRpcMsg->type, (RpcCfp*)&fp);
       taosThreadMutexUnlock(&mutex[1]);
       fp(NULL, pRpcMsg, NULL);
     }
@@ -1568,6 +1568,8 @@ void* procClientMsg(void* arg) {
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
+  instMgt = taosOpenRef(50, rpcCloseImpl);
+  transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
 
   taosThreadMutexInit(&tableMutex, NULL);
   hashTable = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
@@ -1617,28 +1619,33 @@ static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
   transCloseRefMgt(svrRefMgt);
 }
+
+typedef struct {
+  void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
+  RPC_TYPE type;
+} FP_TYPE;
 int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet)) {
   taosThreadMutexLock(&tableMutex);
-  int32_t code = taosHashPut(hashTable, &type, sizeof(type), fp, sizeof(fp));
+
+  FP_TYPE t = {.fp = fp, .type = type};
+  int32_t code = taosHashPut(hashTable, &type, sizeof(type), &t, sizeof(t));
   taosThreadMutexUnlock(&tableMutex);
-  // taosMutexLock(&mutex[0]);
-  // // update callback
-  // return;
   return 0;
 }
-int32_t transGetCb(RPC_TYPE type, void** fp) {
+int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet)) {
   taosThreadMutexLock(&tableMutex);
   void* p = taosHashGet(hashTable, &type, sizeof(type));
   if (p == NULL) {
     taosThreadMutexUnlock(&tableMutex);
     return TSDB_CODE_INVALID_MSG;
   }
-  *fp = p;
+  FP_TYPE* t = p;
+  *fp = t->fp;
   taosThreadMutexUnlock(&tableMutex);
   return 0;
 }
 
-int32_t transSendReq(SRpcMsg* pMsg, void* pEpSet) {
+int32_t transSendReq(STrans* pTransport, SRpcMsg* pMsg, void* pEpSet) {
   SRpcMsg* pTemp;
 
   taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void**)&pTemp);
@@ -1679,37 +1686,60 @@ int32_t transGetSyncMsgMgt() { return transSyncMsgMgt; }
 
 void transCleanup() {
   // clean env
+  transDestroyEnv();
   return;
 }
 int32_t transOpenRefMgt(int size, void (*func)(void*)) {
-  // added into once later
-  return 0;
+  /// add later
+  return taosOpenRef(size, func);
 }
 void transCloseRefMgt(int32_t mgt) {
   // close ref
+  taosCloseRef(mgt);
   return;
 }
 int64_t transAddExHandle(int32_t refMgt, void* p) {
+  return taosAddRef(refMgt, p);
   // acquire extern handle
-  return 0;
 }
 int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return 0;
+  return taosRemoveRef(refMgt, refId);
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return NULL;
+  return (void*)taosAcquireRef(refMgt, refId);
 }
 
 int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
-  return 0;
+  return taosReleaseRef(refMgt, refId);
 }
-void transDestroyExHandle(void* handle) { return; }
+void transDestroyExHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  SExHandle* eh = handle;
+  if (!QUEUE_IS_EMPTY(&eh->q)) {
+    tDebug("handle %p mem leak", handle);
+  }
+  tDebug("free exhandle %p", handle);
+  taosMemoryFree(handle);
+  return;
+}
 
-void transDestroySyncMsg(void* msg) { return; }
+void transDestroySyncMsg(void* msg) {
+  if (msg == NULL) return;
+
+  STransSyncMsg* pSyncMsg = msg;
+  TAOS_UNUSED(tsem2_destroy(pSyncMsg->pSem));
+  taosMemoryFree(pSyncMsg->pSem);
+  transFreeMsg(pSyncMsg->pRsp->pCont);
+  taosMemoryFree(pSyncMsg->pRsp);
+  taosMemoryFree(pSyncMsg);
+  return;
+}
 
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) { return 0; }
 int32_t  subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) { return 0; }

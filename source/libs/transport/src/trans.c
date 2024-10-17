@@ -354,8 +354,8 @@ void* rpcOpen(const SRpcInit* pInit) {
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
-    tError("failed to init rpc handle");
-    TAOS_CHECK_GOTO(terrno, NULL, _end);
+    // tError("failed to init rpc handle");
+    // TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
   for (int8_t i = 0; i < sizeof(labelSet) / sizeof(labelSet[0]); i++) {
     if (strcmp(labelSet[i].lablset, pRpc->label) == 0) {
