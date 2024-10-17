@@ -244,6 +244,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
+  rsp.debugFlag = tqClientDebug;
   code = buildMqHbRsp(pMsg, &rsp);
 
 END:
@@ -587,8 +588,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
-  bool ubSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
-  if(ubSubscribe){
+  bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
+  if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
@@ -599,7 +600,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
-                          (ubSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
+                          (unSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
                           pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
