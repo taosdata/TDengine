@@ -926,3 +926,4 @@ python3 ./test.py -f 99-TDcase/TD-20582.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
 python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
 python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
+python3 ./test.py -f 2-query/slow_query_basic.py
