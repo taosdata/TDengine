@@ -92,6 +92,7 @@ jobs:
           clean: false
       - name: check
         run: |
+          mkdir -p explorer/dist/ || true
           docker run -v ${{ github.workspace }}:/app -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
 
   build_rust:
