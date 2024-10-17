@@ -49,3 +49,7 @@ jobs:
       - name: Typos check
         run: |
           typos src taosx-* README.md
+
+      - name: Unit Tests
+        run: |
+          cargo make test --locked --workspace --all --tests
