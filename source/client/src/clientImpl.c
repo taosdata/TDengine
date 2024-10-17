@@ -2346,6 +2346,16 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t checkResultInfo(SReqResultInfo* pResultInfo) {
+  if (pResultInfo->totalRows < pResultInfo->numOfRows) {
+    tscError("checkResultInfo error: totalRows:%" PRId64 " < numOfRows:%" PRId64, pResultInfo->totalRows,
+             pResultInfo->numOfRows);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   if (pResultInfo == NULL || pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL) {
     tscError("setResultDataPtr paras error");
@@ -2422,7 +2432,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
-
+    if (IS_INVALID_TYPE(pResultInfo->fields[i].type)) {
+      tscError("invalid type %d", pResultInfo->fields[i].type);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
       pStart += pResultInfo->numOfRows * sizeof(int32_t);
@@ -2450,6 +2463,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength);
   }
+  code = checkResultInfo(pResultInfo);
 
   return code;
 }
