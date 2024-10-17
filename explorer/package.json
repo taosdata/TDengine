@@ -10,8 +10,8 @@
     "test": "node scripts/oem.js build test",
     "preview": "node scripts/oem.js build pre",
     "build": "node version.js && node scripts/oem.js",
-    "build:bin": "node version.js && node scripts/oem.js && cargo build --release",
-    "build:musl": "node version.js && node scripts/oem.js && cargo build --release --target x86_64-unknown-linux-musl",
+    "build:bin": "node version.js && node scripts/oem.js && cargo build -p taos-explorer --release",
+    "build:musl": "node version.js && node scripts/oem.js && cargo build -p taos-explorer --release --target x86_64-unknown-linux-musl",
     "inspect": "vue-cli-service inspect",
     "lint": "eslint --fix --ext  .js,.vue src",
     "report": "vue-cli-service build --report"

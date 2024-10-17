@@ -160,7 +160,6 @@ bytes = { workspace = true }
 jsonwebtoken = "9.1.0"
 rand = "0.8"
 
-atty = "0.2.14"
 console-subscriber = { version = "0.4.0", optional = true }
 file-rotate = "0.7.5"
 md5 = "0.7.0"
