@@ -495,7 +495,7 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   int32_t code = 0;
   pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -515,6 +515,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .fsyncPeriod = 0,
                  .rollPeriod = -1,
                  .segSize = -1,
+                 .committed = -1,
                  .retentionPeriod = 0,
                  .retentionSize = 0,
                  .level = TAOS_WAL_FSYNC,
@@ -573,6 +574,8 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
   }
+
+  mInfo("vgId:1, mnode sdb is opened, with applied index:%" PRId64, pMnode->pSdb->commitIndex);
 
   atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
   return code;

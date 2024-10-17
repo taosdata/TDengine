@@ -87,7 +87,6 @@ python3 ./test.py -f 7-tmq/ins_topics_test.py
 python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 python3 ./test.py -f 7-tmq/tmqParamsTest.py
 python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
-python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 python3 ./test.py -f 7-tmq/tmqOffset.py

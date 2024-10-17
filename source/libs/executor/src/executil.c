@@ -1797,7 +1797,6 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SDataType* pType = &pFuncNode->node.resType;
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pFuncNode->node.aliasName);
-
     tExprNode* pExprNode = pExp->pExpr;
 
     pExprNode->_function.functionId = pFuncNode->funcId;

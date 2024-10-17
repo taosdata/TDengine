@@ -21,7 +21,7 @@ char        tmpSlowLogPath[PATH_MAX] = {0};
 TdThread    monitorThread;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
-  int ret = snprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
+  int ret = tsnprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
   if (ret < 0) {
     tscError("failed to get tmp path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -183,7 +183,7 @@ FAILED:
 
 static void generateClusterReport(taos_collector_registry_t* registry, void* pTransporter, SEpSet* epSet) {
   char ts[50] = {0};
-  (void)sprintf(ts, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+  (void)snprintf(ts, sizeof(ts), "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   char* pCont = (char*)taos_collector_registry_bridge_new(registry, ts, "%" PRId64, NULL);
   if (NULL == pCont) {
     tscError("generateClusterReport failed, get null content.");
@@ -401,7 +401,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
       return;
     }
     pClient->lastCheckTime = taosGetMonoTimestampMs();
-    (void)strcpy(pClient->path, path);
+    tstrncpy(pClient->path, path, PATH_MAX);
     pClient->offset = 0;
     pClient->pFile = pFile;
     if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pClient, POINTER_BYTES) != 0) {
@@ -458,7 +458,7 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
     return NULL;
   }
   char* buf = pCont;
-  (void)strcat(buf++, "[");
+  (void)strncat(buf++, "[", totalSize - 1);
   int64_t readSize = taosReadFile(pFile, buf, totalSize - 4); // 4 reserved for []
   if (readSize <= 0) {
     if (readSize < 0) {

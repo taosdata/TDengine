@@ -693,7 +693,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   int64_t clusterid = mndGetClusterId(pMnode);
   if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
-    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x",
+    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current clusterid:%" PRId64 ", code:0x%x",
           statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
     goto _OVER;
   }
@@ -740,7 +740,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
-
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
           pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);

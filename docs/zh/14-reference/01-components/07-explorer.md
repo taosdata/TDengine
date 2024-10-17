@@ -132,7 +132,7 @@ cors = true
 - `cluster`：TDengine 集群的 taosAdapter 地址。
 - `cluster_native`：TDengine 集群的原生连接地址，默认关闭。
 - `x_api`：taosX 的 gRPC 地址。
-- `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址.
+- `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址。
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
 - `ssl.certificate`：SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
 - `ssl.certificate_key`：SSL 证书密钥。

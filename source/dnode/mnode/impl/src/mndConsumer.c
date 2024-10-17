@@ -167,7 +167,7 @@ static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRs
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
     MND_TMQ_NULL_CHECK(data);
-    (void)strcpy(data->topic, topic);
+    tstrncpy(data->topic, topic, TSDB_TOPIC_FNAME_LEN);
     if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
         grantCheckExpire(TSDB_GRANT_SUBSCRIPTION) < 0) {
       data->noPrivilege = 1;
@@ -244,6 +244,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
+  rsp.debugFlag = tqClientDebug;
   code = buildMqHbRsp(pMsg, &rsp);
 
 END:
@@ -277,7 +278,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     taosRLockLatch(&pSub->lock);
 
     SMqSubTopicEp topicEp = {0};
-    (void)strcpy(topicEp.topic, topic);
+    tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
 
     // 2.1 fetch topic schema
     SMqTopicObj *pTopic = NULL;
@@ -587,8 +588,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
-  bool ubSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
-  if(ubSubscribe){
+  bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
+  if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
@@ -599,7 +600,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
-                          (ubSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
+                          (unSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
                           pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
@@ -909,7 +910,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       // consumer id
       char consumerIdHex[TSDB_CONSUMER_ID_LEN + VARSTR_HEADER_SIZE] = {0};
-      (void)sprintf(varDataVal(consumerIdHex), "0x%" PRIx64, pConsumer->consumerId);
+      (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN, "0x%" PRIx64, pConsumer->consumerId);
       varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -992,7 +993,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       parasStr = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       MND_TMQ_NULL_CHECK(parasStr);
-      (void)sprintf(varDataVal(parasStr), "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
+      (void)snprintf(varDataVal(parasStr), pShow->pMeta->pSchemas[cols].bytes - VARSTR_HEADER_SIZE, "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
               pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
       varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
 
