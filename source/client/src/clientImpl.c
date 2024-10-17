@@ -2079,12 +2079,12 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
+static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, C2M);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
 
@@ -2098,7 +2098,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       pResultInfo->convertBuf[i] = p;
 
       SResultColumn* pCol = &pResultInfo->pCol[i];
-      for (int32_t j = 0; j < numOfRows; ++j) {
+      for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
         if (pCol->offset[j] != -1) {
           char* pStart = pCol->offset[j] + pCol->pData;
 
@@ -2131,9 +2131,12 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
-static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
+static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
+
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
@@ -2196,7 +2199,9 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
   return len;
 }
 
-static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
+static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
   bool needConvert = false;
   for (int32_t i = 0; i < numOfCols; ++i) {
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
@@ -2213,7 +2218,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
-  int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
+  int32_t dataLen = estimateJsonLen(pResultInfo);
   if (dataLen <= 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -2342,7 +2347,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
-  if (pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL || pResultInfo == NULL) {
+  if (pResultInfo == NULL || pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -2351,11 +2356,16 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pResultInfo->pData == NULL) {
+    tscError("estimateJsonLen error: pData is NULL");
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+
   int32_t code = doPrepareResPtr(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  code = doConvertJson(pResultInfo, pResultInfo->numOfCols, pResultInfo->numOfRows);
+  code = doConvertJson(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2401,6 +2411,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
 
   char* pStart = p;
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
+    if ((pStart - pResultInfo->pData) >= dataLen) {
+      tscError("setResultDataPtr invalid offset over dataLen %d", dataLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
     if (blockVersion == BLOCK_VERSION_1) {
       colLength[i] = htonl(colLength[i]);
     }
@@ -2424,11 +2438,17 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     pStart += colLength[i];
   }
 
+  p = pStart;
   // bool blankFill = *(bool*)p;
   p += sizeof(bool);
+  int32_t offset = p - pResultInfo->pData;
+  if (offset > dataLen) {
+    tscError("invalid offset %d, dataLen %d", offset, dataLen);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
 
   if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, pResultInfo->numOfRows, pResultInfo->numOfCols, colLength);
+    code = doConvertUCS4(pResultInfo, colLength);
   }
 
   return code;
@@ -2535,6 +2555,10 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
     }
+  } else {
+    pResultInfo->pData = NULL;
+    pResultInfo->payloadLen = 0;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   // TODO handle the compressed case
