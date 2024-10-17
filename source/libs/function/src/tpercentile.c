@@ -198,19 +198,18 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
 
   int32_t index = -1;
 
-  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal) {
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v)) {
     return index;
   }
 
   // divide a range of [dMinVal, dMaxVal] into 1024 buckets
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
-  if (span < pBucket->numOfSlots) {
-    int32_t delta = (int32_t)(v - pBucket->range.dMinVal);
-    index = (delta % pBucket->numOfSlots);
+  if (fabs(span) < DBL_EPSILON) {
+    index = 0;
   } else {
     double slotSpan = span / pBucket->numOfSlots;
     index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
-    if (v == pBucket->range.dMaxVal) {
+    if (fabs(v - pBucket->range.dMaxVal) < DBL_EPSILON) {
       index -= 1;
     }
   }
@@ -516,26 +515,24 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
           *result = getIdenticalDataVal(pMemBucket, i);
           return TSDB_CODE_SUCCESS;
         }
-
         // try next round
-        pMemBucket->times += 1;
-        //       qDebug("MemBucket:%p, start next round data bucketing, time:%d", pMemBucket, pMemBucket->times);
+        tMemBucket *tmpBucket = tMemBucketCreate(pMemBucket->bytes, pMemBucket->type, pSlot->range.dMinVal, pSlot->range.dMaxVal, false);
+        if (tmpBucket == NULL) {
+          return terrno;
+        }
 
-        pMemBucket->range = pSlot->range;
-        pMemBucket->total = 0;
-
-        resetSlotInfo(pMemBucket);
-
-        int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
+        int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times);
 
         SArray* list;
         void *p = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
         if (p != NULL) {
           list = *(SArray **)p;
           if (list == NULL || list->size <= 0) {
+            tMemBucketDestroy(tmpBucket);
             return -1;
           }
         } else {
+          tMemBucketDestroy(tmpBucket);
           return -1;
         }
 
@@ -543,18 +540,21 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
           int32_t *pageId = taosArrayGet(list, f);
           SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
           if (pg == NULL) {
+            tMemBucketDestroy(tmpBucket);
             return terrno;
           }
 
-          int32_t code = tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
+          int32_t code = tMemBucketPut(tmpBucket, pg->data, (int32_t)pg->num);
           if (code != TSDB_CODE_SUCCESS) {
+            tMemBucketDestroy(tmpBucket);
             return code;
           }
           setBufPageDirty(pg, true);
           releaseBufPage(pMemBucket->pBuffer, pg);
         }
-
-        return getPercentileImpl(pMemBucket, count - num, fraction, result);
+        int32_t code =  getPercentileImpl(tmpBucket, count - num, fraction, result);
+        tMemBucketDestroy(tmpBucket);
+        return code;
       }
     } else {
       num += pSlot->info.size;
