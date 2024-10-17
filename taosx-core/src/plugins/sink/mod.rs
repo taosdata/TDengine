@@ -1835,7 +1835,7 @@ mod handle_transform_tests {
             .unwrap(),
         );
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8.csv").unwrap();
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let model_config = parser.parse().await.unwrap();
 

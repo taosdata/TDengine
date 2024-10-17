@@ -86,15 +86,15 @@ mod tests {
 
     #[test]
     fn test_get_file_encode() {
-        let file_path = "../tests/opc/opcua-utf8.csv";
+        let file_path = "./tests/opc/opcua-utf8.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "UTF-8");
 
-        let file_path = "../tests/opc/opcua-utf8bom.csv";
+        let file_path = "./tests/opc/opcua-utf8bom.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "UTF-8");
 
-        let file_path = "../tests/opc/opcua-gbk.csv";
+        let file_path = "./tests/opc/opcua-gbk.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "GBK");
     }
