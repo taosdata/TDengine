@@ -3433,6 +3433,9 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   pReq->type = pTransInst->type;
   pReq->info.connType = pReq->type;
   pReq->info.cliVer = cliVer;
+  pReq->info.handle = (void*)0x9537;
+  pReq->parent = pTransInst;
+  sprintf(pReq->info.conn.user, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));

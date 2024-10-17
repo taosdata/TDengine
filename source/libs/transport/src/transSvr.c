@@ -1936,6 +1936,13 @@ void    transUnrefSrvHandle(void *handle) { return; }
 int32_t transSendResponse(STransMsg *msg) {
   //
   int32_t code = 0;
+  if (rpcIsReq(msg->msgType)) {
+    msg->msgType = msg->msgType + 1;
+  }
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    return 0;
+  }
   int32_t svrVer = 0;
   code = taosVersionStrToInt(version, &svrVer);
   msg->info.cliVer = svrVer;

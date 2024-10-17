@@ -1522,8 +1522,9 @@ void* processSvrMsg(void* arg) {
       taosGetQitem(qall, (void**)&pRpcMsg);
       taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
-
-      transGetCb(pRpcMsg->type, (RpcCfp*)&fp);
+      void*  parent = NULL;
+      tDebug("taos %s received from taos", TMSG_INFO(pRpcMsg->msgType));
+      transGetCb(pRpcMsg->type, (RpcCfp*)&fp, &parent);
 
       taosThreadMutexUnlock(&mutex[1]);
       fp(NULL, pRpcMsg, NULL);
@@ -1553,16 +1554,20 @@ void* procClientMsg(void* arg) {
     taosResetQitems(qall);
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
+
+      tDebug("taos %s received from taos", TMSG_INFO(pRpcMsg->msgType));
       RpcCfp fp = NULL;
+      void*  parent;
       taosThreadMutexLock(&mutex[1]);
       if ((pRpcMsg->type & TD_ACORE_DSVR) != 0) {
-        transGetCb(TD_ACORE_DSVR, (RpcCfp*)&fp);
+        transGetCb(TD_ACORE_DSVR, (RpcCfp*)&fp, &parent);
       }
+      STrans* pTrans = pRpcMsg->parent;
       taosThreadMutexUnlock(&mutex[1]);
       if (fp != NULL) {
-        fp(NULL, pRpcMsg, NULL);
+        fp(parent, pRpcMsg, NULL);
       } else {
-        tError("failed to find callback for msg type:%d", pRpcMsg->type);
+        tError("taos failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
       }
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
@@ -1629,16 +1634,17 @@ static void transDestroyEnv() {
 typedef struct {
   void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
   RPC_TYPE type;
+  void*    parant;
 } FP_TYPE;
-int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet)) {
+int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet), void* arg) {
   taosThreadMutexLock(&tableMutex);
 
-  FP_TYPE t = {.fp = fp, .type = type};
+  FP_TYPE t = {.fp = fp, .type = type, .parant = arg};
   int32_t code = taosHashPut(hashTable, &type, sizeof(type), &t, sizeof(t));
   taosThreadMutexUnlock(&tableMutex);
   return 0;
 }
-int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet)) {
+int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet), void** arg) {
   taosThreadMutexLock(&tableMutex);
   void* p = taosHashGet(hashTable, &type, sizeof(type));
   if (p == NULL) {
@@ -1647,6 +1653,7 @@ int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSe
   }
   FP_TYPE* t = p;
   *fp = t->fp;
+  *arg = t->parant;
   taosThreadMutexUnlock(&tableMutex);
   return 0;
 }
@@ -1659,7 +1666,7 @@ int32_t transSendReq(STrans* pTransport, SRpcMsg* pMsg, void* pEpSet) {
 
   int64_t cidx = multiQ[0]->idx++;
   int32_t idx = cidx % (multiQ[0]->numOfThread);
-  tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  tDebug("taos request is sent , type:%s, contLen:%d, item:%p", TMSG_INFO(pMsg->msgType), pMsg->contLen, pTemp);
   taosWriteQitem(multiQ[0]->qhandle[idx], pTemp);
   return 0;
 }
@@ -1671,7 +1678,7 @@ int32_t transSendResp(const SRpcMsg* pMsg) {
 
   int64_t cidx = multiQ[1]->idx++;
   int32_t idx = cidx % (multiQ[1]->numOfThread);
-  tDebug("resp is sent to, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  tDebug("taos resp is sent to, type:%s, contLen:%d, item:%p", TMSG_INFO(pMsg->msgType), pMsg->contLen, pTemp);
   taosWriteQitem(multiQ[1]->qhandle[idx], pTemp);
   return 0;
 }

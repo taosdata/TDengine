@@ -363,7 +363,7 @@ void* rpcOpen(const SRpcInit* pInit) {
       break;
     }
   }
-  transUpdateCb(pRpc->type, pRpc->cfp);
+  transUpdateCb(pRpc->type, pRpc->cfp, pRpc->parent);
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);

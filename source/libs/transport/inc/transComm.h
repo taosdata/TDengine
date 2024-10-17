@@ -467,9 +467,9 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
 #ifdef TD_ACORE
 
-int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet));
+int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet), void* arg);
 
-int32_t transGetCb(RPC_TYPE type, RpcCfp* fp);
+int32_t transGetCb(RPC_TYPE type, RpcCfp* fp, void** arg);
 
 int32_t transSendReq(STrans* pTransport, SRpcMsg* pMsg, void* pEpSet);
 

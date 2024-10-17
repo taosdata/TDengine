@@ -244,6 +244,7 @@ typedef struct SRpcMsg {
   int32_t        contLen;
   int32_t        code;
   int32_t        type;
+  void          *parent;
   SRpcHandleInfo info;
 
 } SRpcMsg;
