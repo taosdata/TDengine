@@ -955,7 +955,6 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   tqClientDebugFlag = rsp.debugFlag;
-  tqDebugC("consumer:0x%" PRIx64 ", tqClientDebugFlag:%d", tmq->consumerId, rsp.debugFlag);
 
   tDestroySMqHbRsp(&rsp);
 
