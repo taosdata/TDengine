@@ -633,47 +633,44 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      int32_t code = tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len);
-      if (code != TSDB_CODE_SUCCESS) {
-        terrno = code;
+      if ((code = tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len)) != TSDB_CODE_SUCCESS) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_DROP: {
-      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+      if ((code = tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen)) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_UPDATE_CHKPT: {
-      if (tqProcessTaskUpdateCheckpointReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+      if ((code = tqProcessTaskUpdateCheckpointReq(pVnode->pTq, pMsg->pCont, pMsg->contLen)) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_CONSEN_CHKPT: {
-      if (pVnode->restored) {
-        if (tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg) < 0) {
-          goto _err;
-        }
+      if (pVnode->restored && (code = tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
       }
+
     } break;
     case TDMT_STREAM_TASK_PAUSE: {
       if (pVnode->restored && vnodeIsLeader(pVnode) &&
-          tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+          (code = tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen)) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_RESUME: {
       if (pVnode->restored && vnodeIsLeader(pVnode) &&
-          tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+          (code = tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen)) < 0) {
         goto _err;
       }
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
-      if (pVnode->restored && vnodeIsLeader(pVnode)) {
-        if (tqProcessTaskResetReq(pVnode->pTq, pMsg) < 0) {
+      if (pVnode->restored && vnodeIsLeader(pVnode) &&
+           (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
           goto _err;
         }
-      }
+
     } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
@@ -693,10 +690,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
-    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE: // always return true
       tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
       break;
-    case TDMT_VND_STREAM_TASK_UPDATE:
+    case TDMT_VND_STREAM_TASK_UPDATE:  // always return true
       tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
       break;
     case TDMT_VND_COMPACT:
@@ -752,7 +749,7 @@ _exit:
 
 _err:
   vError("vgId:%d, process %s request failed since %s, ver:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-         tstrerror(terrno), ver);
+         tstrerror(code), ver);
   return code;
 }
 
