@@ -2555,10 +2555,6 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
     }
-  } else {
-    pResultInfo->pData = NULL;
-    pResultInfo->payloadLen = 0;
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   // TODO handle the compressed case
