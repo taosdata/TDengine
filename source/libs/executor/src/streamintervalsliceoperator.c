@@ -26,6 +26,7 @@
 
 typedef struct SInervalSlicePoint {
   SSessionKey      winKey;
+  bool             *pFinished;
   SSliceRowData*   pLastRow;
   SRowBuffPos*     pResPos;
 } SInervalSlicePoint;
@@ -113,7 +114,8 @@ _end:
 void initIntervalSlicePoint(SStreamAggSupporter* pAggSup, STimeWindow* pTWin, int64_t groupId, SInervalSlicePoint* pPoint) {
   pPoint->winKey.groupId = groupId;
   pPoint->winKey.win = *pTWin;
-  pPoint->pLastRow = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pAggSup->resultRowSize - pAggSup->stateKeySize);
+  pPoint->pFinished = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pAggSup->resultRowSize - pAggSup->stateKeySize);
+  pPoint->pLastRow = POINTER_SHIFT(pPoint->pFinished, sizeof(bool));
 }
 
 static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
@@ -217,6 +219,14 @@ _end:
   return code;
 }
 
+static void setInterpoWindowFinished(SInervalSlicePoint* pPoint) {
+  (*pPoint->pFinished) = true;
+}
+
+static bool isInterpoWindowFinished(SInervalSlicePoint* pPoint) {
+  return *pPoint->pFinished;
+}
+
 static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock, SSHashObj* pUpdatedMap,
                                             SSHashObj* pDeletedMap) {
   int32_t                           code = TSDB_CODE_SUCCESS;
@@ -249,7 +259,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     code = getIntervalSliceCurStateBuf(&pInfo->streamAggSup, &pInfo->interval, pInfo->hasInterpoFunc, &curWin, groupId, &curPoint, &prevPoint, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && prevPoint.pLastRow->key != prevPoint.winKey.win.ekey) {
+    if (pInfo->hasInterpoFunc && IS_VALID_WIN_KEY(prevPoint.winKey.win.skey) && isInterpoWindowFinished(&prevPoint) == false) {
       code = setIntervalSliceOutputBuf(&prevPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -262,7 +272,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
       SWinKey prevKey = {.ts = prevPoint.winKey.win.skey, .groupId = prevPoint.winKey.groupId};
       code = saveWinResult(&prevKey, prevPoint.pResPos, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
-      prevPoint.pLastRow->key = prevPoint.winKey.win.ekey;
+      setInterpoWindowFinished(&prevPoint);
     }
 
     code = setIntervalSliceOutputBuf(&curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
@@ -293,6 +303,10 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
     code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
                                            forwardRows, pBlock->info.rows, numOfOutput);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (curPoint.pLastRow->key == curPoint.winKey.win.ekey) {
+      setInterpoWindowFinished(&curPoint);
+    }
 
     startPos = getNextQualifiedWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos, TSDB_ORDER_ASC);
     if (startPos < 0) {
@@ -569,7 +583,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t keyBytes = sizeof(TSKEY);
-  keyBytes += blockDataGetRowSize(pDownRes) + sizeof(SResultCellData) * taosArrayGetSize(pDownRes->pDataBlock);
+  keyBytes += blockDataGetRowSize(pDownRes) + sizeof(SResultCellData) * taosArrayGetSize(pDownRes->pDataBlock) + sizeof(bool);
   if (pPkCol) {
     keyBytes += pPkCol->bytes;
   }
