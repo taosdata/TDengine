@@ -757,7 +757,7 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 int32_t streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 void    streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-void    streamMetaAcquireOneTask(SStreamTask* pTask);
+int32_t streamMetaAcquireOneTask(SStreamTask* pTask);
 void    streamMetaClear(SStreamMeta* pMeta);
 void    streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

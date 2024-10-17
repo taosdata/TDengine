@@ -2985,9 +2985,6 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     }
   }
 end:
-  if (terrno != 0) {
-    ret = terrno;
-  }
   tDecoderClear(&dc);
   tdbFree(pData);
   return ret;

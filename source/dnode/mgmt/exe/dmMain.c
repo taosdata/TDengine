@@ -182,6 +182,7 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
+extern bool generateNewMeta;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
@@ -221,6 +222,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-r") == 0) {
+      generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {

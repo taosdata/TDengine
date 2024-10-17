@@ -1782,7 +1782,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
-  int32_t code = 0;
+  int32_t     code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     return code;
@@ -1810,6 +1810,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return 0;
   }
 
+  mInfo("stream:%s,%" PRId64 " start to resume stream from pause", resumeReq.name, pStream->uid);
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
