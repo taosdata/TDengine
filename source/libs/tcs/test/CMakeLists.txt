@@ -1,3 +1,5 @@
+if (TD_LINUX)
+
 aux_source_directory(. TCS_TEST_SRC)
 
 add_executable(tcsTest ${TCS_TEST_SRC})
@@ -9,10 +11,12 @@ target_include_directories(tcsTest
 
 target_link_libraries(tcsTest
     tcs
-    common gtest_main
+    gtest_main
 )
 enable_testing()
 add_test(
     NAME tcs_test
     COMMAND tcsTest
 )
+
+endif()
