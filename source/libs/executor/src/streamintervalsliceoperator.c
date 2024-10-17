@@ -262,6 +262,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
       SWinKey prevKey = {.ts = prevPoint.winKey.win.skey, .groupId = prevPoint.winKey.groupId};
       code = saveWinResult(&prevKey, prevPoint.pResPos, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
+      prevPoint.pLastRow->key = prevPoint.winKey.win.ekey;
     }
 
     code = setIntervalSliceOutputBuf(&curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);
