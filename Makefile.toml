@@ -609,12 +609,4 @@ install_script = """
 mkdir explorer/server/dist/ || true
 """
 command = "cargo"
-args = [
-  "llvm-cov",
-  "nextest",
-  "--workspace",
-  "--html",
-  "-j",
-  "12",
-  "--no-fail-fast",
-]
+args = ["llvm-cov", "nextest", "--workspace", "--html"]

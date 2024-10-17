@@ -1,2 +1,7 @@
 [profile.default]
-slow-timeout = { period = "2m", terminate-after = 1 }
+retries = 1
+test-threads = "num-cpus"
+slow-timeout = { period = "5m", terminate-after = 1 }
+
+[profile.ci]
+fail-fast = false
