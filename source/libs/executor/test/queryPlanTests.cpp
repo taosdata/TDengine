@@ -146,6 +146,8 @@ typedef struct {
   EOrder             currTsOrder;
   int16_t            nextBlockId;
   int32_t            primaryTsSlotId;
+  SSubplanId         nextSubplanId;
+  int32_t            currSubplanLevel;
   SExecTaskInfo*     pCurrTask;
 } SQPTBuildPlanCtx;
 
@@ -233,6 +235,7 @@ SNode* qptCreateDynQueryCtrlPhysiNode(int32_t nodeType);
 SNode* qptCreateDataDispatchPhysiNode(int32_t nodeType);
 SNode* qptCreateDataInsertPhysiNode(int32_t nodeType);
 SNode* qptCreateDataQueryInsertPhysiNode(int32_t nodeType);
+SNode* qptCreateDataDeletePhysiNode(int32_t nodeType);
 
 
 SQPTPlan qptPlans[] = {
@@ -272,9 +275,9 @@ SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_PLAN_DISPATCH, "dataDispatch", qptCreateDataDispatchPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_INSERT, "dataInseret", qptCreateDataInsertPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT, "dataQueryInsert", qptCreateDataQueryInsertPhysiNode},
-  {QUERY_NODE_PHYSICAL_PLAN_DELETE, "dataDelete", NULL},
-  {QUERY_NODE_PHYSICAL_SUBPLAN, "", NULL},
-  {QUERY_NODE_PHYSICAL_PLAN, "", NULL},
+  {QUERY_NODE_PHYSICAL_PLAN_DELETE, "dataDelete", qptCreateDataDeletePhysiNode},
+  {QUERY_NODE_PHYSICAL_SUBPLAN, "subplan", NULL},
+  {QUERY_NODE_PHYSICAL_PLAN, "plan", NULL},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, "tableCountScan", qptCreateTableCountScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, "eventWindow", qptCreateMergeEventPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, "streamEventWindow", qptCreateStreamEventPhysiNode},
@@ -686,6 +689,12 @@ int32_t qptGetInputPrimaryTsSlotId() {
   return taosRand() % QPT_MAX_COLUMN_NUM;
 }
 
+int32_t qptGetRandSubplanMsgType() {
+  int32_t msgTypeList[] = {TDMT_VND_DELETE, TDMT_SCH_MERGE_QUERY, TDMT_SCH_QUERY, TDMT_VND_SUBMIT};
+
+  return QPT_CORRECT_HIGH_PROB() ? msgTypeList[taosRand() % (sizeof(msgTypeList)/sizeof(msgTypeList[0]))] : taosRand();
+}
+
 void qptNodesCalloc(int32_t num, int32_t size, void** pOut) {
   void* p = taosMemoryCalloc(num, size);
   assert(p);
@@ -718,6 +727,11 @@ void qptGetRandTimeWindow(STimeWindow* pWindow) {
   pWindow->ekey = taosRand();
 }
 
+void qptGetSubplanId(SSubplanId* pId) {
+  pId->queryId = qptCtx.buildCtx.nextSubplanId.queryId;
+  pId->groupId = qptCtx.buildCtx.nextSubplanId.groupId++;
+  pId->subplanId = qptCtx.buildCtx.nextSubplanId.subplanId++;
+}
 
 int32_t qptNodesListAppend(SNodeList* pList, SNode* pNode) {
   SListCell* p = NULL;
@@ -2662,12 +2676,70 @@ SNode* qptCreateDataQueryInsertPhysiNode(int32_t nodeType) {
   pInserter->tableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
   pInserter->stableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.suid : taosRand();
   pInserter->tableType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE) : (taosRand() % TSDB_TABLE_MAX);
-  pInserter->tableName[0] = QPT_RAND_BOOL_V ? 'a' : taosRand();
+  if (QPT_CORRECT_HIGH_PROB()) {
+    strcpy(pInserter->tableName, qptCtx.param.tbl.tblName);
+  } else {
+    pInserter->tableName[0] = QPT_RAND_BOOL_V ? 'a' : 0;
+  }
   pInserter->vgId = qptCtx.param.vnode.vgId;
   memcpy(&pInserter->epSet, &qptCtx.param.vnode.epSet, sizeof(pInserter->epSet));
   pInserter->explain = QPT_RAND_BOOL_V;
   
   return (SNode*)pInserter;
+}
+
+
+SNode* qptCreateDataDeletePhysiNode(int32_t nodeType) {
+  SDataDeleterNode* pDeleter = (SDataDeleterNode*)qptCreateDataSinkNode(nodeType); 
+
+  pDeleter->tableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
+  pDeleter->tableType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE) : (taosRand() % TSDB_TABLE_MAX);
+  if (QPT_CORRECT_HIGH_PROB()) {
+    sprintf(pDeleter->tableFName, "1.%s.%s", qptCtx.param.db.dbName, qptCtx.param.tbl.tblName);
+  } else {
+    pDeleter->tableFName[0] = QPT_RAND_BOOL_V ? 'a' : 0;
+  }
+
+  SQPTCol* pCol = nodesListGetNode(qptCtx.param.tbl.pColList, 0);
+  if (QPT_CORRECT_HIGH_PROB() && pCol) {
+    strcpy(pDeleter->tsColName, pCol->name);
+  } else {
+    pDeleter->tsColName[0] = QPT_RAND_BOOL_V ? 't' : 0;
+  }
+
+  qptGetRandTimeWindow(&pDeleter->deleteTimeRange);
+  
+  return (SNode*)pDeleter;
+}
+
+
+SNode* qptCreateSubplanNode(int32_t nodeType) {
+  SSubplan* pSubplan = NULL; 
+  assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pSubplan));
+
+  qptGetSubplanId(&pSubplan->id);
+
+  pSubplan->subplanType = QPT_CORRECT_HIGH_PROB() ? (taosRand() % SUBPLAN_TYPE_COMPUTE + 1) : (ESubplanType)taosRand();
+  pSubplan->msgType = qptGetRandSubplanMsgType();
+  pSubplan->level = qptCtx.buildCtx.;
+  pDeleter->tableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
+  pDeleter->tableType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE) : (taosRand() % TSDB_TABLE_MAX);
+  if (QPT_CORRECT_HIGH_PROB()) {
+    sprintf(pDeleter->tableFName, "1.%s.%s", qptCtx.param.db.dbName, qptCtx.param.tbl.tblName);
+  } else {
+    pDeleter->tableFName[0] = QPT_RAND_BOOL_V ? 'a' : 0;
+  }
+
+  SQPTCol* pCol = nodesListGetNode(qptCtx.param.tbl.pColList, 0);
+  if (QPT_CORRECT_HIGH_PROB() && pCol) {
+    strcpy(pDeleter->tsColName, pCol->name);
+  } else {
+    pDeleter->tsColName[0] = QPT_RAND_BOOL_V ? 't' : 0;
+  }
+
+  qptGetRandTimeWindow(&pDeleter->deleteTimeRange);
+  
+  return (SNode*)pDeleter;
 }
 
 
@@ -2695,6 +2767,9 @@ void qptResetForReRun() {
   qptCtx.param.vnode.vgId = 1;
 
   qptResetTableCols();
+  
+  qptCtx.buildCtx.pCurr = NULL;
+  qptCtx.buildCtx.pCurrTask = NULL;
 }
 
 void qptSingleTestDone(bool* contLoop) {
@@ -2744,11 +2819,9 @@ void qptRunSingleOpTest() {
   SExecTaskInfo* pTaskInfo = NULL;
   SStorageAPI    storageAPI = {0};
 
-  if (qptCtx.loopIdx > 0) {
-    qptResetForReRun();
-  }
+  qptResetForReRun();
   
-  doCreateTask(qptCtx.param.plan.queryId, qptCtx.param.plan.taskId++, qptCtx.param.vnode.vgId, OPTR_EXEC_MODEL_BATCH, &storageAPI, &pTaskInfo);
+  doCreateTask(qptCtx.param.plan.queryId, qptCtx.param.plan.taskId, qptCtx.param.vnode.vgId, OPTR_EXEC_MODEL_BATCH, &storageAPI, &pTaskInfo);
   qptCtx.buildCtx.pCurrTask = pTaskInfo;
 
   pNode = (SNode*)qptCreatePhysicalPlanNode(qptCtx.param.plan.subplanIdx[0]);
@@ -2860,6 +2933,9 @@ void qptInitTestCtx(bool correctExpected, bool singleNode, int32_t nodeType, int
     qptCtx.param.plan.physicNodeParam = nodeParam;
   }
 
+  qptCtx.param.plan.queryId++;
+  qptCtx.param.plan.taskId++;
+
   qptCtx.param.db.precision = TSDB_TIME_PRECISION_MILLI;
   strcpy(qptCtx.param.db.dbName, "qptdb1");
 
@@ -2889,6 +2965,12 @@ void qptInitTestCtx(bool correctExpected, bool singleNode, int32_t nodeType, int
   FOREACH(pTmp, qptCtx.param.tbl.pTagList) {
     qptNodesListMakeStrictAppend(&qptCtx.param.tbl.pColTagList, pTmp);
   }
+
+  qptCtx.buildCtx.nextBlockId++;
+  qptCtx.buildCtx.nextSubplanId.queryId = qptCtx.param.plan.queryId;
+  qptCtx.buildCtx.nextSubplanId.groupId++;
+  qptCtx.buildCtx.nextSubplanId.subplanId++;
+  qptCtx.buildCtx.currSubplanLevel = 0;
 }
 
 void qptDestroyTestCtx() {
