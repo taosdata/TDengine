@@ -1796,6 +1796,17 @@ int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 void    tFreeSStatisReq(SStatisReq* pReq);
 
 typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  char    table[TSDB_TABLE_NAME_LEN];
+  char    operation[AUDIT_OPERATION_LEN];
+  int32_t sqlLen;
+  char*   pSql;
+} SAuditReq;
+int32_t tSerializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+int32_t tDeserializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+void    tFreeSAuditReq(SAuditReq* pReq);
+
+typedef struct {
   int32_t dnodeId;
   int64_t clusterId;
   SArray* pVloads;

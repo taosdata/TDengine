@@ -140,6 +140,7 @@ extern bool     tsMonitorForceV2;
 // audit
 extern bool    tsEnableAudit;
 extern bool    tsEnableAuditCreateTable;
+extern bool    tsEnableAuditDelete;
 extern int32_t tsAuditInterval;
 
 // telem
