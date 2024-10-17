@@ -56,7 +56,7 @@ void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* 
     }
   }
 
-  stDebug("vgId:%d start %s tmr succ", vgId, pMsg);
+  stTrace("vgId:%d start %s tmr succ", vgId, pMsg);
 }
 
 void streamTmrStop(tmr_h tmrId) {
