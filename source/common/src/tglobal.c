@@ -181,7 +181,6 @@ int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 10;   // seconds
-int32_t tsSlowLogThresholdTest = INT32_MAX;   // seconds
 char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
 char*   tsSlowLogScopeString = "query";
@@ -749,7 +748,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
 
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogThresholdTest", tsSlowLogThresholdTest, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogMaxLen", tsSlowLogMaxLen, 1, 16384, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "slowLogScope", tsSlowLogScopeString, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
@@ -1401,9 +1399,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogThresholdTest");
-  tsSlowLogThresholdTest = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogThreshold");
   tsSlowLogThreshold = pItem->i32;
 
@@ -1968,7 +1963,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitor", &tsEnableMonitor},
                                          {"monitorInterval", &tsMonitorInterval},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
-                                         {"slowLogThresholdTest", &tsSlowLogThresholdTest},
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
