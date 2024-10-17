@@ -336,6 +336,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     tError("failed to init rpc handle");
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
+  transUpdateCb(pRpc->type, pRpc->cfp);
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
