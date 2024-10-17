@@ -331,10 +331,7 @@ function build_TDengine() {
 function build_taosx() {
     if [ "$versionType" != "community" ] && [ "${os_type}" != "Darwin" ]; then
         echo "build taosx"
-        rm -rf ${taosxDir}/release/* || :
-
-        # pull explorer
-        git_pull "${explorerDir}" "main" "ver-$version"
+        rm -rf ${taosxDir}/release/* || :        
 
         # pull taosx
         git_pull "${taosxDir}" "main" "ver-$version"
@@ -355,7 +352,7 @@ function build_taosx() {
         fi
 
         verify_commit_id "$taosxDir/release/taosx/bin"  "taosx"  "$taosxDir"
-        verify_commit_id "$taosxDir/release/taosx/bin"  "taos-explorer"  "$explorerDir"
+        verify_commit_id "$taosxDir/release/taosx/bin"  "taos-explorer"  "$taosxDir"
     else
         echo "build explorer community version"
         rm -rf ${explorerDir}/target/release/taos-explorer || :
@@ -380,7 +377,8 @@ function build_taosx() {
 function build_taoskeeper() {
     echo "build taoskeeper"
 
-    if [ "${os_type}" == "Darwin" ]; then
+    # skip build taoskeeper for enterprise version on Mac
+    if [ "${os_type}" == "Darwin" ] && [ "$versionType" == "enterprise" ]; then
         return
     fi
     
