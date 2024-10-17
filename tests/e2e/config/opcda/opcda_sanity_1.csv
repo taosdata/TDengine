@@ -1,0 +1,5 @@
+tbname,tag_name,stable
+tb1,device0.tagd0_0,stb_int
+tb2,device0.tagd0_1,stb_double
+tb3,device0.tagd0_2,stb_varchar
+tb4,device0.tagd0_3,stb_bool

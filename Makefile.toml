@@ -540,3 +540,54 @@ args = [
 
 [tasks.pre-commit]
 dependencies = ["fmt", "clippy"]
+
+[tasks.explorer-ui]
+cwd = "explorer"
+script = """
+yarn install
+yarn build
+"""
+
+[tasks.explorer]
+dependencies = ["explorer-ui"]
+command = "cargo"
+args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
+
+[tasks.deploy-explorer]
+dependencies = ["explorer"]
+
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taos-explorer target/deploy/taos-explorer
+else
+  upx_run target/${profile}/taos-explorer target/deploy/taos-explorer
+end
+
+custom_promt = get_env "CUS_PROMPT"
+echo "Custom prompt: ${custom_promt}"
+
+cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
+"""
+[tasks.deploy-explorer.windows]
+dependencies = ["explorer"]
+
+script_runner = "@duckscript"
+script = """
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taos-explorer target/deploy/taos-explorer
+else
+  cp target/${profile}/taos-explorer target/deploy/taos-explorer
+end
+
+custom_promt = get_env "CUS_PROMPT"
+echo "Custom prompt: ${custom_promt}"
+
+cp explorer/bin/taos-explorer-srv.exe target/deploy/taos-explorer-srv.exe
+cp explorer/bin/taos-explorer-srv.xml target/deploy/taos-explorer-srv.xml
+cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
+"""

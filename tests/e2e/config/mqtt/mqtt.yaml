@@ -1,0 +1,27 @@
+# mqtt server
+MQTTServer:
+  broker: '192.168.1.45'
+  port: 1883
+  keepalive: 60
+  topics:
+    -
+      topicname:
+        - testmqtt/1
+        - testmqtt/1/tp1
+        - testmqtt/1/tp2
+        - testmqtt/2
+        - testmqtt/2/tp1
+        - testmqtt/2/tp2
+        - testmqtt/2/tp3/1
+        - testmqtt/3
+        - testmqtt/3/tp1/1
+        - testmqtt/3/tp2/1
+        - testmqtt/3/tp2
+      format: json
+      message: {'id': 1,'current': 10.77,'phase': 0.77,'voltage': 220,'groupid': 1,'location': "California.SanDiego",
+      'column1': 9223372036854775807,'column2': 18446744073709551615,'column3': 32767, 'column4': 65535, 'column5': 127,
+      'data': {'column6': 255, 'column7': "true",'column8': "MqttTest"},
+      'column9': "true",'events': [{"price": 28405.2,"delta": 6,"boolValue": "true"},{"price": 38405.2,"delta": 7, "boolValue": "false"}]
+      }
+
+  interval: 0.100

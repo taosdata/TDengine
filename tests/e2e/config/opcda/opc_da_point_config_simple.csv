@@ -1,0 +1,5 @@
+信息点编码,OPC点地址
+tbname,tag_name
+meter_tagd0-0,device0.tagd0-0
+meter_tagd0-1,device0.tagd0-1
+meter_tagd0-2,device0.tagd0-2

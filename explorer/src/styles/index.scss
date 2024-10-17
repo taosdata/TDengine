@@ -1,0 +1,77 @@
+@import url(./font.css);
+@import url(./transtation.scss);
+
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  color: #16191f;
+  color: var(--color-text-body-default, #16191f);
+  font-weight: 400;
+  font-family: Amazon Ember, Helvetica Neue, Roboto, Arial, sans-serif;
+  // 字体抗锯齿
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  // color: #464c4f;
+  font-size: 14px;
+  line-height: 1.42857143;
+}
+// 去掉input的number类型的后缀
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+html {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  min-width: 1200px;
+  --color-background-home-header: #232f3e;
+  --color-background-layout-main: #f2f3f3;
+  --color-background-layout-panel-content: #fff;
+  --color-background-layout-panel-hover: #eaeded;
+  --color-background-item-selected: #f1faff;
+  --color-background-modal-overlay: rgba(242, 243, 243, 0.9);
+  --color-background-status-error: #fdf3f1;
+  --color-background-status-warning: #fff;
+  --color-background-status-success: #f2f8f0;
+  --color-background-status-info: #f1faff;
+}
+
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  text-decoration: none;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 重置滚动条样式 */
+*::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  background: rgba(255, 255, 255, 0.2);
+}
+*::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background-color: rgba(220, 220, 220, 0.8);
+}

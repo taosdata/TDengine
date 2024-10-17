@@ -1,0 +1,19 @@
+#匿名登录认证, , 单个主题订阅, 日志级别 info
+task_name: mongodb
+task_type: mongodb
+
+from:
+  fromhost: mongodb://{0}
+  database: xxx
+  collection: xxx
+  sql: xxx
+  start: xxx
+  end: xxx
+  read_concurrency: 0
+  tls: false
+
+to:
+  target_type: taos
+  target_dbname: ci_mongodb
+
+task_exec_time: 10

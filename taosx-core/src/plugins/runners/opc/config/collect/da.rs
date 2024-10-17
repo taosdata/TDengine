@@ -74,20 +74,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_dsn() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let dsn = Dsn::from_str("opcda://?da.tags=tag1::tb1,tag2::tb2").unwrap();
         let config = DaCollectConfig::from_dsn(&dsn).await.unwrap();
         assert_eq!(config.tags.len(), 2);
         assert_eq!("tag1", config.tags[0].tag);
         assert_eq!("tag2", config.tags[1].tag);
 
-        let dsn = Dsn::from_str("opcda://?da.tags=@../tests/opc/da.tags").unwrap();
+        let dsn = Dsn::from_str("opcda://?da.tags=@./tests/opc/da.tags").unwrap();
         let config = DaCollectConfig::from_dsn(&dsn).await.unwrap();
         assert_eq!(config.tags.len(), 2);
         assert_eq!("tag1", config.tags[0].tag);
         assert_eq!("tag2", config.tags[1].tag);
 
         let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/da_collect_config.csv").unwrap();
+            Dsn::from_str("opcda://?csv_config_file=@./tests/opc/da_collect_config.csv").unwrap();
         let config = DaCollectConfig::from_dsn(&dsn).await.unwrap();
         assert_eq!(1, config.tags.len());
         assert_eq!("tag1", config.tags[0].tag);

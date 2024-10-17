@@ -1,3 +1,4 @@
+migrations.lock
 /target
 USER_MANUAL.md TODO.md
 TDengine
@@ -32,6 +33,7 @@ plugins/opentsdb/target/
 plugins/opc/taosx-opc
 targets
 *.csv
+!tests/e2e/**/*.csv
 .DS_Store
 tmp.*
 /*.ps1

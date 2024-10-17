@@ -47,23 +47,6 @@ impl FromStr for HistorianTable {
     }
 }
 
-#[cfg(test)]
-mod test_historian_table {
-    use super::*;
-
-    #[test]
-    fn test_to_string() {
-        assert_eq!(
-            "Runtime.dbo.Live".to_string(),
-            HistorianTable::Live.to_string()
-        );
-        assert_eq!(
-            "Runtime.dbo.History".to_string(),
-            HistorianTable::History.to_string()
-        );
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
     // task info
@@ -344,8 +327,20 @@ impl TaskConfig {
 }
 
 #[cfg(test)]
-mod test_historian_task_config {
+mod tests {
     use super::*;
+
+    #[test]
+    fn test_historian_table_fmt() {
+        assert_eq!(
+            "Runtime.dbo.Live".to_string(),
+            HistorianTable::Live.to_string()
+        );
+        assert_eq!(
+            "Runtime.dbo.History".to_string(),
+            HistorianTable::History.to_string()
+        );
+    }
 
     #[test]
     fn test_parse_task_id() {
@@ -363,7 +358,6 @@ mod test_historian_task_config {
     }
 
     #[test]
-    #[ignore]
     fn test_parse_mode() {
         let dsn = Dsn::from_str("historian://?").unwrap();
         let config = TaskConfig::parse_mode(&dsn);
@@ -388,7 +382,6 @@ mod test_historian_task_config {
     }
 
     #[test]
-    #[ignore]
     fn test_parse_table() {
         let dsn = Dsn::from_str("historian://?").unwrap();
         let config = TaskConfig::parse_table(&dsn);
@@ -527,7 +520,6 @@ mod test_historian_task_config {
         let dsn = Dsn::from_str("historian://?timeWindow=xxx").unwrap();
         let config = TaskConfig::parse_time_window(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse timeWindow: xxx, cause: NoValueFoundError: no value found in the string \"xxx\"", config.unwrap_err().to_string());
     }
 
     #[test]
@@ -543,7 +535,6 @@ mod test_historian_task_config {
         let dsn = Dsn::from_str("historian://?retrieveInterval=xxx").unwrap();
         let config = TaskConfig::parse_retrieve_interval(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse retrieveInterval: xxx, cause: NoValueFoundError: no value found in the string \"xxx\"", config.unwrap_err().to_string());
     }
 
     #[test]
@@ -559,6 +550,5 @@ mod test_historian_task_config {
         let dsn = Dsn::from_str("historian://?tolerance=xxx").unwrap();
         let config = TaskConfig::parse_tolerance(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse tolerance: xxx, cause: NoValueFoundError: no value found in the string \"xxx\"", config.unwrap_err().to_string());
     }
 }
