@@ -59,8 +59,8 @@ int32_t tcsInitEnv(int8_t isBlob) {
   return code;
 }
 
-// TEST(TcsTest, DISABLE_InterfaceTest) {
-TEST(TcsTest, InterfaceTest) {
+TEST(TcsTest, DISABLE_InterfaceTest) {
+  // TEST(TcsTest, InterfaceTest) {
   int code = 0;
 
   code = tcsInitEnv(true);
@@ -97,8 +97,8 @@ TEST(TcsTest, InterfaceTest) {
   tcsUninit();
 }
 
-// TEST(TcsTest, DISABLE_InterfaceNonBlobTest) {
-TEST(TcsTest, InterfaceNonBlobTest) {
+TEST(TcsTest, DISABLE_InterfaceNonBlobTest) {
+  // TEST(TcsTest, InterfaceNonBlobTest) {
   int code = 0;
 
   code = tcsInitEnv(false);

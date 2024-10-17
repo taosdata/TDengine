@@ -22,8 +22,6 @@
 #include "az.h"
 #include "cos.h"
 
-STcs tcs;
-
 int32_t tcsInit() {
   int32_t code = 0;
 
@@ -105,15 +103,3 @@ int32_t tcsGetObjectBlock(const char* object_name, int64_t offset, int64_t size,
 }
 
 void tcsDeleteObjectsByPrefix(const char* prefix) { return tcs.DeleteObjectsByPrefix(prefix); }
-
-int32_t tcsPutObjectFromFile2(const char* file, const char* object, int8_t withcp) {
-  return tcs.PutObjectFromFile2(file, object, withcp);
-}
-
-int32_t tcsGetObjectsByPrefix(const char* prefix, const char* path) { return tcs.GetObjectsByPrefix(prefix, path); }
-
-int32_t tcsDeleteObjects(const char* object_name[], int nobject) { return tcs.DeleteObjects(object_name, nobject); }
-
-int32_t tcsGetObjectToFile(const char* object_name, const char* fileName) {
-  return tcs.GetObjectToFile(object_name, fileName);
-}
