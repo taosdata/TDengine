@@ -46,7 +46,7 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
 
   writer->blockDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(writer->blockData); i++) {
-    code = tBlockDataInit(&writer->blockData[i], writer->ctx->tbid, writer->skmTb->pTSchema, NULL, 0);
+    code = tBlockDataInit(&writer->blockData[i], writer->ctx->tbid, writer->skmTb->pTSchema, NULL, 0, NULL);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

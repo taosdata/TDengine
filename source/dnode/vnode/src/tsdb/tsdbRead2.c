@@ -2174,8 +2174,12 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
     return false;
   }
 
-  initMemDataIterator(pScanInfo, pReader);
-  initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
+  if ((code = initMemDataIterator(pScanInfo, pReader)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+  if ((code = initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
 
   code = nextRowFromSttBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange);
 
@@ -2640,6 +2644,9 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
     bool hasDataInLastFile = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasDataInLastFile) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        return terrno;
+      }
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;

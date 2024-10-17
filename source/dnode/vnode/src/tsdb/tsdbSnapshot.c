@@ -315,7 +315,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
           .suid = row->suid,
           .uid = row->suid ? 0 : row->uid,
       };
-      code = tBlockDataInit(reader->blockData, &tbid1, reader->skmTb->pTSchema, NULL, 0);
+      code = tBlockDataInit(reader->blockData, &tbid1, reader->skmTb->pTSchema, NULL, 0, NULL);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

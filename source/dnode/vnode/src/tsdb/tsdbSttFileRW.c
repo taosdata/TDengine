@@ -210,6 +210,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
                                          STSchema *pTSchema, int16_t cids[], int32_t ncid) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t nCidFound = 0;
 
   TABLEID tbid = {.suid = sttBlk->suid};
   if (tbid.suid == 0) {
@@ -218,8 +219,12 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
     tbid.uid = 0;
   }
 
-  code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid);
+  code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid, cids ? &nCidFound : NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
+  if ((nCidFound != ncid) && (nCidFound > 0)) {
+    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   // uid + version + tskey
   code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szKey);
@@ -868,7 +873,7 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
 
     TABLEID id = {.suid = row->suid, .uid = row->suid ? 0 : row->uid};
-    code = tBlockDataInit(writer->blockData, &id, writer->config->skmTb->pTSchema, NULL, 0);
+    code = tBlockDataInit(writer->blockData, &id, writer->config->skmTb->pTSchema, NULL, 0, NULL);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
