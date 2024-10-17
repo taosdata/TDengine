@@ -24,8 +24,6 @@
 
 STcs tcs;
 
-extern int8_t tsS3Ablob;
-
 int32_t tcsInit() {
   int32_t code = 0;
 

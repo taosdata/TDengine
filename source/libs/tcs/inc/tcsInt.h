@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+extern int8_t tsS3Ablob;
+
 typedef enum {
   TOS_PROTO_NIL,
   TOS_PROTO_S3,
