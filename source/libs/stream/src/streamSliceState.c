@@ -33,7 +33,8 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
 
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
-  addArrayBuffIfNotExist(pSearchBuff, pKey->groupId, &pWinStates);
+  code = addArrayBuffIfNotExist(pSearchBuff, pKey->groupId, &pWinStates);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   // recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
@@ -55,7 +56,8 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     streamStateFreeCur(pCur);
   }
 
-  addSearchItem(pFileState, pWinStates, pKey);
+  code = addSearchItem(pFileState, pWinStates, pKey);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
