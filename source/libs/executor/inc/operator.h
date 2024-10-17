@@ -190,6 +190,9 @@ int32_t        stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdSt
 int32_t        getOperatorExplainExecInfo(struct SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 void *         getOperatorParam(int32_t opType, SOperatorParam* param, int32_t idx);
 
+void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId);
+void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId);
+
 #ifdef __cplusplus
 }
 #endif

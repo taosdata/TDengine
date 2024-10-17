@@ -706,9 +706,13 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(pDataBlock->info.parTbName) &&
           !alreadyAddGroupId(pDataBlock->info.parTbName, groupId) && groupId != 0) {
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
-          buildCtbNameAddGroupId(NULL, pDataBlock->info.parTbName, groupId);
+          code = buildCtbNameAddGroupId(NULL, pDataBlock->info.parTbName, groupId, sizeof(pDataBlock->info.parTbName));
         } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
-          buildCtbNameAddGroupId(pTask->outputInfo.shuffleDispatcher.stbFullName, pDataBlock->info.parTbName, groupId);
+          code = buildCtbNameAddGroupId(pTask->outputInfo.shuffleDispatcher.stbFullName, pDataBlock->info.parTbName,
+                                        groupId, sizeof(pDataBlock->info.parTbName));
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
         }
       }
     } else {
@@ -1158,7 +1162,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
     if (old == 0) {
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s start checkpoint-ready monitor in 10s, ref:%d ", pTask->id.idStr, ref);
-      streamMetaAcquireOneTask(pTask);
+      int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);
 
       streamTmrStart(chkptReadyMsgSendMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle, vgId,
                      "chkpt-ready-monitor");

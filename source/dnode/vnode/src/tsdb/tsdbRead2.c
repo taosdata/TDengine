@@ -596,7 +596,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   pReader->status.pPrimaryTsCol = taosArrayGet(pReader->resBlockInfo.pResBlock->pDataBlock, pSup->slotId[0]);
   if (pReader->status.pPrimaryTsCol == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
+    code = terrno;
     goto _end;
   }
 
@@ -855,6 +855,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       STableBlockScanInfo** p = taosArrayGetLast(pTableScanInfoList);
       if (p == NULL) {
         clearBrinBlockIter(&iter);
+        tsdbError("invalid param, empty in tablescanInfoList, %s", pReader->idStr);
         return TSDB_CODE_INVALID_PARA;
       }
 
@@ -5256,7 +5257,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
   // NOTE: the following codes is used to perform test for suspend/resume for tsdbReader when it blocks the commit
   // the data should be ingested in round-robin and all the child tables should be createted before ingesting data
   // the version range of query will be used to identify the correctness of suspend/resume functions.
-  // this function will blocked before loading the SECOND block from vnode-buffer, and restart itself from sst-files
+  // this function will be blocked before loading the SECOND block from vnode-buffer, and restart itself from sst-files
 #if SUSPEND_RESUME_TEST
   if (!pReader->status.suspendInvoked && !pReader->status.loadFromFile) {
     tsem_wait(&pReader->resumeAfterSuspend);
@@ -5909,6 +5910,7 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
   } else {
     code = TSDB_CODE_INVALID_PARA;
+    tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));
     metaReaderClear(&mr);
     return code;
   }

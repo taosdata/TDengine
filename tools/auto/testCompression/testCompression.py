@@ -48,9 +48,13 @@ def run(command, timeout = 60, show=True):
     return output, error
 
 # return list after run
-def runRetList(command, timeout=10):
+def runRetList(command, timeout=10, first=True):
     output,error = run(command, timeout)
-    return output.splitlines()
+    if first:
+        return output.splitlines()
+    else:
+        return error.splitlines()
+
 
 def readFileContext(filename):
     file = open(filename)
@@ -130,8 +134,6 @@ def getMatch(datatype, algo):
 
 
 def generateJsonFile(algo):
-    print(f"doTest algo: {algo} \n")
-    
     # replace datatype
     context = readFileContext(templateFile)
     # replace compress
@@ -188,8 +190,6 @@ def findContextValue(context, label):
     ends = [',','}',']', 0]
     while context[end] not in ends:
         end += 1
-
-    print(f"start = {start} end={end}\n")
     return context[start:end]
 
 
@@ -204,7 +204,7 @@ def writeTemplateInfo(resultFile):
     appendFileContext(resultFile, line)
 
 
-def totalCompressRate(algo, resultFile, writeSecond):
+def totalCompressRate(algo, resultFile, writeSpeed, querySpeed):
     global Number
     # flush
     command = 'taos -s "flush database dbrate;"'
@@ -239,31 +239,84 @@ def totalCompressRate(algo, resultFile, writeSecond):
     # appand to file
     
     Number += 1
-    context =  "%10s %10s %10s %10s %10s\n"%( Number, algo, str(totalSize)+" MB", rate+"%", writeSecond + " s")
+    context =  "%10s %10s %10s %10s %30s %15s\n"%( Number, algo, str(totalSize)+" MB", rate+"%", writeSpeed + " Records/second", querySpeed)
     showLog(context)
     appendFileContext(resultFile, context)
 
+def testWrite(jsonFile):
+    command = f"taosBenchmark -f {jsonFile}"
+    output, context = run(command, 60000)
+    # SUCC: Spent 0.960248 (real 0.947154) seconds to insert rows: 100000 with 1 thread(s) into dbrate 104139.76 (real 105579.45) records/second
+
+    # find second real
+    pos = context.find("(real ")
+    if pos == -1:
+        print(f"error, run command={command} output not found first \"(real\" keyword. error={context}")
+        exit(1)
+    pos = context.find("(real ", pos + 5)
+    if pos == -1:
+        print(f"error, run command={command} output not found second \"(real\" keyword. error={context}")
+        exit(1)    
+
+    pos += 5
+    length = len(context)
+    while pos < length and context[pos] == ' ':
+        pos += 1
+    end = context.find(".", pos)
+    if end == -1:
+        print(f"error, run command={command} output not found second \".\" keyword. error={context}")
+        exit(1)
+
+    speed = context[pos: end]
+    #print(f"write pos ={pos} end={end} speed={speed}\n output={context} \n")
+    return speed
+
+def testQuery():
+    command = f"taosBenchmark -f json/query.json"
+    lines = runRetList(command, 60000)
+    # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
+    speed = None
+
+    for i in range(0, len(lines)):
+        # find second real
+        context = lines[i]
+        pos = context.find("the QPS of all threads:")
+        if pos == -1 :
+            continue
+        pos += 24
+        speed = context[pos:]
+        break
+    #print(f"query pos ={pos} speed={speed}\n output={context} \n")
+
+    if speed is None:
+        print(f"error, run command={command} output not found second \"the QPS of all threads:\" keyword. error={lines}")
+        exit(1)
+    else:
+        return speed
 
 def doTest(algo, resultFile):
     print(f"doTest algo: {algo} \n")
     #cleanAndStartTaosd()
-
 
     # json
     jsonFile = generateJsonFile(algo)
 
     # run taosBenchmark
     t1 = time.time()
-    exec(f"taosBenchmark -f {jsonFile}")
+    writeSpeed = testWrite(jsonFile)
     t2 = time.time()
+    # total write speed
+    querySpeed = testQuery()
 
     # total compress rate
-    totalCompressRate(algo, resultFile, str(int(t2-t1)))
+    totalCompressRate(algo, resultFile, writeSpeed, querySpeed)
+
 
 def main():
 
     # test compress method
     algos = ["lz4", "zlib", "zstd", "xz", "disabled"]
+    #algos = ["lz4"]
 
     # record result
     resultFile = "./result.txt"
@@ -275,7 +328,7 @@ def main():
     # json info
     writeTemplateInfo(resultFile)
     # head
-    context = "\n%10s %10s %10s %10s %10s\n"%("No", "compress", "dataSize", "rate", "insertSeconds")
+    context = "\n%10s %10s %10s %10s %30s %15s\n"%("No", "compress", "dataSize", "rate", "writeSpeed", "query-QPS")
     appendFileContext(resultFile, context)
 
 

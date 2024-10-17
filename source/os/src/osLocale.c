@@ -95,7 +95,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
   if (locale != NULL) {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
   }
-  strcpy(outCharset, "UTF-8");
+  tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
 
 #elif defined(_TD_DARWIN_64)
   /*
@@ -123,7 +123,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
     // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    strcpy(outLocale, "en_US.UTF-8");
+    tstrncpy(outLocale, "en_US.UTF-8", TD_LOCALE_LEN);
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
     // printf("locale not configured, set to system default:%s", outLocale);
@@ -137,7 +137,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     char *revisedCharset = taosCharsetReplace(str);
 
     if (NULL == revisedCharset) {
-      (void)strcpy(outCharset, "UTF-8");
+      tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
     } else {
       tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
 
@@ -145,7 +145,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     }
     // printf("charset not configured, set to system default:%s", outCharset);
   } else {
-    strcpy(outCharset, "UTF-8");
+    tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
     // printf("can't get locale and charset from system, set it to UTF-8");
   }
 
@@ -173,7 +173,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
     // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    (void)strcpy(outLocale, "en_US.UTF-8");
+    tstrncpy(outLocale, "en_US.UTF-8", TD_LOCALE_LEN);
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
     //printf("locale not configured, set to system default:%s\n", outLocale);
@@ -186,15 +186,15 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
 
     char *revisedCharset = taosCharsetReplace(str);
     if (NULL == revisedCharset) {
-      (void)strcpy(outCharset, "UTF-8");
+      tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
     } else {
-      tstrncpy(outCharset, revisedCharset, TD_LOCALE_LEN);
+      tstrncpy(outCharset, revisedCharset, TD_CHARSET_LEN);
 
       taosMemoryFree(revisedCharset);
     }
     // printf("charset not configured, set to system default:%s", outCharset);
   } else {
-    (void)strcpy(outCharset, "UTF-8");
+    tstrncpy(outCharset, "UTF-8", TD_CHARSET_LEN);
     // printf("can't get locale and charset from system, set it to UTF-8");
   }
 

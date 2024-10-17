@@ -1108,7 +1108,7 @@ int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* targ
   if (target) {
     pCtx->target = taosStrdup(target);
     if (NULL == pCtx->target) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   } else {
     pCtx->target = NULL;
@@ -1125,7 +1125,7 @@ int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target) {
   if (target) {
     ctx.target = taosStrdup(target);
     if (NULL == ctx.target) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   }
 
@@ -1386,7 +1386,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
   }
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-  (void)sprintf(tbFullName, "%s.", dbFName);
+  (void)snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
   int32_t offset = strlen(tbFullName);
   SName*  pName = NULL;
   int32_t tbNameLen = 0;
@@ -1631,7 +1631,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
     if (NULL == (*dst)->vgArray) {
       taosHashCleanup((*dst)->vgHash);
       taosMemoryFreeClear(*dst);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   }
 
@@ -1698,7 +1698,7 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
     }
     pInfo->expr = taosStrdup(pInfo->expr);
     if (NULL == pInfo->expr) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   }
 
@@ -1712,7 +1712,7 @@ int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, cha
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
     if (NULL == pMsgSendInfo->target.dbFName) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_RET(terrno);
     }
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
@@ -2070,7 +2070,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
         continue;
       }
 
-      (void)sprintf(tbFName, "%s.%s", dbFName, stbName);
+      (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, stbName);
       continue;
     }
 

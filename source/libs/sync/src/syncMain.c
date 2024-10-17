@@ -977,9 +977,10 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     pData->logicClock = pSyncTimer->logicClock;
     pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, pData->rid, pData->destId.addr);
+    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64 " at %d", pSyncNode->vgId, pData->rid,
+           pData->destId.addr, pSyncTimer->timerMS);
 
-    TAOS_CHECK_RETURN(taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM, (void*)(pData->rid),
+    TAOS_CHECK_RETURN(taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
                                    syncEnv()->pTimerManager, &pSyncTimer->pTimer));
   } else {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -2711,7 +2712,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  sTrace("vgId:%d, eq peer hb timer, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, hbDataRid, pData->destId.addr);
+  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, hbDataRid,
+         pData->destId.addr);
 
   if (pSyncNode->totalReplicaNum > 1) {
     int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);
@@ -2753,13 +2755,12 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         if (ret != 0) {
           sError("vgId:%d, failed to send heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
         }
-      } else {
       }
 
       if (syncIsInit()) {
-        // sTrace("vgId:%d, reset peer hb timer", pSyncNode->vgId);
-        if ((code = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS / HEARTBEAT_TICK_NUM,
-                                 (void*)hbDataRid, syncEnv()->pTimerManager, &pSyncTimer->pTimer)) != 0) {
+        sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
+        if ((code = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
+                                 syncEnv()->pTimerManager, &pSyncTimer->pTimer)) != 0) {
           sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
           syncNodeRelease(pSyncNode);
           syncHbTimerDataRelease(pData);
@@ -2897,12 +2898,12 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     char    buf[256];
     int32_t len = 256;
     int32_t n = 0;
-    n += snprintf(buf + n, len - n, "%s", "{");
+    n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
-      n += snprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
+      n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
-    n += snprintf(buf + n, len - n, "%s", "}");
+    n += tsnprintf(buf + n, len - n, "%s", "}");
 
     sInfo("vgId:%d, %s, peersEpset%d, %s, inUse:%d", ths->vgId, str, i, buf, ths->peersEpset->inUse);
   }

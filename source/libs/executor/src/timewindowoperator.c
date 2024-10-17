@@ -89,14 +89,14 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
-static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
+void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->win.ekey = ts;
   pRowSup->prevTs = ts;
   pRowSup->numOfRows += 1;
   pRowSup->groupId = groupId;
 }
 
-static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
+void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
                                      uint64_t groupId) {
   pRowSup->startRowIndex = rowIndex;
   pRowSup->numOfRows = 0;
@@ -1229,10 +1229,9 @@ static void destroyStateWindowOperatorInfo(void* param) {
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);
-
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  if (pInfo->pOperator) {
+    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
 
@@ -1257,10 +1256,9 @@ void destroyIntervalOperatorInfo(void* param) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
 
   cleanupBasicInfo(&pInfo->binfo);
-
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  if (pInfo->pOperator) {
+    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
 
@@ -1764,10 +1762,9 @@ void destroySWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
-  if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+  if (pInfo->pOperator) {
+    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
+                                 &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
 
