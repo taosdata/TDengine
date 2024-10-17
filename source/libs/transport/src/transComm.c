@@ -895,6 +895,7 @@ typedef struct {
   int32_t      numOfThread;
   STaosQueue** qhandle;
   STaosQset**  qset;
+  int64_t      idx;
 
 } MultiThreadQhandle;
 typedef struct TThread {
@@ -1521,7 +1522,9 @@ void* processSvrMsg(void* arg) {
       taosGetQitem(qall, (void**)&pRpcMsg);
       taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
+
       transGetCb(pRpcMsg->type, (void**)&fp);
+
       taosThreadMutexUnlock(&mutex[1]);
       fp(NULL, pRpcMsg, NULL);
     }
@@ -1545,14 +1548,16 @@ void* procClientMsg(void* arg) {
 
   while (1) {
     int numOfMsgs = taosReadAllQitemsFromQset(multiQ[0]->qset[idx], qall, &qinfo);
-    tDebug("%d shell msgs are received", numOfMsgs);
+    tDebug("%d msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) break;
     taosResetQitems(qall);
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
       taosThreadMutexLock(&mutex[1]);
-
+      RpcCfp fp = NULL;
+      transGetCb(pRpcMsg->type, (void**)&fp);
       taosThreadMutexUnlock(&mutex[1]);
+      fp(NULL, pRpcMsg, NULL);
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
@@ -1630,6 +1635,31 @@ int32_t transGetCb(RPC_TYPE type, void** fp) {
   }
   *fp = p;
   taosThreadMutexUnlock(&tableMutex);
+  return 0;
+}
+
+int32_t transSendReq(SRpcMsg* pMsg, void* pEpSet) {
+  SRpcMsg* pTemp;
+
+  taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void**)&pTemp);
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
+
+  int64_t cidx = multiQ[0]->idx++;
+  int32_t idx = cidx % (multiQ[0]->numOfThread);
+  tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  taosWriteQitem(multiQ[0]->qhandle[idx], pTemp);
+  return 0;
+}
+int32_t transSendResp(const SRpcMsg* pMsg) {
+  SRpcMsg* pTemp;
+
+  taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void**)&pTemp);
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
+
+  int64_t cidx = multiQ[1]->idx++;
+  int32_t idx = cidx % (multiQ[1]->numOfThread);
+  tDebug("resp is sent to, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  taosWriteQitem(multiQ[1]->qhandle[idx], pTemp);
   return 0;
 }
 

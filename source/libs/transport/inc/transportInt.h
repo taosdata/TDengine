@@ -77,7 +77,7 @@ typedef struct {
   void*         tcphandle;  // returned handle from TCP initialization
   int64_t       refId;
   TdThreadMutex mutex;
-  int8_t        type;
+  int16_t       type;
 } SRpcInfo;
 
 #ifdef __cplusplus

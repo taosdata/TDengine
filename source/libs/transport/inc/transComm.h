@@ -466,9 +466,14 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
 #ifdef TD_ACORE
+
 int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet));
 
 int32_t transGetCb(RPC_TYPE type, void** fp);
+
+int32_t transSendReq(SRpcMsg* pMsg, void* pEpSet);
+
+int32_t transSendResp(const SRpcMsg* pMsg);
 #endif
 #ifdef __cplusplus
 }

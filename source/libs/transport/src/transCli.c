@@ -3418,7 +3418,10 @@ void transCloseClient(void* arg) {
 void    transRefCliHandle(void* handle) { return; }
 void    transUnrefCliHandle(void* handle) { return; }
 int32_t transReleaseCliHandle(void* handle) { return 0; }
-int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) { return 0; }
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
+  return transSendReq(pReq, NULL);
+}
+
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   return 0;
 }

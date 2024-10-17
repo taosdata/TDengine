@@ -193,7 +193,6 @@ int32_t rpcCvtErrCode(int32_t code);
 #define TAOS_CONN_CLIENT 1
 #define IsReq(pMsg)      (pMsg->msgType & 1U)
 
-typedef enum { TD_ACORE_CLIENT = 0, TD_AOCRE_SVER, TD_AOCRE_SVR_INTERNAL } RPC_TYPE;
 extern int32_t tsRpcHeadSize;
 
 typedef struct {
@@ -203,6 +202,14 @@ typedef struct {
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
+
+typedef enum {
+  TD_ACORE_CLIENT = 1,
+  TD_ACORE_DSVR_CLIENT = 2,
+  TD_ACORE_DSVR_STA_CLIENT = 4,
+  TD_ACORE_DSVR_SYNC_CLIENT = 8,
+  TD_ACORE_DSVR = 16
+} RPC_TYPE;
 
 typedef struct SRpcHandleInfo {
   // rpc info

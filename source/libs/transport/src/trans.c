@@ -257,6 +257,27 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   return 0;
   /// int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
 }
+
+// typedef enum {
+//   TD_ACORE_CLIENT = 1,
+//   TD_ACORE_DSVR_CLIENT = 2,
+//   TD_ACORE_DSVR_STA_CLIENT = 4,
+//   TD_ACORE_DSVR_SYNC_CLIENT = 8,
+//   TD_ACORE_DSVR = 16
+// } RPC_TYPE;
+
+typedef struct {
+  char*    lablset;
+  RPC_TYPE type;
+} SLableSet;
+static SLableSet labelSet[] = {
+    {"TSC", TD_ACORE_CLIENT | TD_ACORE_DSVR},
+    {"DNODE-CLI", TD_ACORE_DSVR_CLIENT | TD_ACORE_DSVR},
+    {"DNODE-STA-CLI", TD_ACORE_DSVR_STA_CLIENT | TD_ACORE_DSVR},
+    {"DNODE-SYNC-CLI", TD_ACORE_DSVR_SYNC_CLIENT | TD_ACORE_DSVR},
+    {"DND-S", TD_ACORE_DSVR},
+};
+
 void* rpcOpen(const SRpcInit* pInit) {
   int32_t code = rpcInit();
   if (code != 0) {
@@ -335,6 +356,12 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pRpc->tcphandle == NULL) {
     tError("failed to init rpc handle");
     TAOS_CHECK_GOTO(terrno, NULL, _end);
+  }
+  for (int8_t i = 0; i < sizeof(labelSet) / sizeof(labelSet[0]); i++) {
+    if (strcmp(labelSet[i].lablset, pRpc->label) == 0) {
+      pRpc->type = labelSet[i].type;
+      break;
+    }
   }
   transUpdateCb(pRpc->type, pRpc->cfp);
 
