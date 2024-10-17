@@ -71,7 +71,7 @@ def mqtt_sanity_test(env_data, case_data, mqttconfigfile):
     r = task.get_task_status(task_id)
     assert (
         r["status"] == "running"
-    ), f"task status should be running after creation, but got {r['status']}, reason: {r['reason']}"
+    ), f"task status should be running after creation, but got {r['status']}, reason: {r['reason']}, task info: {task_info}"
 
     mqtt1 = MQTTPub(mqttconfigfile)
     mqtt1.start()
