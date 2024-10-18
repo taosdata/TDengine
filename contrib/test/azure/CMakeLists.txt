@@ -6,9 +6,6 @@ add_executable (
      main.cpp
 )
 
-# Link to Azure SDK
-#target_link_libraries(application _azure_sdk)
-
 find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
 find_library(XML2_LIBRARY xml2 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
 #find_library(XML2_LIBRARY xml2)
