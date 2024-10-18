@@ -269,6 +269,7 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
 typedef struct {
   char*    lablset;
   RPC_TYPE type;
+
 } SLableSet;
 static SLableSet labelSet[] = {
     {"TSC", TD_ACORE_CLIENT | TD_ACORE_DSVR},
@@ -363,7 +364,14 @@ void* rpcOpen(const SRpcInit* pInit) {
       break;
     }
   }
-  transUpdateCb(pRpc->type, pRpc->cfp, pRpc->parent);
+
+  taosThreadMutexInit(&pRpc->sidMutx, NULL);
+  pRpc->sidTable = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+
+  taosThreadMutexInit(&pRpc->seqMutex, NULL);
+  pRpc->seqTable = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  pRpc->seq = 1;
+  transUpdateCb(pRpc->type, pRpc);
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);

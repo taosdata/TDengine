@@ -3422,19 +3422,44 @@ int32_t transReleaseCliHandle(void* handle) { return 0; }
 int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   int32_t code = 0;
   int32_t cliVer = 0;
+
   code = taosVersionStrToInt(version, &cliVer);
-  // if (code != 0) {
-  //   dError("failed to convert version string:%s to int, code:%d", version, code);
-  //   goto _OVER;
-  // }
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   pReq->type = pTransInst->type;
   pReq->info.connType = pReq->type;
   pReq->info.cliVer = cliVer;
-  pReq->info.handle = (void*)0x9537;
+  pReq->info.msgType = pReq->msgType;
+  // pReq->info.ahandle = pReq->ahandle;
+  if (pReq->info.handle != NULL) {
+    pReq->info.qId = (int64_t)pReq->info.handle;
+  } else {
+    pReq->info.handle = (void*)-1;
+  }
+
+  if (pReq->info.qId != 0) {
+    taosThreadMutexLock(&pTransInst->sidMutx);
+    /******/
+    if (ctx != NULL) {
+      STransCtx* pUserCtx = taosHashGet(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId));
+      if (pUserCtx != NULL) {
+        transCtxMerge(pUserCtx, ctx);
+      } else {
+        taosHashPut(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId), ctx, sizeof(STransCtx));
+      }
+    }
+    taosThreadMutexUnlock(&pTransInst->sidMutx);
+  }
+  taosThreadMutexLock(&pTransInst->seqMutex);
+  pReq->info.seq = pTransInst->seq++;
   pReq->parent = pTransInst;
+  taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
+  taosThreadMutexUnlock(&pTransInst->seqMutex);
+
   sprintf(pReq->info.conn.user, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
@@ -3446,6 +3471,7 @@ int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* p
   int32_t code;
   int32_t cliVer = 0;
   code = taosVersionStrToInt(version, &cliVer);
+
   return 0;
 }
 

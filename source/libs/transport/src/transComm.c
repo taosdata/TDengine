@@ -1501,6 +1501,30 @@ bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
   return true;
 }
 
+bool cliMayGetAhandle(STrans* pTrans, SRpcMsg* pMsg) {
+  int64_t  seq = pMsg->info.seq;
+  int32_t* msgType = NULL;
+
+  taosThreadMutexLock(&pTrans->seqMutex);
+  msgType = taosHashGet(pTrans->seqTable, &seq, sizeof(seq));
+  taosThreadMutexUnlock(&pTrans->seqMutex);
+  if (msgType == NULL) {
+    STransCtx* ctx = taosHashGet(pTrans->sidTable, &pMsg->info.qId, sizeof(pMsg->info.qId));
+    if (ctx == NULL) {
+      return false;
+    }
+    pMsg->info.ahandle = transCtxDumpVal(ctx, pMsg->msgType);
+    tError("failed to find msg type for seq:%" PRId64 ", gen ahandle for type %s" PRId64, seq,
+           TMSG_INFO(pMsg->msgType));
+  } else {
+    taosThreadMutexLock(&pTrans->seqMutex);
+    taosHashRemove(pTrans->seqTable, &seq, sizeof(seq));
+    msgType = taosHashGet(pTrans->seqTable, &seq, sizeof(seq));
+    taosThreadMutexUnlock(&pTrans->seqMutex);
+  }
+  return true;
+}
+
 void* processSvrMsg(void* arg) {
   TThread* thread = (TThread*)arg;
 
@@ -1523,11 +1547,19 @@ void* processSvrMsg(void* arg) {
       taosThreadMutexLock(&mutex[1]);
       RpcCfp fp = NULL;
       void*  parent = NULL;
-      tDebug("taos %s received from taos", TMSG_INFO(pRpcMsg->msgType));
-      transGetCb(pRpcMsg->type, (RpcCfp*)&fp, &parent);
+      tDebug("taos %s received from taosd", TMSG_INFO(pRpcMsg->msgType));
+      STrans* pTrans = NULL;
+      transGetCb(pRpcMsg->type, &pTrans);
 
       taosThreadMutexUnlock(&mutex[1]);
-      fp(NULL, pRpcMsg, NULL);
+
+      if (pTrans != NULL) {
+        if (cliMayGetAhandle(pTrans, pRpcMsg)) {
+          (pTrans->cfp)(NULL, pRpcMsg, NULL);
+        } else {
+          tDebug("taosd %s received from taosd, ignore", TMSG_INFO(pRpcMsg->msgType));
+        }
+      }
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
@@ -1555,19 +1587,19 @@ void* procClientMsg(void* arg) {
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
 
-      tDebug("taos %s received from taos", TMSG_INFO(pRpcMsg->msgType));
+      tDebug("taosc %s received from taosc", TMSG_INFO(pRpcMsg->msgType));
       RpcCfp fp = NULL;
-      void*  parent;
+      // void*  parent;
+      STrans* pTrans = NULL;
       taosThreadMutexLock(&mutex[1]);
       if ((pRpcMsg->type & TD_ACORE_DSVR) != 0) {
-        transGetCb(TD_ACORE_DSVR, (RpcCfp*)&fp, &parent);
+        transGetCb(TD_ACORE_DSVR, &pTrans);
       }
-      STrans* pTrans = pRpcMsg->parent;
       taosThreadMutexUnlock(&mutex[1]);
-      if (fp != NULL) {
-        fp(parent, pRpcMsg, NULL);
+      if (pTrans->cfp != NULL) {
+        (pTrans->cfp)(pTrans->parent, pRpcMsg, NULL);
       } else {
-        tError("taos failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
+        tError("taosc failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
       }
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
@@ -1635,16 +1667,17 @@ typedef struct {
   void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
   RPC_TYPE type;
   void*    parant;
+  STrans*  pTransport;
 } FP_TYPE;
-int32_t transUpdateCb(RPC_TYPE type, void (*fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet), void* arg) {
+int32_t transUpdateCb(RPC_TYPE type, STrans* pTransport) {
   taosThreadMutexLock(&tableMutex);
 
-  FP_TYPE t = {.fp = fp, .type = type, .parant = arg};
+  FP_TYPE t = {.type = type, .pTransport = pTransport};
   int32_t code = taosHashPut(hashTable, &type, sizeof(type), &t, sizeof(t));
   taosThreadMutexUnlock(&tableMutex);
   return 0;
 }
-int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet), void** arg) {
+int32_t transGetCb(RPC_TYPE type, STrans** ppTransport) {
   taosThreadMutexLock(&tableMutex);
   void* p = taosHashGet(hashTable, &type, sizeof(type));
   if (p == NULL) {
@@ -1652,8 +1685,9 @@ int32_t transGetCb(RPC_TYPE type, void (**fp)(void* parent, SRpcMsg* pMsg, SEpSe
     return TSDB_CODE_INVALID_MSG;
   }
   FP_TYPE* t = p;
-  *fp = t->fp;
-  *arg = t->parant;
+  *ppTransport = t->pTransport;
+  // *fp = t->fp;
+  // *arg = t->parant;
   taosThreadMutexUnlock(&tableMutex);
   return 0;
 }

@@ -78,6 +78,13 @@ typedef struct {
   int64_t       refId;
   TdThreadMutex mutex;
   int16_t       type;
+
+  TdThreadMutex sidMutx;
+  SHashObj*     sidTable;
+
+  TdThreadMutex seqMutex;
+  int64_t       seq;
+  SHashObj*     seqTable;
 } SRpcInfo;
 
 #ifdef __cplusplus

@@ -1936,8 +1936,8 @@ void    transUnrefSrvHandle(void *handle) { return; }
 int32_t transSendResponse(STransMsg *msg) {
   //
   int32_t code = 0;
-  if (rpcIsReq(msg->msgType)) {
-    msg->msgType = msg->msgType + 1;
+  if (rpcIsReq(msg->info.msgType) && msg->info.msgType != 0) {
+    msg->msgType = msg->info.msgType + 1;
   }
   if (msg->info.noResp) {
     rpcFreeCont(msg->pCont);
