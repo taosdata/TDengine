@@ -12,11 +12,10 @@
 	"query_mode": "taosc",
 	"specified_table_query": {
 		"query_interval": 0,
-		"concurrent": 10,
+		"threads": 10,
 		"sqls": [
 			{
-				"sql": "select count(*) from meters",
-				"result": "./query_result.txt"
+				"sql": "select count(*) from meters"
 			}
 		]
 	}
