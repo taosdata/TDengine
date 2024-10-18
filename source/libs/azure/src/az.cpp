@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 
 #include "az.h"
+#include "azInt.h"
 
 #include "os.h"
 #include "taoserror.h"
@@ -88,9 +89,9 @@ static int32_t azListBucket(char const *bucketname) {
       }
     }
   } catch (const Azure::Core::RequestFailedException &e) {
-    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
-           e.ReasonPhrase.c_str());
-    // uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
+    azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+            e.ReasonPhrase.c_str());
+    // azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
 
     code = TAOS_SYSTEM_ERROR(EIO);
     TAOS_RETURN(code);
@@ -105,7 +106,6 @@ int32_t azCheckCfg() {
 
   // for (; i < tsS3EpNum; i++) {
   (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
-  // s3DumpCfgByEp(i);
   azDumpCfgByEp(0);
 
   // test put
@@ -131,7 +131,7 @@ int32_t azCheckCfg() {
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (!fp) {
     (void)fprintf(stderr, "failed to open test file: %s.\n", path);
-    // uError("ERROR: %s Failed to open %s", __func__, path);
+    // azError("ERROR: %s Failed to open %s", __func__, path);
     TAOS_CHECK_GOTO(terrno, &lino, _next);
   }
   if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
@@ -258,7 +258,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     std::cout << e.what() << std::endl;
     */
     code = TAOS_SYSTEM_ERROR(EIO);
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -296,16 +296,16 @@ int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t si
     auto res = blobClient.DownloadTo(buf, size, options);
     if (check && res.Value.ContentRange.Length.Value() != size) {
       code = TAOS_SYSTEM_ERROR(EIO);
-      uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       TAOS_RETURN(code);
     }
 
     *ppBlock = buf;
   } catch (const Azure::Core::RequestFailedException &e) {
-    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
-           e.ReasonPhrase.c_str());
+    azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+            e.ReasonPhrase.c_str());
     code = TAOS_SYSTEM_ERROR(EIO);
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
 
     if (buf) {
       taosMemoryFree(buf);
@@ -368,9 +368,9 @@ void azDeleteObjectsByPrefix(const char *prefix) {
       blobClient.Delete();
     }
   } catch (const Azure::Core::RequestFailedException &e) {
-    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
-           e.ReasonPhrase.c_str());
-    // uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
+    azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+            e.ReasonPhrase.c_str());
+    // azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
   }
 }
 
@@ -379,19 +379,19 @@ int32_t azPutObjectFromFile2(const char *file, const char *object, int8_t withcp
   uint64_t contentLength = 0;
 
   if (taosStatFile(file, (int64_t *)&contentLength, NULL, NULL) < 0) {
-    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
+    azError("ERROR: %s Failed to stat file %s: ", __func__, file);
     TAOS_RETURN(terrno);
   }
 
   code = azPutObjectFromFileOffset(file, object, 0, contentLength);
   if (code != 0) {
-    uError("ERROR: %s Failed to put file %s: ", __func__, file);
+    azError("ERROR: %s Failed to put file %s: ", __func__, file);
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
   if (code) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    azError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
   return 0;
@@ -417,14 +417,14 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
     auto res = blobClient.DownloadTo(fileName);
     if (res.Value.ContentRange.Length.Value() <= 0) {
       code = TAOS_SYSTEM_ERROR(EIO);
-      uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       TAOS_RETURN(code);
     }
   } catch (const Azure::Core::RequestFailedException &e) {
-    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
-           e.ReasonPhrase.c_str());
+    azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+            e.ReasonPhrase.c_str());
     code = TAOS_SYSTEM_ERROR(EIO);
-    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -470,8 +470,8 @@ int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
       }
     }
   } catch (const Azure::Core::RequestFailedException &e) {
-    uError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
-           e.ReasonPhrase.c_str());
+    azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
+            e.ReasonPhrase.c_str());
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
