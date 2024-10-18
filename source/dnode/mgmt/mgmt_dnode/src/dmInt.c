@@ -47,6 +47,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopMonitorThread(pMgmt);
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
 #endif

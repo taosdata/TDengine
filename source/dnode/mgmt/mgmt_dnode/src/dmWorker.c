@@ -314,7 +314,7 @@ int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusInfoThreadFp, pMgmt) != 0) {
+  if (taosThreadCreate(&pMgmt->statusInfoThread, &thAttr, dmStatusInfoThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create status Info thread since %s", tstrerror(code));
     return code;
@@ -329,6 +329,13 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     (void)taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
+  }
+}
+
+void dmStopStatusInfoThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->statusInfoThread)) {
+    (void)taosThreadJoin(pMgmt->statusInfoThread, NULL);
+    taosThreadClear(&pMgmt->statusInfoThread);
   }
 }
 
