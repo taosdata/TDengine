@@ -28,6 +28,7 @@ typedef struct SDnodeMgmt {
   const char                  *path;
   const char                  *name;
   TdThread                     statusThread;
+  TdThread                     statusInfoThread;
   TdThread                     notifyThread;
   TdThread                     monitorThread;
   TdThread                     auditThread;
@@ -64,6 +65,7 @@ int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
