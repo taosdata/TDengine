@@ -10664,6 +10664,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Stream interp function only support force window close");
     }
+
     if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
       if (pStmt->pOptions->fillHistory) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -10721,6 +10722,18 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
       return generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
           "When trigger was force window close, Stream unsupported Fill history");
+    }
+
+    if (pStmt->pOptions->ignoreExpired != 1) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+          "When trigger was force window close, Stream must not set  ignore expired 0");
+    }
+
+    if (pStmt->pOptions->ignoreUpdate != 1) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+          "When trigger was force window close, Stream must not set  ignore update 0");
     }
   }
 

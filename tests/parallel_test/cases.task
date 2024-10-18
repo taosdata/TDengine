@@ -1370,6 +1370,7 @@
 #,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
