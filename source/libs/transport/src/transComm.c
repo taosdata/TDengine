@@ -1539,15 +1539,15 @@ void* processSvrMsg(void* arg) {
 
   while (1) {
     int numOfMsgs = taosReadAllQitemsFromQset(multiQ[1]->qset[idx], qall, &qinfo);
-    tDebug("%d shell msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) break;
     taosResetQitems(qall);
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
       taosThreadMutexLock(&mutex[1]);
-      RpcCfp fp = NULL;
-      void*  parent = NULL;
-      tDebug("taos %s received from taosd", TMSG_INFO(pRpcMsg->msgType));
+      RpcCfp    fp = NULL;
+      void*     parent = NULL;
+      STraceId* trace = &pRpcMsg->info.traceId;
+      tGDebug("taos %s received from taosd", TMSG_INFO(pRpcMsg->msgType));
       STrans* pTrans = NULL;
       transGetCb(pRpcMsg->type, &pTrans);
 
@@ -1555,7 +1555,13 @@ void* processSvrMsg(void* arg) {
 
       if (pTrans != NULL) {
         if (cliMayGetAhandle(pTrans, pRpcMsg)) {
-          (pTrans->cfp)(NULL, pRpcMsg, NULL);
+          if (pRpcMsg->info.reqWithSem == NULL) {
+            (pTrans->cfp)(pTrans->parent, pRpcMsg, NULL);
+          } else {
+            STransReqWithSem* reqWithSem = pRpcMsg->info.reqWithSem;
+            memcpy(&reqWithSem->pMsg, pRpcMsg, sizeof(SRpcMsg));
+            tsem_post(reqWithSem->sem);
+          }
         } else {
           tDebug("taosd %s received from taosd, ignore", TMSG_INFO(pRpcMsg->msgType));
         }
@@ -1587,6 +1593,7 @@ void* procClientMsg(void* arg) {
     for (int i = 0; i < numOfMsgs; i++) {
       taosGetQitem(qall, (void**)&pRpcMsg);
 
+      STraceId* trace = &pRpcMsg->info.traceId;
       tDebug("taosc %s received from taosc", TMSG_INFO(pRpcMsg->msgType));
       RpcCfp fp = NULL;
       // void*  parent;

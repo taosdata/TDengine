@@ -3469,16 +3469,45 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
 
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   int32_t code;
-  int32_t cliVer = 0;
-  code = taosVersionStrToInt(version, &cliVer);
+  // int32_t cliVer = 0;
+  // code = taosVersionStrToInt(version, &cliVer);
+  return transSendRequest(shandle, pEpSet, pReq, NULL);
 
   return 0;
 }
 
-int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) { return 0; }
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  return transSendRecvWithTimeout(shandle, (SEpSet*)pEpSet, pReq, pRsp, NULL, 0);
+}
 int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) { return 0; }
 int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs) {
+  int32_t code = 0;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+
+  STransReqWithSem* tmsg = taosMemoryCalloc(1, sizeof(STransReqWithSem));
+  tmsg->sem = taosMemoryCalloc(1, sizeof(tsem_t));
+  code = tsem_init(tmsg->sem, 0, 0);
+  if (code != 0) {
+    taosMemoryFree(tmsg->sem);
+    return code;
+  }
+  pReq->info.reqWithSem = tmsg;
+  transSendRequest(shandle, NULL, pReq, NULL);
+  TAOS_UNUSED(tsem_wait(tmsg->sem));
+  tsem_destroy(tmsg->sem);
+
+  memcpy(pRsp, &tmsg->pMsg, sizeof(STransMsg));
+  taosMemoryFree(tmsg);
+
+  taosReleaseRef(transGetInstMgt(), (int64_t)shandle);
   return 0;
 }
 int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) { return 0; }

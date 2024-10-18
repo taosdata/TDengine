@@ -109,6 +109,11 @@ typedef SRpcCtxVal     STransCtxVal;
 typedef SRpcInfo       STrans;
 typedef SRpcConnInfo   STransHandleInfo;
 
+typedef struct {
+  tsem_t*   sem;
+  STransMsg pMsg;
+} STransReqWithSem;
+
 // ref mgt handle
 typedef struct SExHandle {
   void*    handle;
