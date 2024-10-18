@@ -363,6 +363,11 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
+    if (QUERY_NODE_NODE_LIST != nodeType(plans)) {
+      SCH_JOB_ELOG("invalid level plan, level:%d, planNodeType:%d", i, nodeType(plans));
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+
     taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
     if (taskNum <= 0) {
       SCH_JOB_ELOG("invalid level plan number:%d, level:%d", taskNum, i);
@@ -380,10 +385,20 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     for (int32_t n = 0; n < taskNum; ++n) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
       if (NULL == plan) {
-        SCH_JOB_ELOG("fail to get the %dth subplan, taskNum: %d", n, taskNum);
+        SCH_JOB_ELOG("fail to get the %dth subplan, taskNum: %d, level: %d", n, taskNum, i);
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
+      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(plan)) {
+        SCH_JOB_ELOG("invalid subplan type, level:%d, subplanNodeType:%d", i, nodeType(plan));
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+
+      if (plan->subplanType < SUBPLAN_TYPE_MERGE || plan->subplanType > SUBPLAN_TYPE_COMPUTE) {
+        SCH_JOB_ELOG("invalid subplanType %d, level:%d, subplan idx:%d", plan->subplanType, i, n);
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+      
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};

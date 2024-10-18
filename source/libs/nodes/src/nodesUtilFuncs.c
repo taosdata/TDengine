@@ -1575,10 +1575,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
       SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pWindowOffset);
+      nodesDestroyNode(pPhyNode->pJLimit);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->leftPrimExpr);
       nodesDestroyNode(pPhyNode->rightPrimExpr);
+      nodesDestroyNode(pPhyNode->pLeftOnCond);
+      nodesDestroyNode(pPhyNode->pRightOnCond);
       nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 
@@ -1586,8 +1590,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
 
-      nodesDestroyNode(pPhyNode->pLeftOnCond);
-      nodesDestroyNode(pPhyNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
