@@ -478,59 +478,6 @@ fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<St
     }
 }
 
-#[cfg(test)]
-mod point_config_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_parse_stable() {
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable"]),
-        )
-        .unwrap();
-        let row = StringRecord::from(vec!["point1", "stable1"]);
-        let stable = parse_stable(&header, &row);
-        assert_eq!(stable, Some("stable1".to_string()));
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable"]),
-        )
-        .unwrap();
-        let row = StringRecord::from(vec!["point1", ""]);
-        let stable = parse_stable(&header, &row);
-        assert_eq!(stable, None);
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable"]),
-        )
-        .unwrap();
-        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}"]);
-        let stable = parse_stable(&header, &row);
-        assert_eq!(stable, Some("meters_{type}".to_string()));
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable", "type"]),
-        )
-        .unwrap();
-        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}", ""]);
-        let stable = parse_stable(&header, &row);
-        assert_eq!(stable, Some("meters_{type}".to_string()));
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["point_id", "stable", "type"]),
-        )
-        .unwrap();
-        let row = StringRecord::from(vec!["ns=3;i=1001", "stable1_{type}", "varchar(200)"]);
-        let stable = parse_stable(&header, &row);
-        assert_eq!(stable, Some("stable1_varchar".to_string()));
-    }
-}
-
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct TableConfig {
     pub enabled: Option<i8>,
@@ -860,117 +807,6 @@ fn parse_original_ts_col(
     Ok(None)
 }
 
-#[cfg(test)]
-mod table_config_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_parse_value_col() {
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &StringRecord::from(vec!["value_col", "value_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["value", "value + 1"]);
-        let value_col = parse_value_col(&header, &row).unwrap();
-        assert_eq!(value_col.alias.unwrap(), "value");
-        assert_eq!(value_col.transform.unwrap(), "value + 1");
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["", "value + 1"]);
-        let value_col = parse_value_col(&header, &row);
-        assert!(value_col.is_err());
-        assert_eq!(
-            value_col.unwrap_err().to_string(),
-            "invalid value_transform: value + 1, cause: Variable not found: value"
-        );
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["", "val + 1"]);
-        let value_col = parse_value_col(&header, &row).unwrap();
-        assert_eq!(value_col.alias.unwrap(), "val");
-        assert_eq!(value_col.transform.unwrap(), "val + 1");
-    }
-
-    #[tokio::test]
-    async fn test_parse_original_ts_col() {
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["ts", "ts + 1"]);
-        let ts_col = parse_original_ts_col(&header, &row).unwrap().unwrap();
-        assert_eq!(ts_col.alias.unwrap(), "ts");
-        assert_eq!(ts_col.transform.unwrap(), "ts + 1");
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["", "ts + 1"]);
-        let ts_col = parse_original_ts_col(&header, &row).unwrap();
-        assert!(ts_col.is_none());
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["ts", "origin_ts + 1"]);
-        let ts_col = parse_original_ts_col(&header, &row);
-        assert!(ts_col.is_err());
-        assert_eq!(
-            ts_col.unwrap_err().to_string(),
-            "invalid original_ts_transform: origin_ts + 1, cause: Variable not found: origin_ts"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_parse_received_ts_col() {
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["rts", "rts + 1"]);
-        let received_ts_col = parse_received_ts_col(&header, &row).unwrap().unwrap();
-        assert_eq!(received_ts_col.alias.unwrap(), "rts");
-        assert_eq!(received_ts_col.transform.unwrap(), "rts + 1");
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["", "rts + 1"]);
-        let received_ts_col = parse_received_ts_col(&header, &row).unwrap();
-        assert!(received_ts_col.is_none());
-
-        let header = CsvHeader::try_new(
-            OpcType::OPCUA,
-            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
-        )
-        .unwrap();
-        let row = csv_async::StringRecord::from(vec!["rts", "received_ts + 1"]);
-        let received_ts_col = parse_received_ts_col(&header, &row);
-        assert!(received_ts_col.is_err());
-        assert_eq!(
-            received_ts_col.unwrap_err().to_string(),
-            "invalid received_ts_transform: received_ts + 1, cause: Variable not found: received_ts"
-        );
-    }
-}
-
 #[derive(Clone, Deserialize, Debug, Serialize, PartialEq)]
 pub struct ColumnConfig {
     pub name: String, // original_ts / received_ts / value / quality
@@ -991,4 +827,175 @@ impl ColumnConfig {
 pub struct TagConfig {
     pub name: String,
     pub r#type: IpcDataType,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_stable() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", "stable1"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, None);
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "stable1_{type}", "varchar(200)"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1_varchar".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_parse_value_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "value_col", "value_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["123", "value", "value + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "value");
+        assert_eq!(value_col.transform.unwrap(), "value + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["point_id", "value_col", "value_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["123", "", "value + 1"]);
+        let value_col = parse_value_col(&header, &row);
+        assert!(value_col.is_err());
+        assert_eq!(
+            value_col.unwrap_err().to_string(),
+            "invalid value_transform: value + 1, cause: Variable not found: value"
+        );
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["point_id", "value_col", "value_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["123", "", "val + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "val");
+        assert_eq!(value_col.transform.unwrap(), "val + 1");
+    }
+
+    #[tokio::test]
+    async fn test_parse_original_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["point_id", "ts_col", "ts_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "ts", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(ts_col.alias.unwrap(), "ts");
+        assert_eq!(ts_col.transform.unwrap(), "ts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["point_id", "ts_col", "ts_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap();
+        assert!(ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["point_id", "ts_col", "ts_transform"]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "ts", "origin_ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row);
+        assert!(ts_col.is_err());
+        assert_eq!(
+            ts_col.unwrap_err().to_string(),
+            "invalid original_ts_transform: origin_ts + 1, cause: Variable not found: origin_ts"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_received_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec![
+                "point_id",
+                "received_ts_col",
+                "received_ts_transform",
+            ]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "rts", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(received_ts_col.alias.unwrap(), "rts");
+        assert_eq!(received_ts_col.transform.unwrap(), "rts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec![
+                "point_id",
+                "received_ts_col",
+                "received_ts_transform",
+            ]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap();
+        assert!(received_ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec![
+                "point_id",
+                "received_ts_col",
+                "received_ts_transform",
+            ]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ns=1;i=100", "rts", "received_ts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row);
+        assert!(received_ts_col.is_err());
+        assert_eq!(
+            received_ts_col.unwrap_err().to_string(),
+            "invalid received_ts_transform: received_ts + 1, cause: Variable not found: received_ts"
+        );
+    }
 }

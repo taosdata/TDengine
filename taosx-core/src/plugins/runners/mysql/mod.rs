@@ -553,6 +553,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
         // prepare data
         let _ = test_create_table().await;

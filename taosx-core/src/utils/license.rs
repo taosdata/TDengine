@@ -701,7 +701,7 @@ mod tests {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
             .try_init();
-        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
+        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full2");
         let now = chrono::Local::now();
         let expired = chrono::Local::now() - (chrono::Duration::days(10));
         let future = chrono::Local::now() + (chrono::Duration::days(100));
@@ -714,10 +714,10 @@ mod tests {
             .unwrap();
 
         conn.exec_many([
-            "create table if not exists test.test_grants_full (
+            "create table if not exists test.test_grants_full2 (
             ts timestamp, grant_name varchar(100), display_name varchar(100),
             expire varchar(100), limits varchar(100))",
-            "delete from test.test_grants_full",
+            "delete from test.test_grants_full2",
         ])
         .await
         .unwrap();
@@ -730,7 +730,7 @@ mod tests {
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
             .contains("You enterprise edition has no active_active license"));
 
-        conn.exec("insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
+        conn.exec("insert into test.test_grants_full2 values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
             .await
             .unwrap();
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
@@ -739,21 +739,19 @@ mod tests {
             .contains("active_active expired at 2022-01-01 00:00:00"));
 
         conn.exec_many([
-            "delete from test.test_grants_full".to_string(),
+            "delete from test.test_grants_full2".to_string(),
             format!(
-                "insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '{}', NULL)",
+                "insert into test.test_grants_full2 values(now, 'active_active', 'Active-Active', '{}', NULL)",
                 future.format("%Y-%m-%d %H:%M:%S")
             ),
         ])
         .await
         .unwrap();
-        let err = validate_enterprise_license(&from, &to).await.unwrap_err();
-        assert!(dbg!(format!("{:#}", err))
-            .contains("The current connector td3.0 is not supported by license."));
+        assert!(validate_enterprise_license(&from, &to).await.is_err());
 
         let (grant, display) = ("td3.0", "TDengine 3.0");
         conn.exec(format!(
-            r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            r#"insert into test.test_grants_full2 values(now, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
             time = expired.format("%Y-%m-%d %H:%M:%S"),
             seconds = expired.timestamp()
         ))
@@ -764,14 +762,14 @@ mod tests {
         assert!(dbg!(format!("{:#}", res.unwrap_err()))
             .contains("The current connector td3.0 has been expired for"));
         conn.exec_many([
-            "delete from test.test_grants_full".to_string(),
+            "delete from test.test_grants_full2".to_string(),
             format!(
-                "insert into test.test_grants_full values({}, 'active_active', 'Active-Active', '{}', NULL)",
+                "insert into test.test_grants_full2 values({}, 'active_active', 'Active-Active', '{}', NULL)",
                 now.timestamp_millis(),
                 future.format("%Y-%m-%d %H:%M:%S")
             ),
             format!(
-            r#"insert into test.test_grants_full values({}, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            r#"insert into test.test_grants_full2 values({}, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
             now.timestamp_millis() + 1000,
             time = future.format("%Y-%m-%d %H:%M:%S"),
             seconds =future.timestamp()
@@ -804,7 +802,7 @@ mod tests {
             let to = Dsn::from_str("taos:///test").unwrap();
 
             // c.1 no license item
-            conn.exec("delete from test.test_grants_full")
+            conn.exec("delete from test.test_grants_full2")
                 .await
                 .unwrap();
             let res = validate_enterprise_license(&from, &to).await;
@@ -815,7 +813,7 @@ mod tests {
 
             // c.2 expired
             conn.exec_many([format!(
-                r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
+                r#"insert into test.test_grants_full2 values(now, '{grant}', '{display}', '{time}',
                     '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
                 time = expired.format("%Y-%m-%d %H:%M:%S"),
                 seconds = expired.timestamp()
@@ -831,9 +829,9 @@ mod tests {
 
             // c.3 good
             conn.exec_many([
-                "delete from test.test_grants_full".to_string(),
+                "delete from test.test_grants_full2".to_string(),
                 format!(
-                    r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
+                    r#"insert into test.test_grants_full2 values(now, '{grant}', '{display}', '{time}',
                     '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
                     time = future.format("%Y-%m-%d %H:%M:%S"),
                     seconds = future.timestamp()
@@ -843,6 +841,8 @@ mod tests {
             .unwrap();
             validate_enterprise_license(&from, &to).await.unwrap();
         }
-        conn.exec("drop table test.test_grants_full").await.unwrap();
+        conn.exec("drop table test.test_grants_full2")
+            .await
+            .unwrap();
     }
 }

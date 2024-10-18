@@ -167,7 +167,7 @@ fn build_sasl(metadata: &Metadata) {
     println!("cargo:rustc-link-lib=static={}", LIBRARY_NAME);
     println!("cargo:root={}", install_dir.display());
 
-    #[cfg(feature = "gssapi-vendored")]
+    #[cfg(all(feature = "gssapi-vendored", target_os = "linux"))]
     {
         // NOTE(zitsen): link against the vendored keyutils library to pass gssapi in centos7.
         let keyutils_src_dir = metadata.out_dir.join("keyutils");
@@ -194,7 +194,9 @@ fn build_sasl(metadata: &Metadata) {
         .run()
         .expect("failed copying libkeyutils.a to install dir");
         println!("cargo:rustc-link-lib=static=keyutils");
-
+    }
+    #[cfg(feature = "gssapi-vendored")]
+    {
         // NOTE(benesch): linking gssapi_krb5 and its dependencies should one
         // day be the responsibility of a libgssapi-sys project. Unfortunately
         // none of the several options on crates.io are presently up to snuff.

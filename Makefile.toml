@@ -5,9 +5,15 @@ skip_core_tasks = true
 default_to_workspace = false
 
 [env]
-VER_NUMBER = { script = ["git tag |grep ver-|sed s/ver-//|sort -V|tail -n1"], condition = { env_not_set = ["VER_NUMBER"] } }
+VER_NUMBER = { script = [
+  "git tag |grep ver-|sed s/ver-//|sort -V|tail -n1",
+], condition = { env_not_set = [
+  "VER_NUMBER",
+] } }
 UPX_DIR = "./target/deploy/upx/"
-BUILD_PROFILE = { value = "release", condition = { env_not_set = ["BUILD_PROFILE"] } }
+BUILD_PROFILE = { value = "release", condition = { env_not_set = [
+  "BUILD_PROFILE",
+] } }
 
 [tasks.build]
 command = "cargo"
@@ -591,3 +597,16 @@ cp explorer/bin/taos-explorer-srv.exe target/deploy/taos-explorer-srv.exe
 cp explorer/bin/taos-explorer-srv.xml target/deploy/taos-explorer-srv.xml
 cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 """
+
+[tasks.install-llvm-cov]
+install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rustup_component_name = "llvm-tools-preview", test_arg = "--version" }
+[tasks.install-nextest]
+install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
+
+[tasks.test]
+dependencies = ["install-llvm-cov", "install-nextest"]
+install_script = """
+mkdir explorer/server/dist/ || true
+"""
+command = "cargo"
+args = ["llvm-cov", "nextest", "--workspace", "--html"]

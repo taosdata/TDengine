@@ -92,6 +92,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_nodes() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
         let dsn =
             Dsn::from_str("opcua://?ua.nodes=ns=3;i=1002::d1dfao123,ns=3;i=1007::dns31007double")
                 .unwrap();
@@ -100,14 +102,14 @@ mod tests {
         assert_eq!(nodes[0].id, "ns=3;i=1002");
         assert_eq!(nodes[1].id, "ns=3;i=1007");
 
-        let dsn = Dsn::from_str("opcua://?ua.nodes=@../tests/opc/ua.nodes").unwrap();
+        let dsn = Dsn::from_str("opcua://?ua.nodes=@./tests/opc/ua.nodes").unwrap();
         let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
         assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[0].id, "ns=3;i=1002");
         assert_eq!(nodes[1].id, "ns=3;i=1007");
 
         let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/ua_collect_config.csv").unwrap();
+            Dsn::from_str("opcua://?csv_config_file=@./tests/opc/ua_collect_config.csv").unwrap();
         let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
         assert_eq!(nodes.len(), 29);
         assert_eq!("ns=3;i=1008", nodes[0].id);
