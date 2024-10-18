@@ -3691,7 +3691,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       // current block are exhausted, try the next file block
       if (pDumpInfo->allDumped) {
         // try next data block in current file
-        bool hasNext = blockIteratorNext(&pReader->status.blockIter, pReader->idStr);
+        bool hasNext = blockIteratorNext(&pReader->status.blockIter);
         if (hasNext) {  // check for the next block in the block accessed order list
           initBlockDumpInfo(pReader, pBlockIter);
         } else {
@@ -4898,8 +4898,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   size_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (pReader->status.pTableMap != NULL) {
-    destroyAllBlockScanInfo(pReader->status.pTableMap);
-    pReader->status.pTableMap = NULL;
+    destroyAllBlockScanInfo(&pReader->status.pTableMap);
   }
   clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
@@ -5765,7 +5764,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
-      hasNext = blockIteratorNext(&pStatus->blockIter, pReader->idStr);
+      hasNext = blockIteratorNext(&pStatus->blockIter);
     } else {
       code = initForFirstBlockInFile(pReader, pBlockIter);
       if ((code != TSDB_CODE_SUCCESS) || (pStatus->loadFromFile == false)) {
