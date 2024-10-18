@@ -446,18 +446,23 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
+      qInfo("wjm walk window");
       if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
         nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
       }
     case SQL_CLAUSE_FILL:
+      qInfo("wjm walk groupbylist");
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
     case SQL_CLAUSE_GROUP_BY:
+      qInfo("wjm walk having");
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
     case SQL_CLAUSE_SELECT:
     case SQL_CLAUSE_DISTINCT:
+      qInfo("wjm walk orderby list");
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
+      qInfo("wjm walk projection list");
       nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
     default:
       break;
