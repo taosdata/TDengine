@@ -62,6 +62,7 @@ static int32_t dmInitVars(SDnode *pDnode) {
   }
 
   taosThreadRwlockInit(&pData->lock, NULL);
+  (void)taosThreadMutexInit(&pData->statusInfolock, NULL);
   taosThreadMutexInit(&pDnode->mutex, NULL);
   return 0;
 }
