@@ -27,7 +27,8 @@ public class SubTableService extends AbstractService {
         this.mapper = new SubTableMapperImpl(datasource);
     }
 
-    public void createSubTable(SuperTableMeta superTableMeta, long numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
+    public void createSubTable(SuperTableMeta superTableMeta, long numOfTables, String prefixOfTable,
+            int numOfThreadsForCreate) {
         ExecutorService executor = Executors.newFixedThreadPool(numOfThreadsForCreate);
         for (long i = 0; i < numOfTables; i++) {
             long tableIndex = i;
@@ -35,54 +36,58 @@ public class SubTableService extends AbstractService {
         }
         executor.shutdown();
         try {
-            executor.awaitTermination(Long.MAX_VALUE,TimeUnit.NANOSECONDS);
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
     public void createSubTable(SuperTableMeta superTableMeta, String tableName) {
-        // 构造数据
+        // Construct data
         SubTableMeta meta = SubTableMetaGenerator.generate(superTableMeta, tableName);
         createSubTable(meta);
     }
 
-    // 创建一张子表，可以指定database，supertable，tablename，tag值
+    // Create a sub-table, specifying database, super table, table name, and tag
+    // values
     public void createSubTable(SubTableMeta subTableMeta) {
         mapper.createUsingSuperTable(subTableMeta);
     }
 
     /*************************************************************************************************************************/
-    // 插入：多线程，多表
+    // Insert: Multi-threaded, multiple tables
     public int insert(List<SubTableValue> subTableValues, int threadSize, int frequency) {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insert(subTableValues));
         executor.shutdown();
-        //TODO：frequency
+        // TODO：frequency
         return getAffectRows(future);
     }
 
-    // 插入：单表，insert into xxx values(),()...
+    // Insert: Single table, insert into xxx values(),()...
     public int insert(SubTableValue subTableValue) {
         return mapper.insertOneTableMultiValues(subTableValue);
     }
 
-    // 插入: 多表，insert into xxx values(),()... xxx values(),()...
+    // Insert: Multiple tables, insert into xxx values(),()... xxx values(),()...
     public int insert(List<SubTableValue> subTableValues) {
         return mapper.insertMultiTableMultiValues(subTableValues);
     }
 
-    // 插入：单表，自动建表, insert into xxx using xxx tags(...) values(),()...
+    // Insert: Single table, auto-create table, insert into xxx using xxx tags(...)
+    // values(),()...
     public int insertAutoCreateTable(SubTableValue subTableValue) {
         return mapper.insertOneTableMultiValuesUsingSuperTable(subTableValue);
     }
 
-    // 插入：多表，自动建表, insert into xxx using XXX tags(...) values(),()... xxx using XXX tags(...) values(),()...
+    // Insert: Multiple tables, auto-create tables, insert into xxx using XXX
+    // tags(...) values(),()... xxx using XXX tags(...) values(),()...
     public int insertAutoCreateTable(List<SubTableValue> subTableValues) {
         return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
 
-    public int insertMultiThreads(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime, long gap, JdbcTaosdemoConfig config) {
+    public int insertMultiThreads(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime,
+            long gap, JdbcTaosdemoConfig config) {
         List<FutureTask> taskList = new ArrayList<>();
         List<Thread> threads = IntStream.range(0, threadSize)
                 .mapToObj(i -> {
@@ -94,8 +99,7 @@ public class SubTableService extends AbstractService {
                                     startTime, config.timeGap,
                                     config.numOfRowsPerTable, config.numOfTablesPerSQL, config.numOfValuesPerSQL,
                                     config.order, config.rate, config.range,
-                                    config.prefixOfTable, config.autoCreateTable)
-                    );
+                                    config.prefixOfTable, config.autoCreateTable));
                     taskList.add(task);
                     return new Thread(task, "InsertThread-" + i);
                 }).collect(Collectors.toList());
@@ -126,7 +130,7 @@ public class SubTableService extends AbstractService {
     private class InsertTask implements Callable<Integer> {
 
         private final long startTableInd; // included
-        private final long endTableInd;   // excluded
+        private final long endTableInd; // excluded
         private final long startTime;
         private final long timeGap;
         private final long numOfRowsPerTable;
@@ -140,10 +144,10 @@ public class SubTableService extends AbstractService {
         private final boolean autoCreateTable;
 
         public InsertTask(SuperTableMeta superTableMeta, long startTableInd, long endTableInd,
-                          long startTime, long timeGap,
-                          long numOfRowsPerTable, long numOfTablesPerSQL, long numOfValuesPerSQL,
-                          int order, int rate, long range,
-                          String prefixOfTable, boolean autoCreateTable) {
+                long startTime, long timeGap,
+                long numOfRowsPerTable, long numOfTablesPerSQL, long numOfValuesPerSQL,
+                int order, int rate, long range,
+                String prefixOfTable, boolean autoCreateTable) {
             this.superTableMeta = superTableMeta;
             this.startTableInd = startTableInd;
             this.endTableInd = endTableInd;
@@ -159,7 +163,6 @@ public class SubTableService extends AbstractService {
             this.autoCreateTable = autoCreateTable;
         }
 
-
         @Override
         public Integer call() {
 
@@ -171,23 +174,27 @@ public class SubTableService extends AbstractService {
 
             int affectRows = 0;
             // row
-            for (long rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
+            for (long rowCnt = 0; rowCnt < numOfRowsPerTable;) {
                 long rowSize = numOfValuesPerSQL;
                 if (rowCnt + rowSize > numOfRowsPerTable) {
                     rowSize = numOfRowsPerTable - rowCnt;
                 }
-                //table
-                for (long tableCnt = startTableInd; tableCnt < endTableInd; ) {
+                // table
+                for (long tableCnt = startTableInd; tableCnt < endTableInd;) {
                     long tableSize = numOfTablesPerSQL;
                     if (tableCnt + tableSize > endTableInd) {
                         tableSize = endTableInd - tableCnt;
                     }
                     long startTime = this.startTime + rowCnt * timeGap;
-//                    System.out.println(Thread.currentThread().getName() + " >>> " + "rowCnt: " + rowCnt + ", rowSize: " + rowSize + ", " + "tableCnt: " + tableCnt + ",tableSize: " + tableSize + ", " + "startTime: " + startTime + ",timeGap: " + timeGap + "");
+                    // System.out.println(Thread.currentThread().getName() + " >>> " + "rowCnt: " +
+                    // rowCnt + ", rowSize: " + rowSize + ", " + "tableCnt: " + tableCnt +
+                    // ",tableSize: " + tableSize + ", " + "startTime: " + startTime + ",timeGap: "
+                    // + timeGap + "");
                     /***********************************************/
-                    // 生成数据
-                    List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, prefixOfTable, tableCnt, tableSize, rowSize, startTime, timeGap);
-                    // 乱序
+                    // Construct data
+                    List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, prefixOfTable, tableCnt,
+                            tableSize, rowSize, startTime, timeGap);
+                    // disorder
                     if (order != 0)
                         SubTableValueGenerator.disrupt(data, rate, range);
                     // insert
@@ -204,6 +211,5 @@ public class SubTableService extends AbstractService {
             return affectRows;
         }
     }
-
 
 }
