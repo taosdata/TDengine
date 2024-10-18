@@ -14,8 +14,6 @@ import (
 	"github.com/taosdata/taoskeeper/version"
 )
 
-var IsEnterprise = "false"
-
 var Name = fmt.Sprintf("%skeeper", version.CUS_PROMPT)
 
 const ReqIDKey = "QID"
@@ -228,7 +226,7 @@ func init() {
 
 	initLog()
 
-	if IsEnterprise == "true" {
+	if version.IsEnterprise == "true" {
 		initAudit()
 	}
 }

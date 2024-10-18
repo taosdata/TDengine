@@ -48,7 +48,7 @@ func Init() *http.Server {
 		node := api.NewNodeExporter(processor)
 		node.Init(router)
 
-		if config.IsEnterprise == "true" {
+		if version.IsEnterprise == "true" {
 			zabbix := api.NewZabbix(processor)
 			zabbix.Init(router)
 		}
@@ -57,7 +57,7 @@ func Init() *http.Server {
 	checkHealth := api.NewCheckHealth(version.Version)
 	checkHealth.Init(router)
 
-	if config.IsEnterprise == "true" {
+	if version.IsEnterprise == "true" {
 		if conf.Audit.Enable {
 			audit, err := api.NewAudit(conf)
 			if err != nil {

@@ -7,3 +7,5 @@ var CommitID = "unknown"
 
 var CUS_NAME = "TDengine"
 var CUS_PROMPT = "taos"
+
+var IsEnterprise = "false"
