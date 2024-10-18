@@ -96,6 +96,7 @@ while $i < 5
   sql drop index $sma
 endw
 
+#sleep 5000
 sql drop stable $mtPrefix
 sql select * from information_schema.ins_indexes
 if $rows != 0 then 

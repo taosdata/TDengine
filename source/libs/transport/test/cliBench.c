@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.connLimitNum = 10;
   rpcInit.connLimitLock = 1;
-  rpcInit.batchSize = 16 * 1024;
+  rpcInit.shareConnLimit = 16 * 1024;
   rpcInit.supportBatch = 1;
 
   rpcDebugFlag = 135;
