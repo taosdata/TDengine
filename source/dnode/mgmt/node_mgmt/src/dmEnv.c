@@ -20,6 +20,7 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
+#include "tanal.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -214,6 +215,7 @@ void dmCleanup() {
     dError("failed to close udfc");
   }
   udfStopUdfd();
+  taosAnalCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();
