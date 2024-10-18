@@ -165,11 +165,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
-  (void)taosThreadRwlockRdlock(&pMgmt->pData->statusInfolock);
+  (void)taosThreadMutexLock(&pMgmt->pData->statusInfolock);
   req.pVloads = taosArrayDup(tsVinfo.pVloads, NULL);
   taosArrayDestroy(tsVinfo.pVloads);
   tsVinfo.pVloads = NULL;
-  (void)taosThreadRwlockUnlock(&pMgmt->pData->statusInfolock);
+  (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
 
   dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
   SMonMloadInfo minfo = {0};
@@ -239,10 +239,10 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
   SMonVloadInfo vinfo = {0};
   dDebug("begin to get vnode loads");
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
-  (void)taosThreadRwlockWrlock(&pMgmt->pData->statusInfolock);
+  (void)taosThreadMutexLock(&pMgmt->pData->statusInfolock);
   if (tsVinfo.pVloads == NULL) tsVinfo.pVloads = taosArrayDup(vinfo.pVloads, NULL);
   taosArrayDestroy(vinfo.pVloads);
-  (void)taosThreadRwlockWrlock(&pMgmt->pData->statusInfolock);
+  (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
 }
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {

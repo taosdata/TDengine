@@ -144,7 +144,7 @@ typedef struct {
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;
-  TdThreadRwlock statusInfolock;
+  TdThreadMutex  statusInfolock;
 } SDnodeData;
 
 typedef struct {
