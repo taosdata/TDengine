@@ -84,17 +84,18 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
+    size_t dataEncodeSize = pBuf->allocSize + 8;
     if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       if (pHandle->pCompressBuf == NULL) {
         // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
-        pHandle->pCompressBuf = taosMemoryMalloc(pBuf->allocSize + 8);
+        pHandle->pCompressBuf = taosMemoryMalloc(dataEncodeSize);
         if (NULL == pHandle->pCompressBuf) {
           QRY_RET(terrno);
         }
-        pHandle->bufSize = pBuf->allocSize + 8;
+        pHandle->bufSize = dataEncodeSize;
       } else {
-        if (pHandle->bufSize < pBuf->allocSize + 8) {
-          pHandle->bufSize = pBuf->allocSize + 8;
+        if (pHandle->bufSize < dataEncodeSize) {
+          pHandle->bufSize = dataEncodeSize;
           void* p = taosMemoryRealloc(pHandle->pCompressBuf, pHandle->bufSize);
           if (p != NULL) {
             pHandle->pCompressBuf = p;
@@ -105,7 +106,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         }
       }
 
-      int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, dataEncodeSize, numOfCols);
       if(dataLen < 0) {
         qError("failed to encode data block, code: %d", dataLen);
         return terrno;
@@ -123,7 +124,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         TAOS_MEMCPY(pEntry->data, pHandle->pCompressBuf, dataLen);
       }
     } else {
-      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, dataEncodeSize, numOfCols);
       if(pEntry->dataLen < 0) {
         qError("failed to encode data block, code: %d", pEntry->dataLen);
         return terrno;

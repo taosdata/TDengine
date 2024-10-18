@@ -3041,7 +3041,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 }
 
 // return length of encoded data, return -1 if failed
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
   blockDataCheck(pBlock, false);
 
   int32_t dataLen = 0;
@@ -3106,9 +3106,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       metaSize = numOfRows * sizeof(int32_t);
+      if(dataLen + metaSize > dataBuflen) goto _exit;
       memcpy(data, pColRes->varmeta.offset, metaSize);
     } else {
       metaSize = BitmapLen(numOfRows);
+      if(dataLen + metaSize > dataBuflen) goto _exit;
       memcpy(data, pColRes->nullbitmap, metaSize);
     }
 
@@ -3127,12 +3129,14 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
         }
         colSizes[col] += colSize;
         dataLen += colSize;
+        if(dataLen > dataBuflen) goto _exit;
         (void) memmove(data, pColData, colSize);
         data += colSize;
       }
     } else {
       colSizes[col] = colDataGetLength(pColRes, numOfRows);
       dataLen += colSizes[col];
+      if(dataLen > dataBuflen) goto _exit;
       if (pColRes->pData != NULL) {
         (void) memmove(data, pColRes->pData, colSizes[col]);
       }
@@ -3156,7 +3160,14 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
+  if (dataLen > dataBuflen) goto _exit;
+
   return dataLen;
+
+_exit:
+  uError("blockEncode dataLen:%d, dataBuflen:%" PRIx64, dataLen, dataBuflen);
+  terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  return -1;
 }
 
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
