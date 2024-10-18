@@ -1,20 +1,21 @@
-select pi();
-select pi() + 1;
-select pi() - 1;
-select pi() * 2;
-select pi() / 2;
-select pi() from ts_4893.meters limit 5;
-select pi() + 1 from ts_4893.meters limit 1;
-select pi() - 1 from ts_4893.meters limit 1;
-select pi() * 2 from ts_4893.meters limit 1;
-select pi() / 2 from ts_4893.meters limit 1;
-select pi() + pi() from ts_4893.meters limit 1;
-select pi() - pi() from ts_4893.meters limit 1;
-select pi() * pi() from ts_4893.meters limit 1;
-select pi() / pi() from ts_4893.meters limit 1;
-select pi() + id from ts_4893.meters order by ts limit 5;
-select abs(pi());
-select pow(pi(), 2);
-select sqrt(pi());
-select cast(pi() as int);
-select pi();
+select pi()
+select pi() + 1
+select pi() - 1
+select pi() * 2
+select pi() / 2
+select pi() from ts_4893.meters limit 5
+select pi() + 1 from ts_4893.meters limit 1
+select pi() - 1 from ts_4893.meters limit 1
+select pi() * 2 from ts_4893.meters limit 1
+select pi() / 2 from ts_4893.meters limit 1
+select pi() + pi() from ts_4893.meters limit 1
+select pi() - pi() from ts_4893.meters limit 1
+select pi() * pi() from ts_4893.meters limit 1
+select pi() / pi() from ts_4893.meters limit 1
+select pi() + id from ts_4893.meters order by ts limit 5
+select abs(pi())
+select pow(pi(), 2)
+select sqrt(pi())
+select cast(pi() as int)
+select pi()
+select substring_index(null, '.', 2)
