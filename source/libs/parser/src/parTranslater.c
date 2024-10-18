@@ -10609,6 +10609,19 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                    "Non window query only support scalar function, aggregate function is not allowed");
   }
 
+  if (NULL != pStmt->pOptions->pDelay) {
+    SValueNode* pVal = (SValueNode*)pStmt->pOptions->pDelay;
+    int64_t minDelay = 0;
+    char* str = "5s";
+    if (DEAL_RES_ERROR != translateValue(pCxt, pVal) && TSDB_CODE_SUCCESS ==
+        parseNatualDuration(str, strlen(str), &minDelay, &pVal->unit, pVal->node.resType.precision, false)) {
+      if (pVal->datum.i < minDelay) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "stream max delay must be bigger than 5 session");
+      }
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
