@@ -134,6 +134,7 @@ def input_data():
         (True, True, True),
     ],
 )
+@pytest.mark.sanity
 def test_migration_user(passwords, privileges, whitelist, input_data):
     """
     用例概述：测试迁移用户
