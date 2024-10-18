@@ -604,6 +604,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
 
+#define AUDIT_OPERATION_LEN 20
 #ifdef __cplusplus
 }
 #endif

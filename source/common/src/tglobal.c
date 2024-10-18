@@ -117,6 +117,7 @@ bool     tsMonitorForceV2 = true;
 // audit
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
+bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
 
 // telem
@@ -763,6 +764,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditDelete", tsEnableAuditDelete, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
@@ -1447,6 +1449,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditCreateTable");
   tsEnableAuditCreateTable = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditDelete");
+  tsEnableAuditDelete = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
