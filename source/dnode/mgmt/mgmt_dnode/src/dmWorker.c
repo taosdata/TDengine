@@ -47,6 +47,35 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmStatusInfoThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-status-info");
+
+  int32_t upTimeCount = 0;
+  int64_t upTime = 0;
+
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsStatusInterval) {
+      dmUpdateStatusInfo(pMgmt);
+      lastTime = curTime;
+
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
+      }
+    }
+  }
+
+  return NULL;
+}
+
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
 #define TIMESERIES_STASH_NUM 5
 static void *dmNotifyThreadFp(void *param) {
@@ -277,6 +306,22 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 
   (void)taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-status", "initialized");
+  return 0;
+}
+
+int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusInfoThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create status Info thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-status-info", "initialized");
   return 0;
 }
 

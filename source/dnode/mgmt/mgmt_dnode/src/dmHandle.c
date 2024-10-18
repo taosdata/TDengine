@@ -22,6 +22,8 @@
 
 extern SConfig *tsCfg;
 
+SMonVloadInfo vinfo = {0};
+
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
@@ -163,8 +165,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
-  SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
   dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
@@ -229,6 +229,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
+}
+
+void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
+  dDebug("begin to get vnode loads");
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
 }
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
