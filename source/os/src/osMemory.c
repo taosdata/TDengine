@@ -308,6 +308,7 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
     uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      uError("random memory error: %s, %s", tstrerror(terrno), __func__);
       return NULL;
     }
   }

@@ -63,6 +63,10 @@ typedef struct SRpcHandleInfo {
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
   int8_t       compressed;
+  int64_t      seqNum;  // msg seq
+  int64_t      qId;     // queryId Get from client, other req's qId = -1;
+  int32_t      refIdMgt;
+  int32_t      msgType;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -124,9 +128,13 @@ typedef struct SRpcInit {
   int32_t connLimitLock;
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
-  int32_t batchSize;
-  int8_t notWaitAvaliableConn;  // 1: wait to get, 0: no wait  
-  void   *parent;
+  int32_t shareConnLimit;
+  int8_t  shareConn;             // 0: no share, 1. share
+  int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
+  int8_t  startReadTimer;
+  int64_t readTimeout;  // s
+
+  void *parent;
 } SRpcInit;
 
 typedef struct {
@@ -144,6 +152,7 @@ typedef struct {
   SHashObj         *args;
   SRpcBrokenlinkVal brokenVal;
   void (*freeFunc)(const void *arg);
+  int64_t st;
 } SRpcCtx;
 
 int32_t rpcInit();

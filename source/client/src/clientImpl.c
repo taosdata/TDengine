@@ -410,7 +410,6 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  // int64_t transporterId = 0;
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
   if (code) {
     doRequestCallback(pRequest, code);
@@ -1882,6 +1881,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosMemoryFree(tEpSet);
     rpcFreeCont(pMsg->pCont);
     destroySendMsgInfo(pMsg->info.ahandle);
+    taosMemoryFree(tEpSet);
     return;
   }
   arg->msg = *pMsg;
@@ -2570,6 +2570,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.readTimeout = tsReadTimeout;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(version, &(rpcInit.compatibilityVer))) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
