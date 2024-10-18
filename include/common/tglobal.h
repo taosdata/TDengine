@@ -179,7 +179,6 @@ extern int32_t tsMaxRetryWaitTime;
 extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
-extern int32_t tsSlowLogThresholdTest;
 extern char    tsSlowLogExceptDb[];
 extern int32_t tsSlowLogScope;
 extern int32_t tsSlowLogMaxLen;

@@ -304,7 +304,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  connectRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
@@ -705,7 +704,6 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
   batchRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  batchRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(batchRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
