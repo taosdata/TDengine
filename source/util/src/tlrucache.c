@@ -382,7 +382,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
 
   taosLRUCacheShardEvictLRU(shard, e->totalCharge, lastReferenceList);
 
-  if (shard->usage + e->totalCharge > shard->capacity && (shard->strictCapacity || handle == NULL)) {
+  if (shard->usage + e->totalCharge > shard->capacity && shard->strictCapacity) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
       if (!taosArrayPush(lastReferenceList, &e)) {
