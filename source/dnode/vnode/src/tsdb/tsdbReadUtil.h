@@ -72,7 +72,6 @@ typedef struct STsdbReaderInfo {
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
-  int32_t currentIndex;
   SArray* pData;
   int32_t numPerBucket;
   int32_t numOfTables;
@@ -326,7 +325,7 @@ void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step
 void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
 int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
 void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
-int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
+int32_t getPosInBlockInfoBuf(const SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
 
 // brin records iterator
 void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
