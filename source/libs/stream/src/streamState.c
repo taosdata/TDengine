@@ -500,6 +500,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   if (!pStr) {
     if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       (*pWinCode) = TSDB_CODE_FAILED;
+      goto _end;
     }
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {

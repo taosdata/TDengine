@@ -48,15 +48,15 @@ sql create table t1 using st tags(1);
 sql create table t2 using st tags(2);
 
 sql create stream stream2 trigger window_close into streamt2 as select  _wstart, sum(a) from st interval(10s);
-sql create stream stream3 trigger max_delay 1s into streamt3 as select  _wstart, sum(a) from st interval(10s);
+sql create stream stream3 trigger max_delay 5s into streamt3 as select  _wstart, sum(a) from st interval(10s);
 sql create stream stream4 trigger window_close into streamt4 as select  _wstart, sum(a) from t1 interval(10s);
-sql create stream stream5 trigger max_delay 1s into streamt5 as select  _wstart, sum(a) from t1 interval(10s);
+sql create stream stream5 trigger max_delay 5s into streamt5 as select  _wstart, sum(a) from t1 interval(10s);
 sql create stream stream6 trigger window_close into streamt6 as select  _wstart, sum(a) from st session(ts, 10s);
-sql create stream stream7 trigger max_delay 1s into streamt7 as select  _wstart, sum(a) from st session(ts, 10s);
+sql create stream stream7 trigger max_delay 5s into streamt7 as select  _wstart, sum(a) from st session(ts, 10s);
 sql create stream stream8 trigger window_close into streamt8 as select  _wstart, sum(a) from t1 session(ts, 10s);
-sql create stream stream9 trigger max_delay 1s into streamt9 as select  _wstart, sum(a) from t1 session(ts, 10s);
+sql create stream stream9 trigger max_delay 5s into streamt9 as select  _wstart, sum(a) from t1 session(ts, 10s);
 sql create stream stream10 trigger window_close into streamt10 as select  _wstart, sum(a) from t1 state_window(b);
-sql create stream stream11 trigger max_delay 1s into streamt11 as select  _wstart, sum(a) from t1 state_window(b);
+sql create stream stream11 trigger max_delay 5s into streamt11 as select  _wstart, sum(a) from t1 state_window(b);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -138,12 +138,12 @@ if $rows != 2 then
   goto loop1
 endi
 
-print step 1 max delay 2s
+print step 1 max delay 5s
 sql create database test3 vgroups 4;
 sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream13 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);
+sql create stream stream13 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -172,8 +172,8 @@ $now02 = $data02
 $now12 = $data12
 
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -188,7 +188,7 @@ if $data12 != $now12 then
   return -1
 endi
 
-print step 2 max delay 2s
+print step 2 max delay 5s
 
 sql create database test4 vgroups 4;
 sql use test4;
@@ -197,7 +197,7 @@ sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,t
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream stream14 trigger max_delay 2s into streamt14 as select  _wstart, sum(a), now from st partition by tbname interval(10s);
+sql create stream stream14 trigger max_delay 5s into streamt14 as select  _wstart, sum(a), now from st partition by tbname interval(10s);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -234,8 +234,8 @@ $now12 = $data12
 $now22 = $data22
 $now32 = $data32
 
-print step2 max delay 2s......... sleep 3s
-sleep 3000
+print step2 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt14 order by 2;
 print $data00 $data01 $data02
@@ -264,8 +264,8 @@ if $data32 != $now32 then
   return -1
 endi
 
-print step2 max delay 2s......... sleep 3s
-sleep 3000
+print step2 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt14 order by 2;
 print $data00 $data01 $data02
@@ -294,12 +294,12 @@ if $data32 != $now32 then
   return -1
 endi
 
-print step 2 max delay 2s
+print step 2 max delay 5s
 sql create database test15 vgroups 4;
 sql use test15;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream15 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 session(ts, 10s);
+sql create stream stream15 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 session(ts, 10s);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -328,8 +328,8 @@ $now02 = $data02
 $now12 = $data12
 
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -344,8 +344,8 @@ if $data12 != $now12 then
   return -1
 endi
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -362,12 +362,12 @@ endi
 
 print session max delay over
 
-print step 3 max delay 2s
+print step 3 max delay 5s
 sql create database test16 vgroups 4;
 sql use test16;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream16 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a);
+sql create stream stream16 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -396,8 +396,8 @@ $now02 = $data02
 $now12 = $data12
 
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -412,8 +412,8 @@ if $data12 != $now12 then
   return -1
 endi
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -430,12 +430,12 @@ endi
 
 print state max delay over
 
-print step 4 max delay 2s
+print step 4 max delay 5s
 sql create database test17 vgroups 4;
 sql use test17;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream17 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;
+sql create stream stream17 trigger max_delay 5s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -467,8 +467,8 @@ $now02 = $data02
 $now12 = $data12
 
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
@@ -483,8 +483,8 @@ if $data12 != $now12 then
   return -1
 endi
 
-print step1 max delay 2s......... sleep 3s
-sleep 3000
+print step1 max delay 5s......... sleep 6s
+sleep 6000
 
 sql select * from streamt13;
 
