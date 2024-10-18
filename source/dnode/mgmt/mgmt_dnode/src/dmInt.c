@@ -23,6 +23,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if (dmStartMonitorThread(pMgmt) != 0) {
     return -1;
   }
+  if ((dmStartStatusInfoThread(pMgmt)) != 0) {
+    return -1;
+  }
 #ifdef TD_ENTERPRISE
   if (dmStartNotifyThread(pMgmt) != 0) {
     return -1;
