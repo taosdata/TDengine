@@ -129,6 +129,13 @@ function kill_taosadapter() {
   fi
 }
 
+function kill_taoskeeper() {
+  pid=$(ps -ef | grep "taoskeeper" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid || :
+  fi
+}
+
 function kill_taosd() {
   pid=$(ps -ef | grep -w ${serverName} | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
@@ -155,6 +162,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
+  ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
   ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
@@ -169,6 +177,7 @@ function install_bin() {
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
@@ -183,6 +192,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo > /dev/null 2>&1 || :
@@ -197,6 +207,7 @@ function install_bin() {
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/*explorer ] && ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin || :
@@ -208,6 +219,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
@@ -407,6 +419,29 @@ function install_taosadapter_config() {
   fi
 }
 
+function install_taoskeeper_config() {
+  if [ ! -f "${cfg_install_dir}/taoskeeper.toml" ]; then
+    ${csudo}mkdir -p ${cfg_install_dir} || :
+    [ -f ${binary_dir}/test/cfg/taoskeeper.toml ] &&
+      ${csudo}cp ${binary_dir}/test/cfg/taoskeeper.toml ${cfg_install_dir} &&
+      ${csudo}cp ${binary_dir}/test/cfg/taoskeeper.toml ${cfg_dir} || :
+    [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+      ${csudo}chmod 644 ${cfg_install_dir}/taoskeeper.toml || :
+    [ -f ${binary_dir}/test/cfg/taoskeeper.toml ] &&
+      ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \
+        ${cfg_install_dir}/taoskeeper.toml.${verNumber} || :
+    [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+      ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml \
+        ${install_main_dir}/cfg/taoskeeper.toml > /dev/null 2>&1 || :
+  else
+    if [ -f "${binary_dir}/test/cfg/taoskeeper.toml" ]; then
+      ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \
+        ${cfg_install_dir}/taoskeeper.toml.${verNumber} || :
+      ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml ${cfg_dir} || :
+    fi
+  fi
+}
+
 function install_log() {
   ${csudo}rm -rf ${log_dir} || :
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
@@ -526,6 +561,15 @@ function install_taosadapter_service() {
   fi
 }
 
+function install_taoskeeper_service() {
+  if ((${service_mod} == 0)); then
+    [ -f ${binary_dir}/test/cfg/taoskeeper.service ] &&
+      ${csudo}cp ${binary_dir}/test/cfg/taoskeeper.service \
+        ${service_config_dir}/ || :
+    ${csudo}systemctl daemon-reload
+  fi
+}
+
 function install_service_on_launchctl() {
   ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
   ${csudo}cp ${script_dir}/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist
@@ -534,6 +578,10 @@ function install_service_on_launchctl() {
   ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
   ${csudo}cp ${script_dir}/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist
   ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist > /dev/null 2>&1 || :
+  ${csudo}cp ${script_dir}/com.taosdata.taoskeeper.plist /Library/LaunchDaemons/com.taosdata.taoskeeper.plist
+  ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist > /dev/null 2>&1 || :
 }
 
 function install_service() {
@@ -549,6 +597,7 @@ function install_service() {
     install_service_on_launchctl
   fi
 }
+
 function install_app() {
   if [ "$osType" = "Darwin" ]; then
     ${csudo}rm -rf /Applications/TDengine.app &&
@@ -573,6 +622,7 @@ function update_TDengine() {
     elif ((${service_mod} == 1)); then
       ${csudo}service ${serverName} stop || :
     else
+      kill_taoskeeper
       kill_taosadapter
       kill_taosd
     fi
@@ -591,9 +641,11 @@ function update_TDengine() {
 
   install_service
   install_taosadapter_service
+  install_taoskeeper_service
 
   install_config
   install_taosadapter_config
+  install_taoskeeper_service
 
   echo
   echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
@@ -602,22 +654,31 @@ function update_TDengine() {
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
   [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
     echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taoskeeper.toml ] && [ -f ${installDir}/bin/taoskeeper ] && \
+    echo -e "${GREEN_DARK}To configure Keeper ${NC}: edit ${configDir}/taoskeeper.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+    [ -f ${service_config_dir}/taoskeeper.service ] && [ -f ${installDir}/bin/taoskeeper ] && \
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: ${csudo}systemctl start taoskeeper ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+    [ -f ${service_config_dir}/taoskeeper.service ] && [ -f ${installDir}/bin/taoskeeper ] && \
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: ${csudo}service taoskeeper start${NC}"
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
         echo -e "${GREEN_DARK}To start Adapter ${NC}: taosadapter &${NC}"
+      [ -f ${installDir}/bin/taoskeeper ] && \
+        echo -e "${GREEN_DARK}To start Keeper ${NC}: taoskeeper &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
       echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: launchctl start com.tdengine.taoskeeper${NC}"
     fi
   fi
 
@@ -643,9 +704,11 @@ function install_TDengine() {
 
   install_service
   install_taosadapter_service
+  install_taoskeeper_service
 
   install_config
   install_taosadapter_config
+  install_taoskeeper_config
 
   # Ask if to start the service
   echo
@@ -654,22 +717,31 @@ function install_TDengine() {
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
   [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
     echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taoskeeper.toml ] && [ -f ${installDir}/bin/taoskeeper ] && \
+    echo -e "${GREEN_DARK}To configure Keeper ${NC}: edit ${configDir}/taoskeeper.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+    [ -f ${service_config_dir}/taoskeeper.service ] && [ -f ${installDir}/bin/taoskeeper ] && \
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: ${csudo}systemctl start taoskeeper ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}    ${NC}: ${csudo}service ${serverName} start${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+    [ -f ${service_config_dir}/taoskeeper.service ] && [ -f ${installDir}/bin/taoskeeper ] && \
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: ${csudo}service taoskeeper start${NC}"
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
         echo -e "${GREEN_DARK}To start Adapter ${NC}: taosadapter &${NC}"
+      [ -f ${installDir}/bin/taoskeeper ] && \
+        echo -e "${GREEN_DARK}To start Keeper ${NC}: taoskeeper &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
       echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
+      echo -e "${GREEN_DARK}To start Keeper ${NC}: launchctl start com.tdengine.taoskeeper${NC}"
     fi
   fi
 

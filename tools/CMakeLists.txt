@@ -208,3 +208,49 @@ ELSE ()
             )
     ENDIF ()
 ENDIF ()
+
+IF(TD_BUILD_KEEPER)
+    MESSAGE("")
+    MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
+
+    EXECUTE_PROCESS(
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/keeper
+        COMMAND git rev-parse HEAD
+        OUTPUT_VARIABLE taoskeeper_commit_sha1
+    )
+
+    IF("${taoskeeper_commit_sha1}" STREQUAL "")
+        SET(taoskeeper_commit_sha1 "unknown")
+    ELSE()
+        STRING(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
+    ENDIF()
+
+    SET(taos_version ${TD_VER_NUMBER})
+    MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
+    MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
+
+    IF(TD_LINUX)
+        MESSAGE("Building taoskeeper on Linux")
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/keeper
+            BUILD_ALWAYS off
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+            PATCH_COMMAND
+            COMMAND git clean -f -d
+            BUILD_COMMAND
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            INSTALL_COMMAND
+            COMMAND cmake -E echo "Copy taoskeeper"
+            COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E echo "Copy taoskeeper.toml"
+            COMMAND cmake -E copy ./config/taoskeeper.toml ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E copy ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
+        )
+    ENDIF()
+ELSEIF(TD_BUILD_KEEPER_INTERNAL)
+    MESSAGE("${Yellow} use taoskeeper internal ${ColourReset}")
+ENDIF()
