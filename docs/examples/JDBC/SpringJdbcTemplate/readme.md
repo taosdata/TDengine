@@ -1,11 +1,11 @@
 
 ## TDengine Spring JDBC Template Demo
 
-`Spring JDBC Template` 简化了原生 JDBC Connection 获取释放等操作，使得操作数据库更加方便。
+`Spring JDBC Template` simplifies the operations of acquiring and releasing native JDBC Connections, making database operations more convenient.
 
-### 配置
+### Configuration
 
-修改 `src/main/resources/applicationContext.xml` 文件中 TDengine 的配置信息：
+Modify the TDengine configuration in the `src/main/resources/applicationContext.xml` file:
 
 ```xml
 <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
@@ -20,13 +20,15 @@
 </bean>
 ```
 
-### 打包运行
+### Package and run
 
-进入 `TDengine/tests/examples/JDBC/SpringJdbcTemplate` 目录下，执行以下命令可以生成可执行 jar 包。
+Navigate to the `TDengine/tests/examples/JDBC/SpringJdbcTemplate` directory and execute the following commands to generate an executable jar file.
+
 ```shell
 mvn clean package
 ```
-打包成功之后，进入 `target/` 目录下，执行以下命令就可运行测试：
+After successfully packaging, navigate to the `target/` directory and execute the following commands to run the tests:
+
 ```shell
 java -jar target/SpringJdbcTemplate-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```

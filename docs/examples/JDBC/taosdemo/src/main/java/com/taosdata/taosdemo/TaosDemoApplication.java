@@ -24,14 +24,14 @@ public class TaosDemoApplication {
     private static final Logger logger = LogManager.getLogger(TaosDemoApplication.class);
 
     public static void main(String[] args) throws IOException {
-        // 读配置参数
+        // Read configuration parameters
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
         if (isHelp || config.host == null || config.host.isEmpty()) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
-        // 初始化
+        //
         final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user,
                 config.password);
         if (config.executeSql != null && !config.executeSql.isEmpty()
@@ -50,7 +50,7 @@ public class TaosDemoApplication {
         final SuperTableService superTableService = new SuperTableService(dataSource);
         final SubTableService subTableService = new SubTableService(dataSource);
 
-        // 创建数据库
+        // create database
         long start = System.currentTimeMillis();
         Map<String, String> databaseParam = new HashMap<>();
         databaseParam.put("database", config.database);
@@ -81,13 +81,13 @@ public class TaosDemoApplication {
                     config.prefixOfFields, config.numOfTags, config.prefixOfTags);
         }
         /**********************************************************************************/
-        // 建表
+        // create table
         start = System.currentTimeMillis();
         if (config.doCreateTable) {
             superTableService.drop(superTableMeta.getDatabase(), superTableMeta.getName());
             superTableService.create(superTableMeta);
             if (!config.autoCreateTable) {
-                // 批量建子表
+                // create sub tables in batch
                 subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable,
                         config.numOfThreadsForCreate);
             }
@@ -95,7 +95,7 @@ public class TaosDemoApplication {
         end = System.currentTimeMillis();
         logger.info(">>> create table time cost : " + (end - start) + " ms.");
         /**********************************************************************************/
-        // 插入
+        // insert data
         long tableSize = config.numOfTables;
         int threadSize = config.numOfThreadsForInsert;
         long startTime = getProperStartTime(config.startTime, config.days);
@@ -111,10 +111,9 @@ public class TaosDemoApplication {
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
-        // 查询
 
         /**********************************************************************************/
-        // 删除表
+        // drop table
         if (config.dropTable) {
             superTableService.drop(config.database, config.superTable);
         }
