@@ -3436,7 +3436,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   SDecoder decoder = {0};
   pDeCoder = &decoder;
   tDecoderInit(pDeCoder, buf, tlen);
-  if (tStartDecode(&decoder) < 0) {
+  if (tStartDecode(pDeCoder) < 0) {
     lino = __LINE__;
     goto _end;
   }
@@ -4316,6 +4316,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
   SDecoder decoder = {0};
   pDeCoder = &decoder;
   tDecoderInit(pDeCoder, pBuff, len);
+  if (tStartDecode(pDeCoder) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
   int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   taosMemoryFree(pBuff);
   if (winCode == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
