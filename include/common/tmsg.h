@@ -1009,6 +1009,7 @@ typedef struct {
   char          sDetailVer[128];
   int64_t       whiteListVer;
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -3369,6 +3370,7 @@ typedef struct {
   int32_t       svrTimestamp;
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
