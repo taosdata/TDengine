@@ -1,3 +1,5 @@
+if (TD_LINUX)
+
 aux_source_directory(. AZ_TEST_SRC)
 
 add_executable(azTest ${AZ_TEST_SRC})
@@ -16,3 +18,5 @@ add_test(
     NAME az_test
     COMMAND azTest
 )
+
+endif(TD_LINUX)

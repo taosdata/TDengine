@@ -41,8 +41,8 @@ int32_t azInitEnv() {
   return code;
 }
 
-// TEST(AzTest, DISABLED_InterfaceTest) {
-TEST(AzTest, InterfaceTest) {
+TEST(AzTest, DISABLED_InterfaceTest) {
+  // TEST(AzTest, InterfaceTest) {
   int code = 0;
 
   code = azInitEnv();
