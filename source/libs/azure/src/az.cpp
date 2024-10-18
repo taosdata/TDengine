@@ -222,10 +222,6 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     std::string containerName = tsS3BucketName;
     auto        containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
-    // Create the container if it does not exist
-    // std::cout << "Creating container: " << containerName << std::endl;
-    // containerClient.CreateIfNotExists();
-
     std::string blobName = "blob.txt";
     uint8_t     blobContent[] = "Hello Azure!";
     // Create the block blob client
@@ -237,20 +233,6 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     // std::cout << "Uploading blob: " << blobName << std::endl;
     // blobClient.UploadFrom(blobContent, sizeof(blobContent));
     blobClient.UploadFrom(file, offset, size);
-    //(void)_azUploadFrom(blobClient, file, offset, size);
-    /*
-        auto blockBlobClient = BlockBlobClient(endpointUrl, sharedKeyCredential);
-
-        // Create some data to upload into the blob.
-        std::vector<uint8_t> data = {1, 2, 3, 4};
-        Azure::Core::IO::MemoryBodyStream stream(data);
-
-        Azure::Response<Models::UploadBlockBlobResult> response = blockBlobClient.Upload(stream);
-
-        Models::UploadBlockBlobResult model = response.Value;
-        std::cout << "Last modified date of uploaded blob: " << model.LastModified.ToString()
-                  << std::endl;
-    */
   } catch (const Azure::Core::RequestFailedException &e) {
     /*
     std::cout << "Status Code: " << static_cast<int>(e.StatusCode) << ", Reason Phrase: " << e.ReasonPhrase

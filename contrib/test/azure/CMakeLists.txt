@@ -14,13 +14,13 @@ find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos
 #find_library(CoreFoundation_Library CoreFoundation)
 #find_library(SystemConfiguration_Library SystemConfiguration)
 
- target_link_libraries(
-   azure-test
- PRIVATE _azure_sdk
- PRIVATE ${CURL_LIBRARY}
- PRIVATE ${XML2_LIBRARY}
- PRIVATE ${SSL_LIBRARY}
- PRIVATE ${CRYPTO_LIBRARY}
- PRIVATE dl
- PRIVATE pthread
+target_link_libraries(
+  azure-test
+  PRIVATE _azure_sdk
+  PRIVATE ${CURL_LIBRARY}
+  PRIVATE ${XML2_LIBRARY}
+  PRIVATE ${SSL_LIBRARY}
+  PRIVATE ${CRYPTO_LIBRARY}
+  PRIVATE dl
+  PRIVATE pthread
 )
