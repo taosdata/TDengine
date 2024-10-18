@@ -44,21 +44,28 @@ int32_t azBegin() { return TSDB_CODE_SUCCESS; }
 
 void azEnd() {}
 
+static void checkPrint(const char *fmt, ...) {
+  va_list arg_ptr;
+  va_start(arg_ptr, fmt);
+  (void)vfprintf(stderr, fmt, arg_ptr);
+  va_end(arg_ptr);
+}
+
 static void azDumpCfgByEp(int8_t epIndex) {
   // clang-format off
-  (void)fprintf(stdout,
-                "%-24s %s\n"
-                "%-24s %s\n"
-                "%-24s %s\n"
-                "%-24s %s\n"
-                "%-24s %s\n"
-                "%-24s %s\n",
-                "hostName", tsS3Hostname[epIndex],
-                "bucketName", tsS3BucketName,
-                "protocol", "https only",
-                "uristyle", "path only",
-                "accessKey", tsS3AccessKeyId[epIndex],
-                "accessKeySecret", tsS3AccessKeySecret[epIndex]);
+  checkPrint(
+      "%-24s %s\n"
+      "%-24s %s\n"
+      "%-24s %s\n"
+      "%-24s %s\n"
+      "%-24s %s\n"
+      "%-24s %s\n",
+      "hostName", tsS3Hostname[epIndex],
+      "bucketName", tsS3BucketName,
+      "protocol", "https only",
+      "uristyle", "path only",
+      "accessKey", tsS3AccessKeyId[epIndex],
+      "accessKeySecret", tsS3AccessKeySecret[epIndex]);
   // clang-format on
 }
 
@@ -81,17 +88,15 @@ static int32_t azListBucket(char const *bucketname) {
     Azure::Storage::Blobs::ListBlobsOptions options;
     options.Prefix = "s3";
 
-    (void)fprintf(stderr, "objects:\n");
-    // std::set<std::string> listBlobs;
+    checkPrint("objects:\n");
     for (auto pageResult = containerClient.ListBlobs(options); pageResult.HasPage(); pageResult.MoveToNextPage()) {
       for (const auto &blob : pageResult.Blobs) {
-        (void)fprintf(stderr, "%s\n", blob.Name.c_str());
+        checkPrint("%s\n", blob.Name.c_str());
       }
     }
   } catch (const Azure::Core::RequestFailedException &e) {
     azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
             e.ReasonPhrase.c_str());
-    // azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
 
     code = TAOS_SYSTEM_ERROR(EIO);
     TAOS_RETURN(code);
@@ -102,10 +107,7 @@ static int32_t azListBucket(char const *bucketname) {
 
 int32_t azCheckCfg() {
   int32_t code = 0, lino = 0;
-  int8_t  i = 0;
 
-  // for (; i < tsS3EpNum; i++) {
-  (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
   azDumpCfgByEp(0);
 
   // test put
@@ -130,53 +132,51 @@ int32_t azCheckCfg() {
 
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (!fp) {
-    (void)fprintf(stderr, "failed to open test file: %s.\n", path);
-    // azError("ERROR: %s Failed to open %s", __func__, path);
+    checkPrint("failed to open test file: %s.\n", path);
     TAOS_CHECK_GOTO(terrno, &lino, _next);
   }
   if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
-    (void)fprintf(stderr, "failed to write test file: %s.\n", path);
+    checkPrint("failed to write test file: %s.\n", path);
     TAOS_CHECK_GOTO(terrno, &lino, _next);
   }
   if (taosFsyncFile(fp) < 0) {
-    (void)fprintf(stderr, "failed to fsync test file: %s.\n", path);
+    checkPrint("failed to fsync test file: %s.\n", path);
     TAOS_CHECK_GOTO(terrno, &lino, _next);
   }
   (void)taosCloseFile(&fp);
 
-  (void)fprintf(stderr, "\nstart to put object: %s, file: %s content: %s\n", objectname[0], path, testdata);
+  checkPrint("\nstart to put object: %s, file: %s content: %s\n", objectname[0], path, testdata);
   code = azPutObjectFromFileOffset(path, objectname[0], 0, 16);
   if (code != 0) {
-    (void)fprintf(stderr, "put object %s : failed.\n", objectname[0]);
+    checkPrint("put object %s : failed.\n", objectname[0]);
     TAOS_CHECK_GOTO(code, &lino, _next);
   }
-  (void)fprintf(stderr, "put object %s: success.\n\n", objectname[0]);
+  checkPrint("put object %s: success.\n\n", objectname[0]);
 
   // list buckets
-  (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName);
-  // code = s3ListBucketByEp(tsS3BucketName, i);
+  checkPrint("start to list bucket %s by prefix s3.\n", tsS3BucketName);
   code = azListBucket(tsS3BucketName);
   if (code != 0) {
-    (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
+    checkPrint("listing bucket %s : failed.\n", tsS3BucketName);
     TAOS_CHECK_GOTO(code, &lino, _next);
   }
-  (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName);
+  checkPrint("listing bucket %s: success.\n\n", tsS3BucketName);
 
   // test range get
-  (void)fprintf(stderr, "start to range get object %s offset: %d len: %d.\n", objectname[0], c_offset, c_len);
+  checkPrint("start to range get object %s offset: %d len: %d.\n", objectname[0], c_offset, c_len);
   code = azGetObjectBlock(objectname[0], c_offset, c_len, true, &pBlock);
   if (code != 0) {
-    (void)fprintf(stderr, "get object %s : failed.\n", objectname[0]);
+    checkPrint("get object %s : failed.\n", objectname[0]);
     TAOS_CHECK_GOTO(code, &lino, _next);
   }
 
   (void)memcpy(buf, pBlock, c_len);
   taosMemoryFree(pBlock);
-  (void)fprintf(stderr, "object content: %s\n", buf);
-  (void)fprintf(stderr, "get object %s: success.\n\n", objectname[0]);
+  checkPrint("object content: %s\n", buf);
+  checkPrint("get object %s: success.\n\n", objectname[0]);
 
   // delete test object
-  (void)fprintf(stderr, "start to delete object: %s.\n", objectname[0]);
+  checkPrint("start to delete object: %s.\n", objectname[0]);
   // code = azDeleteObjectsByPrefix(objectname[0]);
   azDeleteObjectsByPrefix(objectname[0]);
   /*
@@ -185,7 +185,7 @@ int32_t azCheckCfg() {
     TAOS_CHECK_GOTO(code, &lino, _next);
   }
   */
-  (void)fprintf(stderr, "delete object %s: success.\n\n", objectname[0]);
+  checkPrint("delete object %s: success.\n\n", objectname[0]);
 
 _next:
   if (fp) {
@@ -193,13 +193,10 @@ _next:
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    (void)fprintf(stderr, "s3 check failed, code: %d, line: %d, index: %d.\n", code, lino, i);
+    checkPrint("s3 check failed, code: %d, line: %d.\n", code, lino);
   }
 
-  (void)fprintf(stdout, "=================================================================\n");
-  //}
-
-  // azEnd();
+  checkPrint("=================================================================\n");
 
   TAOS_RETURN(code);
 }
