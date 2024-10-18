@@ -4113,7 +4113,6 @@ typedef struct {
   SArray*      blockData;
   SArray*      blockTbName;
   SArray*      blockSchema;
-//  SArray*      blockSuid;
 
   union{
     struct{

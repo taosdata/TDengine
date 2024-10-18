@@ -50,7 +50,6 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
   pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
-//  pRsp->blockSuid = taosArrayInit(0, sizeof(int64_t));
 
   if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL ||
       pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
@@ -74,10 +73,6 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
       pRsp->blockSchema = NULL;
     }
 
-//    if (pRsp->blockSuid != NULL) {
-//      taosArrayDestroy(pRsp->blockSuid);
-//      pRsp->blockSuid = NULL;
-//    }
     return terrno;
   }
 

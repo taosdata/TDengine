@@ -10980,42 +10980,13 @@ _exit:
   return code;
 }
 
-//int32_t tEncodeSuidArray(SEncoder *pEncoder, const SMqDataRsp *pRsp){
-//  for (int32_t i = 0; i < pRsp->blockNum; i++) {
-//    if (pRsp->withTbName) {
-//      int64_t* suid = taosArrayGet(pRsp->blockSuid, i);
-//      if (suid != NULL){
-//        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, *suid));
-//      }
-//    }
-//  }
-//  return 0;
-//}
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeMqDataRspCommon(pEncoder, pRsp));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->sleepTime));
-//  TAOS_CHECK_RETURN(tEncodeSuidArray(pEncoder, pRsp));
 
   return 0;
 }
-//int32_t tDecodeSuidArray(SDecoder *pDecoder, SMqDataRsp *pRsp){
-//  if (!tDecodeIsEnd(pDecoder)) {
-//    if (pRsp->withTbName) {
-//      if ((pRsp->blockSuid = taosArrayInit(pRsp->blockNum, sizeof(int64_t))) == NULL) {
-//        TAOS_CHECK_RETURN(terrno);
-//      }
-//    }
-//
-//    for (int32_t i = 0; i < pRsp->blockNum; i++) {
-//      int64_t suid = 0;
-//      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &suid));
-//      if (taosArrayPush(pRsp->blockSuid, &suid) == NULL) {
-//        TAOS_CHECK_RETURN(terrno);
-//      }
-//    }
-//  }
-//  return 0;
-//}
+
 int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
@@ -11092,9 +11063,6 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->sleepTime));
   }
-//  if (!tDecodeIsEnd(pDecoder)) {
-//    TAOS_CHECK_RETURN(tDecodeSuidArray(pDecoder, pRsp));
-//  }
 
   return 0;
 }
@@ -11108,8 +11076,6 @@ static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
-//  taosArrayDestroy(pRsp->blockSuid);
-//  pRsp->blockSuid = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
 }
@@ -11129,7 +11095,6 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, createTableReq, createTableLen));
     }
   }
-//  TAOS_CHECK_EXIT(tEncodeSuidArray(pEncoder, pRsp));
 
 _exit:
   return code;
@@ -11161,9 +11126,6 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       }
     }
   }
-//  if (!tDecodeIsEnd(pDecoder)) {
-//    TAOS_CHECK_EXIT(tDecodeSuidArray(pDecoder, pRsp));
-//  }
 
 _exit:
   return code;

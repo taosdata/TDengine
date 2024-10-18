@@ -1212,11 +1212,6 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.tbName;
 }
 
-//const int64_t qExtractSuidFromTask(qTaskInfo_t tinfo) {
-//  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-//  return pTaskInfo->streamInfo.suid;
-//}
-
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return &pTaskInfo->streamInfo.btMetaRsp;

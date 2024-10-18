@@ -69,7 +69,6 @@ typedef struct {
   SVersionRange        fillHistoryVer;
   STimeWindow          fillHistoryWindow;
   SStreamState*        pState;
-//  int64_t              suid;           // for tmq
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {
