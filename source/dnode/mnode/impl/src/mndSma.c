@@ -1231,7 +1231,7 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
     SNode *node = NULL;
     FOREACH(node, pList) {
       SFunctionNode *pFunc = (SFunctionNode *)node;
-      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
+      extOffset += tsnprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
                             (extOffset ? "," : ""), pFunc->functionName);
     }
 
@@ -1692,7 +1692,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   STransAction dropStbUndoAction = {0};
   SMDropStbReq dropStbReq = {0};
   STrans      *pTrans =
-      mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
+      mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TSMA, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
     code = terrno;
     goto _OVER;
@@ -1974,7 +1974,7 @@ _OVER:
 static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   int32_t code = -1;
   STransAction dropStreamRedoAction = {0};
-  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "drop-tsma");
+  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TSMA, pCxt->pRpcReq, "drop-tsma");
   if (!pTrans) {
     code = terrno;
     goto _OVER;
@@ -2221,10 +2221,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     int32_t len = 0;
     if (TSDB_CODE_SUCCESS == code) {
       if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
-        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
+        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
             getPrecisionUnit(pSrcDb->cfg.precision));
       } else {
-        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
       }
       varDataSetLen(interval, len);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2235,7 +2235,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     if (TSDB_CODE_SUCCESS == code) {
       // create sql
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
+      len = tsnprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
       varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
       code = colDataSetVal(pColInfo, numOfRows, buf, false);
     }
@@ -2350,7 +2350,7 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
     nodesDestroyNode(pNode);
   }
   pInfo->ast = taosStrdup(pSma->ast);
-  if (!pInfo->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (!pInfo->ast) code = terrno;
 
   if (code == TSDB_CODE_SUCCESS && pDestStb->numOfTags > 0) {
     pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));

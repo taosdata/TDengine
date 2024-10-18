@@ -173,12 +173,58 @@ ELSE ()
         CHECK_C_COMPILER_FLAG("-msse4.2" COMPILER_SUPPORT_SSE42)
     ENDIF()
 
-    CHECK_C_COMPILER_FLAG("-mfma" COMPILER_SUPPORT_FMA)
-    CHECK_C_COMPILER_FLAG("-mavx" COMPILER_SUPPORT_AVX)
-    CHECK_C_COMPILER_FLAG("-mavx2" COMPILER_SUPPORT_AVX2)
-    CHECK_C_COMPILER_FLAG("-mavx512f" COMPILER_SUPPORT_AVX512F)
-    CHECK_C_COMPILER_FLAG("-mavx512vbmi" COMPILER_SUPPORT_AVX512BMI)
-    CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
+    IF (TD_ARM_64 OR TD_ARM_32)
+      SET(COMPILER_SUPPORT_FMA false)
+      SET(COMPILER_SUPPORT_AVX false)
+      SET(COMPILER_SUPPORT_AVX2 false)
+      SET(COMPILER_SUPPORT_AVX512F false)
+      SET(COMPILER_SUPPORT_AVX512BMI false)
+      SET(COMPILER_SUPPORT_AVX512VL false)
+    ELSE()
+      CHECK_C_COMPILER_FLAG("-mfma" COMPILER_SUPPORT_FMA)
+      CHECK_C_COMPILER_FLAG("-mavx512f" COMPILER_SUPPORT_AVX512F)
+      CHECK_C_COMPILER_FLAG("-mavx512vbmi" COMPILER_SUPPORT_AVX512BMI)
+      CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
+
+      INCLUDE(CheckCSourceRuns)
+      SET(CMAKE_REQUIRED_FLAGS "-mavx")
+      check_c_source_runs("
+        #include <immintrin.h>
+        int main() {
+          __m256d a, b, c;
+          double buf[4] = {0};
+          a = _mm256_loadu_pd(buf);
+          b = _mm256_loadu_pd(buf);
+          c = _mm256_add_pd(a, b);
+          _mm256_storeu_pd(buf, c);
+          for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); ++i) {
+            if (buf[i] != 0) {
+              return 1;
+            }
+          }
+          return 0;
+        }
+      " COMPILER_SUPPORT_AVX)
+
+      SET(CMAKE_REQUIRED_FLAGS "-mavx2")
+      check_c_source_runs("
+        #include <immintrin.h>
+        int main() {
+          __m256i a, b, c;
+          int buf[8] = {0};
+          a = _mm256_loadu_si256((__m256i *)buf);
+          b = _mm256_loadu_si256((__m256i *)buf);
+          c = _mm256_and_si256(a, b);
+          _mm256_storeu_si256((__m256i *)buf, c);
+          for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); ++i) {
+            if (buf[i] != 0) {
+              return 1;
+            }
+          }
+          return 0;
+        }
+      " COMPILER_SUPPORT_AVX2)
+    ENDIF()
 
     IF (COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -190,15 +236,17 @@ ELSE ()
            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfma")
            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
         ENDIF()
-        IF (COMPILER_SUPPORT_AVX)
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx")
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
-        ENDIF()
-        IF (COMPILER_SUPPORT_AVX2)
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx2")
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
-        ENDIF()
-        MESSAGE(STATUS "SIMD instructions (FMA/AVX/AVX2) is ACTIVATED")
+        MESSAGE(STATUS "FMA instructions is ACTIVATED")
+    ENDIF()
+    IF (COMPILER_SUPPORT_AVX)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
+        MESSAGE(STATUS "AVX instructions is ACTIVATED")
+    ENDIF()
+    IF (COMPILER_SUPPORT_AVX2)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx2")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+        MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
     ENDIF()
 
     IF ("${SIMD_AVX512_SUPPORT}" MATCHES "true")

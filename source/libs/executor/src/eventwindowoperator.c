@@ -37,27 +37,12 @@ typedef struct SEventWindowOperatorInfo {
   bool               inWindow;
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
+  SOperatorInfo*     pOperator;
 } SEventWindowOperatorInfo;
 
 static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
-
-// todo : move to  util
-static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
-                                     uint64_t groupId) {
-  pRowSup->startRowIndex = rowIndex;
-  pRowSup->numOfRows = 0;
-  pRowSup->win.skey = tsList[rowIndex];
-  pRowSup->groupId = groupId;
-}
-
-static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
-  pRowSup->win.ekey = ts;
-  pRowSup->prevTs = ts;
-  pRowSup->numOfRows += 1;
-  pRowSup->groupId = groupId;
-}
 
 int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
@@ -128,6 +113,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
+  pInfo->pOperator = pOperator;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -150,6 +136,19 @@ _error:
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
+}
+
+void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo) {
+  if (pInfo == NULL || pInfo->pRow == NULL || pOperator == NULL) {
+    return;
+  }
+  SExprSupp*       pSup = &pOperator->exprSupp;
+  for (int32_t j = 0; j < pSup->numOfExprs; ++j) {
+    pSup->pCtx[j].resultInfo = getResultEntryInfo(pInfo->pRow, j, pSup->rowEntryInfoOffset);
+    if (pSup->pCtx[j].fpSet.cleanup) {
+      pSup->pCtx[j].fpSet.cleanup(&pSup->pCtx[j]);
+    }
+  }
 }
 
 void destroyEWindowOperatorInfo(void* param) {
@@ -175,6 +174,8 @@ void destroyEWindowOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+  pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   taosMemoryFreeClear(param);

@@ -34,10 +34,10 @@ int shell_conn_ws_server(bool first) {
       size_t len = strlen(shell.args.dsn);
       char * dsn = taosMemoryMalloc(len + 32);
       sprintf(dsn, "%s&conn_mode=1", shell.args.dsn);
-      shell.ws_conn = ws_connect_with_dsn(dsn);
+      shell.ws_conn = ws_connect(dsn);
       taosMemoryFree(dsn);
     } else {
-      shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+      shell.ws_conn = ws_connect(shell.args.dsn);
     }
 
     if (NULL == shell.ws_conn) {
@@ -95,7 +95,7 @@ int shell_conn_ws_server(bool first) {
 static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
   const void* data = NULL;
   int rows;
-  ws_fetch_block(wres, &data, &rows);
+  ws_fetch_raw_block(wres, &data, &rows);
   if (wres) {
     *execute_time += (double)(ws_take_timing(wres)/1E6);
   }
@@ -129,7 +129,7 @@ static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
       putchar('\n');
     }
     numOfRows += rows;
-    ws_fetch_block(wres, &data, &rows);
+    ws_fetch_raw_block(wres, &data, &rows);
   } while (rows && !shell.stop_query);
   return numOfRows;
 }
@@ -137,7 +137,7 @@ static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
 static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
   int rows = 0;
   const void* data = NULL;
-  ws_fetch_block(wres, &data, &rows);
+  ws_fetch_raw_block(wres, &data, &rows);
   if (wres) {
     *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   }
@@ -172,7 +172,7 @@ static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
       }
       numOfRows++;
     }
-    ws_fetch_block(wres, &data, &rows);
+    ws_fetch_raw_block(wres, &data, &rows);
   } while (rows && !shell.stop_query);
   return numOfRows;
 }
@@ -192,7 +192,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres,
   }
   int rows = 0;
   const void* data = NULL;
-  ws_fetch_block(wres, &data, &rows);
+  ws_fetch_raw_block(wres, &data, &rows);
   if (wres) {
     *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   }
@@ -226,7 +226,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres,
       }
       taosFprintfFile(pFile, "\r\n");
     }
-    ws_fetch_block(wres, &data, &rows);
+    ws_fetch_raw_block(wres, &data, &rows);
   } while (rows && !shell.stop_query);
   taosCloseFile(&pFile);
   return numOfRows;

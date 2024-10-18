@@ -14,6 +14,7 @@ IF (TD_ENTERPRISE)
   ELSEIF(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
   ENDIF()
+
 ENDIF ()
 
 add_library(mnode STATIC ${MNODE_SRC})

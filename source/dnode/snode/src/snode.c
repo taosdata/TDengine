@@ -38,7 +38,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   streamTaskOpenAllUpstreamInput(pTask);
 
   streamTaskResetUpstreamStageInfo(pTask);
-  (void)streamSetupScheduleTrigger(pTask);
+  streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
@@ -93,14 +93,18 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  (void)streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS) != 0) {
+    sndError("failed to start all tasks");
+  }
   return 0;
 }
 
 void sndClose(SSnode *pSnode) {
   stopRsync();
   streamMetaNotifyClose(pSnode->pMeta);
-  (void)streamMetaCommit(pSnode->pMeta);
+  if (streamMetaCommit(pSnode->pMeta) != 0) {
+    sndError("failed to commit stream meta");
+  }
   streamMetaClose(pSnode->pMeta);
   taosMemoryFree(pSnode);
 }

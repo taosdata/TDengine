@@ -64,7 +64,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   memset(ptr, 0, size);
   pPage = (SPage *)(ptr + pageSize);
 
-  (void)TDB_INIT_PAGE_LOCK(pPage);
+  int32_t code = TDB_INIT_PAGE_LOCK(pPage);
+  if (code) {
+    tdbError("tdb/page-create: init page lock failed.");
+  }
   pPage->pageSize = pageSize;
   pPage->pData = ptr;
   if (pageSize < 65536) {
@@ -97,6 +100,10 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
     tdbTrace("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
     tdbOsFree(pPage->apOvfl[iOvfl]);
+  }
+
+  if (TDB_DESTROY_PAGE_LOCK(pPage) != 0) {
+    tdbError("tdb/page-destroy: destroy page lock failed.");
   }
 
   ptr = pPage->pData;

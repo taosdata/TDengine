@@ -46,7 +46,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   }
   pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
   if (!pNew->aCol) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFreeClear(*pData);
     return code;
   }
@@ -217,6 +217,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         val.nData = output;
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;
@@ -565,6 +569,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         val.nData = output;
       } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
       }
       if (NULL == taosArrayPush(pTagArray, &val)) {
         code = terrno;
@@ -951,7 +959,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
     if (pCol == NULL) {
       qError("qResetStmtColumns column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -971,7 +979,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
     if (pCol == NULL) {
       qError("qResetStmtDataBlock column is NULL");
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (deepClear) {
       tColDataDeepClear(pCol);
@@ -1033,7 +1041,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pNewCxt->pData = pNewTb;

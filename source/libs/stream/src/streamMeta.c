@@ -476,23 +476,14 @@ _err:
   if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) {
-    int32_t ret = tdbTbClose(pMeta->pTaskDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pTaskDb);
     pMeta->pTaskDb = NULL;
   }
   if (pMeta->pCheckpointDb) {
-    int32_t ret = tdbTbClose(pMeta->pCheckpointDb);
-    if (ret) {
-      stError("vgId:%d tdb failed close task checkpointDb, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbTbClose(pMeta->pCheckpointDb);
   }
   if (pMeta->db) {
-    int32_t ret = tdbClose(pMeta->db);
-    if (ret) {
-      stError("vgId:%d tdb failed close meta db, code:%s", pMeta->vgId, tstrerror(ret));
-    }
+    tdbClose(pMeta->db);
   }
 
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
@@ -597,22 +588,10 @@ void streamMetaCloseImpl(void* arg) {
   streamMetaWUnLock(pMeta);
 
   // already log the error, ignore here
-  code = tdbAbort(pMeta->db, pMeta->txn);
-  if (code) {
-    stError("vgId:%d failed to jump of trans for tdb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pTaskDb);
-  if (code) {
-    stError("vgId:%d failed to close taskDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbTbClose(pMeta->pCheckpointDb);
-  if (code) {
-    stError("vgId:%d failed to close checkpointDb, code:%s", vgId, tstrerror(code));
-  }
-  code = tdbClose(pMeta->db);
-  if (code) {
-    stError("vgId:%d failed to close db, code:%s", vgId, tstrerror(code));
-  }
+  tdbAbort(pMeta->db, pMeta->txn);
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pCheckpointDb);
+  tdbClose(pMeta->db);
 
   taosArrayDestroy(pMeta->pTaskList);
   taosArrayDestroy(pMeta->chkpSaved);
@@ -774,12 +753,17 @@ int32_t streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t task
   return code;
 }
 
-void streamMetaAcquireOneTask(SStreamTask* pTask) {
+int32_t streamMetaAcquireOneTask(SStreamTask* pTask) {
   int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
   stTrace("s-task:%s acquire task, ref:%d", pTask->id.idStr, ref);
+  return ref;
 }
 
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
+  if (pTask == NULL) {
+    return;
+  }
+
   int32_t taskId = pTask->id.taskId;
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
 
@@ -883,7 +867,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
-    // it is an fill-history task, remove the related stream task's id that points to it
+    // it is a fill-history task, remove the related stream task's id that points to it
     if (pTask->info.fillHistory == 0) {
       int32_t ret = atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
@@ -895,7 +879,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       stError("vgId:%d failed to remove task:0x%" PRIx64 ", code:%s", pMeta->vgId, id.taskId, tstrerror(code));
     }
 
-    int32_t size = (int32_t) taosHashGetSize(pMeta->pTasksMap);
+    int32_t size = (int32_t)taosHashGetSize(pMeta->pTasksMap);
     int32_t sizeInList = taosArrayGetSize(pMeta->pTaskList);
     if (sizeInList != size) {
       stError("vgId:%d tasks number not consistent in list:%d and map:%d, ", vgId, sizeInList, size);
@@ -1077,7 +1061,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
 
       STaskId id = streamTaskGetTaskId(pTask);
-      void* px = taosArrayPush(pRecycleList, &id);
+      void*   px = taosArrayPush(pRecycleList, &id);
       if (px == NULL) {
         stError("s-task:0x%x failed record the task into recycle list due to out of memory", taskId);
       }

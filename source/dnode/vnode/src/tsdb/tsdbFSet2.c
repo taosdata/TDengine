@@ -71,6 +71,9 @@ static int32_t tsdbSttLvlInitRef(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lv
     }
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj1);
     if (code) {
+      if (tsdbTFileObjUnref(fobj1) != 0) {
+        tsdbError("failed to unref file obj, fobj:%p", fobj1);
+      }
       tsdbSttLvlClear(lvl);
       return code;
     }
@@ -599,14 +602,14 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
     SSttLvl *lvl;
     code = tsdbSttLvlInitRef(pTsdb, lvl1, &lvl);
     if (code) {
-      taosMemoryFree(lvl);
+      tsdbSttLvlClear(&lvl);
       tsdbTFileSetClear(fset);
       return code;
     }
 
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
     if (code) {
-      taosMemoryFree(lvl);
+      tsdbSttLvlClear(&lvl);
       tsdbTFileSetClear(fset);
       return code;
     }

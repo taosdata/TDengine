@@ -23,6 +23,7 @@ extern "C" {
 #include "tcommon.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "functionResInfo.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -85,14 +86,7 @@ enum {
   PRE_SCAN = 0x2u,      // pre-scan belongs to the main scan and occurs before main scan
 };
 
-typedef struct SPoint1 {
-  int64_t key;
-  union {
-    double val;
-    char  *ptr;
-  };
-} SPoint1;
-
+struct SPoint1;
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
@@ -258,6 +252,7 @@ typedef struct SqlFunctionCtx {
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
   bool                 hasWindowOrGroup; // denote that the function is used with time window or group
+  bool                 needCleanup; // denote that the function need to be cleaned up
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

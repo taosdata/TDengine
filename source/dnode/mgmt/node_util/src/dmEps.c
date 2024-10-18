@@ -150,6 +150,10 @@ int32_t dmReadEps(SDnodeData *pData) {
       }
 
       char *tmp = taosMemoryMalloc(scopeLen + 1);
+      if (tmp == NULL) {
+        dError("failed to malloc memory for tsEncryptScope:%s", tsEncryptScope);
+        goto _OVER;
+      }
       memset(tmp, 0, scopeLen + 1);
       memcpy(tmp, tsEncryptScope, scopeLen);
 
@@ -255,7 +259,9 @@ _OVER:
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    (void)taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    if (taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep) != 0) {
+      dError("failed to get fqdn and port from ep:%s", tsFirst);
+    }
     if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) {
       return terrno;
     }
@@ -366,11 +372,19 @@ int32_t dmGetDnodeSize(SDnodeData *pData) {
 }
 
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
-  (void)taosThreadRwlockWrlock(&pData->lock);
+  if (taosThreadRwlockWrlock(&pData->lock) != 0) {
+    dError("failed to lock dnode lock");
+  }
+
   dDebug("new dnode list get from mnode, dnodeVer:%" PRId64, pData->dnodeVer);
   dmResetEps(pData, eps);
-  (void)dmWriteEps(pData);
-  (void)taosThreadRwlockUnlock(&pData->lock);
+  if (dmWriteEps(pData) != 0) {
+    dError("failed to write dnode file");
+  }
+
+  if (taosThreadRwlockUnlock(&pData->lock) != 0) {
+    dError("failed to unlock dnode lock");
+  }
 }
 
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
@@ -447,12 +461,12 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
   int32_t n = 0;
-  n += snprintf(buf + n, len - n, "%s", "{");
+  n += tsnprintf(buf + n, len - n, "%s", "{");
   for (int i = 0; i < epSet->numOfEps; i++) {
-    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+    n += tsnprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
                   (i + 1 < epSet->numOfEps ? ", " : ""));
   }
-  n += snprintf(buf + n, len - n, "%s", "}");
+  n += tsnprintf(buf + n, len - n, "%s", "}");
 }
 
 static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {
@@ -586,7 +600,9 @@ void dmRemoveDnodePairs(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   dInfo("dnode file:%s is rename to bak file", file);
-  (void)taosRenameFile(file, bak);
+  if (taosRenameFile(file, bak) != 0) {
+    dError("failed to rename dnode file:%s to bak file:%s since %s", file, bak, tstrerror(terrno));
+  }
 }
 
 static int32_t dmReadDnodePairs(SDnodeData *pData) {

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mnode.h"
+#include "osFile.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
@@ -81,11 +82,21 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
-  (void)taosIgnSignal(SIGTERM);
-  (void)taosIgnSignal(SIGHUP);
-  (void)taosIgnSignal(SIGINT);
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGBREAK);
+  if (taosIgnSignal(SIGTERM) != 0) {
+    dWarn("failed to ignore signal SIGTERM");
+  }
+  if (taosIgnSignal(SIGHUP) != 0) {
+    dWarn("failed to ignore signal SIGHUP");
+  }
+  if (taosIgnSignal(SIGINT) != 0) {
+    dWarn("failed to ignore signal SIGINT");
+  }
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGBREAK) != 0) {
+    dWarn("failed to ignore signal SIGBREAK");
+  }
 
   dInfo("shut down signal is %d", signum);
 #ifndef WINDOWS
@@ -103,11 +114,19 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGBREAK);
 
 #ifndef WINDOWS
-  (void)taosIgnSignal(SIGBUS);
+  if (taosIgnSignal(SIGBUS) != 0) {
+    dWarn("failed to ignore signal SIGBUS");
+  }
 #endif
-  (void)taosIgnSignal(SIGABRT);
-  (void)taosIgnSignal(SIGFPE);
-  (void)taosIgnSignal(SIGSEGV);
+  if (taosIgnSignal(SIGABRT) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGFPE) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
+  if (taosIgnSignal(SIGSEGV) != 0) {
+    dWarn("failed to ignore signal SIGABRT");
+  }
 
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
@@ -136,26 +155,34 @@ _return:
 }
 
 static void dmSetSignalHandle() {
-  (void)taosSetSignal(SIGUSR1, dmSetDebugFlag);
-  (void)taosSetSignal(SIGUSR2, dmSetAssert);
-  (void)taosSetSignal(SIGTERM, dmStopDnode);
-  (void)taosSetSignal(SIGHUP, dmStopDnode);
-  (void)taosSetSignal(SIGINT, dmStopDnode);
-  (void)taosSetSignal(SIGBREAK, dmStopDnode);
+  if (taosSetSignal(SIGUSR1, dmSetDebugFlag) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGUSR2, dmSetAssert) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGTERM, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGHUP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGINT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
-  (void)taosSetSignal(SIGTSTP, dmStopDnode);
-  (void)taosSetSignal(SIGQUIT, dmStopDnode);
-#endif
-
-#if 0
-#ifndef WINDOWS
-  (void)taosSetSignal(SIGBUS, dmLogCrash);
-#endif
-  (void)taosSetSignal(SIGABRT, dmLogCrash);
-  (void)taosSetSignal(SIGFPE, dmLogCrash);
-  (void)taosSetSignal(SIGSEGV, dmLogCrash);
+  if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #endif
 }
+extern bool generateNewMeta;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
@@ -164,6 +191,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   if (argc < 2) return 0;
 
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
+  if (global.envCmd == NULL) {
+    return terrno;
+  }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -192,6 +222,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-r") == 0) {
+      generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -252,9 +284,9 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   taosGetCwd(path, sizeof(path));
 
   char    args[1024] = {0};
-  int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
+  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
   for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -387,6 +419,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
+    if (taosCloseFile(&pFile) != 0) {
+      encryptError("failed to close file:%p", pFile);
+    }
     taosCloseLog();
     taosCleanupArgs();
     return ret;

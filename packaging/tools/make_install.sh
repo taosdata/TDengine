@@ -676,9 +676,8 @@ function update_TDengine() {
       [ -f ${installDir}/bin/taoskeeper ] && \
         echo -e "${GREEN_DARK}To start Keeper ${NC}: taoskeeper &${NC}"
     else
-      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
-      echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
-      echo -e "${GREEN_DARK}To start Keeper ${NC}: launchctl start com.tdengine.taoskeeper${NC}"
+      echo -e "${GREEN_DARK}To start service      ${NC}: sudo launchctl start com.tdengine.taosd${NC}"
+      echo -e "${GREEN_DARK}To start Adapter      ${NC}: sudo launchctl start com.tdengine.taosadapter${NC}"
     fi
   fi
 
@@ -739,9 +738,8 @@ function install_TDengine() {
       [ -f ${installDir}/bin/taoskeeper ] && \
         echo -e "${GREEN_DARK}To start Keeper ${NC}: taoskeeper &${NC}"
     else
-      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
-      echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
-      echo -e "${GREEN_DARK}To start Keeper ${NC}: launchctl start com.tdengine.taoskeeper${NC}"
+      echo -e "${GREEN_DARK}To start service      ${NC}: sudo launchctl start com.tdengine.taosd${NC}"
+      echo -e "${GREEN_DARK}To start Adapter      ${NC}: sudo launchctl start com.tdengine.taosadapter${NC}"
     fi
   fi
 

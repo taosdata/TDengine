@@ -123,7 +123,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0 , 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }
@@ -187,8 +187,7 @@ static void insertOfp(void) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 static void clearDb(char const *db) { taosRemoveDir(db); }
@@ -471,8 +470,7 @@ TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 static void insertDb(int nData) {
@@ -537,8 +535,7 @@ static void insertDb(int nData) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 
   system("ls -l ./tdb");
 }
@@ -607,8 +604,7 @@ static void deleteDb(int nData) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 
   system("ls -l ./tdb");
 }
@@ -675,8 +671,7 @@ static void deleteOfp(void) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbPageRecycleTest, DISABLED_seq_delete_ofp) {
@@ -761,8 +756,7 @@ TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 
   system("ls -l ./tdb");
 }
@@ -828,8 +822,7 @@ TEST(TdbPageRecycleTest, recycly_delete_interior_ofp_nocommit) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 
   system("ls -l ./tdb");
 }

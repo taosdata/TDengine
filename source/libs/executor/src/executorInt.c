@@ -687,10 +687,10 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      int32_t winCode = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-      if (TAOS_FAILED(winCode)) {
-        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(winCode));
-        QUERY_CHECK_CODE(winCode, lino, _end);
+      code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
       // do nothing
@@ -1020,10 +1020,6 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (pCtx[i].fpSet.cleanup != NULL) {
-      pCtx[i].fpSet.cleanup(&pCtx[i]);
-    }
-
     if (pExpr != NULL) {
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
@@ -1305,10 +1301,17 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }
+
+    if (code) {
+      qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, __LINE__, tstrerror(code));
+    }
     return code;
   }
 
   code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+  if (code) {
+    qError("failed to get next data block from upstream at %s, %d code:%s", __func__, __LINE__, tstrerror(code));
+  }
   return code;
 }
 

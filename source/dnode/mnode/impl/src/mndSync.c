@@ -497,11 +497,9 @@ int32_t mndInitSync(SMnode *pMnode) {
     pNode->nodePort = pMgmt->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodeRole = pMgmt->nodeRoles[i];
-    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort) != true) {
-      mError("failed to open sync, tmsgUpdateDnodeInfo is false");
-    }
-    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
-          pNode->clusterId);
+    bool update = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64 ", update:%d", i, pNode->nodeFqdn, pNode->nodePort,
+          pNode->nodeId, pNode->clusterId, update);
   }
 
   int32_t code = 0;
@@ -639,7 +637,7 @@ void mndSyncStop(SMnode *pMnode) {
 
   (void)taosThreadMutexLock(&pMgmt->lock);
   if (pMgmt->transId != 0) {
-    mInfo("vgId:1, is stopped and post sem, trans:%d", pMgmt->transId);
+    mInfo("vgId:1, trans:%d, is stopped and post sem", pMgmt->transId);
     pMgmt->transId = 0;
     pMgmt->transSec = 0;
     pMgmt->errCode = TSDB_CODE_APP_IS_STOPPING;

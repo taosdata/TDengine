@@ -22,7 +22,7 @@ static void streamTaskSchedHelper(void* param, void* tmrId);
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
   int64_t delaySchema = pTask->info.delaySchedParam;
   if (delaySchema != 0 && pTask->info.fillHistory == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    int32_t ref = streamMetaAcquireOneTask(pTask);
     stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
             pTask->info.delaySchedParam);
 
@@ -63,7 +63,11 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   pRunReq->reqType = execType;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  return tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  int32_t code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  if (code) {
+    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  }
+  return code;
 }
 
 void streamTaskClearSchedIdleInfo(SStreamTask* pTask) { pTask->status.schedIdleTime = 0; }
@@ -76,19 +80,21 @@ void streamTaskResumeInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  streamMetaAcquireOneTask(pTask);
+  int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);
   streamTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer, &pTask->schedInfo.pIdleTimer,
                  pTask->pMeta->vgId, "resume-task-tmr");
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void streamTaskResumeHelper(void* param, void* tmrId) {
-  SStreamTask*      pTask = (SStreamTask*)param;
-  SStreamTaskId*    pId = &pTask->id;
-  SStreamTaskState  p = streamTaskGetStatus(pTask);
+  SStreamTask*     pTask = (SStreamTask*)param;
+  SStreamTaskId*   pId = &pTask->id;
+  SStreamTaskState p = streamTaskGetStatus(pTask);
+  int32_t          code = 0;
 
   if (p.state == TASK_STATUS__DROPPING || p.state == TASK_STATUS__STOP) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
+    TAOS_UNUSED(status);
 
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s not resume task, ref:%d", pId->idStr, p.name, ref);
@@ -97,13 +103,12 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     return;
   }
 
-  int32_t code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
+  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
   int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
   if (code) {
     stError("s-task:%s sched task failed, code:%s, ref:%d", pId->idStr, tstrerror(code), ref);
   } else {
-    stDebug("trigger to resume s-task:%s after being idled for %dms, ref:%d", pId->idStr, pTask->status.schedIdleTime,
-            ref);
+    stDebug("trigger to resume s-task:%s after idled for %dms, ref:%d", pId->idStr, pTask->status.schedIdleTime, ref);
 
     // release the task ref count
     streamTaskClearSchedIdleInfo(pTask);

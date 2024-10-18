@@ -16,9 +16,9 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "geomFunc.h"
 #include "querynodes.h"
 #include "scalar.h"
-#include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
 
@@ -208,10 +208,10 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 }
 
 static int32_t addTimezoneParam(SNodeList* pList) {
-  char      buf[6] = {0};
+  char      buf[TD_TIME_STR_LEN] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
+  if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf)) != NULL) {
     (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
   }
   int32_t len = (int32_t)strlen(buf);
@@ -222,10 +222,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return code;
   }
 
-  pVal->literal = strndup(buf, len);
+  pVal->literal = taosStrndup(buf, len);
   if (pVal->literal == NULL) {
     nodesDestroyNode((SNode*)pVal);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
@@ -237,7 +237,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
     return terrno;
   }
   varDataSetLen(pVal->datum.p, len);
-  (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+  tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
@@ -327,7 +327,6 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   } else if (IS_NULL_TYPE(paraType)) {
     paraType = TSDB_DATA_TYPE_BIGINT;
   }
-  pFunc->hasSMA = !IS_VAR_DATA_TYPE(paraType);
   int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
@@ -3115,6 +3114,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = percentileFunction,
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
+    .cleanupFunc  = percentileFunctionCleanupExt,
 #ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
 #endif

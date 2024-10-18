@@ -274,7 +274,7 @@ typedef enum EWindowType {
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
   WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT
+  WINDOW_TYPE_COUNT,
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
