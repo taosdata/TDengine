@@ -537,6 +537,7 @@ typedef struct SStreamScanInfo {
   int8_t         pkColType;
   int32_t        pkColLen;
   bool           useGetResultRange;
+  STimeWindow    lastScanRange;
 } SStreamScanInfo;
 
 typedef struct {

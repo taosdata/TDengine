@@ -3313,30 +3313,77 @@ _end:
 }
 
 int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* pLen) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int32_t len = 0;
-  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
-  QUERY_CHECK_CODE(code, lino, _end);
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  int32_t   len = 0;
+  SEncoder* pEnCoder = NULL;
+  SEncoder* pScanEnCoder = NULL;
 
   len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
+  SEncoder encoder = {0};
+  pEnCoder = &encoder;
+  tEncoderInit(pEnCoder, NULL, 0);
+  if (tStartEncode(pEnCoder) != 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pEnCoder, pInfo->pUpdateInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (tEncodeI64(pEnCoder, pInfo->lastScanRange.skey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (tEncodeI64(pEnCoder, pInfo->lastScanRange.ekey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  tEndEncode(pEnCoder);
+  len += encoder.pos;
+  tEncoderClear(pEnCoder);
+  pEnCoder = NULL;
+
   *pBuff = taosMemoryCalloc(1, len);
   if (!(*pBuff)) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   void* buf = *pBuff;
-  (void)encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
+  int32_t stwLen = encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
 
-  int32_t tmp = 0;
-  code = pInfo->stateStore.updateInfoSerialize(buf, len, pInfo->pUpdateInfo, &tmp);
+  SEncoder scanEncoder = {0};
+  pScanEnCoder = &scanEncoder;
+  tEncoderInit(pScanEnCoder, buf, len - stwLen);
+  if (tStartEncode(pScanEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pScanEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (tEncodeI64(pScanEnCoder, pInfo->lastScanRange.skey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (tEncodeI64(pScanEnCoder, pInfo->lastScanRange.ekey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   *pLen = len;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (pEnCoder != NULL) {
+    tEndEncode(pEnCoder);
+    tEncoderClear(pEnCoder);
+  }
+  if (pScanEnCoder != NULL) {
+    tEndEncode(pScanEnCoder);
+    tEncoderClear(pScanEnCoder);
   }
   return code;
 }
@@ -3366,28 +3413,70 @@ _end:
 
 // other properties are recovered from the execution plan
 void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SDecoder* pDeCoder = NULL;
   if (!pBuff || len == 0) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
   void* buf = pBuff;
   buf = decodeSTimeWindowAggSupp(buf, &pInfo->twAggSup);
   int32_t tlen = len - encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
   if (tlen == 0) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
 
   void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (!pUpInfo) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
-  int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
+  SDecoder decoder = {0};
+  pDeCoder = &decoder;
+  tDecoderInit(pDeCoder, buf, tlen);
+  if (tStartDecode(&decoder) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
     pInfo->pUpdateInfo = pUpInfo;
   } else {
     taosMemoryFree(pUpInfo);
+    lino = __LINE__;
+    goto _end;
   }
+
+  if (tDecodeIsEnd(pDeCoder)) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.skey);
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.ekey);
+
+  if (tDecodeI64(pDeCoder, &pInfo->lastScanRange.skey) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  if (tDecodeI64(pDeCoder, &pInfo->lastScanRange.ekey) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+_end:
+  if (pDeCoder != NULL) {
+    tEndDecode(pDeCoder);
+    tDecoderClear(pDeCoder);
+  }
+  qInfo("%s end at line %d", __func__, lino);
 }
+
 static bool hasScanRange(SStreamScanInfo* pInfo) {
   SStreamAggSupporter* pSup = pInfo->windowSup.pStreamAggSup;
   return pSup && pSup->pScanBlock->info.rows > 0 && (isStateWindow(pInfo) || isCountWindow(pInfo));
@@ -3634,6 +3723,7 @@ FETCH_NEXT_BLOCK:
       case STREAM_GET_RESULT: {
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->updateResIndex = 0;
+        pInfo->lastScanRange = pBlock->info.window;
         TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
         if (pInfo->useGetResultRange == true) {
           endKey = pBlock->info.window.ekey;
@@ -4141,6 +4231,8 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
   int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
   void*            pBuff = NULL;
+  SEncoder*        pEnCoder = NULL;
+  SEncoder*        pScanEnCoder = NULL;
   if (!pInfo->pState) {
     return;
   }
@@ -4148,9 +4240,21 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
     qDebug("stask:%s streamScanReleaseState cancel", GET_TASKID(pOperator->pTaskInfo));
     return;
   }
-  int32_t len = 0;
-  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
+  int32_t  len = 0;
+  SEncoder encoder = {0};
+  pEnCoder = &encoder;
+  tEncoderInit(pEnCoder, NULL, 0);
+  if (tStartEncode(pEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  tEndEncode(pEnCoder);
+  len += encoder.pos;
+  tEncoderClear(pEnCoder);
+  pEnCoder = NULL;
 
   pBuff = taosMemoryCalloc(1, len);
   if (!pBuff) {
@@ -4158,8 +4262,14 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  int32_t tmp = 0;
-  code = pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo, &tmp);
+  SEncoder scanEncoder = {0};
+  pScanEnCoder = &scanEncoder;
+  tEncoderInit(pScanEnCoder, pBuff, len);
+  if (tStartEncode(pScanEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pScanEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME),
@@ -4168,12 +4278,21 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  if (pEnCoder != NULL) {
+    tEndEncode(pEnCoder);
+    tEncoderClear(pEnCoder);
+  }
+  if (pScanEnCoder != NULL) {
+    tEndEncode(pScanEnCoder);
+    tEncoderClear(pScanEnCoder);
+  }
   taosMemoryFree(pBuff);
 }
 
 void streamScanReloadState(SOperatorInfo* pOperator) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  SDecoder*        pDeCoder = NULL;
   SStreamScanInfo* pInfo = pOperator->info;
   if (!pInfo->pState) {
     return;
@@ -4194,7 +4313,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  SDecoder decoder = {0};
+  pDeCoder = &decoder;
+  tDecoderInit(pDeCoder, pBuff, len);
+  int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   taosMemoryFree(pBuff);
   if (winCode == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
     if (pInfo->pUpdateInfo->minTS < 0) {
@@ -4231,6 +4353,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
   }
 
 _end:
+  if (pDeCoder != NULL) {
+    tEndDecode(pDeCoder);
+    tDecoderClear(pDeCoder);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

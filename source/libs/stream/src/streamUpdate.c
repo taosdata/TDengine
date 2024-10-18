@@ -441,76 +441,69 @@ void updateInfoDestoryColseWinSBF(SUpdateInfo* pInfo) {
   pInfo->pCloseWinSBF = NULL;
 }
 
-int32_t updateInfoSerialize(void* buf, int32_t bufLen, const SUpdateInfo* pInfo, int32_t* pLen) {
+int32_t updateInfoSerialize(SEncoder* pEncoder, const SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (!pInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-  if (tStartEncode(&encoder) != 0) {
-    code = TSDB_CODE_FAILED;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
   int32_t size = taosArrayGetSize(pInfo->pTsBuckets);
-  if (tEncodeI32(&encoder, size) < 0) {
+  if (tEncodeI32(pEncoder, size) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   for (int32_t i = 0; i < size; i++) {
     TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->pTsBuckets, i);
-    if (tEncodeI64(&encoder, *pTs) < 0) {
+    if (tEncodeI64(pEncoder, *pTs) < 0) {
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
-  if (tEncodeU64(&encoder, pInfo->numBuckets) < 0) {
+  if (tEncodeU64(pEncoder, pInfo->numBuckets) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int32_t sBfSize = taosArrayGetSize(pInfo->pTsSBFs);
-  if (tEncodeI32(&encoder, sBfSize) < 0) {
+  if (tEncodeI32(pEncoder, sBfSize) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   for (int32_t i = 0; i < sBfSize; i++) {
     SScalableBf* pSBf = taosArrayGetP(pInfo->pTsSBFs, i);
-    if (tScalableBfEncode(pSBf, &encoder) < 0) {
+    if (tScalableBfEncode(pSBf, pEncoder) < 0) {
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
-  if (tEncodeU64(&encoder, pInfo->numSBFs) < 0) {
+  if (tEncodeU64(pEncoder, pInfo->numSBFs) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (tEncodeI64(&encoder, pInfo->interval) < 0) {
+  if (tEncodeI64(pEncoder, pInfo->interval) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (tEncodeI64(&encoder, pInfo->watermark) < 0) {
+  if (tEncodeI64(pEncoder, pInfo->watermark) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (tEncodeI64(&encoder, pInfo->minTS) < 0) {
+  if (tEncodeI64(pEncoder, pInfo->minTS) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (tScalableBfEncode(pInfo->pCloseWinSBF, &encoder) < 0) {
+  if (tScalableBfEncode(pInfo->pCloseWinSBF, pEncoder) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int32_t mapSize = taosHashGetSize(pInfo->pMap);
-  if (tEncodeI32(&encoder, mapSize) < 0) {
+  if (tEncodeI32(pEncoder, mapSize) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -518,60 +511,51 @@ int32_t updateInfoSerialize(void* buf, int32_t bufLen, const SUpdateInfo* pInfo,
   size_t keyLen = 0;
   while ((pIte = taosHashIterate(pInfo->pMap, pIte)) != NULL) {
     void* key = taosHashGetKey(pIte, &keyLen);
-    if (tEncodeU64(&encoder, *(uint64_t*)key) < 0) {
+    if (tEncodeU64(pEncoder, *(uint64_t*)key) < 0) {
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     int32_t valueSize = taosHashGetValueSize(pIte);
-    if (tEncodeBinary(&encoder, (const uint8_t*)pIte, valueSize) < 0) {
+    if (tEncodeBinary(pEncoder, (const uint8_t*)pIte, valueSize) < 0) {
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
-  if (tEncodeU64(&encoder, pInfo->maxDataVersion) < 0) {
+  if (tEncodeU64(pEncoder, pInfo->maxDataVersion) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (tEncodeI32(&encoder, pInfo->pkColLen) < 0) {
+  if (tEncodeI32(pEncoder, pInfo->pkColLen) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (tEncodeI8(&encoder, pInfo->pkColType) < 0) {
+  if (tEncodeI8(pEncoder, pInfo->pkColType) < 0) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-
-  tEndEncode(&encoder);
-
-  int32_t tlen = encoder.pos;
-  *pLen = tlen;
 
 _end:
-  tEncoderClear(&encoder);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
 
-int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
+int32_t updateInfoDeserialize(SDecoder* pDeCoder, SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   QUERY_CHECK_NULL(pInfo, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-  if (tStartDecode(&decoder) < 0) return -1;
-
+  
   int32_t size = 0;
-  if (tDecodeI32(&decoder, &size) < 0) return -1;
+  if (tDecodeI32(pDeCoder, &size) < 0) return -1;
   pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
   QUERY_CHECK_NULL(pInfo->pTsBuckets, code, lino, _error, terrno);
 
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
-    if (tDecodeI64(&decoder, &ts) < 0) return -1;
+    if (tDecodeI64(pDeCoder, &ts) < 0) return -1;
     void* tmp = taosArrayPush(pInfo->pTsBuckets, &ts);
     if (!tmp) {
       code = terrno;
@@ -579,16 +563,16 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     }
   }
 
-  if (tDecodeU64(&decoder, &pInfo->numBuckets) < 0) return -1;
+  if (tDecodeU64(pDeCoder, &pInfo->numBuckets) < 0) return -1;
 
   int32_t sBfSize = 0;
-  if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
+  if (tDecodeI32(pDeCoder, &sBfSize) < 0) return -1;
   pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void*));
   QUERY_CHECK_NULL(pInfo->pTsSBFs, code, lino, _error, terrno);
 
   for (int32_t i = 0; i < sBfSize; i++) {
     SScalableBf* pSBf = NULL;
-    code = tScalableBfDecode(&decoder, &pSBf);
+    code = tScalableBfDecode(pDeCoder, &pSBf);
     QUERY_CHECK_CODE(code, lino, _error);
 
     void* tmp = taosArrayPush(pInfo->pTsSBFs, &pSBf);
@@ -598,36 +582,36 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     }
   }
 
-  if (tDecodeU64(&decoder, &pInfo->numSBFs) < 0) return -1;
-  if (tDecodeI64(&decoder, &pInfo->interval) < 0) return -1;
-  if (tDecodeI64(&decoder, &pInfo->watermark) < 0) return -1;
-  if (tDecodeI64(&decoder, &pInfo->minTS) < 0) return -1;
+  if (tDecodeU64(pDeCoder, &pInfo->numSBFs) < 0) return -1;
+  if (tDecodeI64(pDeCoder, &pInfo->interval) < 0) return -1;
+  if (tDecodeI64(pDeCoder, &pInfo->watermark) < 0) return -1;
+  if (tDecodeI64(pDeCoder, &pInfo->minTS) < 0) return -1;
 
-  code = tScalableBfDecode(&decoder, &pInfo->pCloseWinSBF);
+  code = tScalableBfDecode(pDeCoder, &pInfo->pCloseWinSBF);
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->pCloseWinSBF = NULL;
     code = TSDB_CODE_SUCCESS;
   }
 
   int32_t mapSize = 0;
-  if (tDecodeI32(&decoder, &mapSize) < 0) return -1;
+  if (tDecodeI32(pDeCoder, &mapSize) < 0) return -1;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
   pInfo->pMap = taosHashInit(mapSize, hashFn, true, HASH_NO_LOCK);
   uint64_t uid = 0;
   void*    pVal = NULL;
   uint32_t  valSize = 0;
   for (int32_t i = 0; i < mapSize; i++) {
-    if (tDecodeU64(&decoder, &uid) < 0) return -1;
-    if (tDecodeBinary(&decoder, (uint8_t**)&pVal, &valSize) < 0) return -1;
+    if (tDecodeU64(pDeCoder, &uid) < 0) return -1;
+    if (tDecodeBinary(pDeCoder, (uint8_t**)&pVal, &valSize) < 0) return -1;
     code = taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), pVal, valSize);
     QUERY_CHECK_CODE(code, lino, _error);
   }
   QUERY_CHECK_CONDITION((mapSize == taosHashGetSize(pInfo->pMap)), code, lino, _error,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-  if (tDecodeU64(&decoder, &pInfo->maxDataVersion) < 0) return -1;
+  if (tDecodeU64(pDeCoder, &pInfo->maxDataVersion) < 0) return -1;
 
-  if (tDecodeI32(&decoder, &pInfo->pkColLen) < 0) return -1;
-  if (tDecodeI8(&decoder, &pInfo->pkColType) < 0) return -1;
+  if (tDecodeI32(pDeCoder, &pInfo->pkColLen) < 0) return -1;
+  if (tDecodeI8(pDeCoder, &pInfo->pkColType) < 0) return -1;
 
   pInfo->pKeyBuff = taosMemoryCalloc(1, sizeof(TSKEY) + sizeof(int64_t) + pInfo->pkColLen);
   QUERY_CHECK_NULL(pInfo->pKeyBuff, code, lino, _error, terrno);
@@ -642,10 +626,6 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     pInfo->comparePkRowFn = compareKeyTs;
     pInfo->comparePkCol = NULL;
   }
-
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
