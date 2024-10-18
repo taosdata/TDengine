@@ -80,7 +80,7 @@ typedef struct {
   TdThreadRwlock chkpDirLock;
   int64_t        dataWritten;
 
-  void* pMeta;
+  void*  pMeta;
   int8_t removeAllFiles;
 
 } STaskDbWrapper;
@@ -153,7 +153,7 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
 
-void taskDbSetClearFileFlag(void* pTaskDb); 
+void taskDbSetClearFileFlag(void* pTaskDb);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);
@@ -169,7 +169,7 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
 void    streamStateCurPrev_rocksdb(SStreamStateCur* pCur);
-int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState);
@@ -191,7 +191,8 @@ SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, con
 SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, int64_t groupId);
 int32_t          streamStateSessionCurPrev_rocksdb(SStreamStateCur* pCur);
 
-int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SSessionKey* pKey,
+                                             void** pVal, int32_t* pVLen);
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey);
 int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                                 int32_t* pVLen);
@@ -255,11 +256,11 @@ int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo);
 
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId);
 
-int32_t bkdMgtCreate(char* path, SBkdMgt **bm);
-int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
-int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* name);
-int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
-void     bkdMgtDestroy(SBkdMgt* bm);
+int32_t bkdMgtCreate(char* path, SBkdMgt** bm);
+int32_t bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
+int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* name);
+int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
+void    bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list,
                                 const char* id);

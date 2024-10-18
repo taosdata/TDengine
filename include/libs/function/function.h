@@ -29,6 +29,7 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
 struct SFunctionNode;
+struct SExprSupp;
 typedef struct SScalarParam SScalarParam;
 typedef struct SStreamState SStreamState;
 
@@ -43,6 +44,7 @@ typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
+typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf, struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
 typedef int32_t (*processFuncByRow)(SArray* pCtx);  // array of SqlFunctionCtx
 
 typedef struct SScalarFuncExecFuncs {
@@ -57,6 +59,7 @@ typedef struct SFuncExecFuncs {
   FExecFinalize    finalize;
   FExecCombine     combine;
   FExecCleanUp     cleanup;
+  FExecDecode      decode;
   processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 
@@ -64,6 +67,8 @@ typedef struct SFuncExecFuncs {
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 32
+
+#define FUNCTION_RESULT_INFO_VERSION 1
 
 typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
@@ -165,6 +170,11 @@ typedef struct STdbState {
   void               *txn;
 } STdbState;
 
+typedef struct SResultRowStore {
+  int32_t (*resultRowPut)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+  int32_t (*resultRowGet)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+} SResultRowStore;
+
 struct SStreamState {
   STdbState               *pTdbState;
   struct SStreamFileState *pFileState;
@@ -175,6 +185,8 @@ struct SStreamState {
   int64_t                  streamBackendRid;
   int8_t                   dump;
   int32_t                  tsIndex;
+  SResultRowStore          pResultRowStore;
+  struct SExprSupp        *pExprSupp;
 };
 
 typedef struct SFunctionStateStore {
