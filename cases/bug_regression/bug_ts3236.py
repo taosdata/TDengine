@@ -22,7 +22,7 @@ class TestTs3236(TDCase):
         self.tdSql.execute('use perf_test;')
         self.tdSql.execute('CREATE TABLE perf_test.stb0 (ts TIMESTAMP,c0 int,c1 float,c2 float) TAGS (t0 tinyint,t1 binary(16));')
         self.tdSql.execute('alter local "querySmaOptimize" "1";')
-        self.tdSql.execute('create sma index if not exists tsma_test on stb0 function(min(c0),max(c1),sum(c2),first(c0),last(c1),avg(c0),count(c1)) interval(10s) max_delay 5s;')
+        self.tdSql.execute('create sma index if not exists tsma_test on stb0 function(min(c0),max(c1),sum(c2),first(c0),last(c1),avg(c0),count(c1)) interval(10s) max_delay 6s;')
         self.tdSql.execute('show databases')
     def cleanup(self):
         pass

@@ -76,7 +76,7 @@
         {
           "stream_name": "test_stream",
           "stream_stb": "test2.stream_output",
-          "trigger_mode": "max_delay 1s",
+          "trigger_mode": "max_delay 6s",
           "watermark": null,
           "ignore_update": "0",
           "ignore_expired": "0",

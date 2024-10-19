@@ -5191,8 +5191,8 @@ class StreamComputingTest(TDCase):
                     self.at_once_session(session=random.randint(10, 15), ignore_update=1, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value)
-                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(2, 4)}s", fill_history_value=fill_history_value)
-                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(2, 4)}s", fill_history_value=fill_history_value)
+                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 7)}s", fill_history_value=fill_history_value)
+                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(5, 7)}s", fill_history_value=fill_history_value)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
             self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
@@ -5202,11 +5202,11 @@ class StreamComputingTest(TDCase):
             self.window_close_event_window(watermark=random.randint(15, 20))
             self.subtable_exceed_test()
             # #TODO 0423 failed
-            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 7)}s")
             # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found
-            self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
-            self.watermark_max_delay_event_window(watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
-            self.watermark_max_delay_event_window(watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
+            self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 7)}s")
+            self.watermark_max_delay_event_window(watermark=None, max_delay=f"{random.randint(5, 7)}s", fill_history_value=1, partition="tbname")
+            self.watermark_max_delay_event_window(watermark=random.randint(20, 30), max_delay=f"{random.randint(5, 7)}s", fill_history_value=1, partition="tbname")
             self.partitionby_interval(interval=None, partition_by_elm="tbname")
             self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
 

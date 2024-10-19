@@ -57,7 +57,7 @@ class CompactTest(TDCase):
         self.stream_stbname2 = "output_streamtb2"
         self.stream_name = "test_stream"
         self.stream_name2 = "test_stream2"
-        self.trigger_mode = "max_delay 1s"
+        self.trigger_mode = "max_delay 6s"
         self.child_table_exists = "no"
         self.db_drop = "yes"
         self.stream_drop = "yes"
