@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mnode.h"
+#include "osFile.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
@@ -181,6 +182,7 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
+extern bool generateNewMeta;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
@@ -220,6 +222,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-r") == 0) {
+      generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -280,9 +284,9 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   taosGetCwd(path, sizeof(path));
 
   char    args[1024] = {0};
-  int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
+  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
   for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -415,6 +419,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
+    if (taosCloseFile(&pFile) != 0) {
+      encryptError("failed to close file:%p", pFile);
+    }
     taosCloseLog();
     taosCleanupArgs();
     return ret;

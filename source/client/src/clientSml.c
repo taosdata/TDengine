@@ -479,6 +479,7 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) 
     }
 
     clearColValArraySml(info->currTableDataCtx->pValues);
+    taosArrayClearP(info->escapedStringList, taosMemoryFree);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
@@ -1608,6 +1609,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
+  taosArrayDestroyP(info->escapedStringList, taosMemoryFree);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1667,8 +1669,9 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
-
-  if (info->tagJsonArray == NULL || info->valueJsonArray == NULL || info->preLineTagKV == NULL) {
+  info->escapedStringList = taosArrayInit(8, POINTER_BYTES);
+  if (info->tagJsonArray == NULL || info->valueJsonArray == NULL ||
+      info->preLineTagKV == NULL || info->escapedStringList == NULL) {
     uError("SML:0x%" PRIx64 " failed to allocate memory", info->id);
     code = terrno;
     goto FAILED;
@@ -1949,6 +1952,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     }
   }
 
+  taosArrayClearP(info->escapedStringList, taosMemoryFree);
   (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;
   info->currTableDataCtx = NULL;

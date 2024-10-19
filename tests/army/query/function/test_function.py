@@ -11,14 +11,21 @@
 
 # -*- coding: utf-8 -*-
 
-import frame.etool
+import sys
+import time
+import random
 
+import taos
+import frame
+
+from frame.etool import *
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
-from frame import *
 
+from frame import etool
+from frame.common import *
 
 class TDTestCase(TBase):
     updatecfg_dict = {
@@ -73,8 +80,16 @@ class TDTestCase(TBase):
                     tdSql.error(err_statement)
                     err_statement = ''
 
+    def test_normal_query_new(self, testCase):
+        # read sql from .sql file and execute
+        tdLog.info(f"test normal query.")
+        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
+        self.ansFile = etool.curFile(__file__, f"ans/{testCase}_1.csv")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
     def test_pi(self):
-        self.test_normal_query('pi')
+        self.test_normal_query_new('pi')
 
         tdSql.query('select pi();')
         res = tdSql.getData(0, 0)

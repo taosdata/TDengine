@@ -134,8 +134,6 @@ def getMatch(datatype, algo):
 
 
 def generateJsonFile(algo):
-    print(f"doTest algo: {algo} \n")
-    
     # replace datatype
     context = readFileContext(templateFile)
     # replace compress
@@ -192,8 +190,6 @@ def findContextValue(context, label):
     ends = [',','}',']', 0]
     while context[end] not in ends:
         end += 1
-
-    print(f"start = {start} end={end}\n")
     return context[start:end]
 
 
@@ -281,10 +277,10 @@ def testQuery():
     # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
     speed = None
 
-    for i in range(20, len(lines)):        
+    for i in range(0, len(lines)):
         # find second real
+        context = lines[i]
         pos = context.find("the QPS of all threads:")
-        context = lines[26]
         if pos == -1 :
             continue
         pos += 24
@@ -301,7 +297,6 @@ def testQuery():
 def doTest(algo, resultFile):
     print(f"doTest algo: {algo} \n")
     #cleanAndStartTaosd()
-
 
     # json
     jsonFile = generateJsonFile(algo)

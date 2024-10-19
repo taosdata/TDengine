@@ -318,21 +318,6 @@ typedef struct SAlterDnodeStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterDnodeStmt;
 
-typedef struct {
-  ENodeType type;
-  char      url[TSDB_ANAL_ANODE_URL_LEN + 3];
-} SCreateAnodeStmt;
-
-typedef struct {
-  ENodeType type;
-  int32_t   anodeId;
-} SDropAnodeStmt;
-
-typedef struct {
-  ENodeType type;
-  int32_t   anodeId;
-} SUpdateAnodeStmt;
-
 typedef struct SShowStmt {
   ENodeType     type;
   SNode*        pDbName;  // SValueNode

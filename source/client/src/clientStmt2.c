@@ -1200,6 +1200,22 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_ADD_BATCH));
 
+  if (pStmt->sql.stbInterlaceMode) {
+    int64_t startUs2 = taosGetTimestampUs();
+    pStmt->stat.addBatchUs += startUs2 - startUs;
+
+    pStmt->sql.siInfo.tableColsReady = false;
+
+    SStmtQNode* param = NULL;
+    STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
+    param->restoreTbCols = true;
+    param->next = NULL;
+
+    stmtEnqueue(pStmt, param);
+
+    return TSDB_CODE_SUCCESS;
+  }
+
   STMT_ERR_RET(stmtCacheBlock(pStmt));
 
   return TSDB_CODE_SUCCESS;
@@ -1403,9 +1419,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAppendTablePostHandle(pStmt, param));
+  } else {
+    STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
-
-  STMT_ERR_RET(stmtAddBatch2(pStmt));
 
   pStmt->stat.bindDataUs4 += taosGetTimestampUs() - startUs4;
 
@@ -1609,23 +1625,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
-
   if (pStmt->sql.stbInterlaceMode) {
-    int64_t startUs2 = taosGetTimestampUs();
-    pStmt->stat.addBatchUs += startUs2 - startUs;
-
-    pStmt->sql.siInfo.tableColsReady = false;
-
-    SStmtQNode* param = NULL;
-    STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
-    param->restoreTbCols = true;
-    param->next = NULL;
-
-    stmtEnqueue(pStmt, param);
-
-    return TSDB_CODE_SUCCESS;
+    STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
+
+  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
