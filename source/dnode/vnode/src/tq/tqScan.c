@@ -16,8 +16,8 @@
 #include "tq.h"
 
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
-  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
-  int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + dataEncodeSize;
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + dataEncodeBufSize;
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
     return terrno;
@@ -29,7 +29,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   pRetrieve->compressed = 0;
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
-  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, dataEncodeSize, numOfCols);
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, dataEncodeBufSize, numOfCols);
   if(actualLen < 0){
     taosMemoryFree(buf);
     return terrno;

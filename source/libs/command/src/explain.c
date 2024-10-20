@@ -1966,8 +1966,8 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   pBlock->info.rows = rowNum;
 
-  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
 
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
@@ -1978,7 +1978,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
-  int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, dataEncodeSize, taosArrayGetSize(pBlock->pDataBlock));
+  int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, taosArrayGetSize(pBlock->pDataBlock));
   if(len < 0) {
     qError("qExplainGetRspFromCtx: blockEncode failed");
     QRY_ERR_JRET(terrno);
