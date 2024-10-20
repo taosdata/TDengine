@@ -1,0 +1,380 @@
+def sync_source(branch_name) {
+    sh '''
+        hostname
+        ip addr|grep 192|awk  '{print $2}'|sed "s/\\/.*//"
+        echo ''' + branch_name + '''
+    '''
+    sh '''
+        cd ${TDENGINE_ROOT_DIR}
+        set +e
+        git reset --hard
+        git fetch || git fetch
+        git checkout -f '''+branch_name+'''
+        git reset --hard origin/'''+branch_name+'''
+        git log | head -n 20
+        git clean -fxd
+        set -e
+    '''
+    return 1
+}
+def sync_source_win() {
+    bat '''
+        hostname
+        taskkill /f /t /im taosd.exe
+        ipconfig
+        set
+        date /t
+        time /t
+    '''
+    bat '''
+        echo %branch_name%
+        cd %WIN_TDENGINE_ROOT_DIR%
+        git reset --hard
+        git fetch || git fetch
+        git checkout -f ''' + env.BRANCH_NAME + '''
+        git reset --hard origin/''' + env.BRANCH_NAME + '''
+        git branch
+        git restore .
+        git remote prune origin
+        git pull || git pull
+        git log | head -n 20
+        git clean -fxd
+    '''
+    return 1
+}
+pipeline {
+    agent none
+    parameters {
+        choice(
+            name: 'sourcePath',
+            choices: ['nas','web'],
+            description: 'Choice which way to download the installation pacakge;web is Office Web and nas means taos nas server '
+        )
+        choice(
+            name: 'verMode',
+            choices: ['enterprise','community'],
+            description: 'Choice  which types of package you want do check '
+        )
+        string (
+            name:'version',
+            defaultValue:'3.3.2.0',
+            description: 'Release version number,eg: 3.0.0.1'
+        )
+        string (
+            name:'baseVersion',
+            defaultValue:'smoking',
+            description: 'Tnas root path. eg:smoking, 3.3'
+        )
+        choice (
+            name:'mode',
+            choices: ['server','client'],
+            description: 'Choose which mode of package you want do run '
+        )
+        choice (
+            name:'smoke_branch',
+            choices: ['test/3.0/smokeTest','test/main/smokeTest','test/3.1/smokeTest'],
+            description: 'Choose which test somke branch which you want do run '
+        )
+        string (
+            name:'runPlatforms',
+            defaultValue:'server_Linux_x64, server_Linux_arm64, server_Windows_x64, server_Mac_x64',
+            description: 'run package list hotfix usually run: server: server_Linux_x64, server_Linux_arm64 client: client_Linux_x64, client_Linux_arm64 release usually run: enterprise server: server_Linux_x64, server_Linux_arm64, server_Windows_x64 enterprise client: client_Linux_x64, client_Linux_arm64, client_Windows_x64 community  server: server_Linux_x64, server_Linux_arm64, server_Mac_x64, server_Mac_arm64(not supported), server_Linux_x64_lite(not supported) community  client: client_Linux_x64, client_Linux_arm64, client_Windows_x64, client_Mac_x64, client_Mac_arm64(not supported), client_Linux_x64_lite(not supported)'
+        )
+    }
+    environment{
+        WORK_DIR = "/var/lib/jenkins/workspace"
+        TDINTERNAL_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal'
+        TDENGINE_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal/community'
+        BRANCH_NAME = "${smoke_branch}"
+    }
+    stages {
+        stage ('Start Server for Client Test') {
+            when {
+                beforeAgent true
+                expression { mode == 'client' }
+            }
+            agent{label " ubuntu18 "}
+            steps {
+                timeout(time: 30, unit: 'MINUTES'){
+                    sync_source("${BRANCH_NAME}")
+                    withEnv(['JENKINS_NODE_COOKIE=dontkillme']) {
+                        sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                            bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                            bash start3NodesServer.sh
+                        '''
+                    }
+                }
+            }
+        }
+        stage ('Run SmokeTest') {
+            parallel {
+                stage('server_Linux_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'server' }
+                            expression { runPlatforms.contains('server_Linux_x64') }
+                        }
+                    }
+                    agent{label " ubuntu16 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                mkdir -p /var/www/html/${baseVersion}/${version}/${verMode}/json
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                                python3 -m pytest test_server.py -v --html=/var/www/html/${baseVersion}/${version}/${verMode}/${mode}_linux_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                cp report.json /var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_linux_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=server&build=linux_x64"
+                            '''
+                        }
+                    }
+                }
+                stage('server_Linux_arm64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'server' }
+                            expression { runPlatforms.contains('server_Linux_arm64') }
+                        }
+                    }
+                    agent{label "worker06_arm64"}
+                    steps {
+                        timeout(time: 60, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                                python3 -m pytest test_server.py -v --html=${mode}_linux_arm64_report.html --json-report --json-report-file=report.json --timeout=600 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_linux_arm64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_linux_arm64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=server&build=linux_arm64"
+                            '''
+                        }
+                    }
+                }
+                stage ('server_Mac_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'server' }
+                            expression { runPlatforms.contains('server_Mac_x64') }
+                        }
+                    }
+                    agent{label " release_Darwin_x64 "}
+                    environment{
+                        WORK_DIR = "/Users/zwen/jenkins/workspace"
+                        TDINTERNAL_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal'
+                        TDENGINE_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal/community'
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t pkg
+                                python3 -m pytest -v -k linux  --html=${mode}_Mac_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_Mac_x64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_Mac_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=server&build=Mac_x64"
+                            '''
+                        }
+                    }
+                }
+                stage ('server_Mac_arm64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'server' }
+                            expression { runPlatforms.contains('server_Mac_arm64') }
+                        }
+                    }
+                    agent{label " release_Darwin_arm64 "}
+                    environment{
+                        WORK_DIR = "/Users/zwen/jenkins/workspace"
+                        TDINTERNAL_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal'
+                        TDENGINE_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal/community'
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t pkg
+                                python3 -m pytest -v -k linux  --html=${mode}_Mac_arm64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_Mac_arm64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_Mac_arm64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=server&build=Mac_arm64"
+                            '''
+                        }
+                    }
+                }
+                stage('server_Windows_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'server' }
+                            expression { runPlatforms.contains('server_Windows_x64') }
+                        }
+                    }
+                    agent{label " windows11 "}
+                    environment{
+                        WIN_WORK_DIR="C:\\workspace"
+                        WIN_TDINTERNAL_ROOT_DIR="C:\\workspace\\TDinternal"
+                        WIN_TDENGINE_ROOT_DIR="C:\\workspace\\TDinternal\\community"
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source_win()
+                            bat '''
+                                cd %WIN_TDENGINE_ROOT_DIR%\\packaging\\smokeTest
+                                call getAndRunInstaller.bat %baseVersion% %version% %verMode% server
+                                cd %WIN_TDENGINE_ROOT_DIR%\\packaging\\smokeTest
+                                pip3 install -r pytest_require.txt
+                                python3 -m pytest test_server.py -v --html=%mode%_Windows_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=%verMode% --tVersion=%version% --baseVersion=%baseVersion% --sourcePath=%sourcePath%
+                                scp %mode%_Windows_x64_report.html root@192.168.0.21:/var/www/html/%baseVersion%/%version%/%verMode%/
+                                scp report.json root@192.168.0.21:/var/www/html/%baseVersion%/%version%/%verMode%/json/%mode%_Windows_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=%version%&tag=%baseVersion%&type=%verMode%&role=server&build=Windows_x64"
+                            '''
+                        }
+                    }
+                }
+                stage('client_Linux_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'client' }
+                            expression { runPlatforms.contains('client_Linux_x64') }
+                        }
+                    }
+                    agent{label " ubuntu16 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                mkdir -p /var/www/html/${baseVersion}/${version}/${verMode}/json
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f client -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                                python3 -m pytest test_client.py -v --html=/var/www/html/${baseVersion}/${version}/${verMode}/${mode}_linux_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                cp report.json /var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_linux_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=client&build=linux_x64"
+                            '''
+                        }
+                    }
+                }
+                stage('client_Linux_arm64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'client' }
+                            expression { runPlatforms.contains('client_Linux_arm64') }
+                        }
+                    }
+                    agent{label " worker06_arm64 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f client -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                                python3 -m pytest test_client.py -v --html=${mode}_linux_arm64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_linux_arm64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_linux_arm64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=client&build=linux_arm64"
+                            '''
+                        }
+                    }
+                }
+                stage ('client_Mac_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'client' }
+                            expression { runPlatforms.contains('client_Mac_x64') }
+                        }
+                    }
+                    agent{label " release_Darwin_x64 "}
+                    environment{
+                        WORK_DIR = "/Users/zwen/jenkins/workspace"
+                        TDINTERNAL_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal'
+                        TDENGINE_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal/community'
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f client -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t pkg
+                                rm -rf /opt/taos/main/TDinternal/debug/* || true
+                                python3 -m pytest test_client.py -v --html=${mode}_Mac_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_Mac_x64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_Mac_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=client&build=Mac_x64"
+                            '''
+                        }
+                    }
+                }
+                stage ('client_Mac_arm64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'client' }
+                            expression { runPlatforms.contains('client_Mac_arm64') }
+                        }
+                    }
+                    agent{label " release_Darwin_arm64 "}
+                    environment{
+                        WORK_DIR = "/Users/zwen/jenkins/workspace"
+                        TDINTERNAL_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal'
+                        TDENGINE_ROOT_DIR = '/Users/zwen/jenkins/workspace/TDinternal/community'
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                                cd ${TDENGINE_ROOT_DIR}/packaging/smokeTest
+                                bash getAndRunInstaller.sh -m ${verMode} -f client -l false -c arm64 -v ${version} -o ${baseVersion} -s ${sourcePath} -t pkg
+                                rm -rf /opt/taos/main/TDinternal/debug/* || true
+                                python3 -m pytest test_client.py -v --html=${mode}_Mac_arm64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=${verMode} --tVersion=${version} --baseVersion=${baseVersion} --sourcePath=${sourcePath} || true
+                                scp ${mode}_Mac_arm64_report.html root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/
+                                scp report.json root@192.168.0.21:/var/www/html/${baseVersion}/${version}/${verMode}/json/${mode}_Mac_arm64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=${version}&tag=${baseVersion}&type=${verMode}&role=client&build=Mac_arm64"
+                            '''
+                        }
+                    }
+                }
+                stage('client_Windows_x64') {
+                    when {
+                        beforeAgent true
+                        allOf {
+                            expression { mode == 'client' }
+                            expression { runPlatforms.contains('client_Windows_x64') }
+                        }
+                    }
+                    agent{label " windows71 "}
+                    environment{
+                        WIN_WORK_DIR="C:\\workspace"
+                        WIN_TDINTERNAL_ROOT_DIR="C:\\workspace\\TDinternal"
+                        WIN_TDENGINE_ROOT_DIR="C:\\workspace\\TDinternal\\community"
+                    }
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source_win()
+                            bat '''
+                                cd %WIN_TDENGINE_ROOT_DIR%\\packaging\\smokeTest
+                                call getAndRunInstaller.bat %baseVersion% %version% %verMode% client
+                                pip3 install -r pytest_require.txt
+                                python3 -m pytest test_client.py -v --html=%mode%_Windows_x64_report.html --json-report --json-report-file=report.json --timeout=300 --verMode=%verMode% --tVersion=%version% --baseVersion=%baseVersion% --sourcePath=%sourcePath%
+                                scp %mode%_Windows_x64_report.html root@192.168.0.21:/var/www/html/%baseVersion%/%version%/%verMode%/
+                                scp report.json root@192.168.0.21:/var/www/html/%baseVersion%/%version%/%verMode%/json/%mode%_Windows_x64_report.json
+                                curl "http://192.168.0.176/api/addSmoke?version=%version%&tag=%baseVersion%&type=%verMode%&role=client&build=Windows_x64"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
