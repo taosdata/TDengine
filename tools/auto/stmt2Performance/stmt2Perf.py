@@ -34,28 +34,6 @@ def exec(command, show=True):
         print(f"exec {command}\n")
     return os.system(command)
 
-# run return output and error
-def run(command, timeout = 60, show=True):
-    if(show):
-        print(f"run {command} timeout={timeout}s\n")    
-
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(timeout)
-
-    output = process.stdout.read().decode(encoding="gbk")
-    error = process.stderr.read().decode(encoding="gbk")
-
-    return output, error
-
-# return list after run
-def runRetList(command, timeout=10, first=True):
-    output,error = run(command, timeout)
-    if first:
-        return output.splitlines()
-    else:
-        return error.splitlines()
-
-
 def readFileContext(filename):
     file = open(filename)
     context = file.read()
@@ -77,6 +55,27 @@ def appendFileContext(filename, context):
         file.close()
     except:
         print(f"appand file error  context={context} .")
+
+# run return output and error
+def run(command, show=True):
+    # out to file
+    out = "out.txt"
+    err = "err.txt"
+    ret = exec(command + f" 1>{out} 2>{err}", True)
+
+    # read from file
+    output = readFileContext(out)
+    error  = readFileContext(err)
+
+    return output, error
+
+# return list after run
+def runRetList(command, first=True):
+    output,error = run(command)
+    if first:
+        return output.splitlines()
+    else:
+        return error.splitlines()
 
 def getFolderSize(folder):
     total_size = 0
@@ -134,8 +133,6 @@ def getMatch(datatype, algo):
 
 
 def generateJsonFile(stmt, interlace):
-    print(f"doTest stmt: {stmt} interlace_rows={interlace}\n")
-    
     # replace datatype
     context = readFileContext(templateFile)
     # replace compress
@@ -204,9 +201,16 @@ def writeTemplateInfo(resultFile):
     insertRows = findContextValue(context, "insert_rows")
     bindVGroup = findContextValue(context, "thread_bind_vgroup")
     nThread    = findContextValue(context, "thread_count")
+    batch      = findContextValue(context, "num_of_records_per_req")
+    
     if bindVGroup.lower().find("yes") != -1:
         nThread = vgroups
-    line = f"thread_bind_vgroup = {bindVGroup}\nvgroups            = {vgroups}\nchildtable_count   = {childCount}\ninsert_rows        = {insertRows}\ninsertThreads      = {nThread} \n\n"
+    line  = f"thread_bind_vgroup = {bindVGroup}\n"
+    line += f"vgroups            = {vgroups}\n"
+    line += f"childtable_count   = {childCount}\n"
+    line += f"insert_rows        = {insertRows}\n"
+    line += f"insertThreads      = {nThread}\n"
+    line += f"batchSize          = {batch}\n\n"
     print(line)
     appendFileContext(resultFile, line)
 
@@ -247,14 +251,8 @@ def totalCompressRate(stmt, interlace, resultFile, spent, spentReal, writeSpeed,
 
     # %("No", "stmtMode", "interlaceRows", "spent", "spent-real", "writeSpeed", "write-real", "query-QPS", "dataSize", "rate")    
     Number += 1
-    '''
-    context =  "%2s %6s %10s %10s %10s %15s %15s %16s %16s %16s %16s %16s %8s %8s %8s\n"%(
-          Number, stmt, interlace, spent + "s", spentReal + "s",  writeSpeed + " rows/s", writeReal + " rows/s", 
-          min, avg, p90, p99, max,
-          querySpeed, str(totalSize) + " MB", rate + "%")
-    '''
     context =  "%2s %8s %10s %10s %16s %16s %12s %12s %12s %12s %12s %12s %10s %10s %10s\n"%(
-          Number, stmt, interlace, spent + "s", spentReal + "s",  writeSpeed + "r/s", writeReal + "r/s",
+          Number, stmt, interlace, spent + "s", spentReal + "s",  writeSpeed + " r/s", writeReal + " r/s",
           min, avg, p90, p99, max + "ms",
           querySpeed, str(totalSize) + " MB", rate + "%")
 
@@ -323,7 +321,7 @@ def testWrite(jsonFile):
 
 def testQuery():
     command = f"taosBenchmark -f json/query.json"
-    lines = runRetList(command, 60000)
+    lines = runRetList(command)
     # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
     speed = None
 
