@@ -1,0 +1,138 @@
+
+taos> select STDDEV(current) from ts_4893.meters
+      stddev(current)      |
+============================
+         1.154339668872967 |
+
+taos> select STDDEV(current) from ts_4893.meters interval(1d) order by 1 limit 10
+      stddev(current)      |
+============================
+         0.838273408289689 |
+         0.838639277789961 |
+         0.839707477142884 |
+         0.839707477142884 |
+         0.840565842326814 |
+         0.844574982206356 |
+         0.846680761198646 |
+         0.847012832740024 |
+         0.847182714923872 |
+         0.848223610563545 |
+
+taos> select STDDEV(id) from ts_4893.meters
+        stddev(id)         |
+============================
+      2886.751331514371941 |
+
+taos> select STDDEV(id) from ts_4893.meters interval(1d) limit 10
+        stddev(id)         |
+============================
+         4.609772228646444 |
+         8.366600265340756 |
+         8.366600265340756 |
+         8.366600265340756 |
+         8.366600265340756 |
+         8.077747210701755 |
+         8.366600265340756 |
+         8.366600265340756 |
+         8.366600265340756 |
+         8.366600265340756 |
+
+taos> select STDDEV(id) from ts_4893.meters where id > 100
+        stddev(id)         |
+============================
+      2857.595142773027419 |
+
+taos> select STDDEV(id) from ts_4893.meters interval(1d) order by 1 limit 10
+        stddev(id)         |
+============================
+         4.609772228646444 |
+         5.477225575051661 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+         8.077747210701755 |
+
+taos> select stddev_pop(null) from ts_4893.meters
+     stddev_pop(null)      |
+============================
+ NULL                      |
+
+taos> select stddev_pop(id) from ts_4893.d0
+      stddev_pop(id)       |
+============================
+      2886.751331514371941 |
+
+taos> select stddev_pop(id) from ts_4893.meters
+      stddev_pop(id)       |
+============================
+      2886.751331514371941 |
+
+taos> select stddev_pop(current) from ts_4893.d0
+    stddev_pop(current)    |
+============================
+         1.154339668872967 |
+
+taos> select stddev_pop(current) from ts_4893.meters
+    stddev_pop(current)    |
+============================
+         1.154339668872967 |
+
+taos> select stddev_pop(voltage) from ts_4893.meters
+    stddev_pop(voltage)    |
+============================
+         2.876459705957324 |
+
+taos> select stddev_pop(voltage) from ts_4893.meters where voltage is not null
+    stddev_pop(voltage)    |
+============================
+         2.876459705957324 |
+
+taos> select stddev_pop(phase) from ts_4893.meters
+     stddev_pop(phase)     |
+============================
+         0.288595458155823 |
+
+taos> select stddev_pop(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+     stddev_pop(phase)     |
+============================
+         0.288075357974611 |
+
+taos> select stddev_pop(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+ stddev_pop(total_voltage) |
+============================
+         0.000000000000000 |
+
+taos> select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid
+ groupid |    stddev_pop(voltage)    |
+======================================
+       1 |         2.876459705957324 |
+
+taos> select location, stddev_pop(current) from ts_4893.meters group by location
+      location      |    stddev_pop(current)    |
+=================================================
+ beijing            |         1.154339668872967 |
+
+taos> select location, stddev_pop(voltage) from ts_4893.meters group by location
+      location      |    stddev_pop(voltage)    |
+=================================================
+ beijing            |         2.876459705957324 |
+
+taos> select round(stddev_pop(current), 2) from ts_4893.meters
+ round(stddev_pop(current), 2) |
+================================
+         1.150000000000000e+00 |
+
+taos> select pow(stddev_pop(current), 2) from ts_4893.meters
+ pow(stddev_pop(current), 2) |
+==============================
+       1.332500071133751e+00 |
+
+taos> select log(stddev_pop(voltage) + 1) from ts_4893.meters
+ log(stddev_pop(voltage) + 1) |
+===============================
+        1.354922290183882e+00 |
+

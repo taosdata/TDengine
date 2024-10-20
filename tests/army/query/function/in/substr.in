@@ -1,139 +1,165 @@
-select SUBSTRING('Hello.World!', 1);
-select SUBSTRING('Hello.World!', 1, 5);
-select SUBSTRING('Hello.World!', 1, 20);
-select SUBSTRING('Hello.World!' FROM 1);
-select SUBSTRING('Hello.World!' FROM 1 FOR 5);
-select SUBSTRING('Hello.World!' FROM 1 FOR 20);
-select SUBSTRING('Hello.World!', -6);
-select SUBSTRING('Hello.World!', -6, 5);
-select SUBSTRING('Hello.World!', -6, 20);
-select SUBSTRING('Hello.World!' FROM -6);
-select SUBSTRING('Hello.World!' FROM -6 FOR 5);
-select SUBSTRING('Hello.World!' FROM -6 FOR 20);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1, 5);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1, 20);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 5);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 20);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6, 5);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6, 20);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 5);
-select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 20);
-select SUBSTRING(nch1, 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, 1, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, 1, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM 1 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM 1 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, -6, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, -6, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM -6 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM -6 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(var1, 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, 1, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, 1, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM 1 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM 1 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, -6, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, -6, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM -6 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM -6 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, sign(id), 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, sign(id), 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, sign(id), 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM sign(id)) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(var1, sign(id), 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, sign(id), 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1, sign(id), 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM sign(id)) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(nch1, 2, id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(nch1 FROM 2 FOR id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTRING(var1, 2, id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTRING(var1 FROM 2 FOR id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR('Hello.World!', 1);
-select SUBSTR('Hello.World!', 1, 5);
-select SUBSTR('Hello.World!', 1, 20);
-select SUBSTR('Hello.World!' FROM 1);
-select SUBSTR('Hello.World!' FROM 1 FOR 5);
-select SUBSTR('Hello.World!' FROM 1 FOR 20);
-select SUBSTR('Hello.World!', -6);
-select SUBSTR('Hello.World!', -6, 5);
-select SUBSTR('Hello.World!', -6, 20);
-select SUBSTR('Hello.World!' FROM -6);
-select SUBSTR('Hello.World!' FROM -6 FOR 5);
-select SUBSTR('Hello.World!' FROM -6 FOR 20);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1, 5);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1, 20);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 5);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 20);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6, 5);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6, 20);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 5);
-select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 20);
-select SUBSTR(nch1, 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, 1, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, 1, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM 1 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM 1 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, -6, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, -6, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM -6 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM -6 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(var1, 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, 1, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, 1, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM 1 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM 1 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, -6, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, -6, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM -6 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM -6 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(nch1, sign(id), 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, sign(id), 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1, sign(id), 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM sign(id)) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(var1, sign(id), 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, sign(id), 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1, sign(id), 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM sign(id)) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(nch1, 2, id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(nch1 FROM 2 FOR id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5;
-select SUBSTR(var1, 2, id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select SUBSTR(var1 FROM 2 FOR id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5;
-select substring('tdengine', 2);
-select substring('tdengine', 8);
-select substring('tdengine', 1, 3);
-select substring('tdengine', 2, 99);
-select substring('tdengine', -1, 10);
-select substring('中国', 1, 3);
-select substring('中国tdengine', 1, 3);
-select substring(var1, 1, 5) from ts_4893.d0 order by ts limit 10;
-select substring(var1, 1, 5) from ts_4893.meters order by ts limit 10;
-select substring(nch1, 1, 5) from ts_4893.d0 order by ts limit 10;
-select substring(nch1, 1, 5) from ts_4893.meters order by ts limit 10;
+select SUBSTRING('Hello.World!', 1)
+select SUBSTRING('Hello.World!', 1, 5)
+select SUBSTRING('Hello.World!', 1, 20)
+select SUBSTRING('Hello.World!' FROM 1)
+select SUBSTRING('Hello.World!' FROM 1 FOR 5)
+select SUBSTRING('Hello.World!' FROM 1 FOR 20)
+select SUBSTRING('Hello.World!', -6)
+select SUBSTRING('Hello.World!', -6, 5)
+select SUBSTRING('Hello.World!', -6, 20)
+select SUBSTRING('Hello.World!' FROM -6)
+select SUBSTRING('Hello.World!' FROM -6 FOR 5)
+select SUBSTRING('Hello.World!' FROM -6 FOR 20)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1, 5)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', 1, 20)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 5)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 20)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6, 5)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.', -6, 20)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 5)
+select SUBSTRING('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 20)
+select SUBSTRING(nch1, 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, 1, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, 1, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM 1 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM 1 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, -6, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, -6, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM -6 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM -6 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(var1, 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, 1, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, 1, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM 1 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM 1 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, -6, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, -6, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM -6 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM -6 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(nch1, sign(id), 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, sign(id), 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1, sign(id), 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM sign(id)) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(var1, sign(id), 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, sign(id), 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1, sign(id), 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM sign(id)) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(nch1, 2, id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(nch1 FROM 2 FOR id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTRING(var1, 2, id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTRING(var1 FROM 2 FOR id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR('Hello.World!', 1)
+select SUBSTR('Hello.World!', 1, 5)
+select SUBSTR('Hello.World!', 1, 20)
+select SUBSTR('Hello.World!' FROM 1)
+select SUBSTR('Hello.World!' FROM 1 FOR 5)
+select SUBSTR('Hello.World!' FROM 1 FOR 20)
+select SUBSTR('Hello.World!', -6)
+select SUBSTR('Hello.World!', -6, 5)
+select SUBSTR('Hello.World!', -6, 20)
+select SUBSTR('Hello.World!' FROM -6)
+select SUBSTR('Hello.World!' FROM -6 FOR 5)
+select SUBSTR('Hello.World!' FROM -6 FOR 20)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1, 5)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', 1, 20)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 5)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM 1 FOR 20)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6, 5)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.', -6, 20)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 5)
+select SUBSTR('北京涛思数据科技有限公司，tdengine.' FROM -6 FOR 20)
+select SUBSTR(nch1, 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, 1, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, 1, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM 1 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM 1 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, -6, 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, -6, 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM -6) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM -6 FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM -6 FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(var1, 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, 1, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, 1, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM 1 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM 1 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, -6, 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, -6, 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM -6) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM -6 FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM -6 FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(nch1, sign(id), 1) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, sign(id), 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1, sign(id), 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM sign(id)) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(var1, sign(id), 1) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, sign(id), 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1, sign(id), 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM sign(id)) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM sign(id) FOR 5) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM sign(id) FOR 20) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(nch1, 2, id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(nch1 FROM 2 FOR id) from ts_4893.meters where char_length(nch1) > 6 order by ts limit 5
+select SUBSTR(var1, 2, id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select SUBSTR(var1 FROM 2 FOR id) from ts_4893.meters where char_length(var1) > 6 order by ts limit 5
+select substring('tdengine', 2)
+select substring('tdengine', 8)
+select substring('tdengine', 1, 3)
+select substring('tdengine', 2, 99)
+select substring('tdengine', -1, 10)
+select substring('中国', 1, 3)
+select substring('中国tdengine', 1, 3)
+select substring(var1, 1, 5) from ts_4893.d0 order by ts limit 10
+select substring(var1, 1, 5) from ts_4893.meters order by ts limit 10
+select substring(nch1, 1, 5) from ts_4893.d0 order by ts limit 10
+select substring(nch1, 1, 5) from ts_4893.meters order by ts limit 10
+select substring(null, 1, 3)
+select substring('tdengine', null, 3)
+select substring('tdengine', 0)
+select substring('tdengine', 10)
+select substring('tdengine', 1, null)
+select substring('tdengine', 1, 0)
+select substring('tdengine', 1, -1)
+select substr(null, 1, 3)
+select substr('Hello', 1, 3)
+select substr('', 1, 5)
+select substr('ABCDE', 0, 3)
+select substr('ABCDEFG', -3, 2)
+select substr('HelloWorld', 2, 5)
+select substr('1234567890', -5, 5)
+select substr('!@#$%^&*()', 2, 4)
+select substr('你好世界', 3, 2)
+select substr('ABCDEFG', 10, 5)
+select substr('ABCDEFG', -1, 3)
+select substr('1234567890', -15, 5)
+select substr(concat('Hello', 'World'), 1, 5)
+select substr('HelloWorld', 1, length('Hello'))
+select substr(upper('helloworld'), 2, 4)
+select substr(trim('  HelloWorld  '), 1, 5)
+select name, substr(name, 1, 3) from ts_4893.meters limit 1
+select var1, substr(var1, 1, 6) from ts_4893.meters limit 1
+select nch1, substr(nch1, 2, 4) from ts_4893.meters limit 1

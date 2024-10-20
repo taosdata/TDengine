@@ -1,0 +1,605 @@
+
+taos> select MIN(id) from ts_4893.meters
+   min(id)   |
+==============
+           0 |
+
+taos> select MIN(current) from ts_4893.meters
+     min(current)     |
+=======================
+            8.0000000 |
+
+taos> select MIN(voltage) from ts_4893.meters
+ min(voltage) |
+===============
+          215 |
+
+taos> select MIN(name) from ts_4893.meters
+           min(name)            |
+=================================
+ haha                           |
+
+taos> select MIN(nch1) from ts_4893.meters
+           min(nch1)            |
+=================================
+ abc一二三abc一二三abc          |
+
+taos> select MIN(nch2) from ts_4893.meters
+           min(nch2)            |
+=================================
+ a                              |
+
+taos> select MIN(var1) from ts_4893.meters
+           min(var1)            |
+=================================
+ abc一二三abc一二三abc          |
+
+taos> select MIN(var2) from ts_4893.meters
+           min(var2)            |
+=================================
+ a                              |
+
+taos> select MIN(id) from ts_4893.meters interval(60d)
+   min(id)   |
+==============
+           0 |
+        1111 |
+        2839 |
+        4567 |
+        6295 |
+        8023 |
+           0 |
+        1479 |
+        3207 |
+        4935 |
+        6663 |
+           0 |
+         119 |
+        1847 |
+        3575 |
+        5303 |
+        7031 |
+           0 |
+         487 |
+        2215 |
+        3943 |
+        5671 |
+        7399 |
+           0 |
+         855 |
+        2583 |
+        4311 |
+        6039 |
+        7767 |
+           0 |
+        1223 |
+        2951 |
+        4679 |
+        6407 |
+        8135 |
+           0 |
+        1591 |
+        3319 |
+        5047 |
+        6775 |
+           0 |
+         231 |
+        1959 |
+        3687 |
+        5415 |
+        7143 |
+           0 |
+         599 |
+        2327 |
+        4055 |
+        5783 |
+        7511 |
+           0 |
+         967 |
+        2695 |
+        4423 |
+        6151 |
+        7879 |
+        9607 |
+
+taos> select MIN(current) from ts_4893.meters interval(60d)
+     min(current)     |
+=======================
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0010004 |
+            8.0010004 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0030003 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0030003 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0010004 |
+            8.0089998 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0030003 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0019999 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0000000 |
+            8.0019999 |
+            8.0010004 |
+            8.0000000 |
+            8.0050001 |
+
+taos> select MIN(voltage) from ts_4893.meters interval(60d)
+ min(voltage) |
+===============
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+          215 |
+
+taos> select MIN(name) from ts_4893.meters interval(60d)
+           min(name)            |
+=================================
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+ haha                           |
+
+taos> select MIN(nch1) from ts_4893.meters interval(60d)
+           min(nch1)            |
+=================================
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+
+taos> select MIN(nch2) from ts_4893.meters interval(60d)
+           min(nch2)            |
+=================================
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+
+taos> select MIN(var1) from ts_4893.meters interval(60d)
+           min(var1)            |
+=================================
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+
+taos> select MIN(var2) from ts_4893.meters interval(60d)
+           min(var2)            |
+=================================
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+ a                              |
+
+taos> select min(null) from ts_4893.meters
+       min(null)       |
+========================
+ NULL                  |
+
+taos> select min(id) from ts_4893.meters where id > 0
+   min(id)   |
+==============
+           1 |
+
+taos> select min(id) from ts_4893.meters where id <= 0
+   min(id)   |
+==============
+           0 |
+
+taos> select min(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+      min(phase)      |
+=======================
+            0.0001700 |
+
+taos> select min(voltage) from ts_4893.meters where voltage is not null
+ min(voltage) |
+===============
+          215 |
+
+taos> select min(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+  min(total_voltage)   |
+========================
+              21948660 |
+
+taos> select groupid, min(voltage) from ts_4893.meters group by groupid
+ groupid | min(voltage) |
+=========================
+       1 |          215 |
+
+taos> select location, min(current) from ts_4893.meters group by location
+      location      |     min(current)     |
+============================================
+ beijing            |            8.0000000 |
+
+taos> select location, min(id) from ts_4893.meters group by location
+      location      |   min(id)   |
+===================================
+ beijing            |           0 |
+
+taos> select round(min(current), 2) from ts_4893.meters
+ round(min(current), 2) |
+=========================
+          8.0000000e+00 |
+
+taos> select pow(min(current), 2) from ts_4893.meters
+   pow(min(current), 2)    |
+============================
+        64.000000000000000 |
+
+taos> select log(min(voltage) + 1) from ts_4893.meters
+   log(min(voltage) + 1)   |
+============================
+         5.375278407684165 |
+

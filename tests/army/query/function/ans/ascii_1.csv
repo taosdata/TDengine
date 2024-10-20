@@ -1,0 +1,302 @@
+
+taos> select ASCII('hello')
+ ascii('hello') |
+=================
+            104 |
+
+taos> select ASCII('hello world')
+ ascii('hello world') |
+=======================
+                  104 |
+
+taos> select ASCII('hello world!')
+ ascii('hello world!') |
+========================
+                   104 |
+
+taos> select ASCII('hello,world.你好，世界。')
+ ascii('hello,world.你好，世界。') |
+==========================================
+                                     104 |
+
+taos> select ASCII('北京涛思数据科技有限公司')
+ ascii('北京涛思数据科技有限公司') |
+================================================
+                                           229 |
+
+taos> select ASCII('hello') + 1
+    ascii('hello') + 1     |
+============================
+       105.000000000000000 |
+
+taos> select ASCII('hello') - 1
+    ascii('hello') - 1     |
+============================
+       103.000000000000000 |
+
+taos> select ASCII('hello') from ts_4893.meters limit 5
+ ascii('hello') |
+=================
+            104 |
+            104 |
+            104 |
+            104 |
+            104 |
+
+taos> select ASCII('hello') + 1 from ts_4893.meters limit 1
+    ascii('hello') + 1     |
+============================
+       105.000000000000000 |
+
+taos> select ASCII('hello') + ASCII('hello') from ts_4893.meters limit 1
+ ascii('hello') + ascii('hello') |
+==================================
+           2.080000000000000e+02 |
+
+taos> select ASCII(nch1) from ts_4893.meters order by ts limit 5
+ ascii(nch1) |
+==============
+         110 |
+         228 |
+         117 |
+         112 |
+         110 |
+
+taos> select ASCII(var1) from ts_4893.meters order by ts limit 5
+ ascii(var1) |
+==============
+         110 |
+         112 |
+         110 |
+         112 |
+         228 |
+
+taos> select ASCII(concat(nch1,var1)) from ts_4893.meters order by ts limit 5
+ ascii(concat(nch1,var1)) |
+===========================
+                      110 |
+                      228 |
+                      117 |
+                      112 |
+                      110 |
+
+taos> select ASCII(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 5
+ ascii(cast(nch1 as varchar)) |
+===============================
+                          110 |
+                          228 |
+                          117 |
+                          112 |
+                          110 |
+
+taos> select pow(ASCII(nch1), 2) from ts_4893.meters order by ts limit 5
+    pow(ascii(nch1), 2)    |
+============================
+     12100.000000000000000 |
+     51984.000000000000000 |
+     13689.000000000000000 |
+     12544.000000000000000 |
+     12100.000000000000000 |
+
+taos> select sqrt(ASCII(nch1)) from ts_4893.meters order by ts limit 5
+     sqrt(ascii(nch1))     |
+============================
+        10.488088481701515 |
+        15.099668870541500 |
+        10.816653826391969 |
+        10.583005244258363 |
+        10.488088481701515 |
+
+taos> select cast(ASCII(nch1) as int) from ts_4893.meters order by ts limit 5
+ cast(ascii(nch1) as int) |
+===========================
+                      110 |
+                      228 |
+                      117 |
+                      112 |
+                      110 |
+
+taos> select ascii('taos')
+ ascii('taos') |
+================
+           116 |
+
+taos> select ascii('t')
+ ascii('t') |
+=============
+        116 |
+
+taos> select ascii('\'')
+ ascii('\'') |
+==============
+          39 |
+
+taos> select ascii(name) from ts_4893.d0 order by ts limit 10
+ ascii(name) |
+==============
+         108 |
+         120 |
+         108 |
+         120 |
+         108 |
+         116 |
+         104 |
+         116 |
+         116 |
+         104 |
+
+taos> select ascii(name) from ts_4893.meters order by ts limit 10
+ ascii(name) |
+==============
+         108 |
+         120 |
+         108 |
+         120 |
+         108 |
+         116 |
+         104 |
+         116 |
+         116 |
+         104 |
+
+taos> select ascii(nch1) from ts_4893.d0 order by ts limit 10
+ ascii(nch1) |
+==============
+         110 |
+         228 |
+         117 |
+         112 |
+         110 |
+         110 |
+          97 |
+         228 |
+         110 |
+          97 |
+
+taos> select ascii(nch1) from ts_4893.meters order by ts limit 10
+ ascii(nch1) |
+==============
+         110 |
+         228 |
+         117 |
+         112 |
+         110 |
+         110 |
+          97 |
+         228 |
+         110 |
+          97 |
+
+taos> select ascii(var1) from ts_4893.d0 order by ts limit 10
+ ascii(var1) |
+==============
+         110 |
+         112 |
+         110 |
+         112 |
+         228 |
+         117 |
+         112 |
+         112 |
+         112 |
+         112 |
+
+taos> select ascii(var1) from ts_4893.meters order by ts limit 10
+ ascii(var1) |
+==============
+         110 |
+         112 |
+         110 |
+         112 |
+         228 |
+         117 |
+         112 |
+         112 |
+         112 |
+         112 |
+
+taos> select ascii(null)
+ ascii(null) |
+==============
+ NULL        |
+
+taos> select ascii('0')
+ ascii('0') |
+=============
+         48 |
+
+taos> select ascii(' ')
+ ascii(' ') |
+=============
+         32 |
+
+taos> select ascii('~')
+ ascii('~') |
+=============
+        126 |
+
+taos> select ascii('中')
+ ascii('中') |
+===============
+          228 |
+
+taos> select ascii('é')
+ ascii('é') |
+==============
+         195 |
+
+taos> select ascii('!@#')
+ ascii('!@#') |
+===============
+           33 |
+
+taos> select ascii('Hello')
+ ascii('Hello') |
+=================
+             72 |
+
+taos> select ascii('123abc')
+ ascii('123abc') |
+==================
+              49 |
+
+taos> select ascii(concat('A', 'B'))
+ ascii(concat('A', 'B')) |
+==========================
+                      65 |
+
+taos> select ascii(char(65))
+ ascii(char(65)) |
+==================
+              65 |
+
+taos> select ascii(upper('b'))
+ ascii(upper('b')) |
+====================
+                66 |
+
+taos> select ascii(trim(' A '))
+ ascii(trim(' A ')) |
+=====================
+                 65 |
+
+taos> select name, ascii(name) from ts_4893.meters limit 1
+              name              | ascii(name) |
+===============================================
+ lili                           |         108 |
+
+taos> select name, ascii(substring(name, 1, 1)) from ts_4893.meters limit 1
+              name              | ascii(substring(name, 1, 1)) |
+================================================================
+ lili                           |                          108 |
+
+taos> select nch1, ascii(nch1) from ts_4893.meters limit 1
+              nch1              | ascii(nch1) |
+===============================================
+ novel                          |         110 |
+
+taos> select var1, ascii(var1) from ts_4893.meters limit 1
+              var1              | ascii(var1) |
+===============================================
+ novel                          |         110 |
+

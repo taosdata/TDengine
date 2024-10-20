@@ -1,10 +1,20 @@
-select VAR_POP(current) from ts_4893.meters;
-select VAR_POP(current) from ts_4893.meters interval(1d) order by 1 limit 10;
-select VAR_POP(id) from ts_4893.meters;
-select VAR_POP(id) from ts_4893.meters interval(1d) limit 10;
-select VAR_POP(id) from ts_4893.meters where id > 100;
-select VAR_POP(id) from ts_4893.meters interval(1d) order by 1 limit 10;
-select var_pop(id) from ts_4893.d0;
-select var_pop(id) from ts_4893.meters;
-select var_pop(current) from ts_4893.d0;
-select var_pop(current) from ts_4893.meters;
+select VAR_POP(current) from ts_4893.meters
+select VAR_POP(current) from ts_4893.meters interval(1d) order by 1 limit 10
+select VAR_POP(id) from ts_4893.meters
+select VAR_POP(id) from ts_4893.meters interval(1d) limit 10
+select VAR_POP(id) from ts_4893.meters where id > 100
+select VAR_POP(id) from ts_4893.meters interval(1d) order by 1 limit 10
+select var_pop(null) from ts_4893.meters
+select var_pop(id) from ts_4893.d0
+select var_pop(current) from ts_4893.d0
+select var_pop(voltage) from ts_4893.meters
+select var_pop(voltage) from ts_4893.meters where voltage is not null
+select var_pop(phase) from ts_4893.meters
+select var_pop(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+select var_pop(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+select groupid, var_pop(voltage) from ts_4893.meters group by groupid
+select location, var_pop(current) from ts_4893.meters group by location
+select location, var_pop(voltage) from ts_4893.meters group by location
+select round(var_pop(current), 2) from ts_4893.meters
+select pow(var_pop(current), 2) from ts_4893.meters
+select log(var_pop(voltage) + 1) from ts_4893.meters

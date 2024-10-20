@@ -1,0 +1,128 @@
+
+taos> select VAR_POP(current) from ts_4893.meters
+     var_pop(current)      |
+============================
+         1.332500071133751 |
+
+taos> select VAR_POP(current) from ts_4893.meters interval(1d) order by 1 limit 10
+     var_pop(current)      |
+============================
+         0.702702307045612 |
+         0.703315838252067 |
+         0.705108647169666 |
+         0.705108647169666 |
+         0.706550935286586 |
+         0.713306900568867 |
+         0.716868311383919 |
+         0.717430738826280 |
+         0.717718552465783 |
+         0.719483293517456 |
+
+taos> select VAR_POP(id) from ts_4893.meters
+        var_pop(id)        |
+============================
+   8333333.250000000000000 |
+
+taos> select VAR_POP(id) from ts_4893.meters interval(1d) limit 10
+        var_pop(id)        |
+============================
+        21.250000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+        65.250000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+        70.000000000000000 |
+
+taos> select VAR_POP(id) from ts_4893.meters where id > 100
+        var_pop(id)        |
+============================
+   8165850.000000000000000 |
+
+taos> select VAR_POP(id) from ts_4893.meters interval(1d) order by 1 limit 10
+        var_pop(id)        |
+============================
+        21.250000000000000 |
+        30.000000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+        65.250000000000000 |
+
+taos> select var_pop(null) from ts_4893.meters
+       var_pop(null)       |
+============================
+ NULL                      |
+
+taos> select var_pop(id) from ts_4893.d0
+        var_pop(id)        |
+============================
+   8333333.250000000000000 |
+
+taos> select var_pop(current) from ts_4893.d0
+     var_pop(current)      |
+============================
+         1.332500071133751 |
+
+taos> select var_pop(voltage) from ts_4893.meters
+     var_pop(voltage)      |
+============================
+         8.274020439996093 |
+
+taos> select var_pop(voltage) from ts_4893.meters where voltage is not null
+     var_pop(voltage)      |
+============================
+         8.274020439996093 |
+
+taos> select var_pop(phase) from ts_4893.meters
+      var_pop(phase)       |
+============================
+         0.083287338468169 |
+
+taos> select var_pop(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+      var_pop(phase)       |
+============================
+         0.082987411872200 |
+
+taos> select var_pop(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+  var_pop(total_voltage)   |
+============================
+         0.000000000000000 |
+
+taos> select groupid, var_pop(voltage) from ts_4893.meters group by groupid
+ groupid |     var_pop(voltage)      |
+======================================
+       1 |         8.274020439996093 |
+
+taos> select location, var_pop(current) from ts_4893.meters group by location
+      location      |     var_pop(current)      |
+=================================================
+ beijing            |         1.332500071133751 |
+
+taos> select location, var_pop(voltage) from ts_4893.meters group by location
+      location      |     var_pop(voltage)      |
+=================================================
+ beijing            |         8.274020439996093 |
+
+taos> select round(var_pop(current), 2) from ts_4893.meters
+ round(var_pop(current), 2) |
+=============================
+      1.330000000000000e+00 |
+
+taos> select pow(var_pop(current), 2) from ts_4893.meters
+ pow(var_pop(current), 2)  |
+============================
+         1.775556439571451 |
+
+taos> select log(var_pop(voltage) + 1) from ts_4893.meters
+ log(var_pop(voltage) + 1) |
+============================
+         2.227216989977633 |
+

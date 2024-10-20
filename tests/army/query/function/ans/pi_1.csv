@@ -112,3 +112,83 @@ taos> select substring_index(null, '.', 2)
 ================================
  NULL                          |
 
+taos> select pi() + null
+        pi() + null        |
+============================
+ NULL                      |
+
+taos> select pi() * 0
+         pi() * 0          |
+============================
+         0.000000000000000 |
+
+taos> select pi() / 0
+         pi() / 0          |
+============================
+ NULL                      |
+
+taos> select pi() * 0.5
+        pi() * 0.5         |
+============================
+         1.570796326794897 |
+
+taos> select pi() * -1
+         pi() * -1         |
+============================
+        -3.141592653589793 |
+
+taos> select pi() * name from ts_4893.meters limit 1
+        pi() * name        |
+============================
+         0.000000000000000 |
+
+taos> select pi() * voltage from ts_4893.meters limit 1
+      pi() * voltage       |
+============================
+       694.291976443344311 |
+
+taos> select pi() * phase * 2 from ts_4893.meters limit 1
+     pi() * phase * 2      |
+============================
+         3.197500560801395 |
+
+taos> select round(pi(), 6)
+      round(pi(), 6)       |
+============================
+         3.141593000000000 |
+
+taos> select round(pi() * phase, 2) from ts_4893.meters limit 1
+  round(pi() * phase, 2)   |
+============================
+         1.600000000000000 |
+
+taos> select sqrt(pi() * voltage) from ts_4893.meters limit 1
+   sqrt(pi() * voltage)    |
+============================
+        26.349420799010826 |
+
+taos> select sqrt(current / pi()) from ts_4893.meters limit 1
+   sqrt(current / pi())    |
+============================
+         1.841195309148865 |
+
+taos> select abs(pi() * phase) from ts_4893.meters limit 1
+     abs(pi() * phase)     |
+============================
+         1.598750280400697 |
+
+taos> select log(pi() * voltage) from ts_4893.meters limit 1
+    log(pi() * voltage)    |
+============================
+         6.542892587367153 |
+
+taos> select voltage / pi() from ts_4893.meters limit 1
+      voltage / pi()       |
+============================
+        70.346484846617741 |
+
+taos> select id, case when voltage > 100 then pi() else pi() / 2 end from ts_4893.meters limit 1
+     id      | case when voltage > 100 then pi() else pi() / 2 end |
+====================================================================
+           0 |                               3.141592653589793e+00 |
+
