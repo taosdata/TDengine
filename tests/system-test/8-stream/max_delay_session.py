@@ -92,7 +92,7 @@ class TDTestCase:
     def run(self):
         for fill_history_value in [None, 1]:
             for watermark in [None, random.randint(20, 30)]:
-                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=watermark, max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
+                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=watermark, max_delay=f"{random.randint(5, 8)}s", fill_history_value=fill_history_value)
 
     def stop(self):
         tdSql.close()

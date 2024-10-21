@@ -228,17 +228,17 @@ void *backendOpen() {
     memset(&key, 0, sizeof(key));
     char   *val = NULL;
     int32_t vlen = 0;
-    code = streamStateSessionGetKVByCur_rocksdb(pCurr, &key, (void **)&val, &vlen);
+    code = streamStateSessionGetKVByCur_rocksdb(NULL, pCurr, &key, (void **)&val, &vlen);
     ASSERT(code == 0);
     pCurr = streamStateSessionSeekKeyPrev_rocksdb(p, &key);
 
-    code = streamStateSessionGetKVByCur_rocksdb(pCurr, &key, (void **)&val, &vlen);
+    code = streamStateSessionGetKVByCur_rocksdb(NULL, pCurr, &key, (void **)&val, &vlen);
     ASSERT(code == 0);
 
     ASSERT(key.groupId == 0 && key.win.ekey == tsArray[tsArray.size() - 2]);
 
     pCurr = streamStateSessionSeekKeyNext_rocksdb(p, &key);
-    code = streamStateSessionGetKVByCur_rocksdb(pCurr, &key, (void **)&val, &vlen);
+    code = streamStateSessionGetKVByCur_rocksdb(NULL, pCurr, &key, (void **)&val, &vlen);
     ASSERT(code == 0);
     ASSERT(vlen == strlen("Value"));
     ASSERT(key.groupId == 0 && key.win.skey == tsArray[tsArray.size() - 1]);

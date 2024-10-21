@@ -133,4 +133,17 @@ if $data13 != -111 then
   goto loop1
 endi
 
+print step 2====================
+
+sql create database test  vgroups 1 ;
+sql use test;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql_error create stream streams1 trigger max_delay 4000a ignore update 0 ignore expired 0 into streamtST1 as select  _wstart, count(*) from st interval(5s);
+sql_error create stream streams2 trigger max_delay 4s ignore update 0 ignore expired 0 into streamtST2 as select  _wstart, count(*) from st interval(5s);
+sql create stream streams3 trigger max_delay 5000a ignore update 0 ignore expired 0 into streamtST3 as select  _wstart, count(*) from st interval(5s);
+sql create stream streams4 trigger max_delay 5s ignore update 0 ignore expired 0 into streamtST4 as select  _wstart, count(*) from st interval(5s);
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

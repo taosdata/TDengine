@@ -5,6 +5,10 @@ if(${TD_DARWIN})
     target_compile_options(executor PRIVATE -Wno-error=deprecated-non-prototype)
 endif(${TD_DARWIN})
 
+IF(${BUILD_WITH_ANALYSIS})
+  add_definitions(-DUSE_ANAL)
+ENDIF()
+
 target_link_libraries(executor
         PRIVATE os util common function parser planner qcom scalar nodes index wal tdb geometry
         )

@@ -289,7 +289,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
-    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTbInfo);
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);

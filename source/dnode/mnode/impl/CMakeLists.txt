@@ -15,6 +15,9 @@ IF (TD_ENTERPRISE)
     add_definitions(-DUSE_COS)
   ENDIF()
 
+  IF(${BUILD_WITH_ANALYSIS})
+    add_definitions(-DUSE_ANAL)
+  ENDIF()
 ENDIF ()
 
 add_library(mnode STATIC ${MNODE_SRC})

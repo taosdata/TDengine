@@ -8,15 +8,14 @@
 	"confirm_parameter_prompt": "no",
     "continue_if_fail": "yes",
 	"databases": "dbrate",
-	"query_times": 20,
+	"query_times": 5,
 	"query_mode": "taosc",
 	"specified_table_query": {
 		"query_interval": 0,
-		"concurrent": 10,
+		"threads": 10,
 		"sqls": [
 			{
-				"sql": "select count(*) from meters",
-				"result": "./query_result.txt"
+				"sql": "select count(*) from meters"
 			}
 		]
 	}

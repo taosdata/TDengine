@@ -746,13 +746,13 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
       return terrno;
     }
 
-    pOutputInfo->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    if (pOutputInfo->tbSink.pTblInfo == NULL) {
+    pOutputInfo->tbSink.pTbInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pOutputInfo->tbSink.pTbInfo == NULL) {
       tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
       return terrno;
     }
 
-    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTblInfo, freePtr);
+    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTbInfo, freePtr);
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {

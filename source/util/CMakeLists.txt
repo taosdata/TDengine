@@ -12,6 +12,10 @@ ELSE ()
     MESSAGE(STATUS "enable assert core")
 ENDIF (${ASSERT_NOT_CORE})
 
+if(${BUILD_WITH_ANALYSIS})
+  add_definitions(-DUSE_ANAL)
+endif()
+
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"

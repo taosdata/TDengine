@@ -302,7 +302,7 @@ SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  return streamStateGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  return streamStateGetKVByCur_rocksdb(getStateFileStore(pCur->pStreamFileState), pCur, pKey, pVal, pVLen);
 }
 
 int32_t streamStateFillGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
@@ -477,6 +477,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   if (!pStr) {
     if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       (*pWinCode) = TSDB_CODE_FAILED;
+      goto _end;
     }
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
@@ -528,6 +529,9 @@ void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
   }
   dst->dump = 1;
   dst->pTdbState->pOwner->pBackend = src->pTdbState->pOwner->pBackend;
+  dst->pResultRowStore.resultRowPut = src->pResultRowStore.resultRowPut;
+  dst->pResultRowStore.resultRowGet = src->pResultRowStore.resultRowGet;
+  dst->pExprSupp = src->pExprSupp;
   return;
 }
 SStreamStateCur* createStreamStateCursor() {

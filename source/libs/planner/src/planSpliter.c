@@ -939,6 +939,18 @@ static int32_t stbSplSplitCount(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   }
 }
 
+static int32_t stbSplSplitAnomalyForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t stbSplSplitAnomaly(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  if (pCxt->pPlanCxt->streamQuery) {
+    return stbSplSplitAnomalyForStream(pCxt, pInfo);
+  } else {
+    return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
+  }
+}
+
 static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -951,6 +963,8 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
       return stbSplSplitEvent(pCxt, pInfo);
     case WINDOW_TYPE_COUNT:
       return stbSplSplitCount(pCxt, pInfo);
+    case WINDOW_TYPE_ANOMALY:
+      return stbSplSplitAnomaly(pCxt, pInfo);
     default:
       break;
   }
@@ -2000,7 +2014,8 @@ typedef struct SQnodeSplitInfo {
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
-      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) &&
+      QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
       ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {
     pInfo->pSplitNode = pNode;
     pInfo->pSubplan = pSubplan;

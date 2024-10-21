@@ -236,7 +236,7 @@ typedef struct {
   void*           vnode;  // not available to encoder and decoder
   FTbSink*        tbSinkFunc;
   STSchema*       pTSchema;
-  SSHashObj*      pTblInfo;
+  SSHashObj*      pTbInfo;
 } STaskSinkTb;
 
 typedef struct {
