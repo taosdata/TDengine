@@ -3165,7 +3165,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   return dataLen;
 
 _exit:
-  uError("blockEncode dataLen:%d, dataBuflen:%" PRIx64, dataLen, dataBuflen);
+  uError("blockEncode dataLen:%d, dataBuflen:%" PRIu64, dataLen, dataBuflen);
   terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   return -1;
 }

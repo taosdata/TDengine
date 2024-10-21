@@ -84,10 +84,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
+    // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
     size_t dataEncodeBufSize = pBuf->allocSize + 8;
     if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       if (pHandle->pCompressBuf == NULL) {
-        // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
         pHandle->pCompressBuf = taosMemoryMalloc(dataEncodeBufSize);
         if (NULL == pHandle->pCompressBuf) {
           QRY_RET(terrno);

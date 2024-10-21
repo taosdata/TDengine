@@ -2362,7 +2362,7 @@ int32_t resultInfoSafeCheck(SReqResultInfo* pResultInfo) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    if (pResultInfo->fields[i].bytes <= 0) {
+    if (pResultInfo->fields[i].bytes < 0) {
       tscError("checkResultInfo error: bytes:%d <= 0", pResultInfo->fields[i].bytes);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
