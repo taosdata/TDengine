@@ -20,6 +20,8 @@
 
 extern SConfig *tsCfg;
 
+SMonVloadInfo tsVinfo = {0};
+
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
     dInfo("set local info, dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
@@ -142,9 +144,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
-  req.pVloads = vinfo.pVloads;
+  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+  req.pVloads = tsVinfo.pVloads;
+  tsVinfo.pVloads = NULL;
+  if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to unlock status info lock");
+    return;
+  }
 
   SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
@@ -187,6 +197,28 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
+}
+
+void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
+  SMonVloadInfo vinfo = {0};
+  dDebug("begin to get vnode loads");
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  dDebug("begin to lock status info");
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+  if (tsVinfo.pVloads == NULL) {
+    tsVinfo.pVloads = vinfo.pVloads;
+    vinfo.pVloads = NULL;
+  } else {
+    taosArrayDestroy(vinfo.pVloads);
+    vinfo.pVloads = NULL;
+  }
+  if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to unlock status info lock");
+    return;
+  }
 }
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
