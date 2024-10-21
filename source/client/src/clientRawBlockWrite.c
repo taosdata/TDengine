@@ -1728,7 +1728,7 @@ typedef enum {
   WRITE_RAW_INIT_START = 0,
   WRITE_RAW_INIT_OK,
   WRITE_RAW_INIT_FAIL,
-};
+} WRITE_RAW_INIT_STATUS;
 
 static SHashObj* writeRawCache = NULL;
 static int8_t    initFlag = 0;
