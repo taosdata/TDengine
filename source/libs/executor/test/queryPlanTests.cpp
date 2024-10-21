@@ -46,7 +46,7 @@
 
 namespace {
 
-#define QPT_MAX_LOOP          1000000
+#define QPT_MAX_LOOP          1000
 #define QPT_MAX_LEVEL_SUBPLAN_NUM 10
 #define QPT_MAX_SUBPLAN_LEVEL 5
 #define QPT_MAX_SUBPLAN_GROUP 5
@@ -256,7 +256,7 @@ SNode* qptCreateSubplanNode(int32_t nodeType);
 SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, QPT_PLAN_PHYSIC, "tagScan", qptCreateTagScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, QPT_PLAN_PHYSIC, "tableScan", qptCreateTableScanPhysiNode},
-  {QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, QPT_PLAN_PHYSIC, "tableSeqScan", qptCreateTableSeqScanPhysiNode},
+  {QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, QPT_PLAN_PHYSIC, "tableSeqScan", NULL /*qptCreateTableSeqScanPhysiNode*/ },
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, QPT_PLAN_PHYSIC, "tableMergeScan", qptCreateTableMergeScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, QPT_PLAN_PHYSIC, "streamScan", qptCreateStreamScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, QPT_PLAN_PHYSIC, "sysTableScan", qptCreateSysTableScanPhysiNode},
@@ -2975,6 +2975,159 @@ void qptHandleTestEnd() {
 
 }
 
+void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOperaotr) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      qptCtx.result.code = createTagScanOperatorInfo(pReadHandle, (STagScanPhysiNode*)pNode, NULL, NULL, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      qptCtx.result.code = createTableScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+      //qptCtx.result.code = createTableSeqScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      qptCtx.result.code = createTableMergeScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      qptCtx.result.code = createStreamScanOperatorInfo(pReadHandle, (STableScanPhysiNode*)pNode, NULL, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      qptCtx.result.code = createSysTableScanOperatorInfo(pReadHandle, (SSystemTableScanPhysiNode*)pNode, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+      qptCtx.result.code = createDataBlockInfoScanOperator(pReadHandle, (SBlockDistScanPhysiNode*)pNode, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+      qptCtx.result.code = createCacherowsScanOperator((SLastRowScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      qptCtx.result.code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
+      qptCtx.result.code = createMergeJoinOperatorInfo(NULL, 0, (SSortMergeJoinPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
+      SAggPhysiNode* pAggNode = (SAggPhysiNode*)pNode;
+      if (pAggNode->pGroupKeys != NULL) {
+        qptCtx.result.code = createGroupOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
+      } else {
+        qptCtx.result.code = createAggregateOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
+      }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+      qptCtx.result.code = createExchangeOperatorInfo(NULL, (SExchangePhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+      qptCtx.result.code = createMultiwayMergeOperatorInfo(NULL, 0, (SMergePhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+      qptCtx.result.code = createSortOperatorInfo(NULL, (SSortPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
+      qptCtx.result.code = createGroupSortOperatorInfo(NULL, (SGroupSortPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+      qptCtx.result.code = createIntervalOperatorInfo(NULL, (SIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      //qptCtx.result.code = createMergeIntervalOperatorInfo(NULL, (SMergeIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+      qptCtx.result.code = createMergeAlignedIntervalOperatorInfo(NULL, (SMergeAlignedIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      qptCtx.result.code = createStreamIntervalOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+      qptCtx.result.code = createStreamFinalIntervalOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, 0, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FILL:
+      qptCtx.result.code = createFillOperatorInfo(NULL, (SFillPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
+      qptCtx.result.code = createStreamFillOperatorInfo(NULL, (SStreamFillPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+      qptCtx.result.code = createSessionAggOperatorInfo(NULL, (SSessionWinodwPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
+      qptCtx.result.code = createStreamSessionAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+      qptCtx.result.code = createStreamFinalSessionAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, 0, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      qptCtx.result.code = createStreamFinalSessionAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, 0, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+      qptCtx.result.code = createStatewindowOperatorInfo(NULL, (SStateWinodwPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+      qptCtx.result.code = createStreamStateAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      qptCtx.result.code = createPartitionOperatorInfo(NULL, (SPartitionPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      qptCtx.result.code = createStreamPartitionOperatorInfo(NULL, (SStreamPartitionPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      qptCtx.result.code = createIndefinitOutputOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      qptCtx.result.code = createTimeSliceOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
+      DataSinkHandle handle = NULL;
+      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode*)pNode, &handle, NULL, NULL);
+      dsDestroyDataSinker(handle);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN: {
+      SSchJob job = {0};
+      qptCtx.result.code = schValidateAndBuildJob((SQueryPlan*)pNode, &job);
+      schFreeJobImpl(&job);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+      qptCtx.result.code = createTableCountScanOperatorInfo(pReadHandle, (STableCountScanPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+      qptCtx.result.code = createEventwindowOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+      qptCtx.result.code = createStreamEventAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+      qptCtx.result.code = createHashJoinOperatorInfo(NULL, 0, (SHashJoinPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
+      qptCtx.result.code = createGroupCacheOperatorInfo(NULL, 0, (SGroupCachePhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
+      qptCtx.result.code = createDynQueryCtrlOperatorInfo(NULL, 0, (SDynQueryCtrlPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+      qptCtx.result.code = createCountwindowOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      qptCtx.result.code = createStreamCountAggOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
+      break;
+    default:
+      assert(0);
+  }
+}
+
 void qptRunSingleOpTest() {
   SNode* pNode = NULL;
   SReadHandle readHandle = {0};
@@ -2992,8 +3145,8 @@ void qptRunSingleOpTest() {
   qptPrintBeginInfo();
 
   qptCtx.startTsUs = taosGetTimestampUs();
-  //qptCtx.result.code = createTagScanOperatorInfo(&readHandle, (STagScanPhysiNode*)pNode, NULL, NULL, NULL, pTaskInfo, &pOperator);
-  //qptCtx.result.code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pNode, pTaskInfo, &pOperator);
+
+  qptExecPlan(&readHandle, pNode, pTaskInfo, &pOperator);
 
   doDestroyTask(pTaskInfo);
   destroyOperator(pOperator);
@@ -3172,27 +3325,6 @@ TEST(singleNodeTest, randPlan) {
   qptPrintStatInfo(); 
 }
 #endif
-
-
-
-
-
-
-#if 0
-TEST(correctSingleNodeTest, tagScan) {
-  char* caseName = "correctSingleNodeTest:tagScan";
-
-  qptInitTestCtx(true, true, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, 0, NULL);
-  
-  for (qptCtx.loopIdx = 0; qptCtx.loopIdx < QPT_MAX_LOOP; ++qptCtx.loopIdx) {
-    qptRunPlanTest(caseName);
-  }
-
-  qptPrintStatInfo(caseName); 
-}
-#endif
-
-
 
 #endif
 

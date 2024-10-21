@@ -330,8 +330,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_EID(_task) ((_task) ? (_task)->execId : -1)
 
 #define SCH_IS_DATA_BIND_QRY_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
-#define SCH_IS_DATA_BIND_TASK(task) \
-  (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
+#define SCH_IS_DATA_BIND_PLAN(_plan) (((_plan)->subplanType == SUBPLAN_TYPE_SCAN) || ((_plan)->subplanType == SUBPLAN_TYPE_MODIFY))
+#define SCH_IS_DATA_BIND_TASK(task) SCH_IS_DATA_BIND_PLAN((task)->plan)
 #define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
 #define SCH_IS_DATA_MERGE_TASK(task)  (!SCH_IS_DATA_BIND_TASK(task))
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
@@ -641,6 +641,7 @@ void     schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
 int32_t  schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pTask);
 int32_t  schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 void     schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+int32_t  schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int32_t idx, int32_t taskNum);
 int32_t  schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t  schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void     schDirectPostJobRes(SSchedulerReq *pReq, int32_t errCode);

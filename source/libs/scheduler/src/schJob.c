@@ -200,7 +200,12 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         SSubplan *child = (SSubplan *)nodesListGetNode(pPlan->pChildren, n);
         if (NULL == child) {
           SCH_JOB_ELOG("fail to get the %dth child subplan, childNum: %d", n, childNum);
-          SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+          SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+        }
+
+        if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(child)) {
+          SCH_JOB_ELOG("invalid subplan type for the %dth child, level:%d, subplanNodeType:%d", n, i, nodeType(child));
+          SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
         }
 
         SSchTask **childTask = taosHashGet(planToTask, &child, POINTER_BYTES);
@@ -240,6 +245,11 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         if (NULL == parent) {
           SCH_JOB_ELOG("fail to get the %dth parent subplan, parentNum: %d", n, parentNum);
           SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+        }
+
+        if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(parent)) {
+          SCH_JOB_ELOG("invalid subplan type for the %dth parent, level:%d, subplanNodeType:%d", n, i, nodeType(parent));
+          SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
         }
 
         SSchTask **parentTask = taosHashGet(planToTask, &parent, POINTER_BYTES);
@@ -384,20 +394,8 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
     for (int32_t n = 0; n < taskNum; ++n) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
-      if (NULL == plan) {
-        SCH_JOB_ELOG("fail to get the %dth subplan, taskNum: %d, level: %d", n, taskNum, i);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      }
 
-      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(plan)) {
-        SCH_JOB_ELOG("invalid subplan type, level:%d, subplanNodeType:%d", i, nodeType(plan));
-        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
-
-      if (plan->subplanType < SUBPLAN_TYPE_MERGE || plan->subplanType > SUBPLAN_TYPE_COMPUTE) {
-        SCH_JOB_ELOG("invalid subplanType %d, level:%d, subplan idx:%d", plan->subplanType, i, n);
-        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
+      SCH_ERR_RET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
       
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
