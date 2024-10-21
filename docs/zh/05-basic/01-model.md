@@ -106,7 +106,7 @@ CREATE DATABASE power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
 ```
 该 SQL 将创建一个名为 `power` 的数据库，各参数说明如下：
 - `PRECISION 'ms'` ：这个数据库的时序数据使用毫秒（ms）精度的时间戳
-- `KEEP 365`：这个库的数据将保留 3650 天，超过 3650 天的数据将被自动删除
+- `KEEP 3650`：这个库的数据将保留 3650 天，超过 3650 天的数据将被自动删除
 - `DURATION 10` ：每 10 天的数据放在一个数据文件中
 - `BUFFER 16` ：写入使用大小为 16MB 的内存池。
 
