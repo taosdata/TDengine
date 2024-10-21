@@ -121,6 +121,7 @@ TAGS
 contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
+!contrib/azure-cmake
 sql
 debug*/
 .env
