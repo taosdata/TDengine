@@ -34,28 +34,6 @@ def exec(command, show=True):
         print(f"exec {command}\n")
     return os.system(command)
 
-# run return output and error
-def run(command, timeout = 60, show=True):
-    if(show):
-        print(f"run {command} timeout={timeout}s\n")    
-
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(timeout)
-
-    output = process.stdout.read().decode(encoding="gbk")
-    error = process.stderr.read().decode(encoding="gbk")
-
-    return output, error
-
-# return list after run
-def runRetList(command, timeout=10, first=True):
-    output,error = run(command, timeout)
-    if first:
-        return output.splitlines()
-    else:
-        return error.splitlines()
-
-
 def readFileContext(filename):
     file = open(filename)
     context = file.read()
@@ -77,6 +55,27 @@ def appendFileContext(filename, context):
         file.close()
     except:
         print(f"appand file error  context={context} .")
+
+# run return output and error
+def run(command, show=True):
+    # out to file
+    out = "out.txt"
+    err = "err.txt"
+    ret = exec(command + f" 1>{out} 2>{err}", True)
+
+    # read from file
+    output = readFileContext(out)
+    error  = readFileContext(err)
+
+    return output, error
+
+# return list after run
+def runRetList(command, first=True):
+    output,error = run(command)
+    if first:
+        return output.splitlines()
+    else:
+        return error.splitlines()
 
 def getFolderSize(folder):
     total_size = 0
@@ -134,8 +133,6 @@ def getMatch(datatype, algo):
 
 
 def generateJsonFile(algo):
-    print(f"doTest algo: {algo} \n")
-    
     # replace datatype
     context = readFileContext(templateFile)
     # replace compress
@@ -192,56 +189,61 @@ def findContextValue(context, label):
     ends = [',','}',']', 0]
     while context[end] not in ends:
         end += 1
-
-    print(f"start = {start} end={end}\n")
     return context[start:end]
 
 
 def writeTemplateInfo(resultFile):
     # create info
     context = readFileContext(templateFile)
+    dbname     = findContextValue(context, "name")
     vgroups    = findContextValue(context, "vgroups")
     childCount = findContextValue(context, "childtable_count")
     insertRows = findContextValue(context, "insert_rows")
     line = f"vgroups = {vgroups}\nchildtable_count = {childCount}\ninsert_rows = {insertRows}\n\n"
     print(line)
     appendFileContext(resultFile, line)
+    return dbname
 
 
 def totalCompressRate(algo, resultFile, writeSpeed, querySpeed):
     global Number
-    # flush
-    command = 'taos -s "flush database dbrate;"'
-    rets = exec(command)
-    command = 'taos -s "compact database dbrate;"'
-    rets = exec(command)
-    waitCompactFinish(60)
+    loop = 30
 
-    # read compress rate
-    command = 'taos -s "show table distributed dbrate.meters\G;"'
-    rets = runRetList(command)
-    print(rets)
 
-    str1 = rets[5]
-    arr = str1.split(" ")
+    while  loop > 0:
+        loop -= 1
 
-    # Total_Size KB
-    str2 = arr[2]
-    pos  = str2.find("=[")
-    totalSize = int(float(str2[pos+2:])/1024)
+        # flush database
+        command = 'taos -s "flush database dbrate;"'
+        exec(command)
+        time.sleep(1)
 
-    # Compression_Ratio
-    str2 = arr[6]
-    pos  = str2.find("=[")
-    rate = str2[pos+2:]
-    print("rate =" + rate)
+        # read compress rate
+        command = 'taos -s "show table distributed dbrate.meters\G;"'
+        rets = runRetList(command)
+        print(rets)
 
-    # total data file size
-    #dataSize = getFolderSize(f"{dataDir}/vnode/")
-    #dataSizeMB = int(dataSize/1024/1024)
+        str1 = rets[5]
+        arr = str1.split(" ")
 
-    # appand to file
-    
+        # Total_Size KB
+        str2 = arr[2]
+        pos  = str2.find("=[")
+        totalSize = int(float(str2[pos+2:])/1024)
+
+        # Compression_Ratio
+        str2 = arr[6]
+        pos  = str2.find("=[")
+        rate = str2[pos+2:]
+        print("rate =" + rate)
+        if rate != "0.00":
+            break
+
+        # total data file size
+        #dataSize = getFolderSize(f"{dataDir}/vnode/")
+        #dataSizeMB = int(dataSize/1024/1024)
+
+    # appand to file    
     Number += 1
     context =  "%10s %10s %10s %10s %30s %15s\n"%( Number, algo, str(totalSize)+" MB", rate+"%", writeSpeed + " Records/second", querySpeed)
     showLog(context)
@@ -273,18 +275,22 @@ def testWrite(jsonFile):
 
     speed = context[pos: end]
     #print(f"write pos ={pos} end={end} speed={speed}\n output={context} \n")
+
+    # flush database
+    command = 'taos -s "flush database dbrate;"'
+    exec(command)
     return speed
 
 def testQuery():
     command = f"taosBenchmark -f json/query.json"
-    lines = runRetList(command, 60000)
+    lines = runRetList(command)
     # INFO: Spend 6.7350 second completed total queries: 10, the QPS of all threads:      1.485
     speed = None
 
-    for i in range(20, len(lines)):        
+    for i in range(0, len(lines)):
         # find second real
+        context = lines[i]
         pos = context.find("the QPS of all threads:")
-        context = lines[26]
         if pos == -1 :
             continue
         pos += 24
@@ -300,8 +306,6 @@ def testQuery():
 
 def doTest(algo, resultFile):
     print(f"doTest algo: {algo} \n")
-    #cleanAndStartTaosd()
-
 
     # json
     jsonFile = generateJsonFile(algo)

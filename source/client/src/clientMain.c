@@ -84,7 +84,7 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
-  cleanupAppInfo();
+//  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
