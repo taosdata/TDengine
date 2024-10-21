@@ -18,6 +18,14 @@
 extern "C" {
 #endif
 
+#ifdef TD_ACORE
+#include "tmsg.h"
+#include "transLog.h"
+#include "transportInt.h"
+#include "trpc.h"
+#include "ttrace.h"
+
+#else
 #include <uv.h>
 #include "theap.h"
 #include "tmsg.h"
@@ -25,6 +33,7 @@ extern "C" {
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
+#endif
 
 typedef bool (*FilteFunc)(void* arg);
 
@@ -229,7 +238,12 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
+#ifdef TD_ACORE
+typedef struct SConnBuffer {
+  char* buf;
+} SConnBuffer;
 
+#else
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -301,6 +315,7 @@ int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
 int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
+#endif
 
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
@@ -342,8 +357,8 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // request list
 typedef struct STransReq {
-  queue      q;
-  uv_write_t wreq;
+  queue q;
+  // uv_write_t wreq;
 } STransReq;
 
 void  transReqQueueInit(queue* q);
@@ -405,6 +420,7 @@ typedef struct STaskArg {
   void* param2;
 } STaskArg;
 
+#ifndef TD_ACORE
 typedef struct SDelayTask {
   void (*func)(void* arg);
   void*    arg;
@@ -423,6 +439,7 @@ void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
+#endif
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 
 bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);

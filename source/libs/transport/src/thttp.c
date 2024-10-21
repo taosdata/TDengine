@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+#ifndef TD_ACORE
 #include <uv.h>
 #include "zlib.h"
 #include "thttp.h"
@@ -868,3 +869,19 @@ void taosDestroyHttpChan(int64_t chanId) {
   TAOS_UNUSED(taosReleaseRef(httpRefMgt, chanId));
   TAOS_UNUSED(taosRemoveRef(httpRefMgt, chanId));
 }
+#else
+#include "thttp.h"
+#include "taoserror.h"
+#include "transComm.h"
+#include "zlib.h"
+void    transHttpEnvDestroy() { return; }
+int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                           EHttpCompFlag flag) {
+  return 0;
+}
+int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                  EHttpCompFlag flag, const char* qid) {
+  return 0;
+}
+
+#endif
