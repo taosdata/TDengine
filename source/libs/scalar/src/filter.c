@@ -4531,6 +4531,38 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool processPrimaryKeyInCondition(SNode *pNode, STimeWindow *win) {
+    SOperatorNode *optNode = (SOperatorNode *)pNode;
+    if (optNode->pLeft == NULL || optNode->pRight == NULL) {
+        return false;
+    }
+    SNodeListNode *valueListNode = (SNodeListNode *)(optNode->pRight);
+    if (valueListNode == NULL || valueListNode->pNodeList == NULL) {
+        return false;
+    }
+    SNodeList *valueList = valueListNode->pNodeList;
+    if (valueList->length == 0) {
+        return false;
+    }
+    int64_t minTs = INT64_MAX;
+    int64_t maxTs = INT64_MIN;
+    SNode *node = NULL;
+    FOREACH(node, valueList) {
+      int64_t tsValue = 0;
+      SValueNode *valueNode = (SValueNode*)node;
+      tsValue = valueNode->datum.i;
+      if (tsValue < minTs) {
+          minTs = tsValue;
+      }
+      if (tsValue > maxTs) {
+          maxTs = tsValue;
+      }
+    }
+    win->skey = minTs;
+    win->ekey = maxTs;
+    return true;
+}
+
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -4541,6 +4573,8 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
 
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
+    SLogicConditionNode *node = (SLogicConditionNode*)pNode;
+    SOperatorNode *optNode = (SOperatorNode *) pNode;
     if (taosArrayGetSize(colRanges) == 1) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
       if (NULL == colRange) {
@@ -4566,6 +4600,12 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         *win = TSWINDOW_DESC_INITIALIZER;
         goto _return;
       }
+    } else if (filterClassifyCondition(pNode) == COND_TYPE_PRIMARY_KEY
+              && node->node.type == QUERY_NODE_OPERATOR && optNode->opType == OP_TYPE_IN) {
+        if(processPrimaryKeyInCondition(pNode, win)) {
+          *isStrict =false;
+          goto _return;
+        }
     }
     *win = TSWINDOW_INITIALIZER;
     *isStrict = false;
