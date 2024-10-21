@@ -1,161 +1,396 @@
-hello
-hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello
-aa
-g;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddh
-gaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddh
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddgh
-6400
-50060
-北京taos北京taos北京taos北京taos北京taos北京taos
-novelnovelnovelnovelnovelnovel
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdateupdateupdateupdate
-prisionprisionprisionprisionprisionprision
-novelnovelnovelnovelnovelnovel
-novelnovelnovelnovelnovelnovel
-personpersonpersonpersonpersonperson
-novelnovelnovelnovelnovelnovel
-plateplateplateplateplateplate
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-1
-一二三四五六七八九十
-updateupdate
-prisionprisionprision
-novelnovelnovelnovel
-novelnovelnovelnovelnovel
-person
-novelnovel
-plateplateplate
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdateupdateupdate
-nch1
-nch1nch1
-nch1nch1nch1
-nch1nch1nch1nch1
-nch1nch1nch1nch1nch1
-var1
-var1var1
-var1var1var1
-var1var1var1var1
-var1var1var1var1var1
-taos
-taostaos
-lililililili
-xxx
-lililililili
-xxx
-lililililili
-taostaostaos
-hahahahahaha
-taostaostaos
-taostaostaos
-hahahahahaha
-lililililili
-xxx
-lililililili
-xxx
-lililililili
-taostaostaos
-hahahahahaha
-taostaostaos
-taostaostaos
-hahahahahaha
-novelnovelnovel
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdate
-prisionprisionprision
-novelnovelnovel
-novelnovelnovel
-againagainagain
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-novelnovelnovel
-againagainagain
-novelnovelnovel
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdate
-prisionprisionprision
-novelnovelnovel
-novelnovelnovel
-againagainagain
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-novelnovelnovel
-againagainagain
-novelnovelnovel
-personpersonperson
-novelnovelnovel
-plateplateplate
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdate
-prisionprisionprision
-personpersonperson
-prisionprisionprision
-plateplateplate
-novelnovelnovel
-personpersonperson
-novelnovelnovel
-plateplateplate
-一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十
-updateupdateupdate
-prisionprisionprision
-personpersonperson
-prisionprisionprision
-plateplateplate
-lili
-x
-lili
-x
-lili
-taos
-haha
-taos
-taos
-haha
-lili
-x
-lili
-x
-lili
-taos
-haha
-taos
-taos
-haha
-novel
-一二三四五六七八九十
-update
-prision
-novel
-novel
-again
-一二三四五六七八九十
-novel
-again
-novel
-一二三四五六七八九十
-update
-prision
-novel
-novel
-again
-一二三四五六七八九十
-novel
-again
+
+taos> select repeat('hello', 1)
+ repeat('hello', 1) |
+=====================
+ hello              |
+
+taos> select repeat('hello', 20)
+      repeat('hello', 20)       |
+=================================
+ hellohellohellohellohellohe... |
+
+taos> SELECT REPEAT('a', 2)
+ repeat('a', 2) |
+=================
+ aa             |
+
+taos> SELECT CONCAT('g',CONCAT(';',repeat('a',60), repeat('b',60), repeat('c',60), repeat ('d',100)),'h')
+ concat('g',concat(';',repeat('a',60), repeat('b',60), repeat('c' |
+===================================================================
+ g;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa... |
+
+taos> SELECT CONCAT('g',CONCAT_WS(';',repeat('a',60), repeat('b',60), repeat('c',60), repeat ('d',100)),'h')
+ concat('g',concat_ws(';',repeat('a',60), repeat('b',60), repeat( |
+===================================================================
+ gaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa... |
+
+taos> SELECT CONCAT_WS('g',CONCAT_WS(';',repeat('a',60), repeat('b',60), repeat('c',60), repeat ('d',100)),'h')
+ concat_ws('g',concat_ws(';',repeat('a',60), repeat('b',60), repe |
+===================================================================
+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;... |
+
+taos> select length(concat(repeat("a",3200),repeat("a",3200)))
+ length(concat(repeat("a",3200),repeat("a",3200))) |
+====================================================
+                                              6400 |
+
+taos> select length(replace("aaaaa","a",concat(repeat("a",10000),repeat("a",12))))
+ length(replace("aaaaa","a",concat(repeat("a",10000),repeat("a",1 |
+===================================================================
+                                                            50060 |
+
+taos> select repeat('北京taos', 6)
+    repeat('北京taos', 6)     |
+=================================
+ 北京taos北京taos北京taos北...  |
+
+taos> select repeat(nch1, 6) from ts_4893.meters order by ts limit 5
+        repeat(nch1, 6)         |
+=================================
+ novelnovelnovelnovelnovelnovel |
+ 一二三四五六七八九十一二三...  |
+ updateupdateupdateupdateupd... |
+ prisionprisionprisionprisio... |
+ novelnovelnovelnovelnovelnovel |
+
+taos> select repeat(var1, 6) from ts_4893.meters order by ts limit 5
+        repeat(var1, 6)         |
+=================================
+ novelnovelnovelnovelnovelnovel |
+ personpersonpersonpersonper... |
+ novelnovelnovelnovelnovelnovel |
+ plateplateplateplateplateplate |
+ 一二三四五六七八九十一二三...  |
+
+taos> select position(nch1 in repeat(nch1,6)) from ts_4893.meters order by ts limit 5
+ position(nch1 in repeat(nch1,6)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+
+taos> select position(var1 in repeat(var1,6)) from ts_4893.meters order by ts limit 5
+ position(var1 in repeat(var1,6)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+
+taos> select position(nch1 in repeat(var1,6)) from ts_4893.meters where nch1 = var1 order by ts limit 5
+ position(nch1 in repeat(var1,6)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+
+taos> select position(var1 in repeat(nch1,6)) from ts_4893.meters where nch1 = var1 order by ts limit 5
+ position(var1 in repeat(nch1,6)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+
+taos> select repeat(nch1, id) from ts_4893.meters where id > 0 order by ts limit 5
+        repeat(nch1, id)        |
+=================================
+ 一二三四五六七八九十           |
+ updateupdate                   |
+ prisionprisionprision          |
+ novelnovelnovelnovel           |
+ novelnovelnovelnovelnovel      |
+
+taos> select repeat(var1, id) from ts_4893.meters where id > 0 order by ts limit 5
+ repeat(var1, id) |
+===================
+ person           |
+ novelnovel       |
+ plateplateplate  |
+ 一二三四五六...  |
+ updateupdateu... |
+
+taos> select repeat('nch1', id) from ts_4893.meters where id > 0 order by ts limit 5
+       repeat('nch1', id)       |
+=================================
+ nch1                           |
+ nch1nch1                       |
+ nch1nch1nch1                   |
+ nch1nch1nch1nch1               |
+ nch1nch1nch1nch1nch1           |
+
+taos> select repeat('var1', id) from ts_4893.meters where id > 0 order by ts limit 5
+       repeat('var1', id)       |
+=================================
+ var1                           |
+ var1var1                       |
+ var1var1var1                   |
+ var1var1var1var1               |
+ var1var1var1var1var1           |
+
+taos> select repeat('taos', 1)
+ repeat('taos', 1) |
+====================
+ taos              |
+
+taos> select repeat('taos', 2)
+ repeat('taos', 2) |
+====================
+ taostaos          |
+
+taos> select repeat(name, 3) from ts_4893.d0 order by ts limit 10
+        repeat(name, 3)         |
+=================================
+ lililililili                   |
+ xxx                            |
+ lililililili                   |
+ xxx                            |
+ lililililili                   |
+ taostaostaos                   |
+ hahahahahaha                   |
+ taostaostaos                   |
+ taostaostaos                   |
+ hahahahahaha                   |
+
+taos> select repeat(name, 3) from ts_4893.meters order by ts limit 10
+        repeat(name, 3)         |
+=================================
+ lililililili                   |
+ xxx                            |
+ lililililili                   |
+ xxx                            |
+ lililililili                   |
+ taostaostaos                   |
+ hahahahahaha                   |
+ taostaostaos                   |
+ taostaostaos                   |
+ hahahahahaha                   |
+
+taos> select repeat(nch1, 3) from ts_4893.d0 order by ts limit 10
+        repeat(nch1, 3)         |
+=================================
+ novelnovelnovel                |
+ 一二三四五六七八九十一二三...  |
+ updateupdateupdate             |
+ prisionprisionprision          |
+ novelnovelnovel                |
+ novelnovelnovel                |
+ againagainagain                |
+ 一二三四五六七八九十一二三...  |
+ novelnovelnovel                |
+ againagainagain                |
+
+taos> select repeat(nch1, 3) from ts_4893.meters order by ts limit 10
+        repeat(nch1, 3)         |
+=================================
+ novelnovelnovel                |
+ 一二三四五六七八九十一二三...  |
+ updateupdateupdate             |
+ prisionprisionprision          |
+ novelnovelnovel                |
+ novelnovelnovel                |
+ againagainagain                |
+ 一二三四五六七八九十一二三...  |
+ novelnovelnovel                |
+ againagainagain                |
+
+taos> select repeat(var1, 3) from ts_4893.d0 order by ts limit 10
+        repeat(var1, 3)         |
+=================================
+ novelnovelnovel                |
+ personpersonperson             |
+ novelnovelnovel                |
+ plateplateplate                |
+ 一二三四五六七八九十一二三...  |
+ updateupdateupdate             |
+ prisionprisionprision          |
+ personpersonperson             |
+ prisionprisionprision          |
+ plateplateplate                |
+
+taos> select repeat(var1, 3) from ts_4893.meters order by ts limit 10
+        repeat(var1, 3)         |
+=================================
+ novelnovelnovel                |
+ personpersonperson             |
+ novelnovelnovel                |
+ plateplateplate                |
+ 一二三四五六七八九十一二三...  |
+ updateupdateupdate             |
+ prisionprisionprision          |
+ personpersonperson             |
+ prisionprisionprision          |
+ plateplateplate                |
+
+taos> select repeat(name, groupid) from ts_4893.d0 order by ts limit 10
+ repeat(name, groupid) |
+========================
+ lili                  |
+ x                     |
+ lili                  |
+ x                     |
+ lili                  |
+ taos                  |
+ haha                  |
+ taos                  |
+ taos                  |
+ haha                  |
+
+taos> select repeat(name, groupid) from ts_4893.meters order by ts limit 10
+ repeat(name, groupid) |
+========================
+ lili                  |
+ x                     |
+ lili                  |
+ x                     |
+ lili                  |
+ taos                  |
+ haha                  |
+ taos                  |
+ taos                  |
+ haha                  |
+
+taos> select repeat(nch1, groupid) from ts_4893.d0 order by ts limit 10
+     repeat(nch1, groupid)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select repeat(nch1, groupid) from ts_4893.meters order by ts limit 10
+     repeat(nch1, groupid)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select repeat(null, 3)
+ repeat(null, 3) |
+==================
+ NULL            |
+
+taos> select repeat('taos', null)
+ repeat('taos', null) |
+=======================
+ NULL                 |
+
+taos> select repeat('taos', 0)
+ repeat('taos', 0) |
+====================
+                   |
+
+taos> select repeat('', 5)
+ repeat('', 5) |
+================
+               |
+
+taos> select repeat('A', 0)
+ repeat('A', 0) |
+=================
+                |
+
+taos> select repeat('A', 10)
+        repeat('A', 10)         |
+=================================
+ AAAAAAAAAA                     |
+
+taos> select repeat('A B', 5)
+     repeat('A B', 5)      |
+============================
+ A BA BA BA BA B           |
+
+taos> select repeat('ABC', 1)
+ repeat('ABC', 1) |
+===================
+ ABC              |
+
+taos> select repeat('Hello', 2)
+ repeat('Hello', 2) |
+=====================
+ HelloHello         |
+
+taos> select repeat('HelloWorld', 2)
+ repeat('HelloWorld', 2)  |
+===========================
+ HelloWorldHelloWorld     |
+
+taos> select repeat('123', 5)
+     repeat('123', 5)      |
+============================
+ 123123123123123           |
+
+taos> select repeat('12345', 3)
+  repeat('12345', 3)   |
+========================
+ 123451234512345       |
+
+taos> select repeat('!@#', 3)
+ repeat('!@#', 3) |
+===================
+ !@#!@#!@#        |
+
+taos> select repeat('你好', 2)
+ repeat('你好', 2) |
+======================
+ 你好你好            |
+
+taos> select repeat('abc', length('abc'))
+ repeat('abc', length('abc')) |
+===============================
+ abcabcabc                    |
+
+taos> select repeat(concat('A', 'B', 'C'), 3)
+ repeat(concat('A', 'B', 'C'), 3) |
+===================================
+ ABCABCABC                        |
+
+taos> select repeat(upper('abc'), 4)
+ repeat(upper('abc'), 4) |
+==========================
+ ABCABCABCABC            |
+
+taos> select repeat(trim('  Hello  '), 3)
+  repeat(trim('  Hello  '), 3)  |
+=================================
+ HelloHelloHello                |
+
+taos> select name, repeat(name, 3) from ts_4893.meters limit 1
+              name              |        repeat(name, 3)         |
+==================================================================
+ lili                           | lililililili                   |
+
+taos> select name, repeat(substring(name, 1, 5), 2) from ts_4893.meters limit 1
+              name              | repeat(substring(name, 1, 5), 2) |
+====================================================================
+ lili                           | lililili                         |
+
+taos> select var1, repeat(var1, 2) from ts_4893.meters limit 1
+              var1              |        repeat(var1, 2)         |
+==================================================================
+ novel                          | novelnovel                     |
+
+taos> select nch1, repeat(nch1, 4) from ts_4893.meters limit 1
+              nch1              |        repeat(nch1, 4)         |
+==================================================================
+ novel                          | novelnovelnovelnovel           |
+

@@ -1,18 +1,37 @@
-select WEEKOFYEAR('2020-01-01 00:00:00');
-select WEEKOFYEAR('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR('2021-01-01 00:00:00');
-select WEEKOFYEAR('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR('1998-01-01 00:00:00');
-select WEEKOFYEAR('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR('1998-12-31 00:00:00');
-select WEEKOFYEAR('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR('2000-01-06 00:00:00');
-select WEEKOFYEAR('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR(1725095657);
-select WEEKOFYEAR(1725095657) from ts_4893.meters order by ts limit 10;
-select WEEKOFYEAR(ts) from ts_4893.meters order by ts limit 10;
-select weekofyear('2020-01-01');
-select weekofyear(1721020666);
-select weekofyear(1721020666229);
-select weekofyear(ts) from ts_4893.d0 order by ts limit 10;
-select weekofyear(ts) from ts_4893.meters order by ts limit 10;
+select WEEKOFYEAR('2020-01-01 00:00:00')
+select WEEKOFYEAR('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR('2021-01-01 00:00:00')
+select WEEKOFYEAR('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR('1998-01-01 00:00:00')
+select WEEKOFYEAR('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR('1998-12-31 00:00:00')
+select WEEKOFYEAR('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR('2000-01-06 00:00:00')
+select WEEKOFYEAR('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR(1725095657)
+select WEEKOFYEAR(1725095657) from ts_4893.meters order by ts limit 10
+select WEEKOFYEAR(ts) from ts_4893.meters order by ts limit 10
+select weekofyear('2020-01-01')
+select weekofyear(1721020666)
+select weekofyear(1721020666229)
+select weekofyear(ts) from ts_4893.d0 order by ts limit 10
+select weekofyear(ts) from ts_4893.meters order by ts limit 10
+select weekofyear(null)
+select weekofyear('1721020591')
+select weekofyear('1721020666229')
+select weekofyear('abc')
+select weekofyear('01/01/2020')
+select weekofyear('20200101')
+select weekofyear('20/01/01')
+select weekofyear('11/01/31')
+select weekofyear('01-JAN-20')
+select weekofyear('2024-02-29')
+select weekofyear('2024-01-01')
+select weekofyear('2024-12-31')
+select weekofyear('9999-12-31')
+select weekofyear(name) from ts_4893.meters limit 1
+select weekofyear(ts) from ts_4893.meters limit 1
+select weekofyear(ts), dayofweek(ts) from ts_4893.meters limit 1
+select weekofyear(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
+select id, weekofyear(ts) from ts_4893.meters where id = 1 limit 1
+select groupid, sum(weekofyear(ts)) from ts_4893.meters group by groupid order by groupid

@@ -1,25 +1,38 @@
-select CHAR_LENGTH('hello');
-select CHAR_LENGTH('hello world');
-select CHAR_LENGTH('hello world!');
-select CHAR_LENGTH('hello,world.你好，世界。');
-select CHAR_LENGTH('北京涛思数据科技有限公司');
-select CHAR_LENGTH('hello') + 1;
-select CHAR_LENGTH('hello') - 1;
-select CHAR_LENGTH('hello') from ts_4893.meters limit 5;
-select CHAR_LENGTH('hello') + 1 from ts_4893.meters limit 1;
-select CHAR_LENGTH('hello') + CHAR_LENGTH('hello') from ts_4893.meters limit 1;
-select CHAR_LENGTH(nch1) from ts_4893.meters order by ts limit 5;
-select CHAR_LENGTH(var1) from ts_4893.meters order by ts limit 5;
-select CHAR_LENGTH(concat(nch1,var1)) from ts_4893.meters order by ts limit 5;
-select CHAR_LENGTH(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 5;
-select pow(CHAR_LENGTH(nch1), 2) from ts_4893.meters order by ts limit 5;
-select sqrt(CHAR_LENGTH(nch1)) from ts_4893.meters order by ts limit 5;
-select cast(CHAR_LENGTH(nch1) as int) from ts_4893.meters order by ts limit 5;
-select char_length('taos');
-select char_length('涛思');
-select char_length('涛思taos');
-select char_length('tao\'s');
-select char_length(nch1) from ts_4893.d0 limit 10;
-select char_length(nch1) from ts_4893.meters limit 10;
-select char_length(var1) from ts_4893.d0 limit 10;
-select char_length(var1) from ts_4893.meters limit 10;
+select CHAR_LENGTH('hello')
+select CHAR_LENGTH('hello world')
+select CHAR_LENGTH('hello world!')
+select CHAR_LENGTH('hello,world.你好，世界。')
+select CHAR_LENGTH('北京涛思数据科技有限公司')
+select CHAR_LENGTH('hello') + 1
+select CHAR_LENGTH('hello') - 1
+select CHAR_LENGTH('hello') from ts_4893.meters limit 5
+select CHAR_LENGTH('hello') + 1 from ts_4893.meters limit 1
+select CHAR_LENGTH('hello') + CHAR_LENGTH('hello') from ts_4893.meters limit 1
+select CHAR_LENGTH(nch1) from ts_4893.meters order by ts limit 5
+select CHAR_LENGTH(var1) from ts_4893.meters order by ts limit 5
+select CHAR_LENGTH(concat(nch1,var1)) from ts_4893.meters order by ts limit 5
+select CHAR_LENGTH(cast(nch1 as varchar)) from ts_4893.meters order by ts limit 5
+select pow(CHAR_LENGTH(nch1), 2) from ts_4893.meters order by ts limit 5
+select sqrt(CHAR_LENGTH(nch1)) from ts_4893.meters order by ts limit 5
+select cast(CHAR_LENGTH(nch1) as int) from ts_4893.meters order by ts limit 5
+select char_length('taos')
+select char_length('涛思')
+select char_length('涛思taos')
+select char_length('tao\'s')
+select char_length(nch1) from ts_4893.d0 limit 10
+select char_length(nch1) from ts_4893.meters limit 10
+select char_length(var1) from ts_4893.d0 limit 10
+select char_length(var1) from ts_4893.meters limit 10
+select char_length(null)
+select char_length('')
+select char_length('あいうえお')
+select min(char_length(name)) from ts_4893.meters
+select max(char_length(name)) from ts_4893.meters
+select trim(name), char_length(trim(name)) from ts_4893.meters limit 1
+select upper(name), char_length(upper(name)) from ts_4893.meters limit 1
+select concat(name, ' - ', location), char_length(concat(name, ' - ', location)) from ts_4893.meters limit 1
+select substring(name, 1, 5), char_length(substring(name, 1, 5)) from ts_4893.meters limit 1
+select name, char_length(name) from ts_4893.meters limit 1
+select nch1, char_length(nch1) from ts_4893.meters limit 1
+select groupid, max(char_length(name)) from ts_4893.meters group by groupid order by ts
+select location, avg(char_length(name)) from ts_4893.meters group by location order by location

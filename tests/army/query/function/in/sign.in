@@ -1,36 +1,48 @@
-select SIGN(0);
-select SIGN(1);
-select SIGN(1.5);
-select SIGN(100);
-select SIGN(-1);
-select SIGN(-1.5);
-select SIGN(-100);
-select SIGN(1) + 1;
-select SIGN(1) - 1;
-select SIGN(1) * 1;
-select SIGN(1) / 1;
-select SIGN(1) from ts_4893.meters limit 5;
-select SIGN(1) + 1 from ts_4893.meters limit 1;
-select SIGN(1) - 1 from ts_4893.meters limit 1;
-select SIGN(1) * 2 from ts_4893.meters limit 1;
-select SIGN(1) / 2 from ts_4893.meters limit 1;
-select SIGN(2) + SIGN(1) from ts_4893.meters limit 1;
-select SIGN(2) - SIGN(1) from ts_4893.meters limit 1;
-select SIGN(2) * SIGN(1) from ts_4893.meters limit 1;
-select SIGN(2) / SIGN(1) from ts_4893.meters limit 1;
-select SIGN(1) + id from ts_4893.meters order by ts limit 5;
-select SIGN(id) + id from ts_4893.meters order by ts limit 5;
-select SIGN(abs(10));
-select SIGN(abs(-10));
-select abs(SIGN(10));
-select pow(SIGN(10), 2);
-select sqrt(SIGN(10));
-select cast(SIGN(10) as int);
-select SIGN(sqrt(id)) from ts_4893.meters order by ts limit 5;
-select SIGN(SIGN(SIGN(SIGN(0))));
-select sign(1);
-select sign(10);
-select sign(-1);
-select sign(-10);
-select sign(current) from ts_4893.d0 order by ts limit 10;
-select sign(current) from ts_4893.meters order by ts limit 10;
+select SIGN(0)
+select SIGN(1)
+select SIGN(1.5)
+select SIGN(100)
+select SIGN(-1)
+select SIGN(-1.5)
+select SIGN(-100)
+select SIGN(1) + 1
+select SIGN(1) - 1
+select SIGN(1) * 1
+select SIGN(1) / 1
+select SIGN(1) from ts_4893.meters limit 5
+select SIGN(1) + 1 from ts_4893.meters limit 1
+select SIGN(1) - 1 from ts_4893.meters limit 1
+select SIGN(1) * 2 from ts_4893.meters limit 1
+select SIGN(1) / 2 from ts_4893.meters limit 1
+select SIGN(2) + SIGN(1) from ts_4893.meters limit 1
+select SIGN(2) - SIGN(1) from ts_4893.meters limit 1
+select SIGN(2) * SIGN(1) from ts_4893.meters limit 1
+select SIGN(2) / SIGN(1) from ts_4893.meters limit 1
+select SIGN(1) + id from ts_4893.meters order by ts limit 5
+select SIGN(id) + id from ts_4893.meters order by ts limit 5
+select SIGN(abs(10))
+select SIGN(abs(-10))
+select abs(SIGN(10))
+select pow(SIGN(10), 2)
+select sqrt(SIGN(10))
+select cast(SIGN(10) as int)
+select SIGN(sqrt(id)) from ts_4893.meters order by ts limit 5
+select SIGN(SIGN(SIGN(SIGN(0))))
+select sign(1)
+select sign(10)
+select sign(-1)
+select sign(-10)
+select sign(current) from ts_4893.d0 order by ts limit 10
+select sign(current) from ts_4893.meters order by ts limit 10
+select sign(null)
+select sign(25)
+select sign(-10)
+select sign(0.1)
+select sign(-0.1)
+select sign(current) from ts_4893.meters limit 1
+select sign(voltage) from ts_4893.meters limit 1
+select sign(phase) from ts_4893.meters limit 1
+select sign(abs(voltage)) from ts_4893.meters limit 1
+select sign(round(current)) from ts_4893.meters limit 1
+select sign(sqrt(voltage)) from ts_4893.meters limit 1
+select sign(log(current + 1)) from ts_4893.meters limit 1
