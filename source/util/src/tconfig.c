@@ -533,13 +533,13 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope, int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope, .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
 
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope) {
+                    int8_t dynScope, int8_t category) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
@@ -554,7 +554,7 @@ int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t
 }
 
 int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope) {
+                    int8_t dynScope, int8_t category) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
@@ -569,7 +569,7 @@ int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t
 }
 
 int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
-                    int8_t dynScope) {
+                    int8_t dynScope, int8_t category) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
@@ -583,7 +583,8 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float min
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+                     int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope};
   item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
@@ -592,25 +593,29 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, in
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+                  int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_DIR, .scope = scope, .dynScope = dynScope};
   TAOS_CHECK_RETURN(cfgCheckAndSetDir(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+                     int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope, .dynScope = dynScope};
   TAOS_CHECK_RETURN(cfgCheckAndSetConf(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+                      int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .scope = scope, .dynScope = dynScope};
   TAOS_CHECK_RETURN(cfgCheckAndSetConf(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+                       int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .scope = scope, .dynScope = dynScope};
   TAOS_CHECK_RETURN(cfgCheckAndSetConf(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
