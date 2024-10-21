@@ -444,7 +444,7 @@ int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
       } else {
         (void)snprintf(fileName, PATH_MAX, "%s%s", path, tmp);
       }
-      if (!azGetObjectToFile(blobName.c_str(), fileName)) {
+      if (azGetObjectToFile(blobName.c_str(), fileName)) {
         TAOS_RETURN(TSDB_CODE_FAILED);
       }
     }
