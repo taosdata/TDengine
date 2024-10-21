@@ -705,23 +705,23 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       code = makeNode(type, sizeof(SFillPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-      code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SSessionWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-      code = makeNode(type, sizeof(SStreamSessionWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SStreamSessionWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-      code = makeNode(type, sizeof(SStreamSemiSessionWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SStreamSemiSessionWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      code = makeNode(type, sizeof(SStreamFinalSessionWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SStreamFinalSessionWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-      code = makeNode(type, sizeof(SStateWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SStateWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       code = makeNode(type, sizeof(SStreamStateWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-      code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SEventWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-      code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode); break;
+      code = makeNode(type, sizeof(SCountWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -1644,14 +1644,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
-      SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
+      SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
-      SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
+      SEventWindowPhysiNode* pPhyNode = (SEventWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
       nodesDestroyNode(pPhyNode->pEndCond);
@@ -1659,7 +1659,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT: {
-      SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
+      SCountWindowPhysiNode* pPhyNode = (SCountWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }

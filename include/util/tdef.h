@@ -194,6 +194,7 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_AND = 1,
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
+  LOGIC_COND_TYPE_MAX,
 } ELogicConditionType;
 
 #define ENCRYPTED_LEN(len)  (len / 16) * 16 + (len % 16 ? 1 : 0) * 16
