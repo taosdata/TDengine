@@ -17,8 +17,8 @@ public class SchemalessWsTest {
     private static final String jsonDemo = "{\"metric\": \"metric_json\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
-        final String url = "jdbc:TAOS-RS://" + host + ":6041?user=root&password=taosdata&batchfetch=true";
-        try(Connection connection = DriverManager.getConnection(url)){
+        final String url = "jdbc:TAOS-WS://" + host + ":6041?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url)) {
             init(connection);
             AbstractConnection conn = connection.unwrap(AbstractConnection.class);
 

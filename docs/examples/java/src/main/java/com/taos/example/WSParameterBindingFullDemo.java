@@ -40,7 +40,7 @@ public class WSParameterBindingFullDemo {
 
     public static void main(String[] args) throws SQLException {
 
-        String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
+        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041/";
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 
@@ -51,8 +51,10 @@ public class WSParameterBindingFullDemo {
             stmtAll(conn);
 
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to insert data using stmt, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out.println("Failed to insert data using stmt, ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
+                    + ex.getMessage());
             throw ex;
         } catch (Exception ex) {
             System.out.println("Failed to insert data using stmt, ErrMessage: " + ex.getMessage());
@@ -104,16 +106,15 @@ public class WSParameterBindingFullDemo {
             pstmt.setTagBoolean(3, true);
             pstmt.setTagString(4, "binary_value");
             pstmt.setTagNString(5, "nchar_value");
-            pstmt.setTagVarbinary(6, new byte[]{(byte) 0x98, (byte) 0xf4, 0x6e});
-            pstmt.setTagGeometry(7, new byte[]{
+            pstmt.setTagVarbinary(6, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
+            pstmt.setTagGeometry(7, new byte[] {
                     0x01, 0x01, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59,
                     0x40, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x59, 0x40});
+                    0x00, 0x00, 0x00, 0x59, 0x40 });
 
             long current = System.currentTimeMillis();
-
 
             pstmt.setTimestamp(1, new Timestamp(current));
             pstmt.setInt(2, 1);
@@ -121,13 +122,13 @@ public class WSParameterBindingFullDemo {
             pstmt.setBoolean(4, true);
             pstmt.setString(5, "binary_value");
             pstmt.setNString(6, "nchar_value");
-            pstmt.setVarbinary(7, new byte[]{(byte) 0x98, (byte) 0xf4, 0x6e});
-            pstmt.setGeometry(8, new byte[]{
+            pstmt.setVarbinary(7, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
+            pstmt.setGeometry(8, new byte[] {
                     0x01, 0x01, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59,
                     0x40, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x59, 0x40});
+                    0x00, 0x00, 0x00, 0x59, 0x40 });
             pstmt.addBatch();
             pstmt.executeBatch();
             System.out.println("Successfully inserted rows to example_all_type_stmt.ntb");
