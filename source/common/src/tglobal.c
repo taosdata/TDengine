@@ -57,7 +57,7 @@ int32_t tsShellActivityTimer = 3;  // second
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
 int32_t tsShareConnLimit = 8;
-int32_t tsReadTimeout = 128;
+int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
@@ -362,7 +362,7 @@ static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSD
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, name);
 
   char *strDup = NULL;
-  if ((strDup = taosStrdup(pItem->str))== NULL){
+  if ((strDup = taosStrdup(pItem->str)) == NULL) {
     code = terrno;
     goto _exit;
   }
@@ -618,8 +618,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 256);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "shareConnLimit", tsShareConnLimit, 1, 256, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
-  tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600);
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsReadTimeout, 64, 24 * 3600, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600 * 7);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsReadTimeout, 64, 24 * 3600 * 7, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
   TAOS_CHECK_RETURN(
@@ -897,7 +897,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "readTimeout");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600);
+    tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600 * 7);
     pItem->i32 = tsReadTimeout;
     pItem->stype = stype;
   }
@@ -1760,7 +1760,7 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
 
   TAOS_CHECK_GOTO(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE), NULL, _exit);
   TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "debugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER), NULL, _exit);
-  TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) ,NULL, _exit);
+  TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER), NULL, _exit);
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
     (void)printf("failed to load cfg since %s\n", tstrerror(code));
