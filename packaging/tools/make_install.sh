@@ -645,7 +645,7 @@ function update_TDengine() {
 
   install_config
   install_taosadapter_config
-  install_taoskeeper_service
+  install_taoskeeper_config
 
   echo
   echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
