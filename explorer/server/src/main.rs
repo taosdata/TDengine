@@ -239,6 +239,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     tracing_subscriber::registry().with(layers).init();
+    if rustls::crypto::ring::default_provider()
+        .install_default()
+        .is_err()
+    {
+        tracing::warn!("Failed to install default ring provider");
+    }
 
     let span = tracing::info_span!("main");
     let _entered = span.enter();
