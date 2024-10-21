@@ -591,6 +591,104 @@ TEST(testCase, smlParseTelnetLine_Test) {
 //  smlDestroyInfo(info);
 //}
 
+bool smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg) {
+  const char *pVal = kvVal->value;
+  int32_t     len = kvVal->length;
+  char       *endptr = NULL;
+  double      result = taosStr2Double(pVal, &endptr);
+  if (pVal == endptr) {
+    smlBuildInvalidDataMsg(msg, "invalid data", pVal);
+    return false;
+  }
+
+  int32_t left = len - (endptr - pVal);
+  if (left == 0 || (left == 3 && strncasecmp(endptr, "f64", left) == 0)) {
+    kvVal->type = TSDB_DATA_TYPE_DOUBLE;
+    kvVal->d = result;
+  } else if ((left == 3 && strncasecmp(endptr, "f32", left) == 0)) {
+    if (!IS_VALID_FLOAT(result)) {
+      smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_FLOAT;
+    kvVal->f = (float)result;
+  } else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)) {
+    if (smlDoubleToInt64OverFlow(result)) {
+      errno = 0;
+      int64_t tmp = taosStr2Int64(pVal, &endptr, 10);
+      if (errno == ERANGE) {
+        smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_BIGINT;
+      kvVal->i = tmp;
+      return true;
+    }
+    kvVal->type = TSDB_DATA_TYPE_BIGINT;
+    kvVal->i = (int64_t)result;
+  } else if ((left == 1 && *endptr == 'u') || (left == 3 && strncasecmp(endptr, "u64", left) == 0)) {
+    if (result >= (double)UINT64_MAX || result < 0) {
+      errno = 0;
+      uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);
+      if (errno == ERANGE || result < 0) {
+        smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+      kvVal->u = tmp;
+      return true;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+    kvVal->u = result;
+  } else if (left == 3 && strncasecmp(endptr, "i32", left) == 0) {
+    if (!IS_VALID_INT(result)) {
+      smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_INT;
+    kvVal->i = result;
+  } else if (left == 3 && strncasecmp(endptr, "u32", left) == 0) {
+    if (!IS_VALID_UINT(result)) {
+      smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UINT;
+    kvVal->u = result;
+  } else if (left == 3 && strncasecmp(endptr, "i16", left) == 0) {
+    if (!IS_VALID_SMALLINT(result)) {
+      smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_SMALLINT;
+    kvVal->i = result;
+  } else if (left == 3 && strncasecmp(endptr, "u16", left) == 0) {
+    if (!IS_VALID_USMALLINT(result)) {
+      smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_USMALLINT;
+    kvVal->u = result;
+  } else if (left == 2 && strncasecmp(endptr, "i8", left) == 0) {
+    if (!IS_VALID_TINYINT(result)) {
+      smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_TINYINT;
+    kvVal->i = result;
+  } else if (left == 2 && strncasecmp(endptr, "u8", left) == 0) {
+    if (!IS_VALID_UTINYINT(result)) {
+      smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UTINYINT;
+    kvVal->u = result;
+  } else {
+    smlBuildInvalidDataMsg(msg, "invalid data", pVal);
+    return false;
+  }
+  return true;
+}
+
 TEST(testCase, smlParseNumber_performance_Test) {
   char       msg[256] = {0};
   SSmlMsgBuf msgBuf;

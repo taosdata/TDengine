@@ -92,6 +92,22 @@ extern "C" {
     }                                        \
   }
 
+#define SML_CHECK_CODE(CMD)                \
+  do {                                     \
+    code = (CMD);                          \
+    if (TSDB_CODE_SUCCESS != code) {       \
+      goto END;                            \
+    }                                      \
+  } while (0)
+
+#define SML_CHECK_NULL(CMD)                \
+  do {                                     \
+    if (NULL == (CMD)) {                   \
+      code = terrno;                       \
+      goto END;                            \
+    }                                      \
+  } while (0)
+
 typedef enum {
   SCHEMA_ACTION_NULL,
   SCHEMA_ACTION_CREATE_STABLE,
@@ -211,13 +227,10 @@ typedef struct {
 extern int64_t smlFactorNS[];
 extern int64_t smlFactorS[];
 
-typedef int32_t (*_equal_fn_sml)(const void *, const void *);
-
 int32_t       smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle);
 void          smlDestroyInfo(SSmlHandle *info);
 int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
-int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
+int           smlJsonParseObj(char **start, char *end, SSmlLineInfo *element, int8_t *offset);
 void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
@@ -246,7 +259,8 @@ int32_t         smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements);
 int32_t         smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements);
 int32_t         smlJoinMeasureTag(SSmlLineInfo *elements);
 void            smlBuildTsKv(SSmlKv *kv, int64_t ts);
-int32_t         smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
+int32_t         smlParseEndTelnetJsonFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
+int32_t         smlParseEndTelnetJsonUnFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
 int32_t         smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs);
 
 static inline bool smlDoubleToInt64OverFlow(double num) {
