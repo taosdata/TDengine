@@ -2306,6 +2306,28 @@ export function getDataSources(lang) {
                 "patternMsg": "Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`",
                 "placeholder": "topic1::0,topic2::1",
                 "edit_disabled": true,
+              },
+              {
+                "name": "unprocessed_messages_buffer_size",
+                "display": "Message Buffer Size",
+                "hint": {
+                  "type": "integer",
+                  "min": 0,
+                  "max": 100000
+                },
+                "description": "The maximum number of messages cached in the queue that have not been processed yet, used to control memory usage. When the queue is full, newly arrived data will be directly discarded. Can be set to 0, meaning not cached.",
+                "value": "50000"
+              },
+              {
+                "name": "maximum_processing_batch",
+                "display": "Maxmum Batch IN Processing",
+                "hint": {
+                  "type": "integer",
+                  "min": 1,
+                  "max": 1000
+                },
+                "description": "The maximum number of batches that have not yet received an ACK response during processing. When this threshold is not reached, a batch will be retrieved from the cache queue for processing; When the maximum number is reached, the messages in the cache queue will begin to pile up. This configuration is used for backpressure mechanism to prevent excessive write pressure downstream.",
+                "value": "100"
               }
             ]
           }
@@ -2317,44 +2339,15 @@ export function getDataSources(lang) {
           "connection_option": false,
           "params": [
             {
-              "name": "log_level",
-              "display": "Log Level",
-              "hint": {
-                "type": "str",
-                "choices": [
-                  "error",
-                  "warn",
-                  "info",
-                  "debug",
-                  "trace"
-                ]
-              },
-              "description": "Adjust the log level of the data source as required. This parameter does not always take effect.",
-              "value": "info"
-            },
-            {
-              "name": "read_concurrency",
-              "display": "Read Concurrency",
+              "name": "batch_size",
+              "display": "Batch Size",
               "hint": {
                 "type": "integer",
-                "min": 0,
-                "max": 1000
+                "min": 1,
+                "max": 10000
               },
-              "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
-              "value": "0",
-              "hidden": true
-            },
-            {
-              "name": "write_concurrency",
-              "display": "Write Concurrency",
-              "hint": {
-                "type": "integer",
-                "min": 0,
-                "max": 1000
-              },
-              "description": "The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
-              "value": "0",
-              "hidden": true
+              "description": "The maximum number of messages or lines that can be sent at a time.",
+              "value": "1000"
             },
             {
               "name": "batch_timeout",
@@ -2362,11 +2355,10 @@ export function getDataSources(lang) {
               "hint": {
                 "type": "integer",
                 "min": 1,
-                "max": 60
+                "max": 60000
               },
-              "description": "The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.\n",
-              "value": "1",
-              "hidden": true
+              "description": "The maximum time(in ms) to wait before sending a batch of data. If the data source is slow to respond, you can increase this value appropriately.\n",
+              "value": "500"
             },
             {
               "name": "keep_raw_data",
@@ -6880,6 +6872,28 @@ export function getDataSources(lang) {
                 "patternMsg": "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`",
                 "placeholder": "topic1::0,topic2::1",
                 "edit_disabled": true,
+              },
+              {
+                "name": "unprocessed_messages_buffer_size",
+                "display": "消息等待队列大小",
+                "hint": {
+                  "type": "integer",
+                  "min": 0,
+                  "max": 100000
+                },
+                "description": "缓存在队列中还没来得及处理的消息的最大数量，用于控制内存占用，当队列满时，新到达的数据会直接丢弃。可设置为 0，即不缓存。",
+                "value": "50000"
+              },
+              {
+                "name": "maximum_processing_batch",
+                "display": "处理中批次上限",
+                "hint": {
+                  "type": "integer",
+                  "min": 1,
+                  "max": 1000
+                },
+                "description": "允许在处理中还没有等到 ACK 回复的最大批次数量，没有到达此阈值时，会从缓存队列中取出一个批次进行处理；当到达最大数量后，缓存队列中的消息会开始积压。此配置用于背压机制防止对下游造成太大写入压力。",
+                "value": "100"
               }
             ]
           }
@@ -6890,22 +6904,6 @@ export function getDataSources(lang) {
           "collapsible": true,
           "connection_option": false,
           "params": [
-            {
-              "name": "log_level",
-              "display": "日志级别",
-              "hint": {
-                "type": "str",
-                "choices": [
-                  "error",
-                  "warn",
-                  "info",
-                  "debug",
-                  "trace"
-                ]
-              },
-              "description": "根据需要调整数据源的日志级别，此参数不总是生效。",
-              "value": "info"
-            },
             {
               "name": "read_concurrency",
               "display": "最大读取并发数",
@@ -6939,8 +6937,7 @@ export function getDataSources(lang) {
                 "max": 10000
               },
               "description": "单次发送的最大消息数或行数。\n",
-              "value": "1000",
-              "hidden": true
+              "value": "1000"
             },
             {
               "name": "batch_timeout",
@@ -6948,11 +6945,10 @@ export function getDataSources(lang) {
               "hint": {
                 "type": "integer",
                 "min": 1,
-                "max": 60
+                "max": 60000
               },
               "description": "单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。\n",
-              "value": "1",
-              "hidden": true
+              "value": "500"
             },
             {
               "name": "keep_raw_data",
