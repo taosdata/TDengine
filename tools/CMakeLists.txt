@@ -229,7 +229,50 @@ IF(TD_BUILD_KEEPER)
     MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
     MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
 
-    IF(TD_LINUX)
+    IF(TD_WINDOWS)
+        MESSAGE("Building taoskeeper on Windows")
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/keeper
+            BUILD_ALWAYS off
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+            PATCH_COMMAND
+            COMMAND git clean -f -d
+            BUILD_COMMAND
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            INSTALL_COMMAND
+            COMMAND cmake -E echo "Comparessing taoskeeper.exe"
+            COMMAND cmake -E time upx taoskeeper.exe
+            COMMAND cmake -E echo "Copy taoskeeper.exe"
+            COMMAND cmake -E copy taoskeeper.exe ${CMAKE_BINARY_DIR}/build/bin/taoskeeper.exe
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E echo "Copy taoskeeper.toml"
+            COMMAND cmake -E copy ./config/taoskeeper.toml ${CMAKE_BINARY_DIR}/test/cfg/
+        )
+    ELSEIF(TD_DARWIN)
+        MESSAGE("Building taoskeeper on macOS")
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/keeper
+            BUILD_ALWAYS off
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+            PATCH_COMMAND
+            COMMAND git clean -f -d
+            BUILD_COMMAND
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            INSTALL_COMMAND
+            COMMAND cmake -E echo "Copy taoskeeper"
+            COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E echo "Copy taoskeeper.toml"
+            COMMAND cmake -E copy ./config/taoskeeper.toml ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E copy ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
+        )
+    ELSE()
         MESSAGE("Building taoskeeper on Linux")
         INCLUDE(ExternalProject)
         ExternalProject_Add(taoskeeper
