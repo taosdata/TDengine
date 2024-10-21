@@ -182,7 +182,6 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
-extern bool generateNewMeta;
 
 extern bool generateNewMeta;
 
