@@ -1396,7 +1396,8 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   wb = pConn->buf;
 
-  int j = 0;
+  int     j = 0;
+  int32_t batchLimit = 64;
   while (!transQueueEmpty(&pConn->reqsToSend)) {
     queue*   h = transQueuePop(&pConn->reqsToSend);
     SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, q);
@@ -1453,6 +1454,9 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%" PRId64 ", sid:%" PRId64 "", CONN_GET_INST_LABEL(pConn),
             pConn, TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
     transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
+    if (j >= batchLimit) {
+      break;
+    }
   }
   transRefCliHandle(pConn);
   uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
@@ -1462,7 +1466,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     return terrno;
   }
 
-  tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size, totalLen);
+  tDebug("%s conn %p start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {
