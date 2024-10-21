@@ -13,7 +13,7 @@ pytest-timeout = "^2.2.0"
 semver = "^3.0.2"
 python-dateutil = "^2.9.0.post0"
 taos-ws-py = "^0.3.3"
-testng-taosx = {git = "https://github.com/taosdata/TestNG_taosX.git", rev = "framework-only-qin"}
+testng-taosx = {git = "https://github.com/taosdata/TestNG_taosX.git", rev = "framework-only"}
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"
