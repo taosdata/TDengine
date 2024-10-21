@@ -11,7 +11,7 @@ actix-cors = "0.7.0"
 actix-embed = "0.1.0"
 actix-files = "0.6.6"
 actix-web = { version = "4.7.0", features = ["rustls-0_23"] }
-rustls = { version = "0.23.10", default-features = false }
+rustls = { version = "0.23.10", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.1.2"
 reqwest = { version = "0.11.27", default-features = false, features = [
 	"stream",
