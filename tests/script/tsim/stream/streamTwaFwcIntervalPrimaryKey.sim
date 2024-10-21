@@ -65,7 +65,7 @@ endi
 
 if $data11 != 2 then
   print ======data11=$data11
-  return -1
+  return loop0
 endi
 
 $loop_count = 0
@@ -101,7 +101,7 @@ endi
 
 if $data11 != 2 then
   print ======data11=$data11
-  return -1
+  return loop1
 endi
 
 print end
