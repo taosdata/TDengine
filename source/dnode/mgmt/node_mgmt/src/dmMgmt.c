@@ -104,7 +104,7 @@ static void dmClearVars(SDnode *pDnode) {
   dDebug("begin to lock status info when thread exit");
   if (taosThreadMutexLock(&pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
-    return NULL;
+    return;
   }
   if (tsVinfo.pVloads != NULL) {
     taosArrayDestroy(tsVinfo.pVloads);
@@ -112,7 +112,7 @@ static void dmClearVars(SDnode *pDnode) {
   }
   if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
-    return NULL;
+    return;
   }
   taosThreadMutexDestroy(&pData->statusInfolock);
   memset(&pData->statusInfolock, 0, sizeof(pData->statusInfolock));
