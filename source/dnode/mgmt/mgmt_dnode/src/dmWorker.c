@@ -47,7 +47,6 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
-extern SMonVloadInfo tsVinfo;
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -72,19 +71,6 @@ static void *dmStatusInfoThreadFp(void *param) {
         tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
     }
-  }
-  dDebug("begin to lock status info when thread exit");
-  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
-    dError("failed to lock status info lock");
-    return NULL;
-  }
-  if (tsVinfo.pVloads != NULL) {
-    taosArrayDestroy(tsVinfo.pVloads);
-    tsVinfo.pVloads = NULL;
-  }
-  if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
-    dError("failed to unlock status info lock");
-    return NULL;
   }
 
   return NULL;
