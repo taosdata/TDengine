@@ -149,7 +149,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dError("failed to lock status info lock");
     return;
   }
-  taosArraySwap(req.pVloads, tsVinfo.pVloads);
+  req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
@@ -203,12 +203,14 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
   SMonVloadInfo vinfo = {0};
   dDebug("begin to get vnode loads");
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  dDebug("begin to lock status info");
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;
   }
   if (tsVinfo.pVloads == NULL) {
-    taosArraySwap(tsVinfo.pVloads, vinfo.pVloads);
+    tsVinfo.pVloads = vinfo.pVloads;
+    vinfo.pVloads = NULL;
   } else {
     taosArrayDestroy(vinfo.pVloads);
     vinfo.pVloads = NULL;

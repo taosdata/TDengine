@@ -73,7 +73,7 @@ static void *dmStatusInfoThreadFp(void *param) {
       }
     }
   }
-
+  dDebug("begin to lock status info when thread exit");
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return NULL;
