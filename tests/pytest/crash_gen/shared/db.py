@@ -178,8 +178,25 @@ class DbConn:
         sts = [v[0] for v in self.getQueryResult()]
         return stName in sts
 
+    # def hasTables(self, dbName):
+    #     return self.query(f"show {dbName}.tables") > 0
+
     def hasTables(self, dbName):
-        return self.query(f"show {dbName}.tables") > 0
+        start_time = time.time()
+        while True:
+            try:
+                self.query(f"show {dbName}.tables")
+                return self.query(f"show {dbName}.tables") > 0
+            except taos.error.ProgrammingError as err:
+                errno2 = Helper.convertErrno(err.errno)
+                print("-----errno2:", errno2)
+                if errno2 in [0x0503, 0x090c] and (time.time() - start_time) < 30:
+                    print(f"Error 0x0503 ignored and retry ...")
+                    time.sleep(1)
+                    continue
+                raise
+            except Exception as e:
+                raise Exception(f"An unexpected error occurred: {e}")
 
     def execute(self, sql):
         ''' Return the number of rows affected'''
@@ -588,15 +605,8 @@ class MyTDSql:
             ret = self._cursor.execute(sql)
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
-            Logging.warning("!!!!!!!!!!Taos SQL execution error: {}:{}, SQL: {}".format(errno2, err.msg, sql))
+            Logging.warning("Taos SQL execution error: {}:{}, SQL: {}".format(errno2, err.msg, sql))
             raise
-            # errno2 = Helper.convertErrno(err.errno)
-            # if (errno2 in [0x0503]):  # Vnode is closed or removed
-            #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
-            #     raise
-            #     return
-            # else:
-            #     raise
         #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
         #     raise CrashGenError(err.msg)
 
