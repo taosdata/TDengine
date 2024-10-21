@@ -1936,9 +1936,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen){
   SRequestObj*      pRequest = NULL;
   SCatalog*         pCatalog = NULL;
   SRequestConnInfo  conn = {0};
-
-  uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
+  uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeMqDataRsp, &rspObj));
 
   SHashObj *pVgHash = NULL;
@@ -2012,8 +2011,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   SCatalog*         pCatalog = NULL;
   SRequestConnInfo  conn = {0};
 
-  uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
+  uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeSTaosxRsp, &rspObj));
 
   pCreateTbHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -2284,7 +2283,7 @@ void tmq_free_raw(tmq_raw_data raw) {
 }
 
 static int32_t writeRawInit(){
-  while (atomic_load_8(&initedFlag) == WRITE_RAW_INIT_OK) {
+  while (atomic_load_8(&initedFlag) == WRITE_RAW_INIT_START) {
     int8_t old = atomic_val_compare_exchange_8(&initFlag, 0, 1);
     if (old == 0) {
       int32_t code = initRawCacheHash();
