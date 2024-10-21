@@ -333,8 +333,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d numOfRows:%d", pShow->id, rowsRead, pShow->numOfRows);
   }
 
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock));
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns + dataEncodeBufSize;
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -361,7 +361,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pStart += sizeof(SSysTableSchema);
     }
 
-    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
+    int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if(len < 0){
       mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
       code =  terrno;
