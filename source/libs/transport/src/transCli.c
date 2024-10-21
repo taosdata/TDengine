@@ -3491,6 +3491,12 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
     }
 
     pCtx->pCvtAddr = (SCvtAddr*)taosMemoryCalloc(1, sizeof(SCvtAddr));
+    if (pCtx->pCvtAddr == NULL) {
+      taosMemoryFree(pCtx);
+      code = terrno;
+      break;
+    }
+
     memcpy(pCtx->pCvtAddr, &cvtAddr, sizeof(SCvtAddr));
 
     SCliReq* pReq = taosMemoryCalloc(1, sizeof(SCliReq));
