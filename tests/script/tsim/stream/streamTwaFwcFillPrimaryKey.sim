@@ -13,7 +13,7 @@ sql create stable st(ts timestamp, a int primary key, b int , c int)tags(ta int,
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream streams1 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _wstart, twa(b), count(*),ta  from st partition by tbname, ta interval(2s) fill(prev);
+sql create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _wstart, twa(b), count(*),ta  from st partition by tbname, ta interval(2s) fill(prev);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -121,7 +121,7 @@ sql use test2;
 sql create stable st(ts timestamp, a int primary key, b int , c int)tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams2 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _wstart, twa(b), ta  from st partition by tbname, ta interval(2s) fill(NULL);
+sql create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _wstart, twa(b), ta  from st partition by tbname, ta interval(2s) fill(NULL);
 
 run tsim/stream/checkTaskStatus.sim
 

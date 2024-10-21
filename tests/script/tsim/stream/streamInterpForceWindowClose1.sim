@@ -14,7 +14,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 
-sql create stream streams1 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(5s) fill(prev);
+sql create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(5s) fill(prev);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -326,7 +326,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 
-sql create stream streams2 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(NULL);
+sql create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(NULL);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -401,7 +401,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 
-sql create stream streams3 trigger force_window_close IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(value,100);
+sql create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt as select _irowts, interp(a) as a, _isfilled, tbname, b, c from st partition by tbname, b,c every(2s) fill(value,100);
 
 run tsim/stream/checkTaskStatus.sim
 
