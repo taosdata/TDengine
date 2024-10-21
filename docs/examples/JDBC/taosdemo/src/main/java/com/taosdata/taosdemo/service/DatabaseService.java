@@ -14,12 +14,12 @@ public class DatabaseService {
         this.databaseMapper = new DatabaseMapperImpl(dataSource);
     }
 
-    // 建库，指定 name
+    // Create database with specified name
     public void createDatabase(String database) {
         databaseMapper.createDatabase(database);
     }
 
-    // 建库，指定参数 keep,days,replica等
+    // Create database with specified parameters such as keep, days, replica, etc.
     public void createDatabase(Map<String, String> map) {
         if (map.isEmpty())
             return;
