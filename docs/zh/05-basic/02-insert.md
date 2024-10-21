@@ -111,7 +111,7 @@ TDengine 还支持直接向超级表写入数据。需要注意的是，超级�
 
 ```sql
 insert into meters (tbname, ts, current, voltage, phase, location, group_id)
-values( "d1001v, "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
+values( "d1001, "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
 ```
 
 ### 零代码写入
