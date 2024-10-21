@@ -573,21 +573,6 @@ taos> select max(total_voltage) from (select sum(voltage) as total_voltage from 
 ========================
               21948660 |
 
-taos> select location, max(current) from ts_4893.meters group by location
-      location      |     max(current)     |
-============================================
- beijing            |           11.9989996 |
-
-taos> select location, max(id) from ts_4893.meters group by location
-      location      |   max(id)   |
-===================================
- beijing            |        9999 |
-
-taos> select groupid, max(voltage) from ts_4893.meters group by groupid
- groupid | max(voltage) |
-=========================
-       1 |          224 |
-
 taos> select round(max(current), 2) from ts_4893.meters
  round(max(current), 2) |
 =========================
@@ -602,4 +587,19 @@ taos> select log(max(voltage) + 1) from ts_4893.meters
    log(max(voltage) + 1)   |
 ============================
          5.416100402204420 |
+
+taos> select groupid, max(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid | max(voltage) |
+=========================
+       1 |          224 |
+
+taos> select location, max(id) from ts_4893.meters group by location order by location
+      location      |   max(id)   |
+===================================
+ beijing            |        9999 |
+
+taos> select location, max(current) from ts_4893.meters group by location order by location
+      location      |     max(current)     |
+============================================
+ beijing            |           11.9989996 |
 

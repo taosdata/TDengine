@@ -247,12 +247,12 @@ taos> select nch1, char_length(nch1) from ts_4893.meters limit 1
 =========================================================
  novel                          |                     5 |
 
-taos> select groupid, max(char_length(name)) from ts_4893.meters group by groupid
+taos> select groupid, max(char_length(name)) from ts_4893.meters group by groupid order by ts
  groupid | max(char_length(name)) |
 ===================================
        1 |                      4 |
 
-taos> select location, avg(char_length(name)) from ts_4893.meters group by location
+taos> select location, avg(char_length(name)) from ts_4893.meters group by location order by location
       location      |  avg(char_length(name))   |
 =================================================
  beijing            |         3.244600000000000 |

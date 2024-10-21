@@ -34,5 +34,5 @@ select concat(name, ' - ', location), char_length(concat(name, ' - ', location))
 select substring(name, 1, 5), char_length(substring(name, 1, 5)) from ts_4893.meters limit 1
 select name, char_length(name) from ts_4893.meters limit 1
 select nch1, char_length(nch1) from ts_4893.meters limit 1
-select groupid, max(char_length(name)) from ts_4893.meters group by groupid
-select location, avg(char_length(name)) from ts_4893.meters group by location
+select groupid, max(char_length(name)) from ts_4893.meters group by groupid order by ts
+select location, avg(char_length(name)) from ts_4893.meters group by location order by location

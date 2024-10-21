@@ -255,7 +255,7 @@ taos> select id, dayofweek(ts) from ts_4893.meters where id = 1 limit 1
 ======================================
            1 |                     6 |
 
-taos> select groupid, sum(dayofweek(ts)) from ts_4893.meters group by groupid
+taos> select groupid, sum(dayofweek(ts)) from ts_4893.meters group by groupid order by groupid
  groupid |  sum(dayofweek(ts))   |
 ==================================
        1 |                400012 |

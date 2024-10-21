@@ -230,6 +230,11 @@ taos> select weekofyear('2024-12-31')
 ===========================
                         1 |
 
+taos> select weekofyear('9999-12-31')
+ weekofyear('9999-12-31') |
+===========================
+                       52 |
+
 taos> select weekofyear(name) from ts_4893.meters limit 1
    weekofyear(name)    |
 ========================
@@ -239,11 +244,6 @@ taos> select weekofyear(ts) from ts_4893.meters limit 1
     weekofyear(ts)     |
 ========================
                     28 |
-
-taos> select weekofyear('9999-12-31')
- weekofyear('9999-12-31') |
-===========================
-                       52 |
 
 taos> select weekofyear(ts), dayofweek(ts) from ts_4893.meters limit 1
     weekofyear(ts)     |     dayofweek(ts)     |
@@ -260,7 +260,7 @@ taos> select id, weekofyear(ts) from ts_4893.meters where id = 1 limit 1
 ======================================
            1 |                    28 |
 
-taos> select groupid, sum(weekofyear(ts)) from ts_4893.meters group by groupid
+taos> select groupid, sum(weekofyear(ts)) from ts_4893.meters group by groupid order by groupid
  groupid |  sum(weekofyear(ts))  |
 ==================================
        1 |               2720120 |

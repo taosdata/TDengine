@@ -106,21 +106,6 @@ taos> select stddev_pop(total_voltage) from (select sum(voltage) as total_voltag
 ============================
          0.000000000000000 |
 
-taos> select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid
- groupid |    stddev_pop(voltage)    |
-======================================
-       1 |         2.876459705957324 |
-
-taos> select location, stddev_pop(current) from ts_4893.meters group by location
-      location      |    stddev_pop(current)    |
-=================================================
- beijing            |         1.154339668872967 |
-
-taos> select location, stddev_pop(voltage) from ts_4893.meters group by location
-      location      |    stddev_pop(voltage)    |
-=================================================
- beijing            |         2.876459705957324 |
-
 taos> select round(stddev_pop(current), 2) from ts_4893.meters
  round(stddev_pop(current), 2) |
 ================================
@@ -135,4 +120,19 @@ taos> select log(stddev_pop(voltage) + 1) from ts_4893.meters
  log(stddev_pop(voltage) + 1) |
 ===============================
         1.354922290183882e+00 |
+
+taos> select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid |    stddev_pop(voltage)    |
+======================================
+       1 |         2.876459705957324 |
+
+taos> select location, stddev_pop(current) from ts_4893.meters group by location order by location
+      location      |    stddev_pop(current)    |
+=================================================
+ beijing            |         1.154339668872967 |
+
+taos> select location, stddev_pop(voltage) from ts_4893.meters group by location order by location
+      location      |    stddev_pop(voltage)    |
+=================================================
+ beijing            |         2.876459705957324 |
 

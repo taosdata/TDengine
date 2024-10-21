@@ -28,10 +28,10 @@ select weekofyear('01-JAN-20')
 select weekofyear('2024-02-29')
 select weekofyear('2024-01-01')
 select weekofyear('2024-12-31')
+select weekofyear('9999-12-31')
 select weekofyear(name) from ts_4893.meters limit 1
 select weekofyear(ts) from ts_4893.meters limit 1
-select weekofyear('9999-12-31')
 select weekofyear(ts), dayofweek(ts) from ts_4893.meters limit 1
 select weekofyear(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
 select id, weekofyear(ts) from ts_4893.meters where id = 1 limit 1
-select groupid, sum(weekofyear(ts)) from ts_4893.meters group by groupid
+select groupid, sum(weekofyear(ts)) from ts_4893.meters group by groupid order by groupid

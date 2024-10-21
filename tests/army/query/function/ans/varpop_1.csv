@@ -96,21 +96,6 @@ taos> select var_pop(total_voltage) from (select sum(voltage) as total_voltage f
 ============================
          0.000000000000000 |
 
-taos> select groupid, var_pop(voltage) from ts_4893.meters group by groupid
- groupid |     var_pop(voltage)      |
-======================================
-       1 |         8.274020439996093 |
-
-taos> select location, var_pop(current) from ts_4893.meters group by location
-      location      |     var_pop(current)      |
-=================================================
- beijing            |         1.332500071133751 |
-
-taos> select location, var_pop(voltage) from ts_4893.meters group by location
-      location      |     var_pop(voltage)      |
-=================================================
- beijing            |         8.274020439996093 |
-
 taos> select round(var_pop(current), 2) from ts_4893.meters
  round(var_pop(current), 2) |
 =============================
@@ -125,4 +110,19 @@ taos> select log(var_pop(voltage) + 1) from ts_4893.meters
  log(var_pop(voltage) + 1) |
 ============================
          2.227216989977633 |
+
+taos> select groupid, var_pop(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid |     var_pop(voltage)      |
+======================================
+       1 |         8.274020439996093 |
+
+taos> select location, var_pop(current) from ts_4893.meters group by location order by location
+      location      |     var_pop(current)      |
+=================================================
+ beijing            |         1.332500071133751 |
+
+taos> select location, var_pop(voltage) from ts_4893.meters group by location order by location
+      location      |     var_pop(voltage)      |
+=================================================
+ beijing            |         8.274020439996093 |
 

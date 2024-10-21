@@ -573,21 +573,6 @@ taos> select min(total_voltage) from (select sum(voltage) as total_voltage from 
 ========================
               21948660 |
 
-taos> select groupid, min(voltage) from ts_4893.meters group by groupid
- groupid | min(voltage) |
-=========================
-       1 |          215 |
-
-taos> select location, min(current) from ts_4893.meters group by location
-      location      |     min(current)     |
-============================================
- beijing            |            8.0000000 |
-
-taos> select location, min(id) from ts_4893.meters group by location
-      location      |   min(id)   |
-===================================
- beijing            |           0 |
-
 taos> select round(min(current), 2) from ts_4893.meters
  round(min(current), 2) |
 =========================
@@ -602,4 +587,19 @@ taos> select log(min(voltage) + 1) from ts_4893.meters
    log(min(voltage) + 1)   |
 ============================
          5.375278407684165 |
+
+taos> select groupid, min(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid | min(voltage) |
+=========================
+       1 |          215 |
+
+taos> select location, min(current) from ts_4893.meters group by location order by location
+      location      |     min(current)     |
+============================================
+ beijing            |            8.0000000 |
+
+taos> select location, min(id) from ts_4893.meters group by location order by location
+      location      |   min(id)   |
+===================================
+ beijing            |           0 |
 

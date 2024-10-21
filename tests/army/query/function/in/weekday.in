@@ -29,10 +29,10 @@ select weekday('01-JAN-20')
 select weekday('2024-02-29')
 select weekday('2023-09-24')
 select weekday('2023-09-25')
-select weekday(name) from ts_4893.meters limit 1
 select weekday('9999-12-31')
+select weekday(name) from ts_4893.meters limit 1
 select weekday(ts), dayofweek(ts) from ts_4893.meters limit 1
 select weekday(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
 select weekday(ts) from ts_4893.meters limit 1
 select id, weekday(ts) from ts_4893.meters where id = 1 limit 1
-select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid
+select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid order by groupid

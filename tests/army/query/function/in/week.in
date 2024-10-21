@@ -90,4 +90,4 @@ select week(name) from ts_4893.meters limit 1
 select week(ts), dayofweek(ts) from ts_4893.meters limit 1
 select week(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
 select id, week(ts) from ts_4893.meters where id = 1 limit 1
-select groupid, sum(week(ts)) from ts_4893.meters group by groupid
+select groupid, sum(week(ts)) from ts_4893.meters group by groupid order by groupid

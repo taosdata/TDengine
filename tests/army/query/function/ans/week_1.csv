@@ -558,7 +558,7 @@ taos> select id, week(ts) from ts_4893.meters where id = 1 limit 1
 ======================================
            1 |                    28 |
 
-taos> select groupid, sum(week(ts)) from ts_4893.meters group by groupid
+taos> select groupid, sum(week(ts)) from ts_4893.meters group by groupid order by groupid
  groupid |     sum(week(ts))     |
 ==================================
        1 |               2669490 |

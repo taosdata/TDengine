@@ -235,15 +235,15 @@ taos> select weekday('2023-09-25')
 ========================
                      0 |
 
-taos> select weekday(name) from ts_4893.meters limit 1
-     weekday(name)     |
-========================
- NULL                  |
-
 taos> select weekday('9999-12-31')
  weekday('9999-12-31') |
 ========================
                      4 |
+
+taos> select weekday(name) from ts_4893.meters limit 1
+     weekday(name)     |
+========================
+ NULL                  |
 
 taos> select weekday(ts), dayofweek(ts) from ts_4893.meters limit 1
       weekday(ts)      |     dayofweek(ts)     |
@@ -265,7 +265,7 @@ taos> select id, weekday(ts) from ts_4893.meters where id = 1 limit 1
 ======================================
            1 |                     4 |
 
-taos> select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid
+taos> select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid order by groupid
  groupid |   sum(weekday(ts))    |
 ==================================
        1 |                300007 |

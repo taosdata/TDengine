@@ -20,9 +20,9 @@ select max(id) from ts_4893.meters where id <= 0
 select max(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
 select max(voltage) from ts_4893.meters where voltage is not null
 select max(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
-select location, max(current) from ts_4893.meters group by location
-select location, max(id) from ts_4893.meters group by location
-select groupid, max(voltage) from ts_4893.meters group by groupid
 select round(max(current), 2) from ts_4893.meters
 select pow(max(current), 2) from ts_4893.meters
 select log(max(voltage) + 1) from ts_4893.meters
+select groupid, max(voltage) from ts_4893.meters group by groupid order by groupid
+select location, max(id) from ts_4893.meters group by location order by location
+select location, max(current) from ts_4893.meters group by location order by location

@@ -14,9 +14,9 @@ select stddev_pop(voltage) from ts_4893.meters where voltage is not null
 select stddev_pop(phase) from ts_4893.meters
 select stddev_pop(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
 select stddev_pop(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
-select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid
-select location, stddev_pop(current) from ts_4893.meters group by location
-select location, stddev_pop(voltage) from ts_4893.meters group by location
 select round(stddev_pop(current), 2) from ts_4893.meters
 select pow(stddev_pop(current), 2) from ts_4893.meters
 select log(stddev_pop(voltage) + 1) from ts_4893.meters
+select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid order by groupid
+select location, stddev_pop(current) from ts_4893.meters group by location order by location
+select location, stddev_pop(voltage) from ts_4893.meters group by location order by location
