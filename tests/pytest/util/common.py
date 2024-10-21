@@ -919,31 +919,35 @@ class TDCom:
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
         else:
-            if watermark is None:
-                if trigger_mode == "max_delay":
-                    stream_options = f'trigger {trigger_mode} {max_delay}'
-                else:
-                    stream_options = f'trigger {trigger_mode}'
+            if trigger_mode == "force_window_close":
+                tdLog("foce_window_close only supports function of interp and twa ")
             else:
-                if trigger_mode == "max_delay":
-                    stream_options = f'trigger {trigger_mode} {max_delay} watermark {watermark}'
+                if watermark is None:
+                    if trigger_mode == "max_delay":
+                        stream_options = f'trigger {trigger_mode} {max_delay}'
+                    else:
+                        stream_options = f'trigger {trigger_mode}'
                 else:
-                    stream_options = f'trigger {trigger_mode} watermark {watermark}'
-            if ignore_expired:
-                stream_options += f" ignore expired {ignore_expired}"
-            else:
-                stream_options += f" ignore expired 0"
+                    if trigger_mode == "max_delay":
+                        stream_options = f'trigger {trigger_mode} {max_delay} watermark {watermark}'
+                    else:
+                        stream_options = f'trigger {trigger_mode} watermark {watermark}'
+                if ignore_expired:
+                    stream_options += f" ignore expired {ignore_expired}"
+                else:
+                    stream_options += f" ignore expired 0"
 
-            if ignore_update:
-                stream_options += f" ignore update {ignore_update}"
-            else:
-                stream_options += f" ignore update 0"
-            if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
-                time.sleep(self.create_stream_sleep)
-                return None
-            else:
-                return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+                if ignore_update:
+                    stream_options += f" ignore update {ignore_update}"
+                else:
+                    stream_options += f" ignore update 0"
+                if not use_except:
+                    tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
+                    time.sleep(self.create_stream_sleep)
+                    return None
+                else:
+                    return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+            
 
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
