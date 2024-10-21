@@ -16,18 +16,20 @@
         {
             "dbinfo": {
                 "name": "dbrate",
+                "vgroups": 1,
                 "drop": "yes",
-                "vgroups": 2
+                "wal_retention_size": 1,
+                "wal_retention_period": 1
             },
             "super_tables": [
                 {
                     "name": "meters",
                     "child_table_exists": "no",
-                    "childtable_count": 10,
+                    "childtable_count": 1,
                     "childtable_prefix": "d",
                     "insert_mode": "@STMT_MODE",
                     "interlace_rows": @INTERLACE_MODE,
-                    "insert_rows": 100000,
+                    "insert_rows": 10000,
                     "timestamp_step": 1,
                     "start_timestamp": "2020-10-01 00:00:00.000",
                     "auto_create_table": "no",

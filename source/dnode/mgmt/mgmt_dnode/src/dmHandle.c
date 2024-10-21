@@ -123,6 +123,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
   (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
   req.sver = tsVersion;
   req.dnodeVer = pMgmt->pData->dnodeVer;
@@ -161,14 +162,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
   SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
   SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
   pMgmt->statusSeq++;
@@ -206,6 +210,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {

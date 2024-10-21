@@ -61,7 +61,6 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -93,7 +92,6 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
   if (pReq == NULL) {
     mError("failed to malloc in resume stream, size:%" PRIzu ", code:%s", sizeof(SVResumeStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -106,19 +104,18 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS || (!hasEpset)) {
-    terrno = code;
     taosMemoryFree(pReq);
-    return terrno;
+    return code;
   }
 
   code = setTransAction(pTrans, pReq, sizeof(SVResumeStreamTaskReq), TDMT_STREAM_TASK_RESUME, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
-    return terrno;
+    return code;
   }
 
   mDebug("set the resume action for trans:%d", pTrans->id);
-  return 0;
+  return code;
 }
 
 static int32_t doSetDropActionFromId(SMnode *pMnode, STrans *pTrans, SOrphanTask* pTask) {

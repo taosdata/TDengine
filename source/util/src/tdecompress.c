@@ -449,7 +449,9 @@ int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, ch
   }
   return (int32_t)(out - output);
 }
+#endif
 
+#if __AVX512VL__
 // decode two timestamps in one loop.
 void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian) {
   int64_t *ostream = (int64_t *)output;
@@ -588,9 +590,7 @@ void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements,
   }
   return;
 }
-#endif
 
-#if __AVX512VL__
 void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
                                  bool UNUSED_PARAM(bigEndian)) {
   int64_t *ostream = (int64_t *)output;

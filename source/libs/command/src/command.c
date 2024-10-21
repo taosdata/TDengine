@@ -515,7 +515,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
                (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
@@ -551,7 +551,7 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
                (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, sizeof(type) - (VARSTR_HEADER_SIZE + *len), "%s`%s` %s",
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), "%s`%s` %s",
                      ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }

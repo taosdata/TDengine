@@ -156,9 +156,9 @@ int32_t getWordLength(char type);
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
 int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
-void    tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
 #endif
 #ifdef __AVX512VL__
+void tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
 void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
 #endif
 
