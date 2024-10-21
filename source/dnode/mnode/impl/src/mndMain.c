@@ -237,7 +237,7 @@ static void mndPullupGrant(SMnode *pMnode) {
                       .pCont = pReq,
                       .contLen = contLen,
                       .info.notFreeAhandle = 1,
-                      .info.ahandle = (void *)0x9527};
+                      .info.ahandle = 0};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
