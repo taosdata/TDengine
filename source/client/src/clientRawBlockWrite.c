@@ -1969,8 +1969,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen){
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
       STableMeta* pTableMeta = NULL;
-      processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn,
-                       &pName, &pTableMeta, pSW, rawData, retry);
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn,
+                       &pName, &pTableMeta, pSW, rawData, retry));
       char  err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2050,8 +2050,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       // find schema data info
       SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, pName.tname, strlen(pName.tname));
       STableMeta* pTableMeta = NULL;
-      processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn,
-                       &pName, &pTableMeta, pSW, rawData, retry);
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn,
+                       &pName, &pTableMeta, pSW, rawData, retry));
       char  err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
       if (code != TSDB_CODE_SUCCESS) {
