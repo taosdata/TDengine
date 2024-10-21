@@ -170,7 +170,6 @@ const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 uint64_t taosHton64(uint64_t val);
 uint64_t taosNtoh64(uint64_t val);
 
-int32_t taosSetSockOpt2(int32_t fd);
 #ifdef __cplusplus
 }
 #endif

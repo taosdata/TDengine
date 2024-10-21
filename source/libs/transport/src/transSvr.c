@@ -495,6 +495,10 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   int32_t        len = *msgLen;
   if (pHead->withUserInfo) {
     STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    if (tHead == NULL) {
+      tError("conn %p failed to get user info since %s", pConn, tstrerror(terrno));
+      return false;
+    }
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
     memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
            len - sizeof(STransMsgHead) - sizeof(pInst->user));
@@ -531,6 +535,13 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   if (uvConnMayGetUserInfo(pConn, &pHead, &msgLen) == true) {
     tDebug("%s conn %p get user info", transLabel(pInst), pConn);
+  } else {
+    if (pConn->userInited == 0) {
+      taosMemoryFree(pHead);
+      tDebug("%s conn %p failed get user info since %s", transLabel(pInst), pConn, tstrerror(terrno));
+      return false;
+    }
+    tDebug("%s conn %p no need get user info", transLabel(pInst), pConn);
   }
 
   if (resetBuf == 0) {
