@@ -85,6 +85,7 @@ pub async fn csv_header(
         skip_error: false,
         null_pattern: None,
         concurrent: 16,
+        keep_processed_files: true,
     };
     for path in &paths {
         let path_header =
@@ -337,6 +338,7 @@ pub struct CsvOption {
     pub skip_error: bool,
     pub null_pattern: Option<Arc<Vec<Bytes>>>,
     pub concurrent: usize,
+    pub keep_processed_files: bool,
 }
 
 impl Default for CsvOption {
@@ -352,6 +354,7 @@ impl Default for CsvOption {
             skip_error: false,
             null_pattern: None,
             concurrent: 16,
+            keep_processed_files: true,
         }
     }
 }
@@ -636,6 +639,7 @@ struct CsvSource {
     concurrent: usize,
     batch_size: usize,
     skip_error: bool,
+    keep_processed_files: bool,
 }
 unsafe impl Send for CsvSource {}
 unsafe impl Sync for CsvSource {}
@@ -771,6 +775,17 @@ impl CsvSource {
             )
         });
 
+        let keep_processed_files = dsn
+            .remove("keep_processed_files")
+            .and_then(|v| {
+                if v.trim().is_empty() {
+                    Some(true)
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(true);
+
         let option = CsvOption {
             has_header,
             headers,
@@ -782,6 +797,7 @@ impl CsvSource {
             skip_error,
             null_pattern,
             concurrent,
+            keep_processed_files,
         };
 
         // if !has_header && headers.len() == 0 {
@@ -810,6 +826,7 @@ impl CsvSource {
             concurrent,
             batch_size,
             skip_error,
+            keep_processed_files,
         })
     }
 
@@ -882,6 +899,7 @@ impl CsvSource {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();
+            let keep_processed_files = self.keep_processed_files.clone();
             // let total = total.clone();
             let future = tokio::spawn(
                 async move {
@@ -901,6 +919,11 @@ impl CsvSource {
                         tracing::debug!(path, count, "send batches to writer");
                     }
 
+                    // if keep_processed_files is false, delete the processed file
+                    if !keep_processed_files {
+                        tracing::info!("Delete processed file: {path}");
+                        let _ = std::fs::remove_file(path);
+                    }
                     drop(permit);
                     Ok(())
                 }
@@ -1196,6 +1219,7 @@ mod tests {
             skip_error: false,
             null_pattern: None,
             concurrent: 1,
+            keep_processed_files: true,
         };
         // has header
         let mut readers = option.open_many(&paths).unwrap();
@@ -1229,6 +1253,7 @@ mod tests {
             skip_error: false,
             null_pattern: None,
             concurrent: 1,
+            keep_processed_files: true,
         };
         let mut readers = option.open_many(&paths).unwrap();
         while let Some(mut reader) = readers.pop() {
@@ -1263,6 +1288,7 @@ mod tests {
             skip_error: false,
             null_pattern: None,
             concurrent: 1,
+            keep_processed_files: true,
         };
         // does not has header, but with custom headers
         let mut readers = option.open_many(&paths).unwrap();
@@ -1309,6 +1335,7 @@ mod tests {
             skip_error: false,
             null_pattern: None,
             concurrent: 1,
+            keep_processed_files: true,
         };
         option.validate(&paths).unwrap();
 
@@ -1333,6 +1360,7 @@ mod tests {
             skip_error: false,
             null_pattern: None,
             concurrent: 1,
+            keep_processed_files: true,
         };
         let header = option.read_header(path.as_ref()).await.unwrap();
 
