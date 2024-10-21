@@ -17,6 +17,7 @@
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "insertnodes.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tdatablock.h"
@@ -579,6 +580,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDeleteStmt));
     case QUERY_NODE_INSERT_STMT:
       return makeNode(type, sizeof(SInsertStmt));
+    case QUERY_NODE_INSERT_MULTI_STMT:
+      return makeNode(type, sizeof(SInsertMultiStmt));
+    case QUERY_NODE_INSERT_QUESTION_STMT:
+      return makeNode(type, sizeof(SInsertQuestionStmt));
     case QUERY_NODE_QUERY:
       return makeNode(type, sizeof(SQuery));
     case QUERY_NODE_RESTORE_DNODE_STMT:
@@ -1307,6 +1312,16 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pTable);
       nodesDestroyList(pStmt->pCols);
       nodesDestroyNode(pStmt->pQuery);
+      break;
+    }
+    case QUERY_NODE_INSERT_MULTI_STMT: {
+      SInsertMultiStmt* pStmt = (SInsertMultiStmt*)pNode;
+      InsertMultiStmtRelease(pStmt);
+      break;
+    }
+    case QUERY_NODE_INSERT_QUESTION_STMT: {
+      SInsertQuestionStmt* pStmt = (SInsertQuestionStmt*)pNode;
+      InsertQuestionStmtRelease(pStmt);
       break;
     }
     case QUERY_NODE_QUERY: {

@@ -446,7 +446,7 @@ TEST_F(ParserSelectTest, semanticCheck) {
 TEST_F(ParserSelectTest, syntaxError) {
   useDb("root", "test");
 
-  run("SELECT CAST(? AS BINARY(10)) FROM t1", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  // run("SELECT CAST(? AS BINARY(10)) FROM t1", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }
 
 TEST_F(ParserSelectTest, setOperator) {

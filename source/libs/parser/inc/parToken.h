@@ -74,6 +74,8 @@ bool taosIsKeyWordToken(const char *z, int32_t len);
 
 void taosCleanupKeywordsTable();
 
+int isValidIdChar(const char c);
+
 #ifdef __cplusplus
 }
 #endif

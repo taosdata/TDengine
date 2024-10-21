@@ -47,6 +47,7 @@ void   *taosMemoryMalloc(int64_t size);
 void   *taosMemoryCalloc(int64_t num, int64_t size);
 void   *taosMemoryRealloc(void *ptr, int64_t size);
 char   *taosStrdup(const char *ptr);
+char   *taosStrndup(const char *ptr, size_t n);
 void    taosMemoryFree(void *ptr);
 int64_t taosMemorySize(void *ptr);
 void    taosPrintBackTrace();

@@ -93,12 +93,13 @@ void qScanSql(const char* pStr, size_t length, uint8_t *is_insert, size_t *quest
   do {
     pStr += index;
     index = 0;
-    t = tStrGetToken((char*)pStr, &index, false, NULL);
-    if (TK_NK_QUESTION == t.type) {
+    uint32_t tid = 0;
+    index = tGetToken(pStr, &tid);
+    if (TK_NK_QUESTION == tid) {
       *questions += 1;
       continue;
     }
-    if (0 == t.type || 0 == t.n) {
+    if (0 == tid || 0 == index) {
       break;
     }
   } while (pStr - pSql < length);

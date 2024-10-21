@@ -84,7 +84,7 @@ static const char* tsdb_data_type_name(int type)
 static int run_sql(TAOS *conn, const char *sql)
 {
   TAOS_RES *res = taos_query(conn, sql);
-  int e = taos_errno(res);                                            \
+  int e = taos_errno(res);
   CHK_RES(res, e, "taos_query(%s) failed", sql);
   if (!res) return -1;
   taos_free_result(res);
@@ -169,7 +169,7 @@ static int describe_params(TAOS *conn, const describe_params_case_t *_case)
     goto end;
   }
 
-  r = taos_stmt_prepare2(stmt, sql, strlen(sql));
+  r = taos_stmt_prepare2(stmt, 0, sql, strlen(sql));
   if (r) {
     e = taos_errno(NULL);
     CHK_STMT(stmt, e, "@[%d]: taos_stmt_prepare2(%s) failed", line, sql);
@@ -972,7 +972,7 @@ static int run_exec_by_case(TAOS_STMT *stmt, const exec_case_t *_case, TAOS_MULT
   int is_insert = 0;
   int nr_params = 0;
 
-  r = taos_stmt_prepare2(stmt, sql, strlen(sql));
+  r = taos_stmt_prepare2(stmt, 0, sql, strlen(sql));
   if (r) {
     e = taos_errno(NULL);
     CHK_STMT(stmt, e, "@[%d]: taos_stmt_prepare2(%s) failed", line, sql);
@@ -1096,6 +1096,7 @@ static int run_exec(TAOS *conn)
     "create database if not exists foo",
     "use foo",
     "create table t (ts timestamp, nm varchar(20), i32 int)",
+    "insert into t (ts, nm, i32) values (now(), 'abc', 123)",
     "create stable st (ts timestamp, nm varchar(20), i32 int) tags (tn varchar(20), t32 int)",
     "insert into aef using st (tn, t32) tags ('aef-1', 32) (ts, nm, i32) values (1726146779123, '99', 23)",
     "create table tall(ts timestamp, b bool, i8 tinyint, u8 tinyint unsigned, i16 smallint, u16 smallint unsigned, i32 int, u32 int unsigned, i64 bigint, u64 bigint unsigned, flt float, dbl double, nm varchar(20), mm nchar(20), bb varbinary(20))",
@@ -1110,7 +1111,7 @@ static int run_exec(TAOS *conn)
   const exec_case_t _cases[] = {
     {
       .line      = __LINE__,
-      .sql       = "select nm from t",
+      .sql       = "select nm from t where to_unixtimestamp(to_iso8601(0)) = 0",
       .is_insert = 0,
       .params    = {
         {__LINE__, {EXEC_COL_END}},
@@ -1193,7 +1194,7 @@ static int run_exec(TAOS *conn)
       },
     },{
       .line      = __LINE__,
-      .sql       = "insert into t (ts, nm) values(now()+1s, 'world')",
+      .sql       = "insert into t (ts, nm) values(now+1s, 'world')",
       .is_insert = 1,
       .params    = {
         {__LINE__, {EXEC_COL_END}},
@@ -1329,6 +1330,18 @@ static int run_exec(TAOS *conn)
       .cells     = {
         {__LINE__, {EXEC_COL_END}},
       },
+    },{
+      .line      = __LINE__,
+      .sql       = "select nm from t where to_unixtimestamp(to_iso8601(0)) = ?",
+      .is_insert = 0,
+      .params    = {
+        {__LINE__, {"0", EXEC_COL_END}},
+        {__LINE__, {EXEC_COL_END}},
+      },
+      .cells     = {
+        {__LINE__, {"hello", EXEC_COL_END}},
+        {__LINE__, {EXEC_COL_END}},
+      },
     }
   };
 
@@ -1373,7 +1386,7 @@ static int run(TAOS *conn)
   if (1) r = run_params_describe(conn);
   if (r) return -1;
 
-  r = run_exec(conn);
+  if (1) r = run_exec(conn);
   if (r) return -1;
 
   return 0;
@@ -1391,7 +1404,13 @@ int main(int argc, char *argv[])
 
   TAOS *conn = taos_connect(ip, user, pass, db, port);
   CHK_TAOS(conn, "taos_connect failed");
-  if (conn) r = run(conn);
+  if (conn) {
+    if (argc > 1) {
+      r = run_sql(conn, argv[1]);
+    } else {
+      r = run(conn);
+    }
+  }
   if (conn) taos_close(conn);
   return !!r;
 }

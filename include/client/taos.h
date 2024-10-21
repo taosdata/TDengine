@@ -18,10 +18,14 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define XE(fmt, ...) (1 ? fprintf(stderr, "%s[%d]:%s():" fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__) : 0)
+#define XA(as, fmt, ...) ((as) ? 0 : (fprintf(stderr, "%s[%d]:%s():assert `%s` failure:" fmt "\n", __FILE__, __LINE__, __func__, #as, ##__VA_ARGS__), assert(0), 0))
 
 typedef void   TAOS;
 typedef void   TAOS_STMT;
@@ -194,6 +198,10 @@ DLL_EXPORT int       taos_stmt_affected_rows(TAOS_STMT *stmt);
 DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 
 //////// experimental //////////////////////////////////////////////////////////////////////////////////////////////////////
+typedef enum {                                                                                                            //
+  TAOS_STMT_PREPARE2_OPTION_PURE_PARSE      = 0x01,                                                                       //
+  TAOS_STMT_PREPARE2_OPTION_NO_REBUILD      = 0x02,                                                                       //
+} taos_stmt_prepare2_option_e;                                                                                            //
 // NOTE: 1. you can choose to either start/switch by taos_stmt_prepare2 or by taos_stmt_prepare as usual                  //
 // NOTE: 2. these 2-tailed functions and functions as below are not interchangeable:                                      //
 //       taos_stmt_prepare                                                                                                //
@@ -203,7 +211,8 @@ DLL_EXPORT int       taos_stmt_affected_rows_once(TAOS_STMT *stmt);
 // NOTE: 3. it means, once you start by taos_stmt_prepare2, you shall stick to 2-tailed functions                         //
 //          until you reach taos_stmt_execute and vice versa, otherwise, function-call will fail                          //
 // NOTE: 4. you can switch to use taos_stmt_prepare2 and taos_stmt_prepare during the lifetime of the `stmt`              //
-DLL_EXPORT int       taos_stmt_prepare2(TAOS_STMT *stmt, const char *sql, unsigned long length);                          //
+DLL_EXPORT int       taos_stmt_prepare2(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options,                             //
+                                        const char *sql, unsigned long length);                                           //
 //                                                                                                                        //
 // NOTE: if TAOS_FIELD_E::type == TSDB_DATA_TYPE_NULL, it means the param's type is not determined yet.                   //
 //       basically, it happens when sql prepared is a select-statement,                                                   //
@@ -212,6 +221,15 @@ DLL_EXPORT int       taos_stmt_get_params2(TAOS_STMT *stmt, TAOS_FIELD_E *params
 //                                                                                                                        //
 // NOTE: rows of params from TAOS_MULTI_BIND::num                                                                         //
 DLL_EXPORT int       taos_stmt_bind_params2(TAOS_STMT *stmt, TAOS_MULTI_BIND *mbs, int nr_mbs);                           //
+//                                                                                                                        //
+// NOTE: experimental: query2                                                                                             //
+static inline TAOS_RES *taos_stmt_query2(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options, const char *sql) {         //
+  int r = 0;                                                                                                              //
+  r = taos_stmt_prepare2(stmt, options, sql, strlen(sql));                                                                //
+  if (r == 0) r = taos_stmt_execute(stmt);                                                                                //
+  if (r == 0) return taos_stmt_use_result(stmt);                                                                          //
+  return NULL;                                                                                                            //
+}                                                                                                                         //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);

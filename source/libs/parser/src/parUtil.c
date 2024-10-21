@@ -25,6 +25,8 @@ const void* nullPointer = NULL;
 
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
+    case TSDB_CODE_OPS_NOT_SUPPORT:
+      return "Not supported yet";
     case TSDB_CODE_PAR_SYNTAX_ERROR:
       return "syntax error near \"%s\"";
     case TSDB_CODE_PAR_INCOMPLETE_SQL:
@@ -227,6 +229,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
 }
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
+  /* TODO: freemine, this is error prone         */
+  /*       if look deep into the implementation  */
   va_list vArgList;
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);

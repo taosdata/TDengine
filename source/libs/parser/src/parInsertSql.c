@@ -1263,7 +1263,9 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     return TSDB_CODE_SUCCESS;
   }
 
+  // dump_SName(&pStmt->usingTableName);
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->usingTableName, &pCxt->missCache, &pStmt->pTagCond);
+  XA(pStmt->pTagCond == NULL, "===========================");
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     bool bUsingTable = true;
     code = getTableMeta(pCxt, &pStmt->usingTableName, &pStmt->pTableMeta, &pCxt->missCache, bUsingTable);
@@ -2748,6 +2750,8 @@ static int32_t initInsertQuery(SInsertParseContext* pCxt, SCatalogReq* pCatalogR
     return createInsertQuery(pCxt, pQuery);
   }
 
+  // XA(0, "======================");
+
   if (NULL != pCxt->pComCxt->pStmtCb) {
     return resetVnodeModifOpStmt(pCxt, *pQuery);
   }
@@ -2769,6 +2773,7 @@ static int32_t setRefreshMeta(SQuery* pQuery) {
     pQuery->pTableList = taosArrayInit(taosHashGetSize(pStmt->pTableNameHashObj), sizeof(SName));
     SName* pTable = taosHashIterate(pStmt->pTableNameHashObj, NULL);
     while (NULL != pTable) {
+      // dump_SName(pTable);
       taosArrayPush(pQuery->pTableList, pTable);
       pTable = taosHashIterate(pStmt->pTableNameHashObj, pTable);
     }
@@ -2912,6 +2917,7 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
 static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCatalogReq* pCatalogReq) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
   if (pCxt->missCache) {
+    // XA(0, "=============");
     parserDebug("0x%" PRIx64 " %d rows of %d tables have been inserted before cache miss", pCxt->pComCxt->requestId,
                 pStmt->totalRowsNum, pStmt->totalTbNum);
 

@@ -349,6 +349,10 @@ static const char isIdChar[] = {
 
 static void* keywordHashTable = NULL;
 
+int isValidIdChar(const char c) {
+  return !!isIdChar[(uint8_t)c];
+}
+
 static void doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
 

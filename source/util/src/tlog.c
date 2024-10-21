@@ -1067,3 +1067,53 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+
+static threadlocal int               _tsdb_err = 0;
+static threadlocal char              _tsdb_msg[4096];
+
+
+int32_t do_not_call_td_set_err_directly(const char *file, int line, const char *func, int32_t errCode, const char *fmt, ...) {
+  char buf[sizeof(_tsdb_msg)]; *buf = '\0';
+
+  char   *p    = buf;
+  size_t  len  = sizeof(buf);
+  int n = 0;
+
+  n = snprintf(p, len, "%s[%d]:%s():[0x%08x]%s:", file, line, func, errCode, tstrerror(errCode));
+  if (n < len) {
+    p     += n;
+    len   -= n;
+  } else {
+    p      = NULL;
+    len    = 0;
+  }
+
+  if (len) {
+    va_list ap;
+    va_start(ap, fmt);
+    n = vsnprintf(p, len, fmt, ap);
+    va_end(ap);
+  }
+
+  _tsdb_err = errCode;
+  strcpy(_tsdb_msg, buf);
+
+  if (1) fprintf(stderr, "%s\n", _tsdb_msg);
+
+  return errCode;
+}
+
+int32_t td_get_err(const char **msg) {
+  if (msg) *msg = _tsdb_msg;
+  return _tsdb_err;
+}
+
+int32_t td_errno(void) {
+  return _tsdb_err;
+}
+
+const char* td_errmsg(void) {
+  return _tsdb_msg;
+}
+

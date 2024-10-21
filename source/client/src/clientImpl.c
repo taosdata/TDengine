@@ -2167,11 +2167,24 @@ char* getDbOfConnection(STscObj* pObj) {
   taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
-    p = strndup(pObj->db, tListLen(pObj->db));
+    p = taosStrndup(pObj->db, tListLen(pObj->db));
   }
 
   taosThreadMutexUnlock(&pObj->mutex);
   return p;
+}
+
+void conn_current_db(STscObj *pObj, char *db, size_t len) {
+  taosThreadMutexLock(&pObj->mutex);
+
+  size_t n = strlen(pObj->db);
+  if (n > 0) {
+    snprintf(db, len, "%.*s", (int)n, pObj->db);
+  } else {
+    *db = '\0';
+  }
+
+  taosThreadMutexUnlock(&pObj->mutex);
 }
 
 void setConnectionDB(STscObj* pTscObj, const char* db) {

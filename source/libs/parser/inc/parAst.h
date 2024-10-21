@@ -26,15 +26,47 @@ extern "C" {
 #include "parser.h"
 #include "querynodes.h"
 #include "parTokenDef.h"
+#include "insertnodes.h"
+
+#define CHECK_OUT_OF_MEM(p)                                                      \
+  do {                                                                           \
+    if (NULL == (p)) {                                                           \
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;                                   \
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory"); \
+      return NULL;                                                               \
+    }                                                                            \
+  } while (0)
+
+#define CHECK_PARSER_STATUS(pCxt)             \
+  do {                                        \
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) { \
+      assert(0); /* TODO: freemine: remove */ \
+      return NULL;                            \
+    }                                         \
+  } while (0)
+
+
+#define GEN_ERRX(e, fmt, ...) do {                                             \
+  pCxt->errCode = e;                                                           \
+  snprintf(pCxt->msgBuf.buf, pCxt->msgBuf.len,                                 \
+      "%s[%d]:[0x%08x]%s:" fmt "", __FILE__, __LINE__,                         \
+      e, tstrerror(e), ##__VA_ARGS__);                                         \
+} while (0)
 
 typedef struct SAstCreateContext {
-  SParseContext* pQueryCxt;
-  SMsgBuf        msgBuf;
-  bool           notSupport;
-  SNode*         pRootNode;
-  int16_t        placeholderNo;
-  SArray*        pPlaceholderValues;
-  int32_t        errCode;
+  SParseContext*  pQueryCxt;
+  SMsgBuf         msgBuf;
+  bool            notSupport;
+  int32_t         errCode;
+
+
+  int             nr_cols;
+  int             nr_rows_of_single_table;
+  int             nr_tables;
+
+  parse_result_t *parse_result;
+
+  uint8_t         in_using_clause:1;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
@@ -311,6 +343,111 @@ SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt);
 SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
+
+SNode* createInsertMultiStmt(SAstCreateContext *pCxt, multiple_targets_t *multiple_targets);
+SNode* createInsertQuestionStmt(SAstCreateContext *pCxt, value_t *question, using_clause_t *using_clause, SNodeList *fields_clause, row_t *rows);
+
+typedef struct interval_value_s          interval_value_t;
+typedef struct question_value_s          question_value_t;
+
+struct row_s {
+  row_t              *next;
+  value_t            *first;
+};
+
+typedef struct db_table_token_s          db_table_token_t;
+struct db_table_token_s {
+  SToken              db;
+  SToken              tbl;
+  db_table_t          db_tbl;
+};
+
+struct using_clause_s {
+  db_table_token_t    supertable;
+  SNodeList          *tags;         // NOTE: meta
+  value_t            *vals;
+};
+
+typedef struct simple_target_s      simple_target_t;
+struct simple_target_s {
+  simple_target_t    *next;
+  db_table_token_t    tbl;
+  using_clause_t     *using_clause;
+  SNodeList          *fields_clause;
+  row_t              *rows;
+};
+
+struct multiple_targets_s {
+  simple_target_t        *first;
+};
+
+void row_destroy(row_t *row);
+void rows_destroy(row_t *rows);
+void using_clause_release(using_clause_t *using_clause);
+void using_clause_destroy(using_clause_t *using_clause);
+void simple_target_release(simple_target_t *simple_target);
+void simple_target_destroy(simple_target_t *simple_target);
+void multiple_targets_release(multiple_targets_t *multiple_targets);
+void multiple_targets_destroy(multiple_targets_t *multiple_targets);
+
+
+size_t rows_count(row_t *rows);
+size_t row_values_count(row_t *row);
+void rows_append(row_t *rows, row_t *row);
+
+value_t* value_first_post_order(value_t *start);
+value_t* value_next_post_order(value_t *start);
+
+#define for_each_value_post_order(value, _p, _n)                               \
+  for (_p = value_first_post_order(value);                                     \
+       _n = _p ? value_next_post_order(_p) : NULL, _p;                         \
+       _p = _n)
+
+int value_eval(value_t *value, int row, eval_env_t *env);
+tsdb_value_t* value_get_tsdb_value(value_t *value);
+void value_destroy(value_t *value);
+void values_destroy(value_t *values);
+void values_append(value_t *values, value_t *value);
+size_t values_count(value_t *values);
+void intreval_value_destroy(interval_value_t *interval_value);
+void question_value_destroy(question_value_t *question_value);
+void value_hint(value_t *value, const TAOS_FIELD_E *field);
+value_t* value_next(value_t *value);
+value_t* value_by_idx(value_t *value, int idx);
+const TAOS_FIELD_E* value_param_type(value_t *value);
+const SToken* value_token(const value_t *value);
+void value_set_token(value_t *value, const SToken *t1, const SToken *t2);
+
+multiple_targets_t* parser_create_multiple_targets(SAstCreateContext *pCxt);
+simple_target_t*    parser_create_simple_target(SAstCreateContext *pCxt);
+int parser_multiple_targets_append(SAstCreateContext *pCxt, multiple_targets_t *multiple_targets, simple_target_t *simple_target);
+
+using_clause_t*     parser_create_using_clause(SAstCreateContext *pCxt);
+
+value_t* parser_create_table_value(SAstCreateContext *pCxt, SToken *db, SToken *tbl);
+
+value_t* parser_create_integer_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_flt_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_str_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_bool_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_ts_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_interval_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_null_value(SAstCreateContext *pCxt, SToken *token);
+value_t* parser_create_question_value(SAstCreateContext *pCxt, SToken *token);
+
+value_t* parser_create_add_op(SAstCreateContext *pCxt, value_t *l, value_t *r);
+value_t* parser_create_sub_op(SAstCreateContext *pCxt, value_t *l, value_t *r);
+value_t* parser_create_mul_op(SAstCreateContext *pCxt, value_t *l, value_t *r);
+value_t* parser_create_div_op(SAstCreateContext *pCxt, value_t *l, value_t *r);
+value_t* parser_create_neg_op(SAstCreateContext *pCxt, SToken *neg, value_t *x);
+value_t* parser_create_cal_op(SAstCreateContext *pCxt, SToken *func, value_t *args);
+value_t* parser_create_now(SAstCreateContext *pCxt, SToken *token);
+
+int      parser_values_append(SAstCreateContext *pCxt, value_t *values, value_t *value);
+
+row_t*   parser_create_row(SAstCreateContext *pCxt);
+
+int parser_db_table_token_normalize_from(SAstCreateContext *pCxt, db_table_token_t *db_tbl, SToken *db, SToken *tbl);
 
 #ifdef __cplusplus
 }

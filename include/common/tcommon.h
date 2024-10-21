@@ -429,6 +429,56 @@ static inline bool isTsmaResSTb(const char* stbName) {
   return false;
 }
 
+static inline const char* taosDataTypeName(int type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      return "TSDB_DATA_TYPE_NULL";
+    case TSDB_DATA_TYPE_BOOL:
+      return "TSDB_DATA_TYPE_BOOL";
+    case TSDB_DATA_TYPE_TINYINT:
+      return "TSDB_DATA_TYPE_TINYINT";
+    case TSDB_DATA_TYPE_SMALLINT:
+      return "TSDB_DATA_TYPE_SMALLINT";
+    case TSDB_DATA_TYPE_INT:
+      return "TSDB_DATA_TYPE_INT";
+    case TSDB_DATA_TYPE_BIGINT:
+      return "TSDB_DATA_TYPE_BIGINT";
+    case TSDB_DATA_TYPE_FLOAT:
+      return "TSDB_DATA_TYPE_FLOAT";
+    case TSDB_DATA_TYPE_DOUBLE:
+      return "TSDB_DATA_TYPE_DOUBLE";
+    case TSDB_DATA_TYPE_VARCHAR:
+      return "TSDB_DATA_TYPE_VARCHAR";
+      //    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_VARCHAR";
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return "TSDB_DATA_TYPE_TIMESTAMP";
+    case TSDB_DATA_TYPE_NCHAR:
+      return "TSDB_DATA_TYPE_NCHAR";
+    case TSDB_DATA_TYPE_JSON:
+      return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return "TSDB_DATA_TYPE_GEOMETRY";
+    case TSDB_DATA_TYPE_UTINYINT:
+      return "TSDB_DATA_TYPE_UTINYINT";
+    case TSDB_DATA_TYPE_USMALLINT:
+      return "TSDB_DATA_TYPE_USMALLINT";
+    case TSDB_DATA_TYPE_UINT:
+      return "TSDB_DATA_TYPE_UINT";
+    case TSDB_DATA_TYPE_UBIGINT:
+      return "TSDB_DATA_TYPE_UBIGINT";
+    case TSDB_DATA_TYPE_VARBINARY:
+      return "TSDB_DATA_TYPE_VARBINARY";
+    case TSDB_DATA_TYPE_DECIMAL:
+      return "TSDB_DATA_TYPE_DECIMAL";
+    case TSDB_DATA_TYPE_BLOB:
+      return "TSDB_DATA_TYPE_BLOB";
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return "TSDB_DATA_TYPE_MEDIUMBLOB";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 #ifdef __cplusplus
 }
 #endif

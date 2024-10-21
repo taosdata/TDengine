@@ -40,14 +40,14 @@
   return TSDB_CODE_TSC_STMT_API_ERROR;              \
 } while (0)
 
-int stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length, STMT_API_TYPE api_type) {
+int stmt_prepare(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options, const char *sql, unsigned long length, STMT_API_TYPE api_type) {
   if (stmt == NULL || sql == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtPrepare(stmt, sql, length, api_type);
+  return stmtPrepare(stmt, options, sql, length, api_type);
 }
 
 int stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
@@ -732,53 +732,7 @@ TAOS_ROW *taos_result_block(TAOS_RES *res) {
 
 // todo intergrate with tDataTypes
 const char *taos_data_type(int type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_NULL:
-      return "TSDB_DATA_TYPE_NULL";
-    case TSDB_DATA_TYPE_BOOL:
-      return "TSDB_DATA_TYPE_BOOL";
-    case TSDB_DATA_TYPE_TINYINT:
-      return "TSDB_DATA_TYPE_TINYINT";
-    case TSDB_DATA_TYPE_SMALLINT:
-      return "TSDB_DATA_TYPE_SMALLINT";
-    case TSDB_DATA_TYPE_INT:
-      return "TSDB_DATA_TYPE_INT";
-    case TSDB_DATA_TYPE_BIGINT:
-      return "TSDB_DATA_TYPE_BIGINT";
-    case TSDB_DATA_TYPE_FLOAT:
-      return "TSDB_DATA_TYPE_FLOAT";
-    case TSDB_DATA_TYPE_DOUBLE:
-      return "TSDB_DATA_TYPE_DOUBLE";
-    case TSDB_DATA_TYPE_VARCHAR:
-      return "TSDB_DATA_TYPE_VARCHAR";
-      //    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_VARCHAR";
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      return "TSDB_DATA_TYPE_TIMESTAMP";
-    case TSDB_DATA_TYPE_NCHAR:
-      return "TSDB_DATA_TYPE_NCHAR";
-    case TSDB_DATA_TYPE_JSON:
-      return "TSDB_DATA_TYPE_JSON";
-    case TSDB_DATA_TYPE_GEOMETRY:
-      return "TSDB_DATA_TYPE_GEOMETRY";
-    case TSDB_DATA_TYPE_UTINYINT:
-      return "TSDB_DATA_TYPE_UTINYINT";
-    case TSDB_DATA_TYPE_USMALLINT:
-      return "TSDB_DATA_TYPE_USMALLINT";
-    case TSDB_DATA_TYPE_UINT:
-      return "TSDB_DATA_TYPE_UINT";
-    case TSDB_DATA_TYPE_UBIGINT:
-      return "TSDB_DATA_TYPE_UBIGINT";
-    case TSDB_DATA_TYPE_VARBINARY:
-      return "TSDB_DATA_TYPE_VARBINARY";
-    case TSDB_DATA_TYPE_DECIMAL:
-      return "TSDB_DATA_TYPE_DECIMAL";
-    case TSDB_DATA_TYPE_BLOB:
-      return "TSDB_DATA_TYPE_BLOB";
-    case TSDB_DATA_TYPE_MEDIUMBLOB:
-      return "TSDB_DATA_TYPE_MEDIUMBLOB";
-    default:
-      return "UNKNOWN";
-  }
+  return taosDataTypeName(type);
 }
 
 const char *taos_get_client_info() { return version; }
@@ -1748,7 +1702,7 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  return stmt_prepare(stmt, sql, length, STMT_API_PREPARE);
+  return stmt_prepare(stmt, 0, sql, length, STMT_API_PREPARE);
 }
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
@@ -1919,10 +1873,10 @@ int taos_set_conn_mode(TAOS* taos, int mode, int value) {
   return 0;
 }
 
-int taos_stmt_prepare2(TAOS_STMT *stmt, const char *sql, unsigned long length) {
+int taos_stmt_prepare2(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options, const char *sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  return stmt_prepare(stmt, sql, length, STMT_API_PREPARE2);
+  return stmt_prepare(stmt, options, sql, length, STMT_API_PREPARE2);
 }
 
 int taos_stmt_get_params2(TAOS_STMT *stmt, TAOS_FIELD_E *params, int nr_params, int *nr_real) {

@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -14,33 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_CLIENTSTMTAPI2_H
-#define TDENGINE_CLIENTSTMTAPI2_H
-
-#include "clientStmt.h"
+#ifndef _TD_PARSE_RESULT_H_
+#define _TD_PARSE_RESULT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "parser.h"
 
-#define DBGE(fmt, ...) if (0) fprintf(stderr, "%s[%d]:%s():" fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
-
-void stmtExec2ClearRes(STscStmt *pStmt);
-int stmtKeepMbs(STscStmt *pStmt, int nr);
-void stmtReleasePrepareInfo2(STscStmt *pStmt);
-void stmtUnbindParams2(STscStmt *pStmt);
-
-int stmtGetParamNumInternal(TAOS_STMT* stmt, int* nums);
-int stmtGetParam2(TAOS_STMT* stmt, int idx, int* type, int* bytes);
-
-int stmtDoExec1(TAOS_STMT* stmt, int64_t *affectedRows);
-int stmtExec1(TAOS_STMT* stmt);
-int stmtExec2(TAOS_STMT *stmt);
-
+void parse_result_post_fill_meta(parse_result_t *parse_result);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_CLIENTSTMTAPI2_H
+#endif /*_TD_PARSE_RESULT_H_*/
 

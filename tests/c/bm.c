@@ -117,7 +117,7 @@ static void release_binds(TAOS_MULTI_BIND *binds, size_t nr_binds)
   }
 }
 
-static int gen_col(TAOS_MULTI_BIND *bind, int i_row)
+static int gen_col(TAOS_MULTI_BIND *bind, int nano, int i_row)
 {
   char    *data    = ((char*)(bind->buffer)) + bind->buffer_length * i_row;
   int32_t *length  = bind->length + i_row;
@@ -128,6 +128,9 @@ static int gen_col(TAOS_MULTI_BIND *bind, int i_row)
   switch (bind->buffer_type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *(int64_t*)data = get_next_ms();
+      if (nano) {
+        *(int64_t*)data *= 1000000;
+      }
       break;
     case TSDB_DATA_TYPE_VARCHAR:
       snprintf(data, bind->buffer_length, "n%d", i_row);
@@ -144,7 +147,7 @@ static int gen_col(TAOS_MULTI_BIND *bind, int i_row)
   return 0;
 }
 
-static int gen_tbname_tags(TAOS_MULTI_BIND *bind, int i_tb, int i_row, int tb_rows)
+static int gen_tbname_tags(TAOS_MULTI_BIND *bind, int nano, int i_tb, int i_row, int tb_rows)
 {
   int r = 0;
 
@@ -157,6 +160,9 @@ static int gen_tbname_tags(TAOS_MULTI_BIND *bind, int i_tb, int i_row, int tb_ro
   switch (bind->buffer_type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *(int64_t*)data = get_base_ts() + i_tb;
+      if (nano) {
+        *(int64_t*)data *= 1000000;
+      }
       break;
     case TSDB_DATA_TYPE_VARCHAR:
       snprintf(data, bind->buffer_length, "n%d", i_tb);
@@ -298,7 +304,7 @@ static int binds_realloc_by_rows(binds_t *binds, int col)
   return 0;
 }
 
-static int gen_binds(binds_t *binds, int *rows, size_t *total_rows, param_meta_t *meta, size_t nr_meta, int tbname, int nr_tags, int nr_tbls, int nr_records)
+static int gen_binds(binds_t *binds, int nano, int *rows, size_t *total_rows, param_meta_t *meta, size_t nr_meta, int tbname, int nr_tags, int nr_tbls, int nr_records)
 {
   int r = 0;
 
@@ -367,14 +373,14 @@ static int gen_binds(binds_t *binds, int *rows, size_t *total_rows, param_meta_t
       int i_row = 0;
       for (int j=0; j<nr_tbls; ++j) {
         int tb_rows = rows[j];
-        r = gen_tbname_tags(bind, j, i_row, tb_rows);
+        r = gen_tbname_tags(bind, nano, j, i_row, tb_rows);
         if (r) return -1;
         i_row += tb_rows;
       }
       continue;
     }
     for (int j=0; j<nr_rows; ++j) {
-      r = gen_col(bind, j);
+      r = gen_col(bind, nano, j);
       if (r) return -1;
     }
   }
@@ -720,7 +726,7 @@ static int run_api2(TAOS_STMT *stmt, binds_t *binds, size_t nr_binds, int tbname
   return 0;
 }
 
-static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int tables, int records)
+static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int rebuild, int loops, int tables, int records)
 {
   int r = 0;
 
@@ -728,6 +734,7 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int t
     "drop database if exists foo",
     "create database if not exists foo",
     "use foo",
+    "show stables",
     "create stable st (ts timestamp, i32 int) tags (tv int)",
   };
   r = run_sqls(conn, sqls, sizeof(sqls)/sizeof(sqls[0]));
@@ -765,12 +772,31 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int t
   size_t    total_records = 0;
 
   if (mode == 0) {
+    ;
   } else if (mode == 1) {
     r = taos_stmt_prepare(stmt, sql, strlen(sql));
     CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
-  } else {
-    r = taos_stmt_prepare2(stmt, sql, strlen(sql));
+  } else if (mode == 2) {
+    taos_stmt_prepare2_option_e options = rebuild ? 0 : TAOS_STMT_PREPARE2_OPTION_NO_REBUILD;
+    r = taos_stmt_prepare2(stmt, options, sql, strlen(sql));
     CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
+  } else {
+    taos_stmt_prepare2_option_e options = rebuild ? 0 : TAOS_STMT_PREPARE2_OPTION_NO_REBUILD;
+    options |= TAOS_STMT_PREPARE2_OPTION_PURE_PARSE;
+    r = taos_stmt_prepare2(stmt, options, sql, strlen(sql));
+    CHK_STMT(stmt, r, "taos_stmt_prepare2(%s) failed", sql);
+  }
+  if (mode == 2 || mode == 3) {
+    TAOS_FIELD_E params[64];
+    int nr_params = 0;
+    r = taos_stmt_get_params2(stmt, params, (int)(sizeof(params)/sizeof(params[0])) , &nr_params);
+    CHK_STMT(stmt, r, "taos_stmt_get_params2 failed");
+    // for (int i=0; i<nr_params; ++i) {
+    //   TAOS_FIELD_E *p = params + i;
+    //   XE("=%d:%.*s:[%d]%s:precision[%d]:scale[%d]:bytes:[%d]",
+    //     i, (int)sizeof(p->name), p->name, p->type, taos_data_type(p->type),
+    //     p->precision, p->scale, p->bytes);
+    // }
   }
 
   clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -778,7 +804,7 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int t
   for (int i=0; i<loops; ++i) {
     if (r) break;
     size_t total_rows = 0;
-    r = gen_binds(&binds, rows, &total_rows, ar_params, nr_params, !!tbname, nr_tags, tables, records);
+    r = gen_binds(&binds, mode==3 ? 1 : 0, rows, &total_rows, ar_params, nr_params, !!tbname, nr_tags, tables, records);
     if (r) break;
 
     if (mode == 0) {
@@ -788,6 +814,8 @@ static int run_with_stmt(TAOS *conn, TAOS_STMT *stmt, int mode, int loops, int t
       total_rows = rows_inserted;
     } else if (mode == 1) {
       r = run_origin(stmt, &binds, nr_params, !!tbname, nr_tags);
+    } else if (mode == 2) {
+      r = run_api2(stmt, &binds, nr_params, !!tbname, nr_tags);
     } else {
       r = run_api2(stmt, &binds, nr_params, !!tbname, nr_tags);
     }
@@ -824,6 +852,8 @@ static void usage(FILE *f, const char *app)
   fprintf(f, "  --options <options>      # singleStbInsert | singleTableBindOnce\n");
   fprintf(f, "  -1                       use taos_stmt_prepare\n");
   fprintf(f, "  -2                       use taos_stmt_prepare2\n");
+  fprintf(f, "  -3                       use taos_stmt_prepare2 with TAOS_STMT_PREPARE2_OPTION_PURE_PARSE\n");
+  fprintf(f, "  --rebuild                debug, if rebuild is set via qBuildStmtOutput\n");
   fprintf(f, "  note: if -1/-2 is not specified, use taos_query instead\n");
 }
 
@@ -839,11 +869,11 @@ static int run(int argc, char *argv[])
   uint16_t    port         = 0;
 
   int mode    = 0;
+  int rebuild = 0;
   int loops   = 1;
   int tables  = 2;
   int records = 1;
   TAOS_STMT_OPTIONS opt = {0};
-
 
   for (int i=1; i<argc; ++i) {
     const char *arg = argv[i];
@@ -861,6 +891,11 @@ static int run(int argc, char *argv[])
       mode = 2;
       continue;
     }
+    if (strcmp(arg, "-3") == 0) {
+      // stmtAPI2 ext mode
+      mode = 3;
+      continue;
+    }
     if (strcmp(arg, "-l") == 0) {
       // how many loops to go
       if (++i >= argc) {
@@ -868,6 +903,10 @@ static int run(int argc, char *argv[])
         return -1;
       }
       loops = atoi(argv[i]);
+      continue;
+    }
+    if (strcmp(arg, "--rebuild") == 0) {
+      rebuild = 1;
       continue;
     }
     if (strcmp(arg, "-t") == 0) {
@@ -910,15 +949,17 @@ static int run(int argc, char *argv[])
   if (!conn) return -1;
 
   TAOS_STMT *stmt = taos_stmt_init_with_options(conn, &opt);
-  e = taos_errno(NULL);
-  CHK_STMT(stmt, e, "taos_stmt_init failed");
   if (!stmt) {
+    e = taos_errno(NULL);
+    CHK_STMT(stmt, e, "taos_stmt_init failed");
     taos_close(conn);
     return -1;
   }
 
-  r = run_with_stmt(conn, stmt, mode, loops, tables, records);
+  r = run_with_stmt(conn, stmt, mode, rebuild, loops, tables, records);
   taos_stmt_close(stmt);
+
+  taos_close(conn);
 
   return r;
 }

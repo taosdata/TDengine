@@ -60,6 +60,7 @@ typedef enum { M2C = 0, C2M } ConvType;
   } while (0)
 
 char   *tstrdup(const char *src);
+char   *tstrndup(const char *src, size_t n);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int64_t taosStr2int64(const char *str);
 

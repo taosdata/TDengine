@@ -71,7 +71,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                    "Unexpected generic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,           "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RANGE,                 "Out of range")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "Invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "xInvalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_LEN,              "Invalid message len")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PTR,                  "Invalid pointer")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PARA,                 "Invalid parameters")
@@ -436,7 +436,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE,    "Table already exists 
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_MSG,              "Invalid message")    // failed to validate the sql expression msg by vnode
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_MSG,              "yInvalid message")    // failed to validate the sql expression msg by vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUP_JOIN_KEY,             "Duplicated join key")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT,        "Tag conditon too many")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                "Query not ready")
@@ -683,6 +683,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SUPPORT,                "Parser not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FUNC_NOT_FOUND,             "Function not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FUNC_MISSING_ARGS,          "Missing args in function call")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FUNC_TOO_MANY_ARGS,         "Too many args in function call")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -756,7 +759,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
 
 //tmq
-TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "zInvalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NEED_INITIALIZED,           "Assignment or poll interface need to be called first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SNAPSHOT_ERROR,             "Can not operate in snapshot mode")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_COMMITTED,               "No committed info")

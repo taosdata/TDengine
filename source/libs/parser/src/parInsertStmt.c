@@ -92,14 +92,14 @@ pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 }
 */
 
-int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
+int32_t qBuildStmtOutput(SQuery* pQuery, int rebuild, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SArray*             pVgDataBlocks = NULL;
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
   // merge according to vgId
   if (taosHashGetSize(pBlockHash) > 0) {
-    code = insMergeTableDataCxt(pBlockHash, &pVgDataBlocks, true);
+    code = insMergeTableDataCxt(pBlockHash, &pVgDataBlocks, rebuild);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

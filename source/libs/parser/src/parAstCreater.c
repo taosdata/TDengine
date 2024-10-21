@@ -20,24 +20,9 @@
 #include "parUtil.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "querynodes.h"
 
-#define CHECK_OUT_OF_MEM(p)                                                      \
-  do {                                                                           \
-    if (NULL == (p)) {                                                           \
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;                                   \
-      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory"); \
-      return NULL;                                                               \
-    }                                                                            \
-  } while (0)
-
-#define CHECK_PARSER_STATUS(pCxt)             \
-  do {                                        \
-    if (TSDB_CODE_SUCCESS != pCxt->errCode) { \
-      return NULL;                            \
-    }                                         \
-  } while (0)
-
-#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
+#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, (sizeof(buf) - 1)))
 #define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
   do {                                                                       \
     if ((pToken)->n > 2) {                                                   \
@@ -53,9 +38,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->msgBuf.buf = pParseCxt->pMsg;
   pCxt->msgBuf.len = pParseCxt->msgLen;
   pCxt->notSupport = false;
-  pCxt->pRootNode = NULL;
-  pCxt->placeholderNo = 0;
-  pCxt->pPlaceholderValues = NULL;
+  pCxt->parse_result = NULL;
   pCxt->errCode = TSDB_CODE_SUCCESS;
 }
 
@@ -761,7 +744,7 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
 
 SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   CHECK_PARSER_STATUS(pCxt);
-  if (NULL == pCxt->pQueryCxt->pStmtCb) {
+  if (0 && !pCxt->pQueryCxt->prepare && NULL == pCxt->pQueryCxt->pStmtCb) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
     return NULL;
   }
@@ -769,15 +752,16 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
-  val->placeholderNo = ++pCxt->placeholderNo;
-  if (NULL == pCxt->pPlaceholderValues) {
-    pCxt->pPlaceholderValues = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-    if (NULL == pCxt->pPlaceholderValues) {
+  parse_result_t *parse_result = pCxt->parse_result;
+  val->placeholderNo = ++parse_result->placeholderNo;
+  if (NULL == parse_result->pPlaceholderValues) {
+    parse_result->pPlaceholderValues = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    if (NULL == parse_result->pPlaceholderValues) {
       nodesDestroyNode((SNode*)val);
       return NULL;
     }
   }
-  taosArrayPush(pCxt->pPlaceholderValues, &val);
+  taosArrayPush(parse_result->pPlaceholderValues, &val);
   return (SNode*)val;
 }
 
@@ -2007,7 +1991,6 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pTagName)) {
-    nodesDestroyNode(pVal);
     return NULL;
   }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
@@ -2130,7 +2113,6 @@ SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pNode, ENodeType type
   }
 
   if (pDbToken && !checkDbName(pCxt, pDbToken, true)) {
-    nodesDestroyNode(pNode);
     return NULL;
   }
 
@@ -2274,6 +2256,7 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
 
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
   if (NULL == pCreateUserStmt || NULL == pIpRangesNodeList) {
+    nodesDestroyList(pIpRangesNodeList);
     return pCreateUserStmt;
   }
 
@@ -2313,8 +2296,28 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
 }
 
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    switch (alterType) {
+      case TSDB_ALTER_USER_ADD_WHITE_LIST:
+      case TSDB_ALTER_USER_DROP_WHITE_LIST: {
+        SNodeList* list = (SNodeList*)pAlterInfo;
+        nodesDestroyList(list);
+      } break;
+      default:
+        break;
+    }
+  }
   CHECK_PARSER_STATUS(pCxt);
   if (!checkUserName(pCxt, pUserName)) {
+    switch (alterType) {
+      case TSDB_ALTER_USER_ADD_WHITE_LIST:
+      case TSDB_ALTER_USER_DROP_WHITE_LIST: {
+        SNodeList* list = (SNodeList*)pAlterInfo;
+        nodesDestroyList(list);
+      } break;
+      default:
+        break;
+    }
     return NULL;
   }
   SAlterUserStmt* pStmt = (SAlterUserStmt*)nodesMakeNode(QUERY_NODE_ALTER_USER_STMT);
@@ -3015,7 +3018,9 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   CHECK_PARSER_STATUS(pCxt);
   SInsertStmt* pStmt = (SInsertStmt*)nodesMakeNode(QUERY_NODE_INSERT_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+
   pStmt->pTable = pTable;
+
   pStmt->pCols = pCols;
   pStmt->pQuery = pQuery;
   if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
@@ -3030,7 +3035,6 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
                             SNode* pRealTable, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTsmaName(pCxt, tsmaName)) {
-    nodesDestroyNode(pInterval);
     return NULL;
   }
 
@@ -3042,7 +3046,6 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
     // recursive tsma
     pStmt->pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
     if (!pStmt->pOptions) {
-      nodesDestroyNode(pInterval);
       nodesDestroyNode((SNode*)pStmt);
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
       snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
@@ -3108,3 +3111,4 @@ SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
   pStmt->pDbName = dbName;
   return (SNode*)pStmt;
 }
+

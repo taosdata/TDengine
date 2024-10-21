@@ -596,6 +596,17 @@ enum {
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+// NOTE: freemine, internal representation of db.table
+//       they are all lower-case or real content from `...`
+//       thus, do NOT construct by hand!!!
+typedef struct db_table_s            db_table_t;
+struct db_table_s {
+  char db[TSDB_DB_NAME_LEN];        // NOTE: TSDB_DB_NAME_LEN null-terminator-inclusive
+  char tbl[TSDB_TABLE_NAME_LEN];    // NOTE: TSDB_TABLE_NAME_LEN null-terminator-inclusive
+  char db_tbl[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN]; // NOTE: <db>.<tbl>
+};
+
 #ifdef __cplusplus
 }
 #endif

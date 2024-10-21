@@ -88,6 +88,7 @@ void taosPrintBackTrace() {
 #endif
 #else
 #define tstrdup(str) strdup(str)
+#define tstrndup(str, n) strndup(str, n)
 
 #include <execinfo.h>
 
@@ -331,6 +332,20 @@ char *taosStrdup(const char *ptr) {
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
   return tstrdup(ptr);
+#endif
+}
+
+char *taosStrndup(const char *ptr, size_t n) {
+#ifdef USE_TD_MEMORY
+#error not implemented yet!
+#else
+  n = strnlen(ptr, n);
+  char *p = taosMemoryMalloc(n + 1);
+  if (p) {
+    memcpy(p, ptr, n);
+    p[n] = '\0';
+  }
+  return p;
 #endif
 }
 

@@ -128,6 +128,19 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
 // clang-format on
 // #define BUF_PAGE_DEBUG
+
+
+int32_t td_errno(void);
+const char* td_errmsg(void);
+
+int32_t do_not_call_td_set_err_directly(const char *file, int line, const char *func, int32_t errCode, const char *fmt, ...);
+
+#define TD_SET_ERR(e, fmt, ...)                                                \
+  (0 ? fprintf(stderr, "" fmt "\n", ##__VA_ARGS__)                             \
+   : do_not_call_td_set_err_directly(__FILE__, __LINE__, __func__, e, fmt, ##__VA_ARGS__))
+
+
+
 #ifdef __cplusplus
 }
 #endif

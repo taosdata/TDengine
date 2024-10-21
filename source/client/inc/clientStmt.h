@@ -86,39 +86,6 @@ typedef struct SStmtExecInfo {
   SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 
-typedef struct SStmtAPI2 {
-  int               questions; // # of question-marks found by `qScanSql`
-
-  int               nr_tags;   // # of tags
-  int               nr_cols;   // # of cols
-
-  TAOS_FIELD_E     *params;        // local cache for param-meta-info
-  size_t            cap_params;
-
-  TAOS_MULTI_BIND  *mbs_from_app;
-  int               nr_mbs_from_app;
-
-  TAOS_MULTI_BIND  *mbs_cache;     // used during batch submit
-  size_t            cap_mbs;
-
-  char             *conv_buf;      // used during param conversion
-  size_t            cap_conv_buf;
-
-  TAOS_RES         *res_from_taos_query;
-
-  uint8_t           scanned:1;         // set after `qScanSql`
-  uint8_t           is_insert:1;
-  uint8_t           tbname_required:1;
-
-  // NOTE: only valid when tbname_required is set
-  // NOTE: bypass tag-related routines when it's set
-  uint8_t           without_using_clause:1;
-
-  uint8_t           prepared:1;        // set when taos_stmt_prepare2 succeed
-
-  uint8_t           use_res_from_taos_query:1;
-} SStmtAPI2;
-
 typedef struct SStmtSQLInfo {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -129,6 +96,8 @@ typedef struct SStmtSQLInfo {
   SQuery           *pQuery;
   char             *sqlStr;
   int32_t           sqlLen;
+  char             *originSql;
+  int32_t           originLen;
   SArray           *nodeList;
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
@@ -267,7 +236,7 @@ int         stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);
 int         stmtAffectedRows(TAOS_STMT *stmt);
 int         stmtAffectedRowsOnce(TAOS_STMT *stmt);
-int         stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length, STMT_API_TYPE api_type);
+int         stmtPrepare(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options, const char *sql, unsigned long length, STMT_API_TYPE api_type);
 int         stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
 int         stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 int         stmtGetTagFields(TAOS_STMT *stmt, int *nums, TAOS_FIELD_E **fields);
@@ -280,11 +249,11 @@ TAOS_RES   *stmtUseResult(TAOS_STMT *stmt);
 int         stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int32_t colIdx);
 
 int         stmtPrepare2(TAOS_STMT *stmt, const char *sql, unsigned long length);
-int         stmtPostPrepare2(TAOS_STMT *stmt);
+int         stmtPostPrepare2(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options);
 int         stmtGetParams2(TAOS_STMT *stmt, TAOS_FIELD_E *params, int nr_params, int *nr_real);
 int         stmtBindParams2(TAOS_STMT *stmt, TAOS_MULTI_BIND *mbs, int nr_mbs);
 
-int stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length, STMT_API_TYPE api_type);
+int stmt_prepare(TAOS_STMT *stmt, taos_stmt_prepare2_option_e options, const char *sql, unsigned long length, STMT_API_TYPE api_type);
 int stmt_num_params(TAOS_STMT *stmt, int *nums);
 int stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags);
 int stmt_set_tbname(TAOS_STMT *stmt, const char *name);
@@ -297,6 +266,8 @@ int stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int col
 int stmt_add_batch(TAOS_STMT *stmt);
 
 TAOS_RES* taosQueryImplWithConnId(int64_t connId, const char* sql, bool validateOnly, int8_t source);
+
+int32_t stmtCreateRequest_for_parse_result(TAOS_STMT *stmt);
 
 #ifdef __cplusplus
 }
