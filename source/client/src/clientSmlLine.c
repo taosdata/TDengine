@@ -298,7 +298,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     }
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
-      return TSDB_CODE_TSC_INVALID_JSON;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
 
     cnt++;
@@ -311,31 +311,23 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 }
 
 static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *elements) {
+  int32_t code = 0;
   bool isSameCTable = IS_SAME_CHILD_TABLE;
   if(isSameCTable){
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t ret = 0;
   if(info->dataFormat){
-    ret = smlProcessSuperTable(info, elements);
-    if(ret != 0){
-      if(info->reRun){
-        return TSDB_CODE_SUCCESS;
-      }
-      return ret;
-    }
+    SML_CHECK_CODE(smlProcessSuperTable(info, elements));
   }
-
-  ret = smlProcessTagLine(info, sql, sqlEnd);
-  if(ret != 0){
-    if (info->reRun){
-      return TSDB_CODE_SUCCESS;
-    }
-    return ret;
-  }
-
+  SML_CHECK_CODE(smlProcessTagLine(info, sql, sqlEnd));
   return smlProcessChildTable(info, elements);
+
+END:
+  if(info->reRun){
+    return TSDB_CODE_SUCCESS;
+  }
+  return code;
 }
 
 static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *currElement) {

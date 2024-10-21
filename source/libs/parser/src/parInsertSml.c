@@ -468,35 +468,38 @@ end:
 int32_t smlInitHandle(SQuery** query) {
   *query = NULL;
   SQuery* pQuery = NULL;
+  SVnodeModifyOpStmt* stmt = NULL;
+
   int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
-  if (NULL == pQuery) {
+  if (code != 0) {
     uError("create pQuery error");
-    return code;
+    goto END;
   }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  SVnodeModifyOpStmt* stmt = NULL;
   code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&stmt);
-  if (NULL == stmt) {
+  if (code != 0) {
     uError("create SVnodeModifyOpStmt error");
-    qDestroyQuery(pQuery);
-    return code;
+    goto END;
   }
   stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (stmt->pTableBlockHashObj == NULL){
     uError("create pTableBlockHashObj error");
-    qDestroyQuery(pQuery);
-    nodesDestroyNode((SNode*)stmt);
-    return terrno;
+    code = terrno;
+    goto END;
   }
   stmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   stmt->freeArrayFunc = insDestroyVgroupDataCxtList;
 
   pQuery->pRoot = (SNode*)stmt;
   *query = pQuery;
+  return code;
 
-  return TSDB_CODE_SUCCESS;
+END:
+  nodesDestroyNode((SNode*)stmt);
+  qDestroyQuery(pQuery);
+  return code;
 }
 
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {

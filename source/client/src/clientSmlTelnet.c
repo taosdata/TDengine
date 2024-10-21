@@ -148,31 +148,20 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t ret = 0;
+  int32_t code = 0;
   if(info->dataFormat){
-    ret = smlProcessSuperTable(info, elements);
-    if(ret != 0){
-      if(info->reRun){
-        return TSDB_CODE_SUCCESS;
-      }
-      return ret;
-    }
+    SML_CHECK_CODE(smlProcessSuperTable(info, elements));
   }
-
-  ret = smlProcessTagTelnet(info, data, sqlEnd);
-  if(ret != 0){
-    if (info->reRun){
-      return TSDB_CODE_SUCCESS;
-    }
-    return ret;
-  }
-
-  ret = smlJoinMeasureTag(elements);
-  if(ret != 0){
-    return ret;
-  }
+  SML_CHECK_CODE(smlProcessTagTelnet(info, data, sqlEnd));
+  SML_CHECK_CODE(smlJoinMeasureTag(elements));
 
   return smlProcessChildTable(info, elements);
+
+END:
+  if(info->reRun){
+    return TSDB_CODE_SUCCESS;
+  }
+  return code;
 }
 
 // format: <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
@@ -239,5 +228,10 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
   }
 
-  return smlParseEndTelnetJson(info, elements, &kvTs, &kv);
+  if (info->dataFormat){
+    ret = smlParseEndTelnetJsonFormat(info, elements, &kvTs, &kv);
+  } else {
+    ret = smlParseEndTelnetJsonUnFormat(info, elements, &kvTs, &kv);
+  }
+  return ret;
 }
