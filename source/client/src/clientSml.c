@@ -197,7 +197,13 @@ void smlBuildTsKv(SSmlKv *kv, int64_t ts) {
 }
 
 static void smlDestroySTableMeta(void *para) {
+  if (para == NULL) {
+    return;
+  }
   SSmlSTableMeta *meta = *(SSmlSTableMeta **)para;
+  if (meta == NULL) {
+    return;
+  }
   taosHashCleanup(meta->tagHash);
   taosHashCleanup(meta->colHash);
   taosArrayDestroy(meta->tags);
@@ -252,7 +258,7 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
   return code;
 
 END:
-  smlDestroySTableMeta(*sMeta);
+  smlDestroySTableMeta(sMeta);
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
@@ -587,7 +593,7 @@ int32_t smlBuildSTableMeta(bool isDataFormat, SSmlSTableMeta **sMeta) {
   return TSDB_CODE_SUCCESS;
 
 END:
-  smlDestroySTableMeta(meta);
+  smlDestroySTableMeta(&meta);
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
@@ -1400,7 +1406,7 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
       SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, &meta));
       code = taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
       if (code != TSDB_CODE_SUCCESS) {
-        smlDestroySTableMeta(meta);
+        smlDestroySTableMeta(&meta);
         uError("SML:0x%" PRIx64 " put measuer to hash failed", info->id);
         goto END;
       }
