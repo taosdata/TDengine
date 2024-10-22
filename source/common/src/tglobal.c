@@ -139,7 +139,7 @@ bool    tsEnableCrashReport = true;
 #endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
-bool  tsEnableSafetyCheck = true;
+bool  tsEnableSafetyCheck = false;
 
 // schemaless
 bool tsSmlDot2Underline = true;

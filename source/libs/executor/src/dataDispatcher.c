@@ -86,7 +86,7 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
   }
 
   if (numOfCols > taosArrayGetSize(pInput->pData->pDataBlock)) {
-    qError("invalid column number, schema:%d, input:%" PRIu64, numOfCols, taosArrayGetSize(pInput->pData->pDataBlock));
+    qError("invalid column number, schema:%d, input:%zu", numOfCols, taosArrayGetSize(pInput->pData->pDataBlock));
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
