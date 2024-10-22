@@ -183,6 +183,7 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
+
 extern bool generateNewMeta;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {

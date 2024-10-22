@@ -124,8 +124,8 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 #define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
-#define uDebugL(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
-#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO) { taosPrintLongString("UTL ", DEBUG_INFO, uDebugFlag, __VA_ARGS__); }}
+#define uDebugL(...){ if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
+#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO)  { taosPrintLongString("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
