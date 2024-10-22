@@ -1,5 +1,5 @@
 #if defined(USE_S3)
-#include "avro_parser.hpp"
+#include <td_avro_parser.h>
 
 #include <azure/core/azure_assert.hpp>
 #include <azure/core/internal/json/json.hpp>
