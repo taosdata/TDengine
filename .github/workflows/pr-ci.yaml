@@ -26,7 +26,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
-  ARM_BUILDER_IMAGE: bitcapybara/taosx-builder:latest
+  ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -93,7 +93,7 @@ jobs:
       - name: check
         run: |
           mkdir -p explorer/dist/ || true
-          docker run -v ${{ github.workspace }}:/app -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
+          docker run -v ${{ github.workspace }}:/app -v /root/.cargo/registry:/usr/local/cargo/registry -v /root/.cargo/git:/usr/local/cargo/git -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
 
   build_rust:
     needs: [check, check-arm]
