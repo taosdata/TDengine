@@ -2956,12 +2956,13 @@ int32_t cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
-  if (pReq != NULL && pResp->code != TSDB_CODE_SUCCESS) {
-    if (cliMayRetry(pConn, pReq, pResp)) {
-      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+  if (pReq != NULL) {
+    if (pResp->code != TSDB_CODE_SUCCESS) {
+      if (cliMayRetry(pConn, pReq, pResp)) {
+        return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+      }
+      cliMayResetRespCode(pReq, pResp);
     }
-
-    cliMayResetRespCode(pReq, pResp);
 
     if (cliTryUpdateEpset(pReq, pResp)) {
       cliPerfLog_epset(pConn, pReq);
