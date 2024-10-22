@@ -269,7 +269,9 @@ void dmClearVars(SDnode *pDnode) {
     dError("failed to unlock status info lock");
     return;
   }
-  taosThreadMutexDestroy(&pData->statusInfolock);
+  if (taosThreadMutexDestroy(&pData->statusInfolock) != 0) {
+    dError("failed to destroy status info lock");
+  }
   memset(&pData->statusInfolock, 0, sizeof(pData->statusInfolock));
 
   (void)taosThreadMutexDestroy(&pDnode->mutex);
