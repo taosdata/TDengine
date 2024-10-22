@@ -189,9 +189,8 @@ class DbConn:
                 return self.query(f"show {dbName}.tables") > 0
             except taos.error.ProgrammingError as err:
                 errno2 = Helper.convertErrno(err.errno)
-                print("-----errno2:", errno2)
-                if errno2 in [0x0503, 0x090c] and (time.time() - start_time) < 30:
-                    print(f"Error 0x0503 ignored and retry ...")
+                if errno2 in [0x0503, 0x090c, 0x0914, 0x0723] and (time.time() - start_time) < 86400:
+                    Logging.info(f"{err} ignored and retry ...")
                     time.sleep(1)
                     continue
                 raise
