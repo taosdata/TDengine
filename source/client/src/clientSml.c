@@ -1597,9 +1597,9 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
   int32_t code = TSDB_CODE_SUCCESS;
   if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     if (lines) {
-      code = smlParseJSON(info, *lines);
+      code = smlParseJSONExt(info, *lines);
     } else if (rawLine) {
-      code = smlParseJSON(info, rawLine);
+      code = smlParseJSONExt(info, rawLine);
     }
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, lines ? *lines : rawLine);

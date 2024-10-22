@@ -225,8 +225,6 @@ extern int64_t smlFactorS[];
 
 int32_t       smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle);
 void          smlDestroyInfo(SSmlHandle *info);
-int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
-int           smlJsonParseObj(char **start, char *end, SSmlLineInfo *element, int8_t *offset);
 void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
@@ -246,7 +244,7 @@ void              smlDestroyTableInfo(void *para);
 void    freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
-int32_t smlParseJSON(SSmlHandle *info, char *payload);
+int32_t smlParseJSONExt(SSmlHandle *info, char *payload);
 
 int32_t         smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSmlSTableMeta** sMeta);
 bool            isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
