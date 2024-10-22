@@ -475,6 +475,12 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg, int32
         code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput);
       }
 
+      if (code) {
+        qwFreeFetchRsp(rsp);
+        rsp = NULL;
+        dataLen = 0;
+      }
+
       if (NULL == rsp && TSDB_CODE_SUCCESS == code) {
         return TSDB_CODE_SUCCESS;
       }
