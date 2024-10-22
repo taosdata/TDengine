@@ -342,7 +342,7 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
-  TdThreadMutex                       writeBatchMutex;
+  TdThreadMutex                        writeBatchMutex;
   STSchema                            *pTSchema;
 } SRocksCache;
 
@@ -376,7 +376,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } * commitInfo;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -1067,6 +1067,7 @@ typedef enum {
 // utils
 ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
 int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
+void         printStackTrace();
 
 void tsdbRemoveFile(const char *path);
 
