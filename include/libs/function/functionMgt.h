@@ -62,6 +62,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_UNIQUE,
   FUNCTION_TYPE_STATE_COUNT,
   FUNCTION_TYPE_STATE_DURATION,
+  FUNCTION_TYPE_FORECAST,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -149,6 +150,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TBUID,
   FUNCTION_TYPE_VGID,
   FUNCTION_TYPE_VGVER,
+  FUNCTION_TYPE_FORECAST_LOW,
+  FUNCTION_TYPE_FORECAST_HIGH,
+  FUNCTION_TYPE_FORECAST_ROWTS,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -263,6 +267,7 @@ bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsForecastFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
@@ -272,6 +277,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsForecastPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsIgnoreNullFunc(int32_t funcId);

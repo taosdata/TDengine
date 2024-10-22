@@ -14,7 +14,7 @@ public class SuperTableService {
         this.superTableMapper = new SuperTableMapperImpl(dataSource);
     }
 
-    // 创建超级表，指定每个field的名称和类型，每个tag的名称和类型
+    // Create super table, specifying the name and type of each field and each tag
     public void create(SuperTableMeta superTableMeta) {
         superTableMapper.createSuperTable(superTableMeta);
     }
