@@ -246,7 +246,7 @@ ENDIF ()
 
 IF(TD_BUILD_KEEPER_INTERNAL)
     MESSAGE("")
-    MESSAGE("${Green} build taoskeeper internal, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
+    MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
     EXECUTE_PROCESS(
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
@@ -261,18 +261,18 @@ IF(TD_BUILD_KEEPER_INTERNAL)
     ENDIF()
 
     SET(taos_version ${TD_VER_NUMBER})
-    MESSAGE("${Green} taoskeeper internal will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
+    MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
     MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
 
     IF(TD_WINDOWS)
-        MESSAGE("Building taoskeeper internal on Windows")
+        MESSAGE("Building taoskeeper on Windows")
         INCLUDE(ExternalProject)
-        ExternalProject_Add(taoskinternal
-            PREFIX "taoskinternal"
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
             BUILD_ALWAYS off
             BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taoskeeper internal no need cmake to config"
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -288,18 +288,18 @@ IF(TD_BUILD_KEEPER_INTERNAL)
         )
     ELSE()
         IF(TD_DARWIN)
-            MESSAGE("Building taoskeeper internal on macOS")
+            MESSAGE("Building taoskeeper on macOS")
         ELSE()
-            MESSAGE("Building taoskeeper internal on Linux")
+            MESSAGE("Building taoskeeper on Linux")
         ENDIF()
 
         INCLUDE(ExternalProject)
-        ExternalProject_Add(taoskinternal
-            PREFIX "taoskinternal"
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
             BUILD_ALWAYS off
             BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taoskeeper internal no need cmake to config"
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
