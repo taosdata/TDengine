@@ -279,6 +279,4 @@ IF(TD_BUILD_KEEPER)
             COMMAND cmake -E copy ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
         )
     ENDIF()
-ELSEIF(TD_BUILD_KEEPER_INTERNAL)
-    MESSAGE("${Yellow} use taoskeeper internal ${ColourReset}")
 ENDIF()
