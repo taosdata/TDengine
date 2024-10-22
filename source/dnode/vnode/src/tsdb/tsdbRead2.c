@@ -685,18 +685,6 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       i += 1;
       continue;
     }
-    if (pBrinBlk->maxTbid.suid == pReader->info.suid) {
-      while (j < numOfTables && pList->tableUidList[j] < pBrinBlk->maxTbid.uid) {
-        j++;
-      }
-      if (j >= numOfTables) {
-        break;
-      }
-      if (pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
-        i += 1;
-        continue;
-      }
-    }
     if (pBrinBlk->minTbid.suid == pReader->info.suid && pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
       break;
     }
@@ -707,6 +695,14 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
     }
 
     i += 1;
+    if (pBrinBlk->maxTbid.suid == pReader->info.suid) {
+      while (j < numOfTables && pList->tableUidList[j] < pBrinBlk->maxTbid.uid) {
+        j++;
+      }
+      if (j >= numOfTables) {
+        break;
+      }
+    }
   }
 
   int64_t et2 = taosGetTimestampUs();
