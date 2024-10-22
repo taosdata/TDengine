@@ -410,7 +410,22 @@ if $data30 != true then
  return -1
 endi
 
-
+sql select case when f1 then 3 when ts then ts end from tba1;
+ if $rows != 4 then 
+   return -1
+ endi
+ if $data00 != 1664176501000 then
+  return -1
+ endi
+ if $data10 != 3 then
+  return -1
+ endi
+ if $data20 != 3 then
+  return -1
+ endi
+ if $data30 != 1664176504000 then
+  return -1
+ endi
 
 sql select case when 3 then f1 end from tba1;
 if $rows != 4 then 
