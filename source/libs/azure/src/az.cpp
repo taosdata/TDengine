@@ -201,7 +201,7 @@ _next:
   TAOS_RETURN(code);
 }
 
-int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
+static int32_t azPutObjectFromFileOffsetImpl(const char *file, const char *object_name, int64_t offset, int64_t size) {
   int32_t code = 0;
 
   std::string endpointUrl = tsS3Hostname[0];
@@ -239,7 +239,25 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
   TAOS_RETURN(code);
 }
 
-int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
+  int32_t code = 0;
+
+  try {
+    code = azPutObjectFromFileOffsetImpl(file, object_name, offset, size);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t size, bool check,
+                                    uint8_t **ppBlock) {
   int32_t     code = TSDB_CODE_SUCCESS;
   std::string accountName = tsS3AccessKeyId[0];
   std::string accountKey = tsS3AccessKeySecret[0];
@@ -292,7 +310,8 @@ int32_t azGetObjectBlockImpl(const char *object_name, int64_t offset, int64_t si
   TAOS_RETURN(code);
 }
 
-int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+static int32_t azGetObjectBlockRetry(const char *object_name, int64_t offset, int64_t size, bool check,
+                                     uint8_t **ppBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // May use an exponential backoff policy for retries with 503
@@ -307,6 +326,23 @@ _retry:
     taosMsleep(taosRand() % (maxRetryInterval - minRetryInterval + 1) + minRetryInterval);
     uInfo("%s: 0x%x(%s) and retry get object", __func__, code, tstrerror(code));
     goto _retry;
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  try {
+    code = azGetObjectBlockRetry(object_name, offset, size, check, ppBlock);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    TAOS_RETURN(code);
   }
 
   TAOS_RETURN(code);
