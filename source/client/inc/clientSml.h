@@ -92,21 +92,17 @@ extern "C" {
     }                                        \
   }
 
-#define SML_CHECK_CODE(CMD)                \
-  do {                                     \
-    code = (CMD);                          \
-    if (TSDB_CODE_SUCCESS != code) {       \
-      goto END;                            \
-    }                                      \
-  } while (0)
+#define SML_CHECK_CODE(CMD)              \
+  code = (CMD);                          \
+  if (TSDB_CODE_SUCCESS != code) {       \
+    goto END;                            \
+  }
 
-#define SML_CHECK_NULL(CMD)                \
-  do {                                     \
-    if (NULL == (CMD)) {                   \
-      code = terrno;                       \
-      goto END;                            \
-    }                                      \
-  } while (0)
+#define SML_CHECK_NULL(CMD)              \
+  if (NULL == (CMD)) {                   \
+    code = terrno;                       \
+    goto END;                            \
+  }
 
 typedef enum {
   SCHEMA_ACTION_NULL,

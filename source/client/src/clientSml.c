@@ -207,19 +207,18 @@ static void smlDestroySTableMeta(void *para) {
 }
 
 int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSmlSTableMeta **sMeta) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code       = TSDB_CODE_SUCCESS;
+  STableMeta *pTableMeta = NULL;
+
   char   *measure = currElement->measure;
   int     measureLen = currElement->measureLen;
   if (currElement->measureEscaped) {
     measure = (char *)taosMemoryMalloc(measureLen);
-    if (measure == NULL) {
-      return terrno;
-    }
+    SML_CHECK_NULL(measure);
     (void)memcpy(measure, currElement->measure, measureLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
     smlStrReplace(measure, measureLen);
   }
-  STableMeta *pTableMeta = NULL;
   code = smlGetMeta(info, measure, measureLen, &pTableMeta);
   if (currElement->measureEscaped) {
     taosMemoryFree(measure);
@@ -227,20 +226,9 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
   if (code != TSDB_CODE_SUCCESS) {
     info->dataFormat = false;
     info->reRun = true;
-    taosMemoryFreeClear(pTableMeta);
-    return code;
+    goto END;
   }
-  code = smlBuildSTableMeta(info->dataFormat, sMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFreeClear(pTableMeta);
-    return code;
-  }
-  (*sMeta)->tableMeta = pTableMeta;
-  code = taosHashPut(info->superTables, currElement->measure, currElement->measureLen, sMeta, POINTER_BYTES);
-  if (code != TSDB_CODE_SUCCESS) {
-    smlDestroySTableMeta(*sMeta);
-    return code;
-  }
+  SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, sMeta));
   for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
     SSchema *col = pTableMeta->schema + i;
     SSmlKv   kv = {.key = col->name, .keyLen = strlen(col->name), .type = col->type};
@@ -254,16 +242,19 @@ int32_t smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSml
     }
 
     if (i < pTableMeta->tableInfo.numOfColumns) {
-      if (taosArrayPush((*sMeta)->cols, &kv) == NULL) {
-        return terrno;
-      }
+      SML_CHECK_NULL(taosArrayPush((*sMeta)->cols, &kv));
     } else {
-      if (taosArrayPush((*sMeta)->tags, &kv) == NULL) {
-        return terrno;
-      }
+      SML_CHECK_NULL(taosArrayPush((*sMeta)->tags, &kv));
     }
   }
-  return TSDB_CODE_SUCCESS;
+  SML_CHECK_CODE(taosHashPut(info->superTables, currElement->measure, currElement->measureLen, sMeta, POINTER_BYTES));
+  (*sMeta)->tableMeta = pTableMeta;
+  return code;
+
+END:
+  smlDestroySTableMeta(*sMeta);
+  taosMemoryFreeClear(pTableMeta);
+  return code;
 }
 
 bool isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv) {
@@ -863,7 +854,7 @@ static FORCE_INLINE void smlBuildCreateStbReq(SMCreateStbReq *pReq, int32_t colV
   pReq->suid = suid;
   pReq->source = source;
 }
-static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, SArray *pTags, STableMeta *pTableMeta,
+static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, SArray **pTags, STableMeta *pTableMeta,
                               ESchemaAction action) {
   SRequestObj   *pRequest = NULL;
   SMCreateStbReq pReq = {0};
@@ -873,8 +864,9 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   // put front for free
   pReq.numOfColumns = taosArrayGetSize(pColumns);
-  pReq.pTags = pTags;
-  pReq.numOfTags = taosArrayGetSize(pTags);
+  pReq.pTags = *pTags;
+  pReq.numOfTags = taosArrayGetSize(*pTags);
+  *pTags = NULL;
 
   pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SFieldWithOptions));
   SML_CHECK_NULL(pReq.pColumns);
@@ -970,8 +962,7 @@ static int32_t smlCreateTable(SSmlHandle *info, SRequestConnInfo *conn, SSmlSTab
   SML_CHECK_NULL(pTags);
   SML_CHECK_CODE(smlBuildFieldsList(info, NULL, NULL, sTableData->tags, pTags, 0, true));
   SML_CHECK_CODE(smlBuildFieldsList(info, NULL, NULL, sTableData->cols, pColumns, 0, false));
-  pTags = NULL;
-  SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, pTags, NULL, SCHEMA_ACTION_CREATE_STABLE));
+  SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, NULL, SCHEMA_ACTION_CREATE_STABLE));
   info->cost.numOfCreateSTables++;
   taosMemoryFreeClear(*pTableMeta);
 
@@ -1019,8 +1010,7 @@ static int32_t smlModifyTag(SSmlHandle *info, SHashObj* hashTmp, SRequestConnInf
     SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->tags, pTags,
                               (*pTableMeta)->tableInfo.numOfColumns, true));
 
-    pTags = NULL;
-    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, pTags, (*pTableMeta), action));
+    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, (*pTableMeta), action));
 
     info->cost.numOfAlterTagSTables++;
     taosMemoryFreeClear(*pTableMeta);
@@ -1050,8 +1040,7 @@ static int32_t smlModifyCols(SSmlHandle *info, SHashObj* hashTmp, SRequestConnIn
     SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->cols, pColumns,
                                       (*pTableMeta)->tableInfo.numOfColumns, false));
 
-    pTags = NULL;
-    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, pTags, (*pTableMeta), action));
+    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, (*pTableMeta), action));
 
     info->cost.numOfAlterColSTables++;
     taosMemoryFreeClear(*pTableMeta);
@@ -1409,7 +1398,6 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
              info->lineNum);
       SSmlSTableMeta *meta = NULL;
       SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, &meta));
-      SML_CHECK_CODE(taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES));
       code = taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
       if (code != TSDB_CODE_SUCCESS) {
         smlDestroySTableMeta(meta);
