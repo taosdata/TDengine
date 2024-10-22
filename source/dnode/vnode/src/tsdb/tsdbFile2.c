@@ -244,6 +244,35 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   return 0;
 }
 
+void printStackTrace() {
+  void  *buffer[100];
+  int    nptrs = backtrace(buffer, 100);
+  char **symbols = backtrace_symbols(buffer, nptrs);
+
+  if (symbols == NULL) {
+    perror("backtrace_symbols");
+    exit(EXIT_FAILURE);
+  }
+  size_t total_length = 0;
+  for (int i = 0; i < nptrs; i++) {
+    total_length += strlen(symbols[i]) + 1;
+  }
+  char *stack_trace = (char *)taosMemoryMalloc(total_length + 1);
+  if (stack_trace == NULL) {
+    perror("malloc");
+    taosMemoryFree(symbols);
+    exit(EXIT_FAILURE);
+  }
+  stack_trace[0] = '\0';
+  for (int i = 0; i < nptrs; i++) {
+    strcat(stack_trace, symbols[i]);
+    strcat(stack_trace, "\n");
+  }
+  tsdbInfo("Stack trace:\n%s", stack_trace);
+  taosMemoryFree(stack_trace);
+  taosMemoryFree(symbols);
+}
+
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
   (void)taosThreadMutexLock(&fobj->mutex);
@@ -256,6 +285,9 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
 
   nRef = ++fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
+  if (tsRefPrintStack) {
+    printStackTrace();
+  }
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
@@ -269,7 +301,9 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
     tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
     return TSDB_CODE_FAILED;
   }
-
+  if (tsRefPrintStack) {
+    printStackTrace();
+  }
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
