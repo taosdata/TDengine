@@ -110,6 +110,7 @@ typedef struct {
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  TdThreadMutex  statusInfolock;
 } SDnodeData;
 
 typedef struct {
