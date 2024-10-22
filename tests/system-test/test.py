@@ -56,12 +56,12 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
-# 
+#
 # run case on previous cluster
 #
 def runOnPreviousCluster(host, config, fileName):
     print("enter run on previeous")
-    
+
     # load case module
     sep = "/"
     if platform.system().lower() == 'windows':
@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
         if key in ['-R', '--restful']:
             restful = True
-        
+
         if key in ['-W', '--websocket']:
             websocket = True
 
@@ -403,7 +403,7 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-                            
+
             if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
@@ -448,7 +448,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
@@ -638,7 +638,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
 
         # run case
         if testCluster:
