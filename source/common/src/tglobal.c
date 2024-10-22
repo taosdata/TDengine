@@ -139,6 +139,7 @@ bool    tsEnableCrashReport = true;
 #endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
+bool  tsEnableSafetyCheck = true;
 
 // schemaless
 bool tsSmlDot2Underline = true;
@@ -607,6 +608,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSafetyCheck", tsEnableSafetyCheck, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
@@ -1299,6 +1301,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
   tsmaDataDeleteMark = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSafetyCheck");
+  tsEnableSafetyCheck = pItem->bval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2039,7 +2044,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
-                                         {"maxTsmaNum", &tsMaxTsmaNum}};
+                                         {"maxTsmaNum", &tsMaxTsmaNum},
+                                         {"enableSafetyCheck", &tsEnableSafetyCheck}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2295,7 +2301,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
-                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
+                                         {"enableSafetyCheck", &tsEnableSafetyCheck}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

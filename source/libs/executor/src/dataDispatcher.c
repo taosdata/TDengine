@@ -55,6 +55,9 @@ typedef struct SDataDispatchHandle {
 } SDataDispatchHandle;
 
 static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* pInput)  {
+  if(!tsEnableSafetyCheck) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {
     qError("invalid input data");
     return TSDB_CODE_QRY_INVALID_INPUT;
