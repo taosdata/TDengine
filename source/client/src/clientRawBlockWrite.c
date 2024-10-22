@@ -2344,9 +2344,9 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen
   if (taos == NULL || meta == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMqBatchMetaRsp rsp = {0};
+  SMqBatchMetaRsp rsp   = {0};
   SDecoder        coder = {0};
-  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         code  = TSDB_CODE_SUCCESS;
 
   // decode and process req
   tDecoderInit(&coder, meta, metaLen);
