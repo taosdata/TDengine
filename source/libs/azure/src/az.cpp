@@ -204,9 +204,9 @@ _next:
 int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
   int32_t code = 0;
 
-  std::string endpointUrl = tsS3Hostname[0];        // GetEndpointUrl();
-  std::string accountName = tsS3AccessKeyId[0];     // GetAccountName();
-  std::string accountKey = tsS3AccessKeySecret[0];  // GetAccountKey();
+  std::string endpointUrl = tsS3Hostname[0];
+  std::string accountName = tsS3AccessKeyId[0];
+  std::string accountKey = tsS3AccessKeySecret[0];
 
   try {
     auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
@@ -226,9 +226,6 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
     // TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
     TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
 
-    // Upload the blob
-    // std::cout << "Uploading blob: " << blobName << std::endl;
-    // blobClient.UploadFrom(blobContent, sizeof(blobContent));
     blobClient.UploadFrom(file, offset, size);
   } catch (const Azure::Core::RequestFailedException &e) {
     /*
