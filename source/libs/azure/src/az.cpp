@@ -233,6 +233,7 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
               << std::endl;
     std::cout << e.what() << std::endl;
     */
+    azError("%s: Status Code: %d, Reason Phrase: %s", __func__, static_cast<int>(e.StatusCode), e.ReasonPhrase.c_str());
     code = TAOS_SYSTEM_ERROR(EIO);
     azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);

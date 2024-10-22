@@ -33,7 +33,7 @@ int32_t azInitEnv() {
   extern char tsS3BucketName[TSDB_FQDN_LEN];
 
   /* TCS parameter format
-  tsS3Hostname[0] = "endpoint/<account-name>.blob.core.windows.net";
+  tsS3Hostname[0] = "<endpoint>/<account-name>.blob.core.windows.net";
   tsS3AccessKeyId[0] = "<access-key-id/account-name>";
   tsS3AccessKeySecret[0] = "<access-key-secret/account-key>";
   tsS3BucketName = "<bucket/container-name>";
