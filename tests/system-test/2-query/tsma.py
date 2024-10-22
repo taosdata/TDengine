@@ -1338,15 +1338,16 @@ class TDTestCase:
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
-        self.wait_query('show test.tables like "%t0"', 0, wait_query_seconds)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t0')
+        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
 
         # test drop multi tables
         tdSql.execute('drop table test.t3, test.t4')
-        self.wait_query('show test.tables like "%t3"', 0, wait_query_seconds)
-        self.wait_query('show test.tables like "%t4"', 0, wait_query_seconds)
-
-        tdSql.query('show test.tables like "%tsma%"')
-        tdSql.checkRows(0)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t3')
+        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
+        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
+        time.sleep(9999999)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
