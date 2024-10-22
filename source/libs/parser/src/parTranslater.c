@@ -3187,23 +3187,10 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
 }
 
 extern int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
-static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
+static int32_t selectCommonType(SDataType* commonType, const SDataType* newType) {
   if (commonType->type < TSDB_DATA_TYPE_NULL || commonType->type >= TSDB_DATA_TYPE_MAX || 
       newType->type < TSDB_DATA_TYPE_NULL || newType->type >= TSDB_DATA_TYPE_MAX) {
-        return false;
-    }
-  if (commonType->type == TSDB_DATA_TYPE_NULL) {
-      *commonType = *newType;
-      return true;
-  }
-  if (newType->type == TSDB_DATA_TYPE_NULL) {
-      return true;
-  }
-  if (commonType->type == newType->type) {
-      if (commonType->bytes < newType->bytes) {
-        *commonType = *newType;
-      }
-      return true;
+        return TSDB_CODE_INVALID_PARA;
   }
   int8_t type1 = commonType->type;
   int8_t type2 = newType->type;
@@ -3214,14 +3201,26 @@ static bool selectCommonType(SDataType* commonType, const SDataType* newType) {
     resultType = gDisplyTypes[type2][type1];
   }
   if (resultType == -1) {
-      return false;
-  } else if (resultType == 0) {
-      return false;
-  } else {
-      commonType->type = resultType;
-      commonType->bytes = (commonType->bytes >= newType->bytes) ? commonType->bytes : newType->bytes;
-      return true;
+      return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
+  if (commonType->type == newType->type) {
+    commonType->bytes = TMAX(commonType->bytes, newType->bytes);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (resultType == commonType->type){
+    return TSDB_CODE_SUCCESS;
+  }
+  if(resultType == newType->type) {
+    *commonType = *newType;
+    return TSDB_CODE_SUCCESS;
+  }
+  commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
+  if(resultType == TSDB_DATA_TYPE_VARCHAR && (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type))) {
+    commonType->bytes += TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE];
+  }
+  commonType->type = resultType;
+  return TSDB_CODE_SUCCESS;
+
 }
 
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
@@ -3243,16 +3242,18 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       continue;
     }
     allNullThen = false;
-    if (!selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType)) {
-      pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
+    pCxt->errCode = selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType);
+    if(TSDB_CODE_SUCCESS != pCxt->errCode){
       return DEAL_RES_ERROR;
     }
   }
 
   SExprNode* pElseExpr = (SExprNode*)pCaseWhen->pElse;
-  if (pElseExpr && !selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType)) {
-    pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
-    return DEAL_RES_ERROR;
+  if (NULL != pElseExpr) {
+    pCxt->errCode = selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType);
+    if(TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
   }
 
   if (allNullThen) {
