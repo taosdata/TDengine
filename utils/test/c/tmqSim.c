@@ -1275,10 +1275,10 @@ void* ombProduceThreadFunc(void* param) {
         msgsOfSql = remainder;
       }
       int len = 0;
-      len += snprintf(sqlBuf + len, MAX_SQL_LEN - len, "insert into %s values ", ctbName);
+      len += tsnprintf(sqlBuf + len, MAX_SQL_LEN - len, "insert into %s values ", ctbName);
       for (int j = 0; j < msgsOfSql; j++) {
         int64_t timeStamp = taosGetTimestampNs();
-        len += snprintf(sqlBuf + len, MAX_SQL_LEN - len, "(%" PRId64 ", \"%s\")", timeStamp, g_payload);
+        len += tsnprintf(sqlBuf + len, MAX_SQL_LEN - len, "(%" PRId64 ", \"%s\")", timeStamp, g_payload);
         sendMsgs++;
         pInfo->totalProduceMsgs++;
       }

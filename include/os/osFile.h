@@ -130,14 +130,15 @@ int    taosSetAutoDelFile(char *path);
 bool lastErrorIsFileNotExist();
 
 #ifdef BUILD_WITH_RAND_ERR
-#define STUB_RAND_NETWORK_ERR(status)                             \
-  do {                                                            \
-    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) { \
-      uint32_t r = taosRand() % tsRandErrDivisor;                 \
-      if ((r + 1) <= tsRandErrChance) {                           \
-        status = TSDB_CODE_RPC_NETWORK_UNAVAIL;                   \
-      }                                                           \
-    }                                                             \
+#define STUB_RAND_NETWORK_ERR(ret)                                        \
+  do {                                                                    \
+    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) {         \
+      uint32_t r = taosRand() % tsRandErrDivisor;                         \
+      if ((r + 1) <= tsRandErrChance) {                                   \
+        ret = TSDB_CODE_RPC_NETWORK_UNAVAIL;                              \
+        uError("random network error: %s, %s", tstrerror(ret), __func__); \
+      }                                                                   \
+    }                                                                     \
     while (0)
 #else
 #define STUB_RAND_NETWORK_ERR(status)
