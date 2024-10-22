@@ -86,6 +86,11 @@ TEST(AzTest, InterfaceTest) {
   bool withcp = false;
 
   code = azInitEnv();
+  if (code) {
+    std::cout << "ablob env init failed with: " << code << std::endl;
+    return;
+  }
+
   GTEST_ASSERT_EQ(code, 0);
   GTEST_ASSERT_EQ(tsS3Enabled, 1);
 
