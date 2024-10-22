@@ -1483,6 +1483,21 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "syncLogBufferMemoryAllowed");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%" PRId64, flag);
+  } else if (strncasecmp(cfgReq.config, "refPrintStack", 13) == 0) {
+    int32_t optLen = strlen("refPrintStack");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 1) {
+      mError("dnode:%d, failed to config enableWhitelist since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_OUT_OF_RANGE;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "refPrintStack");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
