@@ -3200,7 +3200,7 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
-  if (resultType == -1 || resultType == 0) {
+  if (resultType == -1) {
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
   if (commonType->type == newType->type) {
@@ -3214,8 +3214,11 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
     *commonType = *newType;
     return TSDB_CODE_SUCCESS;
   }
+  commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
+  if(resultType == TSDB_DATA_TYPE_VARCHAR && (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type))) {
+    commonType->bytes += TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE];
+  }
   commonType->type = resultType;
-  commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes),TYPE_BYTES[resultType]);
   return TSDB_CODE_SUCCESS;
 
 }

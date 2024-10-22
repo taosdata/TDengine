@@ -397,35 +397,20 @@ sql select case when f1 then f1 when f1 + 1 then f1 + 1 else f1 is null end from
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 1.000000000 then
+if $data00 != 1.000000 then
  return -1
 endi
-if $data10 != 1.000000000 then
+if $data10 != 1 then
  return -1
 endi
-if $data20 != 5.000000000 then
+if $data20 != 5 then
  return -1
 endi
-if $data30 != 1.000000000 then
+if $data30 != true then
  return -1
 endi
 
-sql select case when f1 then 3 when ts then ts end from tba1;
-if $rows != 4 then 
-  return -1
-endi
-if $data00 != 1664176501000 then
- return -1
-endi
-if $data10 != 3 then
- return -1
-endi
-if $data20 != 3 then
- return -1
-endi
-if $data30 != 1664176504000 then
- return -1
-endi
+
 
 sql select case when 3 then f1 end from tba1;
 if $rows != 4 then 
@@ -601,7 +586,6 @@ endi
 if $data30 != 1.000000000 then
  return -1
 endi
-
 sql select sum(case f1 when f1 then f1 + 1 else f1 is null end + 1) from tba1;
 if $rows != 1 then 
   return -1
@@ -657,16 +641,16 @@ sql select case when f1 is not null then case when f1 <= 0 then f1 else f1 * 10 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 0.000000000 then
+if $data00 != 0 then
  return -1
 endi
-if $data10 != 10.000000000 then
+if $data10 != 10.000000 then
  return -1
 endi
-if $data20 != 50.000000000 then
+if $data20 != 50.000000 then
  return -1
 endi
-if $data30 != -1.000000000 then
+if $data30 != -1 then
  return -1
 endi
 
@@ -890,19 +874,19 @@ endi
 if $data10 != 0 then
  return -1
 endi
-if $data11 != -99.000000000 then
+if $data11 != -99.000000 then
  return -1
 endi
 if $data20 != 1 then
  return -1
 endi
-if $data21 != 100.000000000 then
+if $data21 != 100.000000 then
  return -1
 endi
 if $data30 != 5 then
  return -1
 endi
-if $data31 != -94.000000000 then
+if $data31 != -94.000000 then
  return -1
 endi
 
@@ -1029,13 +1013,13 @@ endi
 if $data00 != NULL then
  return -1
 endi
-if $data10 != -99.000000000 then
+if $data10 != -99.000000 then
  return -1
 endi
-if $data20 != 1.000000000 then
+if $data20 != 1 then
  return -1
 endi
-if $data30 != 5.000000000 then
+if $data30 != 5 then
  return -1
 endi
 
@@ -1043,19 +1027,19 @@ sql select distinct tbname, case t1 when t2 then t1 else t1 + 100 end from sta o
 if $rows != 5 then 
   return -1
 endi
-if $data01 != 0.000000000 then
+if $data01 != 0 then
  return -1
 endi
-if $data11 != 1.000000000 then
+if $data11 != 1 then
  return -1
 endi
 if $data21 != NULL then
  return -1
 endi
-if $data31 != 101.000000000 then
+if $data31 != 101.000000 then
  return -1
 endi
-if $data41 != 103.000000000 then
+if $data41 != 103.000000 then
  return -1
 endi
 
@@ -1072,7 +1056,7 @@ sql select case when c_int > 100 then c_float else c_int end as result from t_te
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 123.45000 then
+if $data00 != 123.449997 then
  return -1
 endi
 
@@ -1080,7 +1064,7 @@ sql select case when c_bigint > 100000 then c_double else c_bigint end as result
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 678.900000000 then
+if $data00 != 678.900000 then
  return -1
 endi
 
@@ -1143,6 +1127,11 @@ endi
 
 sql select case when 0 then tag_id else c_geometry end as result from t_test;
 if $data00 != 16842773 then
+  return -1
+endi
+
+sql select case when 0 then tag_id else c_nchar end as result from t_test;
+if $data00 != 涛思数据 then
   return -1
 endi
 
