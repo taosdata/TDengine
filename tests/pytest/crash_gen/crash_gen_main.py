@@ -1965,7 +1965,16 @@ class TaskCompactDb(StateTransitionTask):
         # TODO Confirm: db is empty or has data?
         return state.canReadData()
 
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
+            return
+        dbc = wt.getDbConn()
+        # ! it's not allowed to compact database when it has replication transaction because TS-5251
+        if self._db.getFixedSuperTable().hasRepTrans(dbc):
+            Logging.debug("Skipping task, compact and alter-reps conflict")
+            return
 
         try:
             self.queryWtSql(wt, "COMPACT DATABASE {}".format(
@@ -1990,6 +1999,12 @@ class TaskKillCompact(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         if not self._db.exists(wt.getDbConn()):
             Logging.debug("Skipping task, no DB yet")
+            return
+
+        dbc = wt.getDbConn()
+        # ! it's not allowed to compact database when it has replication transaction because TS-5251
+        if self._db.getFixedSuperTable().hasRepTrans(dbc):
+            Logging.debug("Skipping task, compact and alter-reps conflict")
             return
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
@@ -2107,6 +2122,12 @@ class TaskAlterRep(StateTransitionTask):
             if Config.getConfig().num_replicas == 1:
                 Logging.debug("Skipping task, replicas must > 1")
                 return
+            
+            # ! it's not allowed to compact database when it has replication transaction because TS-5251
+            if self._db.getFixedSuperTable().hasCompactTrans(dbc):
+                Logging.debug("Skipping task, compact and alter-reps conflict")
+                return
+            
             dbc.query(f'select `replica` from information_schema.ins_databases where name = "{dbname}";')
             replica = dbc.getQueryResult()[0][0]
             destRep = 1 if replica == 3 else 1
@@ -3023,6 +3044,12 @@ class TdSuperTable:
 
     def hasTransactions(self, dbc: DbConn):
         return dbc.query("show transactions") > 0
+
+    def hasRepTrans(self, dbc: DbConn):
+        return dbc.query('select * from perf_trans where oper match ".*alter-db.*";') > 0
+
+    def hasCompactTrans(self, dbc: DbConn):
+        return dbc.query('select * from perf_trans where oper match ".*compact.*";') > 0
 
     def killTrans(self, dbc: DbConn):
         dbc.query("show transactions")
