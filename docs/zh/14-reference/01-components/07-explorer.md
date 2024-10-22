@@ -4,11 +4,11 @@ sidebar_label: taosExplorer
 toc_max_heading_level: 4
 ---
 
-taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
+taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
 
 ## 安装
 
-taosEexplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine Enterprise Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
+taosEexplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine 源代码生成的安装包不包含 taosExplorer。
 
 ## 配置
 
