@@ -665,6 +665,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   STableUidList* pList = &pReader->status.uidList;
 
   int32_t i = 0;
+  int32_t j = 0;
   while (i < TARRAY2_SIZE(pBlkArray)) {
     pBrinBlk = &pBlkArray->data[i];
     if (pBrinBlk->maxTbid.suid < pReader->info.suid) {
@@ -680,11 +681,22 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       tsdbError("tsdb failed at: %s %d", __func__, __LINE__);
       return TSDB_CODE_INTERNAL_ERROR;
     }
-    if (pBrinBlk->maxTbid.suid == pReader->info.suid && pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
+    if (pBrinBlk->maxTbid.suid == pReader->info.suid && pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
       i += 1;
       continue;
     }
-
+    if (pBrinBlk->maxTbid.suid == pReader->info.suid) {
+      while (j < numOfTables && pList->tableUidList[j] < pBrinBlk->maxTbid.uid) {
+        j++;
+      }
+      if (j >= numOfTables) {
+        break;
+      }
+      if (pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
+        i += 1;
+        continue;
+      }
+    }
     if (pBrinBlk->minTbid.suid == pReader->info.suid && pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
       break;
     }
