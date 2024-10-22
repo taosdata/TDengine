@@ -43,6 +43,7 @@
 #include "querytask.h"
 #include "functionMgt.h"
 #include "ttime.h"
+#include "scheduler.h"
 
 namespace {
 
@@ -3091,12 +3092,11 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       dsDestroyDataSinker(handle);
       break;
     }
-    case QUERY_NODE_PHYSICAL_SUBPLAN:
+    case QUERY_NODE_PHYSICAL_SUBPLAN: {
       break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN: {
-      SSchJob job = {0};
-      qptCtx.result.code = schValidateAndBuildJob((SQueryPlan*)pNode, &job);
-      schFreeJobImpl(&job);
+      qptCtx.result.code = schedulerValidatePlan((SQueryPlan*)pNode);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:

@@ -794,9 +794,11 @@ void schFreeJobImpl(void *job) {
   }
   taosMemoryFree(pJob);
 
-  int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
-  if (jobNum == 0) {
-    schCloseJobRef();
+  if (refId > 0) {
+    int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
+    if (jobNum == 0) {
+      schCloseJobRef();
+    }
   }
 
   qDebug("QID:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
@@ -917,7 +919,7 @@ _return:
 
   if (NULL == pJob) {
     qDestroyQueryPlan(pReq->pDag);
-  } else if (pJob->refId < 0) {
+  } else if (pJob->refId <= 0) {
     schFreeJobImpl(pJob);
   } else {
     code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
