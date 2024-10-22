@@ -56,6 +56,8 @@ int32_t tsShellActivityTimer = 3;  // second
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
+int32_t tsShareConnLimit = 8;
+int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
@@ -179,12 +181,12 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
-int32_t tsMetaCacheMaxSize = -1;  // MB
-int32_t tsSlowLogThreshold = 10;   // seconds
-int32_t tsSlowLogThresholdTest = INT32_MAX;   // seconds
-char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
+int32_t tsMetaCacheMaxSize = -1;                   // MB
+int32_t tsSlowLogThreshold = 10;                   // seconds
+int32_t tsSlowLogThresholdTest = INT32_MAX;        // seconds
+char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";  // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
-char*   tsSlowLogScopeString = "query";
+char   *tsSlowLogScopeString = "query";
 int32_t tsSlowLogMaxLen = 4096;
 int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
@@ -322,7 +324,6 @@ int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
 int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
 
-
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);           \
@@ -361,7 +362,7 @@ static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSD
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, name);
 
   char *strDup = NULL;
-  if ((strDup = taosStrdup(pItem->str))== NULL){
+  if ((strDup = taosStrdup(pItem->str)) == NULL) {
     code = terrno;
     goto _exit;
   }
@@ -450,7 +451,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -572,7 +575,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, CFG_SCOPE_CLIENT, CFG_DYN_ENT_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryTableNotExistAsEmpty", tsQueryTbNotExistAsEmpty, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "queryTableNotExistAsEmpty", tsQueryTbNotExistAsEmpty, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableQueryHb", tsEnableQueryHb, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableScience", tsEnableScience, CFG_SCOPE_CLIENT, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
@@ -600,15 +604,22 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "randErrorChance", tsRandErrChance, 0, 10000, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(
+      cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
-  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+
+  tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 512);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "shareConnLimit", tsShareConnLimit, 1, 512, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+
+  tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600 * 7);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readTimeout", tsReadTimeout, 64, 24 * 3600 * 7, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
   TAOS_CHECK_RETURN(
@@ -865,8 +876,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "numOfRpcThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcThreads = numOfCores / 2;
-    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
     pItem->i32 = tsNumOfRpcThreads;
     pItem->stype = stype;
   }
@@ -875,6 +885,20 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
     pItem->i32 = tsNumOfRpcSessions;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "shareConnLimit");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsShareConnLimit = TRANGE(tsShareConnLimit, 1, 512);
+    pItem->i32 = tsShareConnLimit;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "readTimeout");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsReadTimeout = TRANGE(tsReadTimeout, 64, 24 * 3600 * 7);
+    pItem->i32 = tsReadTimeout;
     pItem->stype = stype;
   }
 
@@ -1083,9 +1107,9 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope) {
 
   int32_t slowScope = 0;
 
-  char* scope = NULL;
-  char *tmp   = NULL;
-  while((scope = strsep(&pScopeStr, "|")) != NULL){
+  char *scope = NULL;
+  char *tmp = NULL;
+  while ((scope = strsep(&pScopeStr, "|")) != NULL) {
     taosMemoryFreeClear(tmp);
     tmp = taosStrdup(scope);
     if (tmp == NULL) {
@@ -1142,13 +1166,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstEp");
-  SEp          firstEp = {0};
+  SEp firstEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &firstEp));
   (void)snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
   TAOS_CHECK_RETURN(cfgSetItem(pCfg, "firstEp", tsFirst, pItem->stype, true));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secondEp");
-  SEp          secondEp = {0};
+  SEp secondEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &secondEp));
   (void)snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
   TAOS_CHECK_RETURN(cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, true));
@@ -1252,6 +1276,12 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcSessions");
   tsNumOfRpcSessions = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "shareConnLimit");
+  tsShareConnLimit = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readTimeout");
+  tsReadTimeout = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeToGetAvailableConn");
   tsTimeToGetAvailableConn = pItem->i32;
 
@@ -1352,6 +1382,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcSessions");
   tsNumOfRpcSessions = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "shareConnLimit");
+  tsShareConnLimit = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readTimeout");
+  tsReadTimeout = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeToGetAvailableConn");
   tsTimeToGetAvailableConn = pItem->i32;
@@ -1651,8 +1687,8 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
   SConfig *pCfg = NULL;
 
   if (tsCfg == NULL) {
@@ -1724,7 +1760,7 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
 
   TAOS_CHECK_GOTO(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE), NULL, _exit);
   TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "debugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER), NULL, _exit);
-  TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) ,NULL, _exit);
+  TAOS_CHECK_GOTO(cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER), NULL, _exit);
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
     (void)printf("failed to load cfg since %s\n", tstrerror(code));
@@ -1753,7 +1789,7 @@ _exit:
 
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = 0;
-  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  int32_t  code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
   if (code) {
     uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
@@ -1858,7 +1894,7 @@ typedef struct {
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
   int32_t code = TSDB_CODE_CFG_NOT_FOUND;
-  char *name = pItem->name;
+  char   *name = pItem->name;
   for (int32_t d = 0; d < optionSize; ++d) {
     const char *optName = pOptions[d].optionName;
     if (strcasecmp(name, optName) != 0) continue;
@@ -2053,8 +2089,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
     }
     case 'f': {
       if (strcasecmp("fqdn", name) == 0) {
-        SConfigItem* pFqdnItem = cfgGetItem(pCfg, "fqdn");
-        SConfigItem* pServerPortItem = cfgGetItem(pCfg, "serverPort");
+        SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
+        SConfigItem *pServerPortItem = cfgGetItem(pCfg, "serverPort");
         SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
         if (pFqdnItem == NULL || pServerPortItem == NULL || pFirstEpItem == NULL) {
           uError("failed to get fqdn or serverPort or firstEp from cfg");
@@ -2069,7 +2105,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         char defaultFirstEp[TSDB_EP_LEN] = {0};
         (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
-        SEp          firstEp = {0};
+        SEp firstEp = {0};
         TAOS_CHECK_GOTO(
             taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp), &lino,
             _out);
@@ -2109,8 +2145,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
     }
     case 'l': {
       if (strcasecmp("locale", name) == 0) {
-        SConfigItem* pLocaleItem = cfgGetItem(pCfg, "locale");
-        SConfigItem* pCharsetItem = cfgGetItem(pCfg, "charset");
+        SConfigItem *pLocaleItem = cfgGetItem(pCfg, "locale");
+        SConfigItem *pCharsetItem = cfgGetItem(pCfg, "charset");
         if (pLocaleItem == NULL || pCharsetItem == NULL) {
           uError("failed to get locale or charset from cfg");
           code = TSDB_CODE_CFG_NOT_FOUND;
@@ -2183,7 +2219,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         char defaultFirstEp[TSDB_EP_LEN] = {0};
         (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
-        SEp          firstEp = {0};
+        SEp firstEp = {0};
         TAOS_CHECK_GOTO(
             taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp), &lino,
             _out);
@@ -2314,7 +2350,7 @@ int32_t taosSetGlobalDebugFlag(int32_t flag) { return taosSetAllDebugFlag(tsCfg,
 // NOTE: set all command does not change the tmrDebugFlag
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   if (flag < 0) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-  if (flag == 0) TAOS_RETURN(TSDB_CODE_SUCCESS); // just ignore
+  if (flag == 0) TAOS_RETURN(TSDB_CODE_SUCCESS);  // just ignore
 
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = NULL;
