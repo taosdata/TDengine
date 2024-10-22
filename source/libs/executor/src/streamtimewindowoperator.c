@@ -2238,10 +2238,12 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   *(pSup->pState) = *pState;
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1, tsIndex);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
-  // used for backward compatibility of function's result info
-  pSup->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
-  pSup->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
-  pSup->pState->pExprSupp = pExpSup;
+  if (stateType != STREAM_STATE_BUFF_HASH_SORT) {
+    // used for backward compatibility of function's result info
+    pSup->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
+    pSup->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
+    pSup->pState->pExprSupp = pExpSup;
+  }
 
   if (stateType == STREAM_STATE_BUFF_SORT) {
   pSup->pState->pFileState = NULL;

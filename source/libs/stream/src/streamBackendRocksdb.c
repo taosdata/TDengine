@@ -4328,7 +4328,7 @@ int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, cons
   int    code = 0;
   char*  dst = NULL;
   size_t size = 0;
-  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
+  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL || tag == NULL) {
     STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, tag, tagLen);
     return code;
   }
@@ -4607,7 +4607,9 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   rocksdb_column_family_handle_t* pCf = wrapper->pCf[ginitDict[cfIdx].idx];
   rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, ttlV, (size_t)ttlVLen);
 
-  taosMemoryFree(dst);
+  if (pState->pResultRowStore.resultRowPut != NULL && pState->pExprSupp != NULL) {
+    taosMemoryFree(dst);
+  }
 
   if (tmpBuf == NULL) {
     taosMemoryFree(ttlV);
