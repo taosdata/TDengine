@@ -20,7 +20,7 @@ from frame.caseBase import *
 from frame.common import *
 
 class TDTestCase(TBase):
-    updatecfg_dict = {
+    updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
