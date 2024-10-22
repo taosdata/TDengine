@@ -2991,6 +2991,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .sprocessFunc = sumScalarFunction,
     .finalizeFunc = functionFinalize,
+    .decodeFunc   = sumDecode,
 #ifdef BUILD_NO_CALL
     .invertFunc   = sumInvertFunction,
 #endif

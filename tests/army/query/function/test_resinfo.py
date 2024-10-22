@@ -26,7 +26,7 @@ from frame.sql import *
 from frame.caseBase import *
 from frame import *
 
-initial_hash_resinfoInt = "e739cde34b98f13dd9ad696d18f060cc"
+initial_hash_resinfoInt = "539636836cbef7a3277a6781b3096b38"
 initial_hash_resinfo = "172d04aa7af0d8cd2e4d9df284079958"
 
 class TDTestCase(TBase):

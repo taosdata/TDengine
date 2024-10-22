@@ -46,7 +46,7 @@ int32_t           countInvertFunction(SqlFunctionCtx* pCtx);
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
-
+int32_t           sumDecode(struct SqlFunctionCtx *pCtx, const char *buf, struct SResultRowEntryInfo *pResultCellInfo, int32_t ver);
 #ifdef BUILD_NO_CALL
 int32_t           sumInvertFunction(SqlFunctionCtx* pCtx);
 #endif

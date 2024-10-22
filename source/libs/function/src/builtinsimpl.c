@@ -612,6 +612,37 @@ int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t sumDecode(SqlFunctionCtx *pCtx, const char *buf, SResultRowEntryInfo *pResultCellInfo, int32_t ver) {
+  switch (ver) {
+    case 1: {
+      const char *p = (char *)buf;
+      memcpy(pResultCellInfo, p, sizeof(SResultRowEntryInfo));
+      p += sizeof(SResultRowEntryInfo);
+      SSumRes *pSumRes = GET_ROWCELL_INTERBUF(pResultCellInfo);
+      pSumRes->testAddAttribute = false;
+      pSumRes->isum = *(int64_t*)p;
+      p += sizeof(int64_t);
+      pSumRes->usum = *(uint64_t *)p;
+      p += sizeof(uint64_t);
+      pSumRes->dsum = *(double *)p;
+      p += sizeof(double);
+      pSumRes->type = *(int16_t *)p;
+      p += sizeof(int16_t);
+      pSumRes->prevTs = *(int64_t *)p;
+      p += sizeof(int64_t);
+      pSumRes->isPrevTsSet = *(bool *)p;
+      p += sizeof(bool);
+      pSumRes->overflow = *(bool *)p;
+      p += sizeof(bool);
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      qError("sumDecode: compatible not support between version %d and version %d", ver, FUNCTION_RESULT_INFO_VERSION);
+      return TSDB_CODE_FUNC_VERSION_NOT_COMPATIBLE;
+
+  }
+}
+
 int32_t sumFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 

@@ -44,6 +44,7 @@ typedef struct SSumRes {
   int64_t prevTs;
   bool    isPrevTsSet;
   bool    overflow;  // if overflow is true, dsum to be used for any type;
+  bool    testAddAttribute;
 } SSumRes;
 
 typedef struct SMinmaxResInfo {

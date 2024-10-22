@@ -41,6 +41,7 @@ typedef struct SBuiltinFuncDefinition {
   FScalarExecProcess         sprocessFunc;
   FExecFinalize              finalizeFunc;
   FExecCleanUp               cleanupFunc;
+  FExecDecode                decodeFunc;
 #ifdef BUILD_NO_CALL
   FExecProcess               invertFunc;
 #endif
