@@ -228,14 +228,11 @@ int32_t azPutObjectFromFileOffset(const char *file, const char *object_name, int
 
     blobClient.UploadFrom(file, offset, size);
   } catch (const Azure::Core::RequestFailedException &e) {
-    /*
-    std::cout << "Status Code: " << static_cast<int>(e.StatusCode) << ", Reason Phrase: " << e.ReasonPhrase
-              << std::endl;
-    std::cout << e.what() << std::endl;
-    */
     azError("%s: Status Code: %d, Reason Phrase: %s", __func__, static_cast<int>(e.StatusCode), e.ReasonPhrase.c_str());
+
     code = TAOS_SYSTEM_ERROR(EIO);
     azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
     TAOS_RETURN(code);
   }
 
