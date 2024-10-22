@@ -54,6 +54,78 @@ typedef struct SDataDispatchHandle {
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
+static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* pInput)  {
+  if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {
+    qError("invalid input data");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  SDataBlockDescNode* pSchema = pHandle->pSchema;
+  if (pSchema == NULL || pSchema->outputRowSize > pInput->pData->info.rowSize) {
+    qError("invalid schema");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SNode*  pNode;
+  int32_t numOfCols = 0;
+  int32_t realOutputRowSize = 0;
+  FOREACH(pNode, pHandle->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      realOutputRowSize += pSlotDesc->dataType.bytes;
+      ++numOfCols;
+    } else {
+      break;
+    }
+  }
+  if (realOutputRowSize !=  pSchema->outputRowSize) {
+    qError("invalid schema, realOutputRowSize:%d, outputRowSize:%d", realOutputRowSize, pSchema->outputRowSize);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  if (numOfCols > taosArrayGetSize(pInput->pData->pDataBlock)) {
+    qError("invalid column number, schema:%d, input:%" PRIu64, numOfCols, taosArrayGetSize(pInput->pData->pDataBlock));
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t colNum = 0;
+  FOREACH(pNode, pHandle->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pInput->pData->pDataBlock, colNum);
+      if (pColInfoData == NULL) {
+        return -1;
+      }
+      if (pColInfoData->info.bytes < 0) {
+        qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      if (!IS_VAR_DATA_TYPE(pColInfoData->info.type) &&
+          TYPE_BYTES[pColInfoData->info.type] != pColInfoData->info.bytes) {
+        qError("invalid column bytes, schema:%d, input:%d", TYPE_BYTES[pColInfoData->info.type],
+               pColInfoData->info.bytes);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      if (pColInfoData->info.type != pSlotDesc->dataType.type) {
+        qError("invalid column type, schema:%d, input:%d", pSlotDesc->dataType.type, pColInfoData->info.type);
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
+      if (pColInfoData->info.bytes != pSlotDesc->dataType.bytes) {
+        qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
+
+      if (IS_INVALID_TYPE(pColInfoData->info.type)) {
+        qError("invalid column type, type:%d", pColInfoData->info.type);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
+      ++colNum;
+    }
+  }
+
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 // data format:
 // +----------------+------------------+--------------+--------------+------------------+--------------------------------------------+------------------------------------+-------------+-----------+-------------+-----------+
@@ -66,6 +138,12 @@ typedef struct SDataDispatchHandle {
 static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
+
+  int32_t code = inputSafetyCheck(pHandle, pInput);
+  if (code) {
+    qError("failed to check input data, code:%d", code);
+    return code;
+  }
 
   FOREACH(pNode, pHandle->pSchema->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
