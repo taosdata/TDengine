@@ -61,7 +61,7 @@ static void shellWorkAsClient() {
   uint64_t startTime = taosGetTimestampUs();
 
   for (int32_t i = 0; i < pArgs->pktNum; ++i) {
-    SRpcMsg rpcMsg = {.info.ahandle = (void *)0x9525, .msgType = TDMT_DND_NET_TEST};
+    SRpcMsg rpcMsg = {.info.ahandle = (void *)0x9527, .msgType = TDMT_DND_NET_TEST};
     rpcMsg.pCont = rpcMallocCont(pArgs->pktLen);
     rpcMsg.contLen = pArgs->pktLen;
 
