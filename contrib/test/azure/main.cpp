@@ -13,42 +13,67 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * @file
- * @brief Application that consumes the Azure SDK for C++.
- *
- * @remark Set environment variable `STORAGE_CONNECTION_STRING` before running the application.
- *
- */
-
-#include <azure/storage/blobs.hpp>
-
-#include <exception>
 #include <iostream>
 
+// Include the necessary SDK headers
+#include <azure/core.hpp>
+#include <azure/storage/blobs.hpp>
+
+// Add appropriate using namespace directives
+using namespace Azure::Storage;
 using namespace Azure::Storage::Blobs;
 
-int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
+// Secrets should be stored & retrieved from secure locations such as Azure::KeyVault. For
+// convenience and brevity of samples, the secrets are retrieved from environment variables.
 
-  /**************** Container SDK client ************************/
-  /****************   Create container  ************************/
+std::string GetEndpointUrl() {
+  // return std::getenv("AZURE_STORAGE_ACCOUNT_URL");
+  std::string accountId = getenv("ablob_account_id");
+  if (accountId.empty()) {
+    return accountId;
+  }
+
+  return accountId + ".blob.core.windows.net";
+}
+
+std::string GetAccountName() {
+  //  return std::getenv("AZURE_STORAGE_ACCOUNT_NAME");
+  return getenv("ablob_account_id");
+}
+
+std::string GetAccountKey() {
+  // return std::getenv("AZURE_STORAGE_ACCOUNT_KEY");
+
+  return getenv("ablob_account_secret");
+}
+
+int main() {
+  std::string endpointUrl = GetEndpointUrl();
+  std::string accountName = GetAccountName();
+  std::string accountKey = GetAccountKey();
+
   try {
-    auto containerClient =
-        BlobContainerClient::CreateFromConnectionString(std::getenv("STORAGE_CONNECTION_STRING"), "td-test");
+    auto sharedKeyCredential = std::make_shared<StorageSharedKeyCredential>(accountName, accountKey);
+
+    std::string       accountURL = "https://fd2d01cd892f844eeaa2273.blob.core.windows.net";
+    BlobServiceClient blobServiceClient(accountURL, sharedKeyCredential);
+
+    std::string containerName = "myblobcontainer";
+    // auto containerClient = blobServiceClient.GetBlobContainerClient("myblobcontainer");
+    auto containerClient = blobServiceClient.GetBlobContainerClient("td-test");
 
     // Create the container if it does not exist
-    // std::cout << "Creating container: " << containerName << std::endl;
+    std::cout << "Creating container: " << containerName << std::endl;
     // containerClient.CreateIfNotExists();
 
-    /**************** Container SDK client ************************/
-    /****************      list blobs (one page) ******************/
-    // auto response = containerClient.ListBlobsSinglePage();
-    // auto response = containerClient.ListBlobs();
-    // auto blobListPage = response.Value;
-    // auto blobListPage = response.Blobs;
-    //(void)_azUploadFrom(blobClient, file, offset, size);
+    std::string blobName = "blob.txt";
+    uint8_t     blobContent[] = "Hello Azure!";
+    // Create the block blob client
+    BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
+
+    // Upload the blob
+    std::cout << "Uploading blob: " << blobName << std::endl;
+    blobClient.UploadFrom(blobContent, sizeof(blobContent));
     /*
         auto blockBlobClient = BlockBlobClient(endpointUrl, sharedKeyCredential);
 
@@ -62,15 +87,11 @@ int main(int argc, char* argv[]) {
         std::cout << "Last modified date of uploaded blob: " << model.LastModified.ToString()
                   << std::endl;
     */
+  } catch (const Azure::Core::RequestFailedException& e) {
+    std::cout << "Status Code: " << static_cast<int>(e.StatusCode) << ", Reason Phrase: " << e.ReasonPhrase
+              << std::endl;
+    std::cout << e.what() << std::endl;
 
-    for (auto page = containerClient.ListBlobs(/*options*/); page.HasPage(); page.MoveToNextPage()) {
-      for (auto& blob : page.Blobs) {
-        std::cout << blob.Name << std::endl;
-      }
-    }
-
-  } catch (const std::exception& ex) {
-    std::cout << ex.what();
     return 1;
   }
 

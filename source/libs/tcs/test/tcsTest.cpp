@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <cstring>
 #include <iostream>
 #include <queue>
@@ -15,7 +16,7 @@ int32_t tcsInitEnv(int8_t isBlob) {
   extern char tsS3BucketName[TSDB_FQDN_LEN];
 
   /* TCS parameter format
-  tsS3Hostname[0] = "endpoint/<account-name>.blob.core.windows.net";
+  tsS3Hostname[0] = "<endpoint>/<account-name>.blob.core.windows.net";
   tsS3AccessKeyId[0] = "<access-key-id/account-name>";
   tsS3AccessKeySecret[0] = "<access-key-secret/account-key>";
   tsS3BucketName = "<bucket/container-name>";
@@ -23,16 +24,38 @@ int32_t tcsInitEnv(int8_t isBlob) {
 
   tsS3Ablob = isBlob;
   if (isBlob) {
-    const char *hostname = "endpoint/<account-name>.blob.core.windows.net";
+    const char *hostname = "<endpoint>/<account-name>.blob.core.windows.net";
     const char *accessKeyId = "<access-key-id/account-name>";
     const char *accessKeySecret = "<access-key-secret/account-key>";
     const char *bucketName = "<bucket/container-name>";
 
-    tstrncpy(&tsS3Hostname[0][0], hostname, TSDB_FQDN_LEN);
-    tstrncpy(&tsS3AccessKeyId[0][0], accessKeyId, TSDB_FQDN_LEN);
-    tstrncpy(&tsS3AccessKeySecret[0][0], accessKeySecret, TSDB_FQDN_LEN);
-    tstrncpy(tsS3BucketName, bucketName, TSDB_FQDN_LEN);
+    if (hostname[0] != '<') {
+      tstrncpy(&tsS3Hostname[0][0], hostname, TSDB_FQDN_LEN);
+      tstrncpy(&tsS3AccessKeyId[0][0], accessKeyId, TSDB_FQDN_LEN);
+      tstrncpy(&tsS3AccessKeySecret[0][0], accessKeySecret, TSDB_FQDN_LEN);
+      tstrncpy(tsS3BucketName, bucketName, TSDB_FQDN_LEN);
+    } else {
+      const char *accountId = getenv("ablob_account_id");
+      if (!accountId) {
+        return -1;
+      }
 
+      const char *accountSecret = getenv("ablob_account_secret");
+      if (!accountSecret) {
+        return -1;
+      }
+
+      const char *containerName = getenv("ablob_container");
+      if (!containerName) {
+        return -1;
+      }
+
+      TAOS_STRCPY(&tsS3Hostname[0][0], accountId);
+      TAOS_STRCAT(&tsS3Hostname[0][0], ".blob.core.windows.net");
+      TAOS_STRCPY(&tsS3AccessKeyId[0][0], accountId);
+      TAOS_STRCPY(&tsS3AccessKeySecret[0][0], accountSecret);
+      TAOS_STRCPY(tsS3BucketName, containerName);
+    }
   } else {
     /*
     const char *hostname = "endpoint/<account-name>.blob.core.windows.net";
@@ -67,19 +90,22 @@ int32_t tcsInitEnv(int8_t isBlob) {
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
   tsS3Enabled = true;
-  if (!tsS3Ablob) {
-  }
 
   return code;
 }
 
-TEST(TcsTest, DISABLED_InterfaceTest) {
-  // TEST(TcsTest, InterfaceTest) {
+// TEST(TcsTest, DISABLED_InterfaceTest) {
+TEST(TcsTest, InterfaceTest) {
   int  code = 0;
   bool check = false;
   bool withcp = false;
 
   code = tcsInitEnv(true);
+  if (code) {
+    std::cout << "ablob env init failed with: " << code << std::endl;
+    return;
+  }
+
   GTEST_ASSERT_EQ(code, 0);
   GTEST_ASSERT_EQ(tsS3Enabled, 1);
   GTEST_ASSERT_EQ(tsS3Ablob, 1);
