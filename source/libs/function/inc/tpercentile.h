@@ -21,59 +21,18 @@ extern "C" {
 #endif
 
 #include "tpagedbuf.h"
-
-typedef struct MinMaxEntry {
-  union {
-    double dMinVal;
-    // double   i64MinVal;
-    uint64_t u64MinVal;
-  };
-  union {
-    double dMaxVal;
-    // double  i64MaxVal;
-    int64_t u64MaxVal;
-  };
-} MinMaxEntry;
-
-typedef struct {
-  int32_t    size;
-  int32_t    pageId;
-  SFilePage *data;
-} SSlotInfo;
-
-typedef struct tMemBucketSlot {
-  SSlotInfo   info;
-  MinMaxEntry range;
-} tMemBucketSlot;
+#include "functionResInfoInt.h"
 
 struct tMemBucket;
-typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value, int32_t *index);
-
-typedef struct tMemBucket {
-  int16_t            numOfSlots;
-  int16_t            type;
-  int32_t            bytes;
-  int32_t            total;
-  int32_t            elemPerPage;  // number of elements for each object
-  int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
-  int32_t            bufPageSize;  // disk page size
-  MinMaxEntry        range;        // value range
-  int32_t            times;        // count that has been checked for deciding the correct data value buckets.
-  __compar_fn_t      comparFn;
-  tMemBucketSlot    *pSlots;
-  SDiskbasedBuf     *pBuffer;
-  __perc_hash_func_t hashFunc;
-  SHashObj          *groupPagesMap;  // disk page map for different groups;
-} tMemBucket;
 
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
-                         tMemBucket **pBucket);
+                         struct tMemBucket **pBucket);
 
-void tMemBucketDestroy(tMemBucket **pBucket);
+void tMemBucketDestroy(struct tMemBucket **pBucket);
 
-int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
+int32_t tMemBucketPut(struct tMemBucket *pBucket, const void *data, size_t size);
 
-int32_t getPercentile(tMemBucket *pMemBucket, double percent, double *result);
+int32_t getPercentile(struct tMemBucket *pMemBucket, double percent, double *result);
 
 #endif  // TDENGINE_TPERCENTILE_H
 

@@ -912,6 +912,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       break;
     }
     if (vlen != pFileState->rowSize) {
+      qError("row size mismatch, expect:%d, actual:%d", pFileState->rowSize, vlen);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);
     }

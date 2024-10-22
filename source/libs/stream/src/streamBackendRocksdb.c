@@ -3460,6 +3460,8 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCu
           taosMemoryFree(val);
           *pVal = (char*)tVal;
         } else {
+          stInfo("streamStateGetKVByCur_rocksdb, pState = %p, pResultRowStore = %p, pExprSupp = %p", pState,
+                 pState->pResultRowStore.resultRowGet, pState->pExprSupp);
           *pVal = (char*)tVal;
         }
       } else {
@@ -5089,7 +5091,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   }
 
   char content[256] = {0};
-  nBytes = snprintf(content, sizeof(content), META_ON_S3_FORMATE, p->pCurrent, p->curChkpId, p->pManifest, p->curChkpId,
+  nBytes = tsnprintf(content, sizeof(content), META_ON_S3_FORMATE, p->pCurrent, p->curChkpId, p->pManifest, p->curChkpId,
                     "processVer", processId);
   if (nBytes <= 0 || nBytes >= sizeof(content)) {
     code = TSDB_CODE_OUT_OF_RANGE;

@@ -137,7 +137,7 @@ void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2
   }
   (void)memset(pBuf->buf, 0, pBuf->len);
   if (msg1) {
-    (void)strncat(pBuf->buf, msg1, pBuf->len);
+    (void)strncat(pBuf->buf, msg1, pBuf->len - 1);
   }
   int32_t left = pBuf->len - strlen(pBuf->buf);
   if (left > 2 && msg2) {
@@ -515,9 +515,9 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       if (tag == NULL) {
         return TSDB_CODE_SML_INVALID_DATA;
       }
-      (void)strncat(childTableName, tag->value, tag->length);
+      (void)strncat(childTableName, tag->value, TMIN(tag->length, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName)));
       if (i != taosArrayGetSize(tags) - 1) {
-        (void)strcat(childTableName, tsSmlAutoChildTableNameDelimiter);
+        (void)strncat(childTableName, tsSmlAutoChildTableNameDelimiter, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName));
       }
     }
     if (tsSmlDot2Underline) {
@@ -538,8 +538,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         (void)memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-        (void)strncpy(childTableName, tag->value,
-                      (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+        tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length + 1));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
         }

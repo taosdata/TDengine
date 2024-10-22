@@ -93,15 +93,15 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 
 // Convert buf read from rocksdb to result row
 int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  if (inBuf == NULL || pSup == NULL) {
+    qError("invalid input parameters, inBuf:%p, pSup:%p", inBuf, pSup);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SqlFunctionCtx *pCtx = pSup->pCtx;
   int32_t        *offset = pSup->rowEntryInfoOffset;
   SResultRow     *pResultRow  = NULL;
   size_t          processedSize = 0;
   int32_t         code = TSDB_CODE_SUCCESS;
-  if (inBuf == NULL) {
-    qError("invalid input buffer, inBuf:%p", inBuf);
-    return TSDB_CODE_INVALID_PARA;
-  }
 
   // calculate the size of output buffer
   *outBufSize = getResultRowSize(pCtx, pSup->numOfExprs);
@@ -118,7 +118,7 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
     int32_t len = *(int32_t*)inBuf;
     inBuf += sizeof(int32_t);
     processedSize += sizeof(int32_t);
-    if (pCtx->fpSet.decode) {
+    if (pResultRow->version != FUNCTION_RESULT_INFO_VERSION && pCtx->fpSet.decode) {
       code = pCtx->fpSet.decode(&pCtx[i], inBuf, getResultEntryInfo(pResultRow, i, offset), pResultRow->version);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to decode result row, code:%d", code);
@@ -149,15 +149,16 @@ int32_t getResultRowFromBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize
 
 // Convert result row to buf for rocksdb
 int32_t putResultRowToBuf(SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize) {
+  if (pSup == NULL || inBuf == NULL || outBuf == NULL || outBufSize == NULL) {
+    qError("invalid input parameters, inBuf:%p, pSup:%p, outBufSize:%p, outBuf:%p", inBuf, pSup, outBufSize, outBuf);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   SqlFunctionCtx *pCtx = pSup->pCtx;
   int32_t        *offset = pSup->rowEntryInfoOffset;
   SResultRow     *pResultRow = (SResultRow*)inBuf;
   size_t          rowSize = getResultRowSize(pCtx, pSup->numOfExprs);
 
-  if (inBuf == NULL) {
-    qError("invalid input buffer, inBuf:%p", inBuf);
-    return TSDB_CODE_INVALID_PARA;
-  }
   if (rowSize > inBufSize) {
     qError("invalid input buffer size, rowSize:%zu, inBufSize:%zu", rowSize, inBufSize);
     return TSDB_CODE_INVALID_PARA;
