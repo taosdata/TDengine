@@ -363,6 +363,9 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
   if (l1 == TSDB_COLVAL_ENCODE_NOCHANGE) {
     return 1;
   }
+  if (type == TSDB_COLVAL_ENCODE_DISABLED) {
+    return 1;
+  }
   if (type == TSDB_DATA_TYPE_BOOL) {
     return TSDB_COLVAL_ENCODE_RLE == l1 ? 1 : 0;
   } else if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_INT) {
