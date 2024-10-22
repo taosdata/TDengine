@@ -829,11 +829,6 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
     return 0;
   }
 
-#if 1
-  // disable header file compression
-  //cmprAlg = NO_COMPRESSION;
-#endif
-
   int32_t  code;
   SBuffer *buffer0 = buffers + 0;
   SBuffer *buffer1 = buffers + 1;
