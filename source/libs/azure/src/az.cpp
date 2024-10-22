@@ -348,7 +348,7 @@ int32_t azGetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   TAOS_RETURN(code);
 }
 
-void azDeleteObjectsByPrefix(const char *prefix) {
+static void azDeleteObjectsByPrefixImpl(const char *prefix) {
   const std::string delimiter = "/";
   std::string       accountName = tsS3AccessKeyId[0];
   std::string       accountKey = tsS3AccessKeySecret[0];
@@ -380,7 +380,16 @@ void azDeleteObjectsByPrefix(const char *prefix) {
   } catch (const Azure::Core::RequestFailedException &e) {
     azError("%s failed at line %d since %d(%s)", __func__, __LINE__, static_cast<int>(e.StatusCode),
             e.ReasonPhrase.c_str());
-    // azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TAOS_SYSTEM_ERROR(EIO)));
+  }
+}
+
+void azDeleteObjectsByPrefix(const char *prefix) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  try {
+    azDeleteObjectsByPrefixImpl(prefix);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
   }
 }
 
