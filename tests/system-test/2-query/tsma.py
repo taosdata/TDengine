@@ -1347,7 +1347,6 @@ class TDTestCase:
         self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
         self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
-        time.sleep(9999999)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
