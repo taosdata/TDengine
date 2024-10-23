@@ -24,12 +24,9 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqFatalC(...) do { if (cDebugFlag & DEBUG_FATAL || tqClientDebug) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebug) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN || tqClientDebug)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, tqDebugFlag, __VA_ARGS__); }}       while(0)
-#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebug)  { taosPrintLog("TQ  ", DEBUG_INFO, tqDebugFlag, __VA_ARGS__); }}            while(0)
-#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTraceC(...) do { if (cDebugFlag & DEBUG_TRACE || tqClientDebug) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }}     while(0)
+#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }}            while(0)
+#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
@@ -831,8 +828,8 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
       }
 
       code = innerCommit(tmq, pTopic->topicName, &pVg->offsetInfo.endOffset, pVg, pParamSet);
-      if (code != 0){
-        tqDebugC("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, code:%s, current offset version:%" PRId64 ", ordinal:%d/%d",
+      if (code != 0 && code != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE){
+        tqErrorC("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, code:%s, current offset version:%" PRId64 ", ordinal:%d/%d",
                  tmq->consumerId, pTopic->topicName, pVg->vgId, tstrerror(code), pVg->offsetInfo.endOffset.version, j + 1, numOfVgroups);
       }
     }
@@ -857,7 +854,7 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
     return;
   }
   code = innerCommitAll(tmq, pParamSet);
-  if (code != 0){
+  if (code != 0 && code != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE){
     tqErrorC("consumer:0x%" PRIx64 " innerCommitAll failed, code:%s", tmq->consumerId, tstrerror(code));
   }
 
@@ -957,7 +954,8 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  tqClientDebug = rsp.debugFlag;
+  tqClientDebugFlag = rsp.debugFlag;
+
   tDestroySMqHbRsp(&rsp);
 
 END:
@@ -978,6 +976,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
   req.pollFlag = atomic_load_8(&tmq->pollFlag);
+  tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d", tmq->consumerId, req.pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   if (req.topics == NULL) {
     goto END;
@@ -1063,7 +1062,7 @@ END:
   tDestroySMqHbReq(&req);
   if (tmrId != NULL) {
     bool ret = taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
-    tqDebugC("reset timer fo tmq hb:%d", ret);
+    tqDebugC("consumer:0x%" PRIx64 " reset timer for tmq heartbeat:%d, pollFlag:%d", tmq->consumerId, ret, tmq->pollFlag);
   }
   int32_t ret = taosReleaseRef(tmqMgmt.rsetId, refId);
   if (ret != 0){
@@ -1269,7 +1268,9 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
+      tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    }
     goto END;
   }
 
@@ -1422,7 +1423,7 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
       tqDebugC("consumer:0x%" PRIx64 " retrieve ep from mnode in 1s", pTmq->consumerId);
       bool ret = taosTmrReset(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(pTmq->refId), tmqMgmt.timer,
                               &pTmq->epTimer);
-      tqDebugC("reset timer fo tmq ask ep:%d", ret);
+      tqDebugC("reset timer for tmq ask ep:%d", ret);
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
       tmq_commit_cb* pCallbackFn = (pTmq->commitCb != NULL) ? pTmq->commitCb : defaultCommitCbFn;
       asyncCommitAllOffsets(pTmq, pCallbackFn, pTmq->commitCbUserParam);
@@ -1430,7 +1431,7 @@ void tmqHandleAllDelayedTask(tmq_t* pTmq) {
                pTmq->autoCommitInterval / 1000.0);
       bool ret = taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, (void*)(pTmq->refId), tmqMgmt.timer,
                               &pTmq->commitTimer);
-      tqDebugC("reset timer fo commit:%d", ret);
+      tqDebugC("reset timer for commit:%d", ret);
     } else {
       tqErrorC("consumer:0x%" PRIx64 " invalid task type:%d", pTmq->consumerId, *pTaskType);
     }
