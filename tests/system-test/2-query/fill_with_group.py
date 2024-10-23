@@ -295,9 +295,13 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(48)
 
-        sql = "SELECT count(*) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) having(timediff(last(ts), _wstart) >= 0)"
+        sql = "SELECT count(*) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(timediff(last(ts), _wstart) >= 0)"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(60)
+
+        sql = "SELECT count(*) + 1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(count(*) > 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(0)
 
     def run(self):
         self.prepareTestEnv()

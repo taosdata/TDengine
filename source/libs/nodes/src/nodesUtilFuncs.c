@@ -1469,6 +1469,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
+      nodesDestroyList(pLogicNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -1634,6 +1635,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pNotFillExprs);
       nodesDestroyNode(pPhyNode->pWStartTs);
       nodesDestroyNode(pPhyNode->pValues);
+      nodesDestroyList(pPhyNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:

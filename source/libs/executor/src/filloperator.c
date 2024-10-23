@@ -53,6 +53,7 @@ typedef struct SFillOperatorInfo {
   SExprInfo*        pExprInfo;
   int32_t           numOfExpr;
   SExprSupp         noFillExprSupp;
+  SExprSupp         fillNullExprSupp;
 } SFillOperatorInfo;
 
 static void destroyFillOperatorInfo(void* param);
@@ -140,6 +141,15 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
                                NULL);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pInfo->fillNullExprSupp.pExprInfo) {
+    pInfo->pRes->info.rows = 0;
+    code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
+        pInfo->fillNullExprSupp.numOfExprs, NULL);
+  }
+
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
 
 _end:
@@ -334,10 +344,11 @@ void destroyFillOperatorInfo(void* param) {
 }
 
 static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SExprInfo* pNotFillExpr,
-                            int32_t numOfNotFillCols, SNodeListNode* pValNode, STimeWindow win, int32_t capacity,
-                            const char* id, SInterval* pInterval, int32_t fillType, int32_t order,
-                            SExecTaskInfo* pTaskInfo) {
-  SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
+                            int32_t numOfNotFillCols, SExprInfo* pFillNullExpr, int32_t numOfFillNullExprs,
+                            SNodeListNode* pValNode, STimeWindow win, int32_t capacity, const char* id,
+                            SInterval* pInterval, int32_t fillType, int32_t order, SExecTaskInfo* pTaskInfo) {
+  SFillColInfo* pColInfo =
+      createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pFillNullExpr, numOfFillNullExprs, pValNode);
   if (!pColInfo) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
@@ -348,8 +359,8 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   //  STimeWindow w = {0};
   //  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
   pInfo->pFillInfo = NULL;
-  int32_t code = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
-                                    pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
+  int32_t code = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, numOfFillNullExprs, capacity, pInterval,
+                                    fillType, pColInfo, pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
@@ -455,6 +466,13 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
       initExprSupp(pNoFillSupp, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  code = createExprInfo(pPhyFillNode->pFillNullExprs, NULL, &pInfo->fillNullExprSupp.pExprInfo,
+                        &pInfo->fillNullExprSupp.numOfExprs);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initExprSupp(&pInfo->fillNullExprSupp, pInfo->fillNullExprSupp.pExprInfo, pInfo->fillNullExprSupp.numOfExprs,
+                      &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   SInterval* pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
           ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
@@ -482,7 +500,9 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc, &numOfOutputCols,
                              COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
+  QUERY_CHECK_CODE(code, lino, _error);
   code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
+                      pInfo->fillNullExprSupp.pExprInfo, pInfo->fillNullExprSupp.numOfExprs,
                       (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
                       pTaskInfo->id.str, pInterval, type, order, pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {

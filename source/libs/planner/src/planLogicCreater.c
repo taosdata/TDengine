@@ -1196,117 +1196,21 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
-typedef struct SPartFillExprsCtx {
-  bool      hasFillCol;
-  bool      hasPseudoWinCol;
-  bool      hasGroupKeyCol;
-  SHashObj* pPseudoCols;
-  int32_t   code;
-} SPartFillExprsCtx;
-
-static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
-  SPartFillExprsCtx *pCtx = pContext;
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
-        COLUMN_TYPE_WINDOW_DURATION == pCol->colType) {
-      pCtx->hasPseudoWinCol = true;
-      pCtx->code = taosHashPut(pCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
-    } else if (COLUMN_TYPE_GROUP_KEY == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType || COLUMN_TYPE_TAG == pCol->colType) {
-      pCtx->hasGroupKeyCol = true;
-      pCtx->code = taosHashPut(pCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
-    } else {
-      pCtx->hasFillCol = true;
-      return DEAL_RES_END;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static void needFillValue(SNode* pNode, SPartFillExprsCtx* pCtx) {
-  nodesWalkExpr(pNode, needFillValueImpl, pCtx);
-}
-
 typedef struct SCollectFillExprsCtx {
   SHashObj*   pPseudoCols;
-  int32_t     code;
   SNodeList*  pFillExprs;
   SNodeList*  pNotFillExprs;
-  bool        skipFillCols;
+  bool        collectAggFuncs;
+  SNodeList*  pAggFuncCols;
 } SCollectFillExprsCtx;
 
-static EDealRes collectFillExpr(SNode* pNode, void* pContext) {
-  SCollectFillExprsCtx* pCollectFillCtx = pContext;
-  SPartFillExprsCtx     partFillCtx = {0};
-  SNode*                pNew = NULL;
-  partFillCtx.pPseudoCols = pCollectFillCtx->pPseudoCols;
-  needFillValue(pNode, &partFillCtx);
-  if (partFillCtx.code != TSDB_CODE_SUCCESS) {
-    pCollectFillCtx->code = partFillCtx.code;
-    return DEAL_RES_ERROR;
-  }
-
-  if (partFillCtx.hasFillCol && !pCollectFillCtx->skipFillCols) {
-    if (nodeType(pNode) == QUERY_NODE_ORDER_BY_EXPR) {
-      pCollectFillCtx->code = nodesCloneNode(((SOrderByExprNode*)pNode)->pExpr, &pNew);
-    } else {
-      pCollectFillCtx->code = nodesCloneNode(pNode, &pNew);
-    }
-    if (pCollectFillCtx->code == TSDB_CODE_SUCCESS) {
-      pCollectFillCtx->code = nodesListMakeStrictAppend(&pCollectFillCtx->pFillExprs, pNew);
-    }
-    if (pCollectFillCtx->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SCollectFillExprsCtx collectFillCtx = {0};
-  collectFillCtx.pPseudoCols = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (!collectFillCtx.pPseudoCols) return terrno;
-
-  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-    nodesWalkExprs(pSelect->pProjectionList, collectFillExpr, &collectFillCtx);
-  }
-  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-    collectFillCtx.skipFillCols = true;
-    nodesWalkExpr(pSelect->pHaving, collectFillExpr, &collectFillCtx);
-  }
-  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-    nodesWalkExprs(pSelect->pGroupByList, collectFillExpr, &collectFillCtx);
-  }
-  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-    nodesWalkExprs(pSelect->pOrderByList, collectFillExpr, &collectFillCtx);
-  }
-  if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-    void* pIter = taosHashIterate(collectFillCtx.pPseudoCols, 0);
-    while (pIter) {
-      SNode* pNode = *(SNode**)pIter, *pNew = NULL;
-      collectFillCtx.code = nodesCloneNode(pNode, &pNew);
-      if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-        collectFillCtx.code = nodesListMakeStrictAppend(&collectFillCtx.pNotFillExprs, pNew);
-      }
-      if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-        pIter = taosHashIterate(collectFillCtx.pPseudoCols, pIter);
-      } else {
-        taosHashCancelIterate(collectFillCtx.pPseudoCols, pIter);
-        break;
-      }
-    }
-    if (collectFillCtx.code == TSDB_CODE_SUCCESS) {
-      TSWAP(*pFillExprs, collectFillCtx.pFillExprs);
-      TSWAP(*pNotFillExprs, collectFillCtx.pNotFillExprs);
-    }
-  }
-  if (collectFillCtx.code != TSDB_CODE_SUCCESS) {
-    if (collectFillCtx.pFillExprs) nodesDestroyList(collectFillCtx.pFillExprs);
-    if (collectFillCtx.pNotFillExprs) nodesDestroyList(collectFillCtx.pNotFillExprs);
-  }
-  taosHashCleanup(collectFillCtx.pPseudoCols);
-  return code;
-}
+typedef struct SWalkFillSubExprCtx {
+  bool                  hasFillCol;
+  bool                  hasPseudoWinCol;
+  bool                  hasGroupKeyCol;
+  SCollectFillExprsCtx* pCollectFillCtx;
+  int32_t               code;
+} SWalkFillSubExprCtx;
 
 static bool nodeAlreadyContained(SNodeList* pList, SNode* pNode) {
   SNode* pExpr = NULL;
@@ -1316,6 +1220,116 @@ static bool nodeAlreadyContained(SNodeList* pList, SNode* pNode) {
     }
   }
   return false;
+}
+
+static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
+  SWalkFillSubExprCtx *pCtx = pContext;
+  EDealRes res = DEAL_RES_CONTINUE;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
+        COLUMN_TYPE_WINDOW_DURATION == pCol->colType) {
+      pCtx->hasPseudoWinCol = true;
+      pCtx->code =
+          taosHashPut(pCtx->pCollectFillCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
+    } else if (COLUMN_TYPE_GROUP_KEY == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType ||
+               COLUMN_TYPE_TAG == pCol->colType) {
+      pCtx->hasGroupKeyCol = true;
+      pCtx->code =
+          taosHashPut(pCtx->pCollectFillCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);
+    } else {
+      pCtx->hasFillCol = true;
+      if (pCtx->pCollectFillCtx->collectAggFuncs) {
+        // Agg funcs has already been rewriten to columns by Interval
+        // Here, we return DEAL_RES_CONTINUE cause we need to collect all agg funcs
+        if (!nodeAlreadyContained(pCtx->pCollectFillCtx->pFillExprs, pNode) &&
+            !nodeAlreadyContained(pCtx->pCollectFillCtx->pAggFuncCols, pNode))
+          pCtx->code = nodesListMakeStrictAppend(&pCtx->pCollectFillCtx->pAggFuncCols, pNode);
+      } else {
+        res = DEAL_RES_END;
+      }
+    }
+  }
+  if (pCtx->code != TSDB_CODE_SUCCESS) res = DEAL_RES_ERROR;
+  return res;
+}
+
+static void needFillValue(SNode* pNode, SWalkFillSubExprCtx* pCtx) {
+  nodesWalkExpr(pNode, needFillValueImpl, pCtx);
+}
+
+static int32_t collectFillExpr(SNode* pNode, SCollectFillExprsCtx* pCollectFillCtx) {
+  SNode*                pNew = NULL;
+  SWalkFillSubExprCtx   collectFillSubExprCtx = {
+        .hasFillCol = false, .hasPseudoWinCol = false, .hasGroupKeyCol = false, .pCollectFillCtx = pCollectFillCtx};
+  needFillValue(pNode, &collectFillSubExprCtx);
+  if (collectFillSubExprCtx.code != TSDB_CODE_SUCCESS) {
+    return collectFillSubExprCtx.code;
+  }
+
+  if (collectFillSubExprCtx.hasFillCol && !pCollectFillCtx->collectAggFuncs) {
+    if (nodeType(pNode) == QUERY_NODE_ORDER_BY_EXPR) {
+      collectFillSubExprCtx.code = nodesCloneNode(((SOrderByExprNode*)pNode)->pExpr, &pNew);
+    } else {
+      collectFillSubExprCtx.code = nodesCloneNode(pNode, &pNew);
+    }
+    if (collectFillSubExprCtx.code == TSDB_CODE_SUCCESS) {
+      collectFillSubExprCtx.code = nodesListMakeStrictAppend(&pCollectFillCtx->pFillExprs, pNew);
+    }
+  }
+  return collectFillSubExprCtx.code;
+}
+
+static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs,
+                                SNodeList** pPossibleFillNullCols) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SCollectFillExprsCtx collectFillCtx = {0};
+  SNode*               pNode = NULL;
+  collectFillCtx.pPseudoCols = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!collectFillCtx.pPseudoCols) return terrno;
+
+  FOREACH(pNode, pSelect->pProjectionList) {
+    code = collectFillExpr(pNode, &collectFillCtx);
+    if (code != TSDB_CODE_SUCCESS) break;
+  }
+  collectFillCtx.collectAggFuncs = true;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = collectFillExpr(pSelect->pHaving, &collectFillCtx);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    FOREACH(pNode, pSelect->pOrderByList) {
+      code = collectFillExpr(pNode, &collectFillCtx);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    void* pIter = taosHashIterate(collectFillCtx.pPseudoCols, 0);
+    while (pIter) {
+      SNode* pNode = *(SNode**)pIter, *pNew = NULL;
+      code = nodesCloneNode(pNode, &pNew);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = nodesListMakeStrictAppend(&collectFillCtx.pNotFillExprs, pNew);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        pIter = taosHashIterate(collectFillCtx.pPseudoCols, pIter);
+      } else {
+        taosHashCancelIterate(collectFillCtx.pPseudoCols, pIter);
+        break;
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      TSWAP(*pFillExprs, collectFillCtx.pFillExprs);
+      TSWAP(*pNotFillExprs, collectFillCtx.pNotFillExprs);
+      TSWAP(*pPossibleFillNullCols, collectFillCtx.pAggFuncCols);
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    if (collectFillCtx.pFillExprs) nodesDestroyList(collectFillCtx.pFillExprs);
+    if (collectFillCtx.pNotFillExprs) nodesDestroyList(collectFillCtx.pNotFillExprs);
+    if (collectFillCtx.pAggFuncCols) nodesDestroyList(collectFillCtx.pAggFuncCols);
+  }
+  taosHashCleanup(collectFillCtx.pPseudoCols);
+  return code;
 }
 
 static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -1340,33 +1354,15 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
   pFill->node.inputTsOrder = TSDB_ORDER_ASC;
 
-  code = collectFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
+  code = collectFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs, &pFill->pFillNullExprs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pFill->pFillExprs, pSelect, SQL_CLAUSE_FILL, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pFill->pNotFillExprs, pSelect, SQL_CLAUSE_FILL, NULL);
   }
-  SNodeList* pWindowTargets = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    SNode* pNode = NULL, *pNodeNew = NULL;
-    FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
-      if (nodesEqualNode(pNode, pFillNode->pWStartTs)) continue;
-      if (nodeAlreadyContained(pFill->pFillExprs, pNode)) continue;
-      if (nodeAlreadyContained(pFill->pNotFillExprs, pNode)) continue;
-      pNodeNew = NULL;
-      code = nodesCloneNode(pNode, &pNodeNew);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListMakeStrictAppend(&pWindowTargets, pNodeNew);
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyList(pWindowTargets);
-        break;
-      }
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pWindowTargets) > 0) {
-    code = nodesListMakeStrictAppendList(&pFill->pFillExprs, pWindowTargets);
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pFill->pFillNullExprs) > 0) {
+    code = createColumnByRewriteExprs(pFill->pFillNullExprs, &pFill->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pFill->pFillExprs, &pFill->node.pTargets);
