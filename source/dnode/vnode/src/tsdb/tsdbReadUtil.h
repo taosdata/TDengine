@@ -30,13 +30,13 @@ extern "C" {
   do {                      \
     (_w)->skey = INT64_MAX; \
     (_w)->ekey = INT64_MIN; \
-  } while (0);
+  } while (0)
 
 #define INIT_KEYRANGE(_k)      \
   do {                         \
     (_k)->skey.ts = INT64_MAX; \
     (_k)->ekey.ts = INT64_MIN; \
-  } while (0);
+  } while (0)
 
 #define tRowGetKeyEx(_pRow, _pKey)                                         \
   {                                                                        \
@@ -72,7 +72,6 @@ typedef struct STsdbReaderInfo {
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
-  int32_t currentIndex;
   SArray* pData;
   int32_t numPerBucket;
   int32_t numOfTables;
@@ -241,7 +240,6 @@ typedef struct SDataBlockIter {
   int32_t    index;
   SArray*    blockList;  // SArray<SFileDataBlockInfo>
   int32_t    order;
-  SDataBlk   block;  // current SDataBlk data
 } SDataBlockIter;
 
 typedef struct SFileBlockDumpInfo {
@@ -321,12 +319,12 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
                                STsdbReader* pReader);
 void    clearBlockScanInfo(STableBlockScanInfo* p);
-void    destroyAllBlockScanInfo(SSHashObj* pTableMap);
-void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
-void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
+void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
+void    resetAllDataBlockScanInfo(const SSHashObj* pTableMap, int64_t ts, int32_t step);
+void    cleanupInfoForNextFileset(const SSHashObj* pTableMap);
 int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
 void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
-int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
+int32_t getPosInBlockInfoBuf(const SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
 
 // brin records iterator
 void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
@@ -334,17 +332,17 @@ int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord);
 void    clearBrinBlockIter(SBrinRecordIter* pIter);
 
 // initialize block iterator API
-int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList);
-bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
+int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, const SArray* pTableList);
+bool    blockIteratorNext(SDataBlockIter* pBlockIter);
 
 // load tomb data API (stt/mem only for one table each, tomb data from data files are load for all tables at one time)
-int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
+int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, const STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
                                TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
                                int32_t numOfTables, int32_t* pNumOfRows);
-int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
+int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, const SBrinRecord* record);
 
 void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
