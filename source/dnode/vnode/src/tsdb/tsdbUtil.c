@@ -15,6 +15,7 @@
 
 #include "tdataformat.h"
 #include "tsdb.h"
+#include "os.h"
 
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
@@ -1696,4 +1697,12 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 
 _exit:
   return code;
+}
+
+void tsdbPrintStackTrace() {
+  tsdbInfo("tsdb stack trace:\n");
+  const char *flags = "tsdb ref";
+  ELogLevel   level = DEBUG_INFO;
+  int32_t     dflag = 255;
+  taosPrintTrace(flags, level, dflag, 1);
 }

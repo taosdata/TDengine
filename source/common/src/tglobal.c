@@ -280,6 +280,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+bool   tsRefPrintStack = false;
 
 int32_t tsCheckpointInterval = 20;
 
@@ -338,9 +339,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -711,6 +710,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "forbiddenBackTrace", tsForbiddenBackTrace, CFG_SCOPE_SERVER) != 0) {
   }
+  if (cfgAddBool(pCfg, "refPrintStack", tsRefPrintStack, CFG_SCOPE_SERVER) != 0) return -1;
   GRANT_CFG_ADD;
   return 0;
 }
@@ -1137,6 +1137,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
   tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
   tsForbiddenBackTrace = cfgGetItem(pCfg, "forbiddenBackTrace")->bval;
+  tsRefPrintStack = cfgGetItem(pCfg, "refPrintStack")->bval;
   GRANT_CFG_GET;
   return 0;
 }
@@ -1751,6 +1752,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t enableWhitelist = atoi(value);
     uInfo("enablewhitelist set from %d to %d", tsEnableWhiteList, enableWhitelist);
     tsEnableWhiteList = enableWhitelist > 0 ? true : false;
+    return;
+  }
+
+  if (strcasecmp(option, "refPrintStack") == 0) {
+    int32_t refPrintStack = atoi(value);
+    uInfo("refPrintStack set from %d to %d", tsRefPrintStack, refPrintStack);
+    tsRefPrintStack = refPrintStack > 0 ? true : false;
     return;
   }
 
