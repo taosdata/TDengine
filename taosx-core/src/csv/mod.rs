@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -23,6 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn, Instrument, Span};
 
 use crate::sink::channel_based_transformer;
+use crate::utils::breakpoints;
 use crate::utils::port_pool::PortPool;
 use crate::{utils, Parser, Transferred};
 
@@ -75,6 +77,7 @@ pub async fn csv_header(
 ) -> Result<CsvHeader> {
     let mut header = Vec::new();
     let option = CsvOption {
+        task_id: None,
         has_header,
         headers: vec![],
         skip: Some(skip),
@@ -153,7 +156,7 @@ async fn csv_to_taos_with_channel(
         info!("CSV worker finished, total record batches: {}", count);
     });
 
-    let mut source = CsvSource::new(&mut from, msg)?;
+    let mut source = CsvSource::new(task_id, &mut from, msg)?;
     // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(
@@ -328,6 +331,7 @@ pub struct CsvHeader {
 
 #[derive(Debug, Clone)]
 pub struct CsvOption {
+    pub task_id: Option<i64>,
     pub has_header: bool,
     pub headers: Vec<String>,
     pub skip: Option<usize>,
@@ -344,6 +348,7 @@ pub struct CsvOption {
 impl Default for CsvOption {
     fn default() -> Self {
         Self {
+            task_id: None,
             has_header: true,
             headers: vec![],
             skip: None,
@@ -632,6 +637,7 @@ impl CsvOption {
 
 // CsvSource read csv file and send data to Sender
 struct CsvSource {
+    task_id: Option<i64>,
     readers: Vec<Reader<Box<dyn CsvReaderExt>>>,
     paths: Vec<String>,
     option: CsvOption,
@@ -656,7 +662,7 @@ impl std::fmt::Debug for CsvSource {
     }
 }
 impl CsvSource {
-    fn new(dsn: &mut Dsn, sender: MsgSender) -> Result<CsvSource> {
+    fn new(task_id: Option<i64>, dsn: &mut Dsn, sender: MsgSender) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
@@ -676,6 +682,20 @@ impl CsvSource {
                 paths.push(csv_path);
             }
         }
+
+        // filter by breakpoint
+        let breakpoints = get_breakpoint(task_id).unwrap_or_default();
+        let paths = paths
+            .into_iter()
+            .filter(|path| {
+                if breakpoints.contains_key(path) {
+                    tracing::info!("file '{path}' is already processed, skip it");
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect_vec();
 
         let has_header: bool = dsn
             .remove("has_header")
@@ -787,6 +807,7 @@ impl CsvSource {
             .unwrap_or(true);
 
         let option = CsvOption {
+            task_id,
             has_header,
             headers,
             skip,
@@ -819,6 +840,7 @@ impl CsvSource {
 
         let readers = option.open_many(paths.as_slice())?;
         Ok(CsvSource {
+            task_id,
             readers,
             paths,
             sender,
@@ -899,6 +921,7 @@ impl CsvSource {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();
+            let task_id = self.task_id.clone();
             let keep_processed_files = self.keep_processed_files.clone();
             // let total = total.clone();
             let future = tokio::spawn(
@@ -918,6 +941,9 @@ impl CsvSource {
                         sender.send_async(Ok(msg)).await?;
                         tracing::debug!(path, count, "send batches to writer");
                     }
+
+                    // write to breakpoint file
+                    let _ = set_breakpoint(task_id, &path, count).await;
 
                     // if keep_processed_files is false, delete the processed file
                     if !keep_processed_files {
@@ -1123,10 +1149,46 @@ async fn test_csv_source() -> anyhow::Result<()> {
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     let (sender, _) = flume::bounded(0);
-    if let Err(err) = CsvSource::new(&mut from.clone(), sender) {
+    if let Err(err) = CsvSource::new(None, &mut from.clone(), sender) {
         DataSourceValidation::invalid("csv".to_string(), err.to_string())
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
+    }
+}
+
+pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> anyhow::Result<()> {
+    let task_id = format!("{}", task_id.unwrap_or(0));
+    let amount = format!("{}", amount);
+    // set breakpoint, if failed, retry after 1s
+    let mut result = breakpoints::breakpoints_set(&task_id, &path, &amount);
+    while let Err(e) = result {
+        tracing::error!("set breakpoint for task {task_id} failed, error: {e}, retry after 1s");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        result = breakpoints::breakpoints_set(&task_id, &path, &amount);
+    }
+    tracing::info!("set breakpoint for task {task_id} success, '{path}: {amount}'");
+    Ok(())
+}
+
+pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, usize>> {
+    let task_id = format!("{}", task_id.unwrap_or(0));
+    let result = breakpoints::breakpoints_get_all(&task_id);
+    match result {
+        Ok(records) => {
+            let map = records
+                .iter()
+                .map(|(path, amount)| {
+                    let path = path.to_string();
+                    let amount = amount.parse::<usize>().unwrap_or(0);
+                    (path, amount)
+                })
+                .collect();
+            Ok(map)
+        }
+        Err(e) => {
+            tracing::error!("get breakpoint for task {task_id} failed, error: {e}");
+            Err(e)
+        }
     }
 }
 
@@ -1209,6 +1271,7 @@ mod tests {
         }
 
         let option = CsvOption {
+            task_id: None,
             has_header: true,
             headers: vec![],
             skip: None,
@@ -1243,6 +1306,7 @@ mod tests {
         }
 
         let option = CsvOption {
+            task_id: None,
             has_header: false,
             headers: vec![],
             skip: None,
@@ -1278,6 +1342,7 @@ mod tests {
         }
 
         let option = CsvOption {
+            task_id: None,
             has_header: false,
             headers: vec!["ts".to_string(), "payload".to_string()],
             skip: None,
@@ -1325,6 +1390,7 @@ mod tests {
         }
 
         let option = CsvOption {
+            task_id: None,
             has_header: true,
             headers: vec![],
             skip: None,
@@ -1350,6 +1416,7 @@ mod tests {
         create_csv_file(&path).await.unwrap();
 
         let option = CsvOption {
+            task_id: None,
             has_header: true,
             headers: vec![],
             skip: None,
@@ -1367,9 +1434,26 @@ mod tests {
         assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
 
         let (tx, _) = flume::bounded(0);
-        let csv = CsvSource::new(&mut "csv:./test.csv.gz".parse().unwrap(), tx);
+        let csv = CsvSource::new(None, &mut "csv:./test.csv.gz".parse().unwrap(), tx);
         assert!(csv.is_ok(), "{csv:?}");
         delete_csv_file(&path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_set_breakpoint() {
+        let task_id = Some(1);
+        let path = "test.csv";
+        let amount = 100;
+        let result = set_breakpoint(task_id, path, amount).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_breakpoint() {
+        let task_id = Some(1);
+        let result = get_breakpoint(task_id);
+        assert!(result.is_ok());
+        dbg!(result.unwrap());
     }
 
     async fn create_csv_file(path: impl AsRef<Path>) -> anyhow::Result<()> {
