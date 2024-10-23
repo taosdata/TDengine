@@ -27,6 +27,7 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meter
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_cache_last.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meters/replica2_restart_dnodes.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meters/replica3_restart_dnodes.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meters/meters_one_big_table.py --keep --containers
 
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_2.py --keep --containers
