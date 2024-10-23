@@ -172,7 +172,7 @@ void         tsdbReleaseDataBlock2(STsdbReader *pReader);
 int32_t      tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
 int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);
+int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void        *tsdbGetIdx2(SMeta *pMeta);
 void        *tsdbGetIvtIdx2(SMeta *pMeta);
 uint64_t     tsdbGetReaderMaxVersion2(STsdbReader *pReader);

@@ -2792,7 +2792,9 @@ static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   code = pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pBlockScanInfo->pHandle);
+  blockDistInfo.numOfInmemRows = 0;
+  code = pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pBlockScanInfo->pHandle, &blockDistInfo.numOfInmemRows);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
