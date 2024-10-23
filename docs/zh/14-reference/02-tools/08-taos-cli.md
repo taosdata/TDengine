@@ -4,11 +4,11 @@ sidebar_label: taos
 toc_max_heading_level: 4
 ---
 
-TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用的方式。 使用前需要安装 TDengine Server 安装包或 TDengine Client 安装包。
+TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用工具。 使用前需要安装 TDengine Server 安装包或 TDengine Client 安装包。
 
 ## 启动
 
-要进入 TDengine CLI，您只要在终端执行 `taos` 即可。
+要进入 TDengine CLI，您在终端执行 `taos` 即可。
 
 ```bash
 taos
@@ -23,6 +23,11 @@ taos>
 ```
 
 进入 TDengine CLI 后，你可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
+退出 TDengine CLI， 执行 `q` 或 `quit` 或 `exit` 回车即可
+```shell
+taos> quit
+```
+
 
 ## 执行 SQL 脚本
 
@@ -66,7 +71,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -l PKTLEN: 网络测试时使用的测试包大小
 - -n NETROLE: 网络连接测试时的测试范围，默认为 `client`, 可选值为 `client`、`server`
 - -N PKTNUM: 网络测试时使用的测试包数量
-- -r: 将时间输出出无符号 64 位整数类型(即 C 语音中 uint64_t)
+- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语音中 uint64_t)
 - -R: 使用 RESTful 模式连接服务端
 - -s COMMAND: 以非交互模式执行的 SQL 命令
 - -t: 测试服务端启动状态，状态同-k
@@ -84,6 +89,13 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../../components/taosc)
 
+## TDengine CLI TAB 键补全
+
+- TAB 键前为空命令状态下按 TAB 键，会列出 TDengine CLI 支持的所有命令
+- TAB 键前为空格状态下按 TAB 键，会列出这个位置可以出现的命令词，再次按 TAB 键切换为下一个可以出现的命令词
+- TAB 键前有字母，会查找这个位置可以出现的所有命令词并前缀与前面字母相同的命令词，再次按 TAB 键切换为下一个可以出现的命令词
+- 输入反斜杠 `\` + TAB 键, 会自动补全为列式显示模式的命令词 `\G;` 
+
 ## TDengine CLI 小技巧
 
 - 可以使用上下光标键查看历史输入的指令
@@ -91,7 +103,6 @@ taos -h h1.taos.com -s "use db; show tables;"
 - Ctrl+C 中止正在进行中的查询
 - 执行 `RESET QUERY CACHE` 可清除本地表 Schema 的缓存
 - 批量执行 SQL 语句。可以将一系列的 TDengine CLI 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
-- 输入 `q` 或 `quit` 或 `exit` 回车，可以退出 TDengine CLI
 
 ## TDengine CLI 导出查询结果到文件中
 
