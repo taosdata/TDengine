@@ -55,7 +55,7 @@ typedef struct SDataDispatchHandle {
 } SDataDispatchHandle;
 
 static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* pInput)  {
-  if(!tsEnableSafetyCheck) {
+  if(tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
     return TSDB_CODE_SUCCESS;
   }
   if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {

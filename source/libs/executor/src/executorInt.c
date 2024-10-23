@@ -616,11 +616,12 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
       }
     }
   }
-  code = TSDB_CODE_SUCCESS;
-
+  code = blockDataCheck(pBlock);
+  QUERY_CHECK_CODE(code, lino, _err);
 _err:
-  blockDataCheck(pBlock, true);
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;

@@ -153,7 +153,12 @@ extern bool     tsEnableCrashReport;
 extern char    *tsTelemUri;
 extern char    *tsClientCrashReportUri;
 extern char    *tsSvrCrashReportUri;
-extern bool    tsEnableSafetyCheck;
+extern int8_t  tsSafetyCheckLevel;
+enum {
+  TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
+  TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
+  TSDB_SAFETY_CHECK_LEVELL_BYROW = 2,
+};
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

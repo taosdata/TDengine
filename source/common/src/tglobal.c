@@ -137,9 +137,9 @@ bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
 #endif
-char *tsClientCrashReportUri = "/ccrashreport";
-char *tsSvrCrashReportUri = "/dcrashreport";
-bool  tsEnableSafetyCheck = false;
+char  *tsClientCrashReportUri = "/ccrashreport";
+char  *tsSvrCrashReportUri = "/dcrashreport";
+int8_t tsSafetyCheckLevel = TSDB_SAFETY_CHECK_LEVELL_NEVER;
 
 // schemaless
 bool tsSmlDot2Underline = true;
@@ -608,7 +608,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSafetyCheck", tsEnableSafetyCheck, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
@@ -1302,8 +1302,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
   tsmaDataDeleteMark = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSafetyCheck");
-  tsEnableSafetyCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
+  tsSafetyCheckLevel = pItem->i32;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2045,7 +2045,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
-                                         {"enableSafetyCheck", &tsEnableSafetyCheck}};
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2302,7 +2302,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
-                                         {"enableSafetyCheck", &tsEnableSafetyCheck}};
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

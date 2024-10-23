@@ -65,10 +65,13 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
-  blockDataCheck(*ppBlock, false);
+  int32_t        code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   if (code) {
     qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
+  blockDataCheck(*ppBlock);
+  if (code) {
+    qError("failed to check data block got from upstream, %s code:%s", __func__, tstrerror(code));
   }
   return code;
 }
@@ -526,7 +529,8 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if ((*pResBlock) != NULL) {
     pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
-    blockDataCheck(*pResBlock, false);
+    code = blockDataCheck(*pResBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     setOperatorCompleted(pOperator);
   }

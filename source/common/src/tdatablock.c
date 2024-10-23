@@ -18,6 +18,7 @@
 #include "tcompare.h"
 #include "tlog.h"
 #include "tname.h"
+#include "tglobal.h"
 
 #define MALLOC_ALIGN_BYTES 32
 
@@ -3042,7 +3043,11 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 
 // return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
-  blockDataCheck(pBlock, false);
+  int32_t code = blockDataCheck(pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return -1;
+  }
 
   int32_t dataLen = 0;
 
@@ -3297,9 +3302,13 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
   *pEndPos = pStart;
 
-  blockDataCheck(pBlock, false);
+  code = blockDataCheck(pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
@@ -3509,20 +3518,19 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   return nextRowIdx;
 }
 
-void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
-  return;
-  
-  if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
-    return;
+#define BLOCK_DATA_CHECK_TRESSA(o)                      \
+  if (!(o)) {                                           \
+    uError("blockDataCheck failed! line:%d", __LINE__); \
+    return TSDB_CODE_INTERNAL_ERROR;                    \
+  }
+int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER || NULL == pDataBlock || pDataBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
   }
 
-#define BLOCK_DATA_CHECK_TRESSA(o) ;
-//#define BLOCK_DATA_CHECK_TRESSA(o) A S S E R T(o)
-
   BLOCK_DATA_CHECK_TRESSA(pDataBlock->info.rows > 0);
-
-  if (!pDataBlock->info.dataLoad && !forceChk) {
-    return;
+  if (!pDataBlock->info.dataLoad) {
+    return TSDB_CODE_SUCCESS;
   }
 
   bool isVarType = false;
@@ -3544,6 +3552,7 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
 
     nextPos = 0;
     for (int64_t r = 0; r < checkRows; ++r) {
+      if (tsSafetyCheckLevel <= TSDB_SAFETY_CHECK_LEVELL_NORMAL) break;
       if (!colDataIsNull_s(pCol, r)) {
         BLOCK_DATA_CHECK_TRESSA(pCol->pData);
         BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
@@ -3578,7 +3587,7 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
     }
   }
 
-  return;
+  return TSDB_CODE_SUCCESS;
 }
 
 

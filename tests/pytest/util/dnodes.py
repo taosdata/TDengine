@@ -48,7 +48,7 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
-            "enableSafetyCheck":"1"
+            "safetyCheckLevel":"2"
         }
 
     def getLogDir(self):
@@ -151,7 +151,7 @@ class TDDnode:
             "enableQueryHb": "1",
             "supportVnodes": "1024",
             "telemetryReporting": "0",
-            "enableSafetyCheck":"1"
+            "safetyCheckLevel":"2"
         }
 
     def init(self, path, remoteIP = ""):
