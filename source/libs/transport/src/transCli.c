@@ -27,7 +27,7 @@ typedef struct {
 typedef struct SConnList {
   queue   conns;
   int32_t size;
-  int32_t totaSize;
+  int32_t totalSize;
 } SConnList;
 
 typedef struct {
@@ -855,10 +855,10 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
   }
 
   if (QUEUE_IS_EMPTY(&plist->conns)) {
-    if (plist->totaSize >= pInst->connLimitNum) {
+    if (plist->totalSize >= pInst->connLimitNum) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
-    plist->totaSize += 1;
+    plist->totalSize += 1;
     return TSDB_CODE_RPC_NETWORK_BUSY;
   }
 
@@ -1249,7 +1249,7 @@ static void cliHandleException(SCliConn* conn) {
   cliDestroyAllQidFromThrd(conn);
   QUEUE_REMOVE(&conn->q);
   if (conn->list) {
-    conn->list->totaSize -= 1;
+    conn->list->totalSize -= 1;
     conn->list = NULL;
   }
 
@@ -3739,7 +3739,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totaSize >= pInst->connLimitNum / 4) {
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
       tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
 
       if (cliConnRemoveTimeoutMsg(pConn)) {
