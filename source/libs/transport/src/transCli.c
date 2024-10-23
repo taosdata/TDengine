@@ -855,7 +855,7 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
   }
 
   if (QUEUE_IS_EMPTY(&plist->conns)) {
-    if (plist->size >= pInst->connLimitNum) {
+    if (plist->totaSize >= pInst->connLimitNum) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
     plist->totaSize += 1;
