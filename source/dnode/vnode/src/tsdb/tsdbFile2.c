@@ -210,7 +210,7 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
   nRef = ++fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
   if (tsRefPrintStack) {
-    printStackTrace();
+    tsdbPrintStackTrace();
   }
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
@@ -222,7 +222,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
   if (tsRefPrintStack) {
-    printStackTrace();
+    tsdbPrintStackTrace();
   }
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {

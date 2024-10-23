@@ -15,6 +15,7 @@
 
 #include "tdataformat.h"
 #include "tsdb.h"
+#include "os.h"
 
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
@@ -1698,30 +1699,10 @@ _exit:
   return code;
 }
 
-void printStackTrace() {
-  void  *buffer[100];
-  int    nptrs = backtrace(buffer, 100);
-  char **symbols = backtrace_symbols(buffer, nptrs);
-  if (symbols == NULL) {
-    tsdbError("failed to get backtrace symbols");
-    return;
-  }
-  size_t total_length = 0;
-  for (int i = 0; i < nptrs; i++) {
-    total_length += strlen(symbols[i]) + 1;
-  }
-  char *stack_trace = (char *)taosMemoryMalloc(total_length + 1);
-  if (stack_trace == NULL) {
-    tsdbError("failed to allocate memory for stack trace");
-    taosMemoryFree(symbols);
-    return;
-  }
-  stack_trace[0] = '\0';
-  for (int i = 0; i < nptrs; i++) {
-    strcat(stack_trace, symbols[i]);
-    strcat(stack_trace, "\n");
-  }
-  tsdbInfo("Stack trace:\n%s", stack_trace);
-  taosMemoryFree(stack_trace);
-  taosMemoryFree(symbols);
+void tsdbPrintStackTrace() {
+  tsdbInfo("tsdb stack trace:\n");
+  const char *flags = "tsdb ref";
+  ELogLevel   level = DEBUG_INFO;
+  int32_t     dflag = 255;
+  taosPrintTrace(flags, level, dflag, 1);
 }

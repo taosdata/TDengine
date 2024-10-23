@@ -339,9 +339,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -1757,9 +1755,9 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
-    if (strcasecmp(option, "refPrintStack") == 0) {
+  if (strcasecmp(option, "refPrintStack") == 0) {
     int32_t refPrintStack = atoi(value);
-    uInfo("refPrintStack set from %d to %d", tsEnableWhiteList, refPrintStack);
+    uInfo("refPrintStack set from %d to %d", tsRefPrintStack, refPrintStack);
     tsRefPrintStack = refPrintStack > 0 ? true : false;
     return;
   }
