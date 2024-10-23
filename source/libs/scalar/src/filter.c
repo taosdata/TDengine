@@ -4594,18 +4594,13 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        *isStrict = true;
+        if(optNode->opType == OP_TYPE_IN) *isStrict = false;
+        else *isStrict = true;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
         goto _return;
       }
-    } else if (filterClassifyCondition(pNode) == COND_TYPE_PRIMARY_KEY
-              && node->node.type == QUERY_NODE_OPERATOR && optNode->opType == OP_TYPE_IN) {
-        if(processPrimaryKeyInCondition(pNode, win)) {
-          *isStrict =false;
-          goto _return;
-        }
     }
     *win = TSWINDOW_INITIALIZER;
     *isStrict = false;
@@ -5060,6 +5055,29 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       }
       break;
     }
+    case OP_TYPE_IN: {
+        SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
+        SListCell *cell = listNode->pNodeList->pHead;
+        SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
+        SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
+        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
+          SValueNode *valueNode = (SValueNode *)cell->pNode;
+          SFltSclDatum valDatum;
+          FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
+          minDatum.i = TMIN(minDatum.i, valDatum.i);
+          maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+          cell = cell->pNext;
+        }
+        SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
+        SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
+        if (NULL == taosArrayPush(points, &startPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        if (NULL == taosArrayPush(points, &endPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        break;
+    }
     default: {
       qError("not supported operator type : %d when build range points", oper->type);
       break;
@@ -5112,11 +5130,13 @@ static bool fltSclIsCollectableNode(SNode *pNode) {
 
   if (!(pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
         pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
-        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
+        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL ||
+        pOper->opType == OP_TYPE_IN)) {
     return false;
   }
 
-  if (!(nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE)) {
+  if (!((nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE) ||
+        (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_NODE_LIST))) {
     return false;
   }
   return true;
