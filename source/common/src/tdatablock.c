@@ -3543,6 +3543,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i);
     isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     checkRows = pDataBlock->info.rows;
+    if(pCol->pData == NULL) continue;
 
     if (isVarType) {
       BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
