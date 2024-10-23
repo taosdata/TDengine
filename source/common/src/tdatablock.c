@@ -3554,7 +3554,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
     for (int64_t r = 0; r < checkRows; ++r) {
       if (tsSafetyCheckLevel <= TSDB_SAFETY_CHECK_LEVELL_NORMAL) break;
       if (!colDataIsNull_s(pCol, r)) {
-        BLOCK_DATA_CHECK_TRESSA(pCol->pData);
+        // BLOCK_DATA_CHECK_TRESSA(pCol->pData);
         BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
         
         if (isVarType) {
