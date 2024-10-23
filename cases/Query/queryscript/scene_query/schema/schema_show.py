@@ -895,7 +895,7 @@ class TDTestQuery(TDCase):
                 
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
-        self.show_local_variables() 
+        #self.show_local_variables() 
         for i in range(10):
             # self.show_local_variables() 
             # self.show_dnode_variables()
