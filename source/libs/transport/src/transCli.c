@@ -858,7 +858,6 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
     if (plist->totalSize >= pInst->connLimitNum) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
-    plist->totalSize += 1;
     return TSDB_CODE_RPC_NETWORK_BUSY;
   }
 
@@ -1548,10 +1547,15 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   }
 
   transRefCliHandle(conn);
+
+  conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
+  if (conn->list != NULL) {
+    conn->list->totalSize += 1;
+  }
+
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
-
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
   }
 
