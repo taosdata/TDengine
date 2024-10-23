@@ -337,6 +337,7 @@ void destroyFillOperatorInfo(void* param) {
   pInfo->pFinalRes = NULL;
 
   cleanupExprSupp(&pInfo->noFillExprSupp);
+  cleanupExprSupp(&pInfo->fillNullExprSupp);
 
   taosMemoryFreeClear(pInfo->p);
   taosArrayDestroy(pInfo->matchInfo.pList);
