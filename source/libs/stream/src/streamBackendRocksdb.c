@@ -4336,7 +4336,7 @@ int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, cons
   if (code != 0) {
     return code;
   }
-  STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, dst, size);
+  STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, dst, (int32_t)size);
   taosMemoryFree(dst);
   return code;
 }
