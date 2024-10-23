@@ -511,6 +511,8 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
     rocksdb_free(err);
     code = TSDB_CODE_FAILED;
+  } else {
+    tsdbInfo("vgId:%d, %s done", TD_VID(pTsdb->pVnode), __func__);
   }
 
   TAOS_RETURN(code);
@@ -1927,13 +1929,13 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   int     numKeys = 0;
   SArray *remainCols = NULL;
 
-  code = tsdbCacheCommit(pTsdb);
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+
+  code = tsdbCacheCommitNoLock(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
               tstrerror(code));
   }
-
-  (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
   for (int i = 0; i < numCols; ++i) {
     int16_t cid = pTSchema->columns[i].colId;
