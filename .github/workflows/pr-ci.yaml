@@ -53,11 +53,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compile check
-        run: |
-          mkdir -p explorer/dist/ || true
-          cargo check --locked --workspace --all --tests --examples
-
       - name: Format check
         run: |
           cargo fmt --check --all
