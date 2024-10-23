@@ -1442,6 +1442,8 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   while (0 == destroyed) {
     taosMsleep(2);
   }
+
+  *qWorkerMgmt = NULL;
 }
 
 int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat) {
