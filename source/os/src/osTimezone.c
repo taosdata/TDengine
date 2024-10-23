@@ -805,7 +805,7 @@ int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, i
       char *ppp = strchr(inTimezoneStr, ',');
       int   indexStr;
       if (pp == NULL || ppp == NULL) {
-        indexStr = snprintf(winStr, sizeof(winStr), "TZ=UTC");
+        indexStr = tsnprintf(winStr, sizeof(winStr), "TZ=UTC");
       } else {
         memcpy(winStr, "TZ=", 3);
         pp++;
