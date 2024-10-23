@@ -14,7 +14,7 @@ description: "TDengine 服务端、客户端和连接器支持的平台列表"
 | M1           |                              |                   |                  |                    |              |                   |                  | ●         |
 
 注：1) ● 表示经过官方测试验证， ○ 表示非官方测试验证，E 表示仅企业版支持。
-   2) 社区版仅支持主流操作系统的较新版本，包括 Ubuntu 18+/CentOS 7+/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS 等。如果有其他操作系统及版本的需求，请联系企业版支持。
+   2) 社区版仅支持主流操作系统的较新版本，包括 Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS 等。如果有其他操作系统及版本的需求，请联系企业版支持。
 
 ## TDengine 客户端和连接器支持的平台列表
 
