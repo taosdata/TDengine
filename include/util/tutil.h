@@ -120,6 +120,18 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   }
 }
 
+/*
+ * LIKELY and UNLIKELY macros for branch predication hints. Use them judiciously
+ * only in very hot code paths. Misuse or abuse can lead to performance degradation.
+ */
+#if __GNUC__ >= 3
+#define LIKELY(x)	__builtin_expect((x) != 0, 1)
+#define UNLIKELY(x) __builtin_expect((x) != 0, 0)
+#else
+#define LIKELY(x)	((x) != 0)
+#define UNLIKELY(x) ((x) != 0)
+#endif
+
 #define TAOS_CHECK_ERRNO(CODE)         \
   do {                                 \
     terrno = (CODE);                   \
@@ -129,25 +141,27 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                                  \
   } while (0)
 
-#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
-  do {                                     \
-    if (TSDB_CODE_SUCCESS != (CODE)) {     \
-      LINO = __LINE__;                     \
-      goto LABEL;                          \
-    }                                      \
+#define TSDB_CHECK_CODE(CODE, LINO, LABEL)       \
+  do {                                           \
+    if (UNLIKELY(TSDB_CODE_SUCCESS != (CODE))) { \
+      LINO = __LINE__;                           \
+      goto LABEL;                                \
+    }                                            \
   } while (0)
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
 
-#define QUERY_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
-  if (!condition) {                                                \
-    (CODE) = (ERRNO);                                              \
-    (LINO) = __LINE__;                                             \
-    goto LABEL;                                                    \
+#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
+  if (UNLIKELY(!(condition))) {                                   \
+    (CODE) = (ERRNO);                                             \
+    (LINO) = __LINE__;                                            \
+    goto LABEL;                                                   \
   }
 
+#define QUERY_CHECK_CONDITION TSDB_CHECK_CONDITION
+
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
-  if ((ptr) == NULL) {                                 \
+  if (UNLIKELY((ptr) == NULL)) {                       \
     (CODE) = (ERRNO);                                  \
     (LINO) = __LINE__;                                 \
     goto LABEL;                                        \
