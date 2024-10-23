@@ -1,0 +1,29 @@
+version: "3.7"
+
+services:
+  tdengine:
+    image: tdengine/tdengine:3.0.1.6
+    environment:
+      TZ: Asia/Shanghai
+      TAOS_FQDN: tdengine
+    volumes:
+    - taosdata:/var/lib/taos
+  taoskeeper:
+    build: ./
+    depends_on:
+    - tdengine
+    environment:
+      TDENGINE_HOST: tdengine
+      TDENGINE_PORT: 6041
+    volumes:
+      - ./config/taoskeeper.toml:/etc/taos/taoskeeper.toml
+    ports:
+      - 6043:6043
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    ports:
+      - 9090:9090
+volumes:
+  taosdata:

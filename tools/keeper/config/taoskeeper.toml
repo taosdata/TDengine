@@ -1,0 +1,48 @@
+# Start with debug middleware for gin
+debug = false
+
+# Listen port, default is 6043
+port = 6043
+
+# log level
+loglevel = "info"
+
+# go pool size
+gopoolsize = 50000
+
+# interval for metrics
+RotationInterval = "15s"
+
+[tdengine]
+host = "127.0.0.1"
+port = 6041
+username = "root"
+password = "taosdata"
+usessl = false
+
+[metrics]
+# metrics prefix in metrics names.
+prefix = "taos"
+
+# export some tables that are not super table
+tables = []
+
+# database for storing metrics data
+[metrics.database]
+name = "log"
+# database options for db storing metrics data
+[metrics.database.options]
+vgroups = 1
+buffer = 64
+KEEP = 90
+cachemodel = "both"
+
+[environment]
+# Whether running in cgroup.
+incgroup = false
+
+[log]
+#path = "/var/log/taos"
+rotationCount = 5
+rotationTime = "24h"
+rotationSize = 100000000
