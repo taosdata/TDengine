@@ -233,6 +233,13 @@ int32_t schedulerValidatePlan(SQueryPlan* pPlan) {
     SCH_ERR_RET(terrno);
   }
 
+  pJob->taskList = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+                                HASH_ENTRY_LOCK);
+  if (NULL == pJob->taskList) {
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", 100);
+    SCH_ERR_JRET(terrno);
+  }
+
   SCH_ERR_JRET(schValidateAndBuildJob(pPlan, pJob));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {

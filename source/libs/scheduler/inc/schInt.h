@@ -62,6 +62,7 @@ typedef enum {
 #define SCH_DEFAULT_MAX_RETRY_NUM     6
 #define SCH_MIN_AYSNC_EXEC_NUM        3
 #define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
+#define SCH_DEFAULT_TASK_CAPACITY_NUM 1000     
 
 typedef struct SSchDebug {
   bool lockEnable;
@@ -317,6 +318,8 @@ typedef struct SSchTaskCtx {
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;
+
+#define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
 
 #define SCH_TASK_TIMEOUT(_task) \
   ((taosGetTimestampUs() - *(int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)

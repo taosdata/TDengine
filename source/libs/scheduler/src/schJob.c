@@ -317,7 +317,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  pJob->dataSrcTasks = taosArrayInit(pDag->numOfSubplans, POINTER_BYTES);
+  pJob->dataSrcTasks = taosArrayInit(SCH_GET_TASK_CAPACITY(pDag->numOfSubplans), POINTER_BYTES);
   if (NULL == pJob->dataSrcTasks) {
     SCH_ERR_RET(terrno);
   }
@@ -329,7 +329,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   SHashObj *planToTask = taosHashInit(
-      pDag->numOfSubplans,
+      SCH_GET_TASK_CAPACITY(pDag->numOfSubplans),
       taosGetDefaultHashFunction(POINTER_BYTES == sizeof(int64_t) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_INT), false,
       HASH_NO_LOCK);
   if (NULL == planToTask) {
@@ -349,6 +349,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
+  int32_t        totalTaskNum = 0;
   SSchLevel     *pLevel = NULL;
 
   level.status = JOB_TASK_STATUS_INIT;
@@ -362,7 +363,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum: %d", i, levelNum);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
     pLevel->level = i;
@@ -384,6 +385,12 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
+    totalTaskNum += taskNum;
+    if (totalTaskNum > pDag->numOfSubplans) {
+      SCH_JOB_ELOG("current totalTaskNum %d is bigger than numOfSubplans %d, level:%d", totalTaskNum, pDag->numOfSubplans, i);
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    
     pLevel->taskNum = taskNum;
 
     pLevel->subTasks = taosArrayInit(taskNum, sizeof(SSchTask));
@@ -410,20 +417,27 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
       SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
 
-      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &pTask, POINTER_BYTES)) {
-        SCH_TASK_ELOG("taosHashPut to planToTaks failed, taskIdx:%d", n);
-        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      code = taosHashPut(planToTask, &plan, POINTER_BYTES, &pTask, POINTER_BYTES);
+      if (0 != code) {
+        SCH_TASK_ELOG("taosHashPut to planToTaks failed, taskIdx:%d, error:%s", n, tstrerror(code));
+        SCH_ERR_JRET(code);
       }
 
-      if (0 != taosHashPut(pJob->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES)) {
-        SCH_TASK_ELOG("taosHashPut to taskList failed, taskIdx:%d", n);
-        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      code = taosHashPut(pJob->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
+      if (0 != code) {
+        SCH_TASK_ELOG("taosHashPut to taskList failed, taskIdx:%d, error:%s", n, tstrerror(code));
+        SCH_ERR_JRET(code);
       }
 
       ++pJob->taskNum;
     }
 
     SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
+  }
+
+  if (totalTaskNum != pDag->numOfSubplans) {
+    SCH_JOB_ELOG("totalTaskNum %d mis-match with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
+    SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
@@ -876,10 +890,10 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     }
   }
 
-  pJob->taskList = taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+  pJob->taskList = taosHashInit(SCH_GET_TASK_CAPACITY(pReq->pDag->numOfSubplans), taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
                                 HASH_ENTRY_LOCK);
   if (NULL == pJob->taskList) {
-    SCH_JOB_ELOG("taosHashInit %d taskList failed", pReq->pDag->numOfSubplans);
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", SCH_GET_TASK_CAPACITY(pReq->pDag->numOfSubplans));
     SCH_ERR_JRET(terrno);
   }
 

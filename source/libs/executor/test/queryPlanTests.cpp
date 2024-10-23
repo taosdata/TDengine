@@ -47,9 +47,9 @@
 
 namespace {
 
-#define QPT_MAX_LOOP          1000
+#define QPT_MAX_LOOP          100000
 #define QPT_MAX_LEVEL_SUBPLAN_NUM 10
-#define QPT_MAX_SUBPLAN_LEVEL 5
+#define QPT_MAX_SUBPLAN_LEVEL 2
 #define QPT_MAX_SUBPLAN_GROUP 5
 #define QPT_MAX_WHEN_THEN_NUM 10
 #define QPT_MAX_NODE_LEVEL    5
@@ -172,7 +172,10 @@ typedef struct {
 } SQPTMakeNodeCtx;
 
 typedef struct {
+  int64_t startTsUs;
   int32_t code;
+  int64_t succeedTimes;
+  int64_t failedTimes;
 } SQPTExecResult;
 
 typedef struct {
@@ -183,7 +186,6 @@ typedef struct {
   SQPTMakeNodeCtx  makeCtx;
   SQPTMakeNodeCtx  makeCtxBak;
   SQPTExecResult   result;
-  int64_t          startTsUs;
 } SQPTCtx;
 
 typedef struct {
@@ -257,7 +259,7 @@ SNode* qptCreateSubplanNode(int32_t nodeType);
 SQPTPlan qptPlans[] = {
   {QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, QPT_PLAN_PHYSIC, "tagScan", qptCreateTagScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, QPT_PLAN_PHYSIC, "tableScan", qptCreateTableScanPhysiNode},
-  {QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, QPT_PLAN_PHYSIC, "tableSeqScan", NULL /*qptCreateTableSeqScanPhysiNode*/ },
+  {QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, QPT_PLAN_PHYSIC, "tableSeqScan", qptCreateTableSeqScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, QPT_PLAN_PHYSIC, "tableMergeScan", qptCreateTableMergeScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, QPT_PLAN_PHYSIC, "streamScan", qptCreateStreamScanPhysiNode},
   {QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, QPT_PLAN_PHYSIC, "sysTableScan", qptCreateSysTableScanPhysiNode},
@@ -329,6 +331,16 @@ int32_t qptSink[] = {QUERY_NODE_PHYSICAL_PLAN_DISPATCH, QUERY_NODE_PHYSICAL_PLAN
 SNode* qptMakeExprNode(SNode** ppNode);
 void qptMakeNodeList(QPT_NODE_TYPE nodeType, SNodeList** ppList);
 
+int32_t qptGetSpecificPlanIndex(int32_t type) {
+  int32_t planNum = sizeof(qptPlans) / sizeof(qptPlans[0]);
+  for (int32_t i = 0; i < planNum; ++i) {
+    if (qptPlans[i].type == type) {
+      return i;
+    }
+  }
+
+  return -1;
+}
 
 int32_t qptGetColumnRandLen(int32_t colType) {
   switch (colType) {
@@ -460,7 +472,8 @@ void qptPrintEndInfo() {
 }
 
 void qptPrintStatInfo() {
-
+  printf("\n\tAll %d times TEST [%s] END, result - succeed:%" PRId64 " failed:%" PRId64 "\n", qptCtx.loopIdx + 1, qptCtx.caseName, 
+    qptCtx.result.succeedTimes, qptCtx.result.failedTimes);
 }
 
 
@@ -1661,6 +1674,19 @@ SNode* qptMakeOrderByExprNode(SNode** ppNode) {
   return *ppNode;
 }
 
+SNode* qptMakeSubplanNode(SNode** ppNode) {
+  if (QPT_NCORRECT_LOW_PROB()) {
+    return qptMakeRandNode(ppNode);
+  }
+
+  *ppNode = (SNode*)qptCreateSubplanNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+
+  return *ppNode;
+}
+
+
+
+
 SPhysiNode* qptCreatePhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = NULL;
   assert(0 == nodesMakeNode((ENodeType)nodeType, (SNode**)&pPhysiNode));
@@ -1928,6 +1954,18 @@ void qptMakeOrerByExprList(SNodeList** ppList) {
 }
 
 
+void qptMakeSubplanList(SNodeList** ppList) {
+  qptSaveMakeNodeCtx();
+
+  int32_t planNum = taosRand() % QPT_MAX_LEVEL_SUBPLAN_NUM + (QPT_CORRECT_HIGH_PROB() ? 1 : 0);
+  for (int32_t i = 0; i < planNum; ++i) {
+    SNode* pNode = NULL;
+    qptRestoreMakeNodeCtx();
+    qptMakeSubplanNode(&pNode);
+    qptNodesListMakeStrictAppend(ppList, pNode);
+  }
+}
+
 void qptMakeSpecTypeNodeList(QPT_NODE_TYPE nodeType, SNodeList** ppList) {
   switch (nodeType) {
     case QPT_NODE_COLUMN:
@@ -1938,6 +1976,8 @@ void qptMakeSpecTypeNodeList(QPT_NODE_TYPE nodeType, SNodeList** ppList) {
       return qptMakeExprList(ppList);
     case QPT_NODE_VALUE:
       return qptMakeValueList(ppList);
+    case QPT_NODE_SUBPLAN:
+      return qptMakeSubplanList(ppList);
     default:
       break;
   }
@@ -2934,6 +2974,8 @@ void qptResetForReRun() {
   
   qptCtx.buildCtx.pCurr = NULL;
   qptCtx.buildCtx.pCurrTask = NULL;
+
+  qptCtx.result.code = 0;
 }
 
 void qptSingleTestDone(bool* contLoop) {
@@ -3126,6 +3168,13 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     default:
       assert(0);
   }
+
+  if (qptCtx.result.code) {
+    qptCtx.result.failedTimes++;
+  } else {
+    qptCtx.result.succeedTimes++;
+  }
+  
 }
 
 void qptRunSingleOpTest() {
@@ -3144,7 +3193,7 @@ void qptRunSingleOpTest() {
   
   qptPrintBeginInfo();
 
-  qptCtx.startTsUs = taosGetTimestampUs();
+  qptCtx.result.startTsUs = taosGetTimestampUs();
 
   qptExecPlan(&readHandle, pNode, pTaskInfo, &pOperator);
 
@@ -3170,7 +3219,7 @@ void qptRunSubplanTest() {
   
   qptPrintBeginInfo();
 
-  qptCtx.startTsUs = taosGetTimestampUs();
+  qptCtx.result.startTsUs = taosGetTimestampUs();
   //qptCtx.result.code = createTagScanOperatorInfo(&readHandle, (STagScanPhysiNode*)pNode, NULL, NULL, NULL, NULL, &pOperator);
   //qptCtx.result.code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pNode, NULL, &pOperator);
 
@@ -3307,9 +3356,9 @@ void qptDestroyTestCtx() {
 }  // namespace
 
 #if 1
-#if 1
-TEST(singleNodeTest, randPlan) {
-  char* caseType = "singleNodeTest:randPlan";
+#if 0
+TEST(singleRandNodeTest, loopPlans) {
+  char* caseType = "singleRandNodeTest:loopPlans";
 
   for (qptCtx.loopIdx = 0; qptCtx.loopIdx < QPT_MAX_LOOP; ++qptCtx.loopIdx) {
     for (int32_t i = 0; i < sizeof(qptPlans)/sizeof(qptPlans[0]); ++i) {
@@ -3325,6 +3374,24 @@ TEST(singleNodeTest, randPlan) {
   qptPrintStatInfo(); 
 }
 #endif
+#if 1
+TEST(singleRandNodeTest, specificPlan) {
+  char* caseType = "singleRandNodeTest:specificPlan";
+
+  int32_t idx = qptGetSpecificPlanIndex(QUERY_NODE_PHYSICAL_PLAN);
+  for (qptCtx.loopIdx = 0; qptCtx.loopIdx < QPT_MAX_LOOP; ++qptCtx.loopIdx) {
+    sprintf(qptCtx.caseName, "%s:%s", caseType, qptPlans[idx].name);
+    qptInitTestCtx(false, true, qptPlans[idx].type, idx, 0, NULL);
+  
+    qptRunPlanTest();
+
+    qptDestroyTestCtx();
+  }
+
+  qptPrintStatInfo(); 
+}
+#endif
+
 
 #endif
 
