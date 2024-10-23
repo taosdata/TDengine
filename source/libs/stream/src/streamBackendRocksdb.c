@@ -5150,8 +5150,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   }
 
   char content[256] = {0};
-  nBytes = tsnprintf(content, sizeof(content), META_ON_S3_FORMATE, p->pCurrent, p->curChkpId, p->pManifest, p->curChkpId,
-                    "processVer", processId);
+  nBytes = tsnprintf(content, sizeof(content), META_ON_S3_FORMATE, p->pCurrent, p->curChkpId, p->pManifest,
+                     p->curChkpId, "processVer", processId);
   if (nBytes <= 0 || nBytes >= sizeof(content)) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("chkp failed to format meta file: %s, reason: invalid msg", dstDir);
