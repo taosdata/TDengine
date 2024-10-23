@@ -63,7 +63,7 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
   SDataBlockDescNode* pSchema = pHandle->pSchema;
-  if (pSchema == NULL || pSchema->outputRowSize > pInput->pData->info.rowSize) {
+  if (pSchema == NULL || pSchema->totalRowSize != pInput->pData->info.rowSize) {
     qError("invalid schema");
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -77,6 +77,7 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
       realOutputRowSize += pSlotDesc->dataType.bytes;
       ++numOfCols;
     } else {
+      // Slots must be sorted, and slots with 'output' set to true must come first
       break;
     }
   }
