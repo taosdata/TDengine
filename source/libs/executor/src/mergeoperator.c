@@ -69,7 +69,7 @@ int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   if (code) {
     qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
   }
-  blockDataCheck(*ppBlock);
+  code = blockDataCheck(*ppBlock);
   if (code) {
     qError("failed to check data block got from upstream, %s code:%s", __func__, tstrerror(code));
   }
