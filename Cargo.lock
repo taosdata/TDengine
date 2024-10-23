@@ -7967,7 +7967,8 @@ dependencies = [
 [[package]]
 name = "tracing-opentelemetry"
 version = "0.27.0"
-source = "git+https://github.com/ymgyt/tracing-opentelemetry?branch=bump-otel#1887cc5f2b0696628093366276a1010cde395517"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc58af5d3f6c5811462cabb3289aec0093f7338e367e5a33d28c0433b3c7360b"
 dependencies = [
  "js-sys",
  "once_cell",

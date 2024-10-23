@@ -233,7 +233,6 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
-tracing-opentelemetry = { git = "https://github.com/ymgyt/tracing-opentelemetry", branch = "bump-otel" }
 
 [lints]
 workspace = true
