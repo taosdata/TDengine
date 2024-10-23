@@ -1,19 +1,38 @@
-select WEEKDAY('2020-01-01 00:00:00');
-select WEEKDAY('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKDAY('2021-01-01 00:00:00');
-select WEEKDAY('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKDAY('1998-01-01 00:00:00');
-select WEEKDAY('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKDAY('1998-12-31 00:00:00');
-select WEEKDAY('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKDAY('2000-01-06 00:00:00');
-select WEEKDAY('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10;
-select WEEKDAY(1725095657);
-select WEEKDAY(1725095657) from ts_4893.meters order by ts limit 10;
-select WEEKDAY(ts) from ts_4893.meters order by ts limit 10;
-select weekday('2020-01-01');
-select weekday(1721020591);
-select weekday(1721020666229);
-select weekday('2020-01-01 00:00:00');
-select weekday(ts) from ts_4893.d0 order by ts limit 10;
-select weekday(ts) from ts_4893.meters order by ts limit 10;
+select WEEKDAY('2020-01-01 00:00:00')
+select WEEKDAY('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKDAY('2021-01-01 00:00:00')
+select WEEKDAY('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKDAY('1998-01-01 00:00:00')
+select WEEKDAY('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKDAY('1998-12-31 00:00:00')
+select WEEKDAY('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKDAY('2000-01-06 00:00:00')
+select WEEKDAY('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10
+select WEEKDAY(1725095657)
+select WEEKDAY(1725095657) from ts_4893.meters order by ts limit 10
+select WEEKDAY(ts) from ts_4893.meters order by ts limit 10
+select weekday('2020-01-01')
+select weekday(1721020591)
+select weekday(1721020666229)
+select weekday('2020-01-01 00:00:00')
+select weekday(ts) from ts_4893.d0 order by ts limit 10
+select weekday(ts) from ts_4893.meters order by ts limit 10
+select weekday(null)
+select weekday('abc')
+select weekday('1721020591')
+select weekday('1721020666229')
+select weekday('01/01/2020')
+select weekday('20200101')
+select weekday('20/01/01')
+select weekday('11/01/32')
+select weekday('01-JAN-20')
+select weekday('2024-02-29')
+select weekday('2023-09-24')
+select weekday('2023-09-25')
+select weekday('9999-12-31')
+select weekday(name) from ts_4893.meters limit 1
+select weekday(ts), dayofweek(ts) from ts_4893.meters limit 1
+select weekday(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
+select weekday(ts) from ts_4893.meters limit 1
+select id, weekday(ts) from ts_4893.meters where id = 1 limit 1
+select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid order by groupid

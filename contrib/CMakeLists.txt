@@ -152,6 +152,7 @@ if(${BUILD_WITH_S3})
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${TD_SUPPORT_DIR}/azure_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
 
 # cos
@@ -614,9 +615,17 @@ if (${BUILD_PCRE2})
     add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
 endif(${BUILD_PCRE2})
 
+
+if(${TD_LINUX})
+  add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+endif(${TD_LINUX})
+
 # ================================================================================================
 # Build test
 # ================================================================================================
+
+MESSAGE("build with dependency tests: ${BUILD_DEPENDENCY_TESTS}")
+
 if(${BUILD_DEPENDENCY_TESTS})
     add_subdirectory(test EXCLUDE_FROM_ALL)
 endif(${BUILD_DEPENDENCY_TESTS})
