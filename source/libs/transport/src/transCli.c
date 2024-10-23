@@ -2363,7 +2363,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     }
   }
 
-  pThrd->pool = createConnPool(4);
+  pThrd->pool = createConnPool(32);
   if (pThrd->pool == NULL) {
     code = terrno;
     TAOS_CHECK_GOTO(terrno, NULL, _end);
