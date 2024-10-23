@@ -41,27 +41,17 @@ jobs:
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
 
-
-  check-stable:
-    name: Stable Channel
-    runs-on: [self-hosted, linux, x64, qa, test]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          clean: false
-
-      - name: Compile check
-        run: |
-          mkdir -p explorer/dist/ || true
-          cargo +stable check --locked --workspace --all --tests --examples --target-dir targets/stable
-
   check:
     name: Check
-    runs-on: [self-hosted, linux, x64, qa, test]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v3
         with:
           clean: false
+
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile check
         run: |

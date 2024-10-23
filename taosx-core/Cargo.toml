@@ -40,7 +40,6 @@ half = "2.3"
 humantime = "2.1"
 
 clap = { workspace = true, features = ["default", "derive"] }
-config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 
@@ -171,6 +170,7 @@ taoslog.workspace = true
 bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
 file-guard = "0.2.0"
+config = "0.14.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
