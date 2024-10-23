@@ -94,7 +94,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 </TabItem>
 <TabItem label="C" value="c">
-- Websocket 连接: 因为使用 dsn，不需要 `td.connect.ip`，`td.connect.port`，`td.connect.user` 和 `td.connect.pass` 四个配置项，其余同通用配置项。  
+- WebSocket 连接: 因为使用 dsn，不需要 `td.connect.ip`，`td.connect.port`，`td.connect.user` 和 `td.connect.pass` 四个配置项，其余同通用配置项。  
 - 原生连接: 同通用基础配置项。
 
 </TabItem>
@@ -103,8 +103,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>   
 </Tabs>
 
-### Websocket 连接 
-介绍各语言连接器使用 Websocket 连接方式创建消费者。指定连接的服务器地址，设置自动提交，从最新消息开始消费，指定 `group.id` 和 `client.id` 等信息。有的语言的连接器还支持反序列化参数。
+### WebSocket 连接 
+介绍各语言连接器使用 WebSocket 连接方式创建消费者。指定连接的服务器地址，设置自动提交，从最新消息开始消费，指定 `group.id` 和 `client.id` 等信息。有的语言的连接器还支持反序列化参数。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -234,7 +234,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 ## 订阅消费数据
 消费者订阅主题后，可以开始接收并处理这些主题中的消息。订阅消费数据的示例代码如下：
-### Websocket 连接 
+### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -403,7 +403,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ## 指定订阅的 Offset
 消费者可以指定从特定 Offset 开始读取分区中的消息，这允许消费者重读消息或跳过已处理的消息。下面展示各语言连接器如何指定订阅的 Offset。  
 
-### Websocket 连接 
+### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -549,7 +549,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 **注意**：手工提交消费进度前确保消息正常处理完成，否则处理出错的消息不会被再次消费。自动提交是在本次 `poll` 消息时可能会提交上次消息的消费进度，因此请确保消息处理完毕再进行下一次 `poll` 或消息获取。
 
-### Websocket 连接 
+### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -663,7 +663,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ## 取消订阅和关闭消费
 消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine 服务器的连接。  
 
-### Websocket 连接 
+### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -766,7 +766,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 
 ## 完整示例
-### Websocket 连接 
+### WebSocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 <details>

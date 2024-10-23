@@ -22,6 +22,8 @@
 
 extern SConfig *tsCfg;
 
+SMonVloadInfo tsVinfo = {0};
+
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
@@ -123,6 +125,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
   (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
   req.sver = tsVersion;
   req.dnodeVer = pMgmt->pData->dnodeVer;
@@ -161,14 +164,24 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
-  req.pVloads = vinfo.pVloads;
+  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+  req.pVloads = tsVinfo.pVloads;
+  tsVinfo.pVloads = NULL;
+  if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to unlock status info lock");
+    return;
+  }
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
   SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
   pMgmt->statusSeq++;
@@ -206,6 +219,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
@@ -224,6 +238,28 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
+}
+
+void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
+  SMonVloadInfo vinfo = {0};
+  dDebug("begin to get vnode loads");
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  dDebug("begin to lock status info");
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+  if (tsVinfo.pVloads == NULL) {
+    tsVinfo.pVloads = vinfo.pVloads;
+    vinfo.pVloads = NULL;
+  } else {
+    taosArrayDestroy(vinfo.pVloads);
+    vinfo.pVloads = NULL;
+  }
+  if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to unlock status info lock");
+    return;
+  }
 }
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {

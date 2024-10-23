@@ -5,14 +5,14 @@ toc_max_heading_level: 4
 ---
 
 C/C++ 开发人员可以使用 TDengine 的客户端驱动，即 C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。  
-TDengine 的客户端驱动提供了 taosws 和 taos 两个动态库，分别支持 Websocket 连接和原生连接。 Websocket 连接和原生连接的区别是 Websocket 连接方式不要求客户端和服务端版本完全匹配，而原生连接要求，在性能上 Websocket 连接方式也接近于原生连接，一般我们推荐使用 Websocket 连接方式。
+TDengine 的客户端驱动提供了 taosws 和 taos 两个动态库，分别支持 WebSocket 连接和原生连接。 WebSocket 连接和原生连接的区别是 WebSocket 连接方式不要求客户端和服务端版本完全匹配，而原生连接要求，在性能上 WebSocket 连接方式也接近于原生连接，一般我们推荐使用 WebSocket 连接方式。
 
 下面我们分开介绍两种连接方式的使用方法。
 
 
-## Websocket 连接方式
+## WebSocket 连接方式
 
-Websocket 连接方式需要使用 taosws.h 头文件和 taosws 动态库。
+WebSocket 连接方式需要使用 taosws.h 头文件和 taosws 动态库。
 
 ```c
 #include <taosws.h>
@@ -44,7 +44,7 @@ TDengine 客户端驱动的动态库位于：
 ### 错误码
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。  
-Websocket 连接方式单独的错误码在 `taosws.h` 中，
+WebSocket 连接方式单独的错误码在 `taosws.h` 中，
 
 
 | 错误码  | 错误描述 | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |
@@ -82,7 +82,7 @@ WebSocket 连接方式错误码只保留了原生连接错误码的后两个字�
 
 #### DSN
 
-C/C++ Websocket 连接器通过 DSN 连接描述字符串来表示连接信息。
+C/C++ WebSocket 连接器通过 DSN 连接描述字符串来表示连接信息。
 DSN 描述字符串基本结构如下：
 
 ```text
@@ -96,16 +96,16 @@ DSN 描述字符串基本结构如下：
 - **driver**: 必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
   - **taos**: 默认驱动，支持 SQL 执行，参数绑定，无模式写入。
   - **tmq**: 使用 TMQ 订阅数据。
-- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
-  - **http/ws**: 使用 Websocket 协议。
-  - **https/wss**: 在 Websocket 连接方式下显示启用 SSL/TLS 协议。
+- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 WebSocket 方式建立连接。
+  - **http/ws**: 使用 WebSocket 协议。
+  - **https/wss**: 在 WebSocket 连接方式下显示启用 SSL/TLS 协议。
 
 - **username/password**: 用于创建连接的用户名及密码。
-- **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时 Websocket 连接默认为 `localhost:6041` 。
+- **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时 WebSocket 连接默认为 `localhost:6041` 。
 - **database**: 指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
-一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 Websocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### 基础 API
 

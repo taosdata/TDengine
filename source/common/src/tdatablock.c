@@ -2625,6 +2625,8 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
             lino = __LINE__;
             goto _exit;
+          } else { // reset the length value
+            code = TSDB_CODE_SUCCESS;
           }
           len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
