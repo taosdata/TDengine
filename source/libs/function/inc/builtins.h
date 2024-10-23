@@ -50,6 +50,7 @@ typedef struct SParamInfo {
   bool        hasColumn; // used for input parameter, parameter must contain columns
   bool        isFirstLast; // special check for first and last
   bool        isTimeUnit; // used for input parameter, need check whether time unit is valid
+  bool        isHistogramBin; // used for input parameter, need check whether histogram bin is valid
   uint8_t     fixedValueSize;
   char        fixedStrValue[MAX_FUNC_PARA_NUM][16]; // used for input parameter
   int32_t     fixedNumValue[MAX_FUNC_PARA_NUM]; // used for input parameter

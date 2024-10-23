@@ -296,7 +296,7 @@ class TDTestCase(TBase):
 
     def test_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Not supported timzone format") # TS-5340
+            order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -304,7 +304,7 @@ class TDTestCase(TBase):
         self.insert_data()
 
         # math function
-        #self.test_pi()
+        self.test_pi()
         self.test_round()
         self.test_exp()
         self.test_truncate()
@@ -313,7 +313,7 @@ class TDTestCase(TBase):
         self.test_sign()
         self.test_degrees()
         self.test_radians()
-        #self.test_rand()
+        self.test_rand()
 
         # char function
         self.test_char_length()
