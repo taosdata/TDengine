@@ -3570,7 +3570,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           
           colLen = varDataTLen(pCol->pData + pCol->varmeta.offset[r]);
           BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
-          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
+          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->varmeta.length);
           
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
