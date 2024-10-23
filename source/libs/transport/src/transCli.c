@@ -1046,7 +1046,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   conn->hostThrd = pThrd;
   conn->seq = 0;
 
-  conn->pQTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  conn->pQTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (conn->pQTable == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _failed);
   }
@@ -2363,7 +2363,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     }
   }
 
-  pThrd->pool = createConnPool(32);
+  pThrd->pool = createConnPool(64);
   if (pThrd->pool == NULL) {
     code = terrno;
     TAOS_CHECK_GOTO(terrno, NULL, _end);
@@ -2382,22 +2382,22 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->destroyAhandleFp = pInst->destroyFp;
 
-  pThrd->fqdn2ipCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->fqdn2ipCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->fqdn2ipCache == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pThrd->batchCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->batchCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->batchCache == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pThrd->connHeapCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->connHeapCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->connHeapCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
 
-  pThrd->pIdConnTable = taosHashInit(512, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pThrd->pIdConnTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pThrd->connHeapCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }

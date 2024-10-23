@@ -239,7 +239,7 @@ SIpWhiteListTab* uvWhiteListCreate() {
     return NULL;
   }
 
-  pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
+  pWhiteList->pList = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
   if (pWhiteList->pList == NULL) {
     taosMemoryFree(pWhiteList);
     return NULL;
@@ -1333,7 +1333,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   QUEUE_INIT(&exh->q);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pInst), exh, pConn, pConn->refId);
 
-  pConn->pQTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  pConn->pQTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pConn->pQTable == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
