@@ -813,7 +813,7 @@ class TDTestQuery(TDCase):
         #cur1.query(show_create_sql)
         result = cur1.query(show_create_sql)
         results = result.fetch_all()
-        #print(results[0][1])
+        print(results[0][1])
         
         #create_stable_value = self.tdSql.getData(0,1) 
         create_stable_value = results[0][1]
@@ -821,7 +821,7 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute("use %s_%s;" %(dbname,db_suffix)) 
         # self.tdSql.execute("%s;" %create_stable_value) 
         cur1.execute("use %s_%s;" %(dbname,db_suffix)) 
-        cur1.execute("%s;" %create_stable_value) 
+        cur1.execute("%s;" %(create_stable_value))
         self.logger.info("-------create DB: %s_%s stable : %s;-------"%(dbname,db_suffix,create_stable_value))
                    
         #create table & insert data
@@ -1185,10 +1185,10 @@ class TDTestQuery(TDCase):
         none_new_value = self.tdSql.getData(0,0) 
         self.tdSql.execute("reset query cache;")
            
-        self.tdSql.checkEqual(none_value,both_value) 
-        self.tdSql.checkEqual(none_value,last_value_value) 
-        self.tdSql.checkEqual(none_value,last_row_value) 
-        self.tdSql.checkEqual(none_value,none_new_value) 
+        self.tdSql.checkEqual(both_value,none_value) 
+        self.tdSql.checkEqual(last_value_value,none_value) 
+        self.tdSql.checkEqual(last_row_value,none_value) 
+        self.tdSql.checkEqual(none_new_value,none_value)  
         
         # self.data_check(none_value,both_value) 
         # self.data_check(none_value,last_value_value) 
@@ -1221,10 +1221,10 @@ class TDTestQuery(TDCase):
         none_new_value = self.tdSql.getData(0,0) 
         self.tdSql.execute("reset query cache;")
            
-        self.tdSql.checkEqual(none_value,both_value) 
-        self.tdSql.checkEqual(none_value,last_value_value) 
-        self.tdSql.checkEqual(none_value,last_row_value) 
-        self.tdSql.checkEqual(none_value,none_new_value) 
+        self.tdSql.checkEqual(both_value,none_value) 
+        self.tdSql.checkEqual(last_value_value,none_value) 
+        self.tdSql.checkEqual(last_row_value,none_value) 
+        self.tdSql.checkEqual(none_new_value,none_value) 
         
         # self.data_check(none_value,both_value) 
         # self.data_check(none_value,last_value_value) 
