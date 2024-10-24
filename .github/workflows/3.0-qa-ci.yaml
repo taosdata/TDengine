@@ -252,7 +252,7 @@ jobs:
           run_container_id2=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/:$COVERAGE_BASE_DIR/ -p $rpc_port2:6055 -p $explorer_port2:6060 taosxci:latest)
           echo "container_id2: $run_container_id2"
           echo "rpc_port2: $rpc_port2"
-          echo "container_id2=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "container_id2=$run_container_id2" >> "$GITHUB_OUTPUT"
           echo "rpc_port2=$rpc_port2" >> "$GITHUB_OUTPUT"
           echo "explorer_port2=$explorer_port2" >> "$GITHUB_OUTPUT"
           # 激活 taosd
