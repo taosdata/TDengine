@@ -268,6 +268,8 @@ extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
 
+extern int32_t tsLruTableBits;
+
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
