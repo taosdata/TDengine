@@ -479,7 +479,7 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) 
     }
 
     clearColValArraySml(info->currTableDataCtx->pValues);
-    taosArrayClearP(info->escapedStringList, taosMemoryFree);
+    taosArrayClearP(info->escapedStringList, NULL);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
@@ -1609,7 +1609,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
-  taosArrayDestroyP(info->escapedStringList, taosMemoryFree);
+  taosArrayDestroyP(info->escapedStringList, NULL);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1952,7 +1952,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     }
   }
 
-  taosArrayClearP(info->escapedStringList, taosMemoryFree);
+  taosArrayClearP(info->escapedStringList, NULL);
   (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;
   info->currTableDataCtx = NULL;

@@ -390,37 +390,6 @@ char *taosStrdupi(const char *ptr) {
 #endif
 }
 
-char *taosStrndupi(const char *ptr, int64_t size) {
-#ifdef USE_TD_MEMORY
-  if (ptr == NULL) return NULL;
-
-  TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
-  if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-    return NULL;
-  }
-  void *tmp = tstrdup(pTdMemoryInfo);
-  if (tmp == NULL) return NULL;
-
-  memcpy(tmp, pTdMemoryInfo, sizeof(TdMemoryInfo));
-  taosBackTrace(((TdMemoryInfoPtr)tmp)->stackTrace, TD_MEMORY_STACK_TRACE_DEPTH);
-
-  return (char *)tmp + sizeof(TdMemoryInfo);
-#else
-#ifdef BUILD_WITH_RAND_ERR
-  if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
-    if ((r + 1) <= tsRandErrChance) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-  }
-#endif
-
-  return tstrndup(ptr, size);  
-#endif
-}
-
 
 void taosMemFree(void *ptr) {
   if (NULL == ptr) return;

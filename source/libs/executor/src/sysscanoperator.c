@@ -2177,6 +2177,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->fp = loadSysTableCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
+    void* poolHandle = NULL;
     taosSaveDisableMemoryPoolUsage(poolHandle);
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     taosRestoreEnableMemoryPoolUsage(poolHandle);

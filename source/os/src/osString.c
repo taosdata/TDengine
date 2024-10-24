@@ -63,7 +63,7 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *taosStrndup(const char *s, int size) {
+char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) return NULL;
   size_t l;
   char  *s2;
@@ -88,7 +88,7 @@ char *stpncpy(char *dest, const char *src, int n) {
   return memset(dest, '\0', n - size);
 }
 #else
-char *taosStrndup(const char *s, int size) {
+char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {
     return NULL;
   }
