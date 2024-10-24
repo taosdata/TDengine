@@ -436,6 +436,21 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 _OVER:
   if (code != 0) {
+    int32_t r = 0;
+    r = taosThreadRwlockWrlock(&pMgmt->lock);
+    if (r != 0) {
+      dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(r));
+    }
+    if (r == 0) {
+      r = taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
+      if (r != 0) {
+        dError("vgId:%d, failed to remove vnode since %s", req.vgId, tstrerror(r));
+      }
+    }
+    r = taosThreadRwlockUnlock(&pMgmt->lock);
+    if (r != 0) {
+      dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(r));
+    }
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
   } else {
