@@ -393,8 +393,8 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int
     }
   }
   
-  if (NULL == pSubplan->pNode) {
-    SCH_JOB_ELOG("empty plan root node, level:%d, subplan idx:%d", level, idx);
+  if (NULL == pSubplan->pNode && pSubplan->subplanType != SUBPLAN_TYPE_MODIFY) {
+    SCH_JOB_ELOG("empty plan root node, level:%d, subplan idx:%d, subplanType:%d", level, idx, pSubplan->subplanType);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
