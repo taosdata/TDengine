@@ -287,7 +287,7 @@ static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SE
 
   pFillSup->numOfFillCols = numOfExprs;
   int32_t numOfNotFillCols = 0;
-  pFillSup->pAllColInfo = createFillColInfo(pExprSup->pExprInfo, pFillSup->numOfFillCols, NULL, numOfNotFillCols,
+  pFillSup->pAllColInfo = createFillColInfo(pExprSup->pExprInfo, pFillSup->numOfFillCols, NULL, numOfNotFillCols, NULL, 0,
                                             (const SNodeListNode*)(pPhyFillNode->pFillValues));
   QUERY_CHECK_NULL(pFillSup->pAllColInfo, code, lino, _end, terrno);
 
