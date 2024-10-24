@@ -3027,7 +3027,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createTableScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-      //qptCtx.result.code = createTableSeqScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      qptCtx.result.code = createTableSeqScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
       qptCtx.result.code = createTableMergeScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
@@ -3075,7 +3075,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createIntervalOperatorInfo(NULL, (SIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
-      //qptCtx.result.code = createMergeIntervalOperatorInfo(NULL, (SMergeIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      qptCtx.result.code = createMergeIntervalOperatorInfo(NULL, (SMergeIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       qptCtx.result.code = createMergeAlignedIntervalOperatorInfo(NULL, (SMergeAlignedIntervalPhysiNode*)pNode, pTaskInfo, ppOperaotr);
@@ -3125,6 +3125,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createTimeSliceOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+      qptCtx.result.code = 0;
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
@@ -3135,6 +3136,9 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       break;
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
+      DataSinkHandle handle = NULL;
+      qptCtx.result.code = qCreateExecTask(pReadHandle, qptCtx.param.vnode.vgId, pTaskInfo->id.taskId, (SSubplan*)pNode, &pTaskInfo, &handle, 
+          QPT_RAND_BOOL_V ? 0 : 1, taosStrdup("sql string"), OPTR_EXEC_MODEL_BATCH);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN: {
