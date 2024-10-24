@@ -416,7 +416,7 @@ _exit:
   return 0;
 }
 
-int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
+int32_t azGetObjectToFileImpl(const char *object_name, const char *fileName) {
   int32_t     code = TSDB_CODE_SUCCESS;
   std::string accountName = tsS3AccessKeyId[0];
   std::string accountKey = tsS3AccessKeySecret[0];
@@ -444,6 +444,23 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
             e.ReasonPhrase.c_str());
     code = TAOS_SYSTEM_ERROR(EIO);
     azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
+  int32_t code = 0;
+
+  try {
+    code = azGetObjectToFileImpl(object_name, fileName);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
     TAOS_RETURN(code);
   }
 
