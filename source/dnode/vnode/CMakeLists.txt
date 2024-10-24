@@ -177,6 +177,8 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
     PUBLIC tqCommon
+    PUBLIC profiler
+    PUBLIC unwind
 )
 
 if(TD_GRANT)
