@@ -3582,7 +3582,15 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
 
           typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
         } else {
-          GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+          if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+            float v = 0;
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r));
+          } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
+            double v = 0;
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r));
+          } else {
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+          }
         }
       }
     }
