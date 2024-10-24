@@ -3137,7 +3137,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       DataSinkHandle handle = NULL;
-      qptCtx.result.code = qCreateExecTask(pReadHandle, qptCtx.param.vnode.vgId, pTaskInfo->id.taskId, (SSubplan*)pNode, &pTaskInfo, &handle, 
+      qptCtx.result.code = qCreateExecTask(pReadHandle, qptCtx.param.vnode.vgId, pTaskInfo->id.taskId, (SSubplan*)pNode, (qTaskInfo_t*)&pTaskInfo, &handle, 
           QPT_RAND_BOOL_V ? 0 : 1, taosStrdup("sql string"), OPTR_EXEC_MODEL_BATCH);
       break;
     }
