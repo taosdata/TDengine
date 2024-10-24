@@ -25,6 +25,7 @@
 #endif
 #include "dmUtil.h"
 #include "tcs.h"
+#include <gperftools/profiler.h>
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -524,7 +525,9 @@ int mainWindows(int argc, char **argv) {
   tsDndStart = taosGetTimestampMs();
   tsDndStartOsUptime = taosGetOsUptime();
 
+  ProfilerStart("taosd.prof");
   code = dmRun();
+  ProfilerStop();
   dInfo("shutting down the service");
 
   dmCleanup();
