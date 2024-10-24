@@ -35,6 +35,7 @@ typedef struct SFillColInfo {
   SExprInfo* pExpr;
   bool       notFillCol;  // denote if this column needs fill operation
   SVariant   fillVal;
+  bool       fillNull;
 } SFillColInfo;
 
 typedef struct SFillLinearInfo {
@@ -128,12 +129,14 @@ void          taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struc
 void          taosFillUpdateStartTimestampInfo(SFillInfo* pFillInfo, int64_t ts);
 bool          taosFillNotStarted(const SFillInfo* pFillInfo);
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
-                                int32_t numOfNotFillCols, const struct SNodeListNode* val);
+                                int32_t numOfNotFillCols, SExprInfo* pFillNullExpr, int32_t numOfFillNullExprs,
+                                const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
-int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                           SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
-                           int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo);
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t fillNullCols,
+                           int32_t capacity, SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
+                           int32_t slotId, int32_t order, const char* id, SExecTaskInfo* pTaskInfo,
+                           SFillInfo** ppFillInfo);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
