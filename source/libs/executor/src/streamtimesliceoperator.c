@@ -976,7 +976,10 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
       }
     } break;
     case TSDB_FILL_PREV: {
-      if (ts >= pFillSup->cur.key) {
+      if (ts == pFillSup->cur.key) {
+        pFillInfo->pos = FILL_POS_START;
+        pFillInfo->needFill = false;
+      } else if (ts > pFillSup->cur.key) {
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
         pFillInfo->pResRow = &pFillSup->cur;
       } else if (hasPrevWindow(pFillSup)) {
