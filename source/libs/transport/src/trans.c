@@ -15,13 +15,13 @@
 
 #include "transComm.h"
 
-void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
+void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* pInit) = {
     transInitServer, transInitClient};
 
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
 void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
-void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
+void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, NULL};
 
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
@@ -42,6 +42,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pRpc == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
+
+  pRpc->startReadTimer = pInit->startReadTimer;
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
     memcpy(pRpc->label, pInit->label, len);
@@ -77,7 +79,15 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->connLimitLock = pInit->connLimitLock;
   pRpc->supportBatch = pInit->supportBatch;
-  pRpc->batchSize = pInit->batchSize;
+  pRpc->shareConnLimit = pInit->shareConnLimit;
+  if (pRpc->shareConnLimit <= 0) {
+    pRpc->shareConnLimit = BUFFER_LIMIT;
+  }
+
+  pRpc->readTimeout = pInit->readTimeout;
+  if (pRpc->readTimeout < 0) {
+    pRpc->readTimeout = INT64_MAX;
+  }
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   if (pRpc->numOfThreads <= 0) {
@@ -115,6 +125,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
+
+  pRpc->shareConn = pInit->shareConn;
   return (void*)refId;
 _end:
   taosMemoryFree(pRpc);
@@ -127,9 +139,8 @@ void rpcClose(void* arg) {
   if (arg == NULL) {
     return;
   }
-  TAOS_UNUSED(transRemoveExHandle(transGetInstMgt(), (int64_t)arg));
-  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)arg));
-
+  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
@@ -175,29 +186,29 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
   return st + TRANS_MSG_OVERHEAD;
 }
 
-int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
-  return transSendRequest(shandle, pEpSet, pMsg, NULL);
+int32_t rpcSendRequest(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+  return transSendRequest(pInit, pEpSet, pMsg, NULL);
 }
-int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+int32_t rpcSendRequestWithCtx(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
   if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
-    return transSendRequest(shandle, pEpSet, pMsg, pCtx);
+    return transSendRequest(pInit, pEpSet, pMsg, pCtx);
   } else {
-    return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);
+    return transSendRequestWithId(pInit, pEpSet, pMsg, pRid);
   }
 }
 
-int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
-  return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
+int32_t rpcSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  return transSendRequestWithId(pInit, pEpSet, pReq, transpointId);
 }
 
-int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
+int32_t rpcSendRecv(void* pInit, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+  return transSendRecv(pInit, pEpSet, pMsg, pRsp);
 }
-int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
+int32_t rpcSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
                                int32_t timeoutMs) {
-  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
+  return transSendRecvWithTimeout(pInit, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 }
-int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }
+int32_t rpcFreeConnById(void* pInit, int64_t connId) { return transFreeConnById(pInit, connId); }
 
 int32_t rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 

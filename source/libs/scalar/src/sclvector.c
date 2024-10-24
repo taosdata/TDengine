@@ -734,7 +734,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       int64_t value = 0;
       GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -751,7 +751,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       uint64_t value = 0;
       GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -768,7 +768,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       double value = 0;
       GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -1029,6 +1029,31 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
     /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
     /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, 0};
+
+int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
+              /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIME NCHA UTINY USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+    /*NULL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  -1,  -1,  -1,   8,
+    /*BOOL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   5,  10,  11,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*TINY*/    0,   0,   2,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*SMAL*/    0,   0,   0,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*INT */    0,   0,   0,   0,   4,   5,   8,   8,   8,   5,  10,   4,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*BIGI*/    0,   0,   0,   0,   0,   5,   8,   8,   8,   5,  10,   5,   5,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*FLOA*/    0,   0,   0,   0,   0,   0,   6,   7,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*DOUB*/    0,   0,   0,   0,   0,   0,   0,   7,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*VARC*/    0,   0,   0,   0,   0,   0,   0,   0,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*TIME*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   9,  10,   5,   5,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*NCHA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  10,  10,  10,  10,  10,  10,  -1,  -1,  -1,  -1,  10,
+    /*UTINY*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  11,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*USMA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*UINT*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*UBIG*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  15,  -1,  -1,  -1,  -1,   8,
+    /*VARB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  16,  -1,  -1,  -1,  -1,
+    /*DECI*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,
+    /*BLOB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,
+    /*MEDB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,
+    /*GEOM*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  20
+};
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   if (type1 == type2) {

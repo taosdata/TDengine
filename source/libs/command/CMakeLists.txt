@@ -12,5 +12,5 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
+        ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
