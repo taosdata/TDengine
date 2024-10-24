@@ -1354,14 +1354,14 @@ class TDTestCase:
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t0')
-        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop multi tables
         tdSql.execute('drop table test.t3, test.t4')
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t3')
-        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
-        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
