@@ -71,7 +71,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -l PKTLEN: 网络测试时使用的测试包大小
 - -n NETROLE: 网络连接测试时的测试范围，默认为 `client`, 可选值为 `client`、`server`
 - -N PKTNUM: 网络测试时使用的测试包数量
-- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语音中 uint64_t)
+- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t)
 - -R: 使用 RESTful 模式连接服务端
 - -s COMMAND: 以非交互模式执行的 SQL 命令
 - -t: 测试服务端启动状态，状态同-k
