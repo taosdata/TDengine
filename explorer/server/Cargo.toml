@@ -56,6 +56,8 @@ taoslog = { path = "../../crates/taoslog", features = ["ansi"] }
 http = "0.2.12"
 bitfield = "0.16.1"
 serde_with = "3.9.0"
+assert_cmd = "2.0.16"
+assert_fs = "1.1.2"
 
 [dependencies.taos]
 # path = "../taos-connector-rust/taos"

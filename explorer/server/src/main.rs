@@ -1747,6 +1747,7 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
 mod tests {
     use std::{path::PathBuf, str::FromStr};
 
+    use assert_fs::prelude::FileWriteStr;
     use chrono::TimeZone;
     use clap::CommandFactory;
     use log::LevelFilter;
@@ -1844,5 +1845,96 @@ mod tests {
             matches.get_one("log.reservedDiskSize"),
             Some(&"3GB".to_string())
         )
+    }
+
+    #[test]
+    fn test_build_bin() {
+        let mut cmd = assert_cmd::Command::new("yarn");
+        let assert = cmd.current_dir("../").arg("build:bin").assert();
+        assert.success();
+    }
+
+    #[test]
+    fn test_startup_normal() -> anyhow::Result<(), anyhow::Error> {
+        // config file
+        let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
+        config_file.write_str(
+            r#"
+port = 6060
+addr = "0.0.0.0"
+log_level = "info"
+cluster = "http://localhost:6041"
+x_api = "http://localhost:6050"
+grpc = "http://localhost:6055"
+cors = true
+"#,
+        )?;
+
+        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let assert = cmd
+            .current_dir("../../")
+            .arg("-C")
+            .arg(config_file.path().to_str().unwrap())
+            .timeout(std::time::Duration::from_secs(15))
+            .assert();
+        assert.interrupted();
+        Ok(())
+    }
+
+    #[test]
+    fn test_startup_wrong_address() -> anyhow::Result<(), anyhow::Error> {
+        // config file
+        let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
+        config_file.write_str(
+            r#"
+port = 6060
+addr = "512.0.0.0"
+log_level = "info"
+cluster = "http://localhost:6041"
+x_api = "http://localhost:6050"
+grpc = "http://localhost:6055"
+cors = true
+"#,
+        )?;
+
+        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let assert = cmd
+            .current_dir("../../")
+            .arg("-C")
+            .arg(config_file.path().to_str().unwrap())
+            .timeout(std::time::Duration::from_secs(15))
+            .assert();
+        assert.failure();
+        Ok(())
+    }
+
+    #[test]
+    fn test_startup_ssl() -> anyhow::Result<(), anyhow::Error> {
+        // config file
+        let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
+        config_file.write_str(
+            r#"
+port = 6060
+addr = "0.0.0.0"
+log_level = "info"
+cluster = "http://localhost:6041"
+x_api = "http://localhost:6050"
+grpc = "http://localhost:6055"
+cors = true
+[ssl]
+certificate = "/ssl-cert/cert.pem"
+certificate_key = "/ssl-cert/cert_key.pem"
+"#,
+        )?;
+
+        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let assert = cmd
+            .current_dir("../../")
+            .arg("-C")
+            .arg(config_file.path().to_str().unwrap())
+            .timeout(std::time::Duration::from_secs(15))
+            .assert();
+        assert.interrupted();
+        Ok(())
     }
 }
