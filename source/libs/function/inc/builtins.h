@@ -22,16 +22,48 @@ extern "C" {
 
 #include "functionMgtInt.h"
 
+struct SFunctionParaInfo;
+
 typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
 typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlocInfo);
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
+#define MAX_FUNC_PARA_NUM 16
+#define MAX_FUNC_PARA_FIXED_VALUE_NUM 16
+typedef struct SParamRange {
+  int64_t  iMinVal;
+  int64_t  iMaxVal;
+} SParamRange;
+
+typedef struct SParamInfo {
+  bool        isLastParam;
+  int8_t      startParam;
+  int8_t      endParam;
+  uint64_t    validDataType;
+  uint64_t    validNodeType;
+  uint64_t    paramAttribute;
+  uint8_t     valueRangeFlag; // 0 for no range and no fixed value, 1 for value has range, 2 for fixed value
+  uint8_t     fixedValueSize;
+  char*       fixedStrValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
+  int64_t     fixedNumValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
+  SParamRange range;
+} SParamInfo;
+
+typedef struct SFunctionParaInfo {
+  int8_t     minParamNum;
+  int8_t     maxParamNum;
+  uint8_t    paramInfoPattern;
+  SParamInfo inputParaInfo[MAX_FUNC_PARA_NUM][MAX_FUNC_PARA_NUM];
+  SParamInfo outputParaInfo;
+} SFunctionParaInfo;
+
 typedef struct SBuiltinFuncDefinition {
   const char*                name;
   EFunctionType              type;
   uint64_t                   classification;
+  SFunctionParaInfo          parameters;
   FTranslateFunc             translateFunc;
   FFuncDataRequired          dataRequiredFunc;
   FFuncDynDataRequired       dynDataRequiredFunc;
