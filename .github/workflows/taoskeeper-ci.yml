@@ -3,7 +3,7 @@ name: taoskeeper CI
 on:
   push:
     paths:
-      - "tools/keeper/**"
+      - tools/keeper/**
 
 jobs:
   build:
@@ -19,40 +19,25 @@ jobs:
         with:
           go-version: 1.18
 
-      - name: Install system dependencies
+      - name: Start TDengine
         run: |
-          sudo apt update -y
-          sudo apt install -y build-essential cmake libgeos-dev
+          docker pull tdengine/tdengine:latest
+          docker run --name tdengine -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
 
-      - name: Install TDengine
-        run: |
-          # cd TDengine
-          mkdir debug
-          cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true
-          make -j 4
-          sudo make install
-          which taosd
-          which taosadapter
-          which taoskeeper
-
-      - name: Start taosd
-        run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
-          nohup sudo taosd -c taos.cfg &
-
-      - name: Start taosadapter
-        run: nohup sudo taosadapter &
-
-      - name: Run tests
+      - name: Build taoskeeper
+        working-directory: tools/keeper
         run: |
           go mod tidy
-          go test -v ./...
+          go build -v ./...
+
+      - name: Run tests with coverage
         working-directory: tools/keeper
+        run: |
+          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
 
       - name: Clean up
         if: always()
         run: |
-          sudo pkill taosd
-          sudo pkill taosadapter
+          docker stop tdengine
+          docker rm tdengine
