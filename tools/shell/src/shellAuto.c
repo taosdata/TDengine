@@ -99,6 +99,8 @@ SWords shellCommands[] = {
     {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
+    {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
+    {"create recursive tsma <anyword> on <tsma_name> interval(", 0, 0, NULL},
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
     {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
     {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
@@ -123,6 +125,7 @@ SWords shellCommands[] = {
     {"drop consumer group <anyword> on ", 0, 0, NULL},
     {"drop topic <topic_name> ;", 0, 0, NULL},
     {"drop stream <stream_name> ;", 0, 0, NULL},
+    {"drop tsma <tsma_name> ;", 0, 0, NULL},
     {"explain select", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name> ;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
@@ -163,12 +166,14 @@ SWords shellCommands[] = {
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
+    {"show create tsma <tsma_name> \\G;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE    
     {"show create view <all_table> \\G;", 0, 0, NULL},
-#endif
-    {"show connections;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+
+#endif
+    {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
     {"show cluster alive;", 0, 0, NULL},
     {"show cluster machines;", 0, 0, NULL},
@@ -196,10 +201,12 @@ SWords shellCommands[] = {
     {"show table tags from <all_table>", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
+    {"show tsmas;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
-    {"show vnodes <dnode_id>", 0, 0, NULL},
+    {"show vnodes;", 0, 0, NULL},
+    {"show vnodes on dnode <dnode_id> ;", 0, 0, NULL},
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
@@ -207,22 +214,26 @@ SWords shellCommands[] = {
     {"show grants logs;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"show views;", 0, 0, NULL},
+    {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>", 0, 0, NULL},
+    {"s3migrate database <db_name>", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
     {"insert into <tb_name> file ", 0, 0, NULL},
     {"trim database <db_name>", 0, 0, NULL},
-    {"s3migrate database <db_name>", 0, 0, NULL},
     {"use <db_name>", 0, 0, NULL},
     {"quit", 0, 0, NULL}};
 
+// where keyword
 char* keywords[] = {
     "and ",         "asc ",      "desc ",     "from ",    "fill(",         "limit ",    "where ",
     "interval(",    "order by ", "order by ", "offset ",  "or ",           "group by ", "now()",
     "session(",     "sliding ",  "slimit ",   "soffset ", "state_window(", "today() ",  "union all select ",
-    "partition by "};
+    "partition by ", "match",    "nmatch ",    "between ",  "like ",           "is null ",   "is not null ",
+    "state_window(",  "event_window ",  "count_window("
+};
 
 char* functions[] = {
     "count(",         "sum(",
@@ -255,6 +266,20 @@ char* functions[] = {
     "timezone(",      "timetruncate(",
     "twa(",           "to_unixtimestamp(",
     "unique(",        "upper(",
+    "pi(",            "round(",
+    "truncate(",      "exp(",
+    "ln(",            "mod(",
+    "rand(",          "sign(",
+    "degrees(",       "radians(",
+    "greatest(",      "least(",
+    "char_length(",   "char(",
+    "ascii(",         "position(",
+    "trim(",           "replace(",
+    "repeat(",         "substring(",
+    "substring_index(","timediff(",
+    "week(",           "weekday(",
+    "weekofyear(",     "dayofweek(",
+    "stddev_pop(",     "var_pop("
 };
 
 char* tb_actions[] = {
@@ -275,7 +300,7 @@ char* db_options[] = {"keep ",
                       "cachesize ",
                       "comp ",
                       "duration ",
-                      "wal_fsync_period",
+                      "wal_fsync_period ",
                       "maxrows ",
                       "minrows ",
                       "pages ",
@@ -284,17 +309,22 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
-		      "s3_chunksize ",
-		      "s3_keeplocal ",
-		      "s3_compact ",
+                      "s3_chunksize ",
+                      "s3_keeplocal ",
+                      "s3_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
-                      "wal_segment_size "};
+#ifdef TD_ENTERPRISE                      
+                      "encrypt_algorithm "
+#endif
+                      "keep_time_offset ",
+                      "wal_segment_size "
+};
 
 char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
                             "wal_retention_period ", "wal_retention_size ", "cachesize ", 
-			    "s3_keeplocal ", "s3_compact ",
+			                      "s3_keeplocal ", "s3_compact ",
                             "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
@@ -304,6 +334,7 @@ char* data_types[] = {"timestamp",    "int",
                       "bigint",       "bigint unsigned",
                       "smallint",     "smallint unsigned",
                       "tinyint",      "tinyint unsigned",
+                      "geometry",     "varbinary(16)",
                       "bool",         "json"};
 
 char* key_tags[] = {"tags("};
@@ -318,6 +349,15 @@ char* key_systable[] = {
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
+
+char* field_options[] = {
+    "encode ", "compress ", "level ", 
+    "lz4 ", "zlib ", "zstd ", "xz ", "tsz ", "disabled ", // compress
+    "simple8b ", "delta-i ", "delta-d ", "bit-packing ",
+    "high ", "medium ", "low ",
+    "comment ",
+    "primary key "
+};
 
 // global keys can tips on anywhere
 char* global_keys[] = {
@@ -354,27 +394,29 @@ bool    waitAutoFill = false;
 #define WT_VAR_STREAM         6
 #define WT_VAR_UDFNAME        7
 #define WT_VAR_VGROUPID       8
+#define WT_VAR_TSMA           9
 
-#define WT_FROM_DB_MAX        8  // max get content from db
+#define WT_FROM_DB_MAX        9  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
-#define WT_VAR_ALLTABLE       9
-#define WT_VAR_FUNC           10
-#define WT_VAR_KEYWORD        11
-#define WT_VAR_TBACTION       12
-#define WT_VAR_DBOPTION       13
-#define WT_VAR_ALTER_DBOPTION 14
-#define WT_VAR_DATATYPE       15
-#define WT_VAR_KEYTAGS        16
-#define WT_VAR_ANYWORD        17
-#define WT_VAR_TBOPTION       18
-#define WT_VAR_USERACTION     19
-#define WT_VAR_KEYSELECT      20
-#define WT_VAR_SYSTABLE       21
-#define WT_VAR_LANGUAGE       22
-#define WT_VAR_GLOBALKEYS     23
+#define WT_VAR_ALLTABLE       10
+#define WT_VAR_FUNC           11
+#define WT_VAR_KEYWORD        12
+#define WT_VAR_TBACTION       13
+#define WT_VAR_DBOPTION       14
+#define WT_VAR_ALTER_DBOPTION 15
+#define WT_VAR_DATATYPE       16
+#define WT_VAR_KEYTAGS        17
+#define WT_VAR_ANYWORD        18
+#define WT_VAR_TBOPTION       19
+#define WT_VAR_USERACTION     20
+#define WT_VAR_KEYSELECT      21
+#define WT_VAR_SYSTABLE       22
+#define WT_VAR_LANGUAGE       23
+#define WT_VAR_GLOBALKEYS     24
+#define WT_VAR_FIELD_OPTIONS  25
 
-#define WT_VAR_CNT 24
+#define WT_VAR_CNT 26
 
 
 #define WT_TEXT 0xFF
@@ -387,12 +429,17 @@ TdThreadMutex tiresMutex;
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
 char varTypes[WT_VAR_CNT][64] = {
+    // get from db
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<vgroup_id>", "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
-    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
+    "<udf_name>",   "<vgroup_id>", "<tsma_name>",
+    // get from code
+    "<all_table>",  "<function>",  "<keyword>",  "<tb_actions>",   "<db_options>", "<alter_db_options>",
+    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", 
+    "<udf_language>", "<global_keys>", "<field_options>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
-                                    "show users;",     "show topics;",  "show streams;", "show functions;", "show vgroups;"};
+                                    "show users;",     "show topics;",  "show streams;", "show functions;", 
+                                    "show vgroups;",   "show tsmas;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -567,7 +614,8 @@ void showHelp() {
     show users;\n\
     show variables;\n\
     show local variables;\n\
-    show vnodes <dnode_id>\n\
+    show vnodes;\n\
+    show vnodes on dnode <dnode_id>;\n\
     show vgroups;\n\
     show consumers;\n\
     show grants;\n\
@@ -588,8 +636,10 @@ void showHelp() {
     create view <view_name> as select ...\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
+    s3migrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
+    show arbgroups;\n\
     show views;\n\
     show create view <all_table>;");
 #endif
@@ -756,6 +806,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
+  GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
 
   return true;
 }
@@ -1648,6 +1699,36 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
   return appendAfterSelect(con, cmd, p, len);
 }
 
+// is fields option area
+bool fieldOptionsArea(char* p) {
+  char* p1 = strrchr(p, '(');
+  char* p2 = strrchr(p, ',');
+  if (p1 == NULL && p2 == NULL) {
+    return false;
+  }
+
+  if(p2 == NULL) {
+    // first field area
+    p2 = p1;
+  }
+
+  // find blank count
+  int32_t cnt = 0;
+  while(p2) {
+    p2 = strchr(p2, ' ');
+    if(p2) {
+      cnt ++;
+      while (p2[1] != 0 && p2[1] == ' ') {
+        // move next if blank again
+        p2 += 1;
+      }
+    } 
+  }
+
+  // like  create table st(ts timestamp TAB-KEY or  st(ts timestamp , age int TAB-KEY
+  return cnt >= 2;
+}
+
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
   // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
@@ -1717,8 +1798,14 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
   char* last = lastWord(ps);
 
   // check in create fields or tags input area
-  if (isCreateFieldsArea(ps)) {
-    ret = fillWithType(con, cmd, last, WT_VAR_DATATYPE);
+  if (isCreateFieldsArea(ps)) {    
+    if (fieldOptionsArea(ps)) {
+      // fill field options
+      ret = fillWithType(con, cmd, last, WT_VAR_FIELD_OPTIONS);
+    } else {
+      // fill field
+      ret = fillWithType(con, cmd, last, WT_VAR_DATATYPE);
+    }
   }
 
   // tags
