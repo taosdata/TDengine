@@ -10,7 +10,7 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 
 | 参数名称     | 参数含义                                                    |
 |:-----------:|:----------------------------------------------------------:|
-|firstEp | taos 启动时，主动连接的集群中首个 dnode 的 endpoint，缺省值：hostname:6030,若无法获取该服务器的 hostname，则赋值为 localhost  |
+|firstEp | taos 启动时，主动连接的集群中首个 dnode 的 endpoint，缺省值：hostname:6030，若无法获取该服务器的 hostname，则赋值为 localhost  |
 |secondEp | 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，没有缺省值 |
 |numOfRpcSessions | 一个客户端能创建的最大连接数，取值范围：10-50000000(单位为毫秒)；缺省值：500000 |
 |telemetryReporting | 是否上传 telemetry，0: 不上传，1： 上传；缺省值：1 |
