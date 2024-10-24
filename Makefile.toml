@@ -550,8 +550,7 @@ dependencies = ["fmt", "clippy"]
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
-yarn install
-yarn build
+yarn install && yarn build
 """
 
 [tasks.explorer]
@@ -585,9 +584,9 @@ script_runner = "@duckscript"
 script = """
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taos-explorer target/deploy/taos-explorer
+  cp target/debug/taos-explorer.exe target/deploy/taos-explorer.exe
 else
-  cp target/${profile}/taos-explorer target/deploy/taos-explorer
+  cp target/${profile}/taos-explorer.exe target/deploy/taos-explorer.exe
 end
 
 custom_promt = get_env "CUS_PROMPT"
