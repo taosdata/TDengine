@@ -693,7 +693,7 @@ class TDTestCase:
             "======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     db,
                     'dropFlag':   1,
-                    'vgroups':    2,
+                    'vgroups':    4,
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -1273,6 +1273,21 @@ class TDTestCase:
         else:
             tdLog.debug(f'wait query succeed: {sql} to return {expected_row_num}, got: {tdSql.getRows()}')
 
+    def wait_query_err(self, sql: str, timeout_in_seconds: float, err):
+        timeout = timeout_in_seconds
+        while timeout > 0:
+            try:
+                tdSql.query(sql, queryTimes=1)
+                time.sleep(1)
+                timeout = timeout - 1
+            except:
+                tdSql.error(sql, err);
+                break
+        if timeout <= 0:
+            tdLog.exit(f'failed to wait query: {sql} to return error timeout: {timeout_in_seconds}s')
+        else:
+            tdLog.debug(f'wait query error succeed: {sql}')
+
     def test_drop_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
@@ -1339,14 +1354,14 @@ class TDTestCase:
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t0')
-        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
+        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop multi tables
         tdSql.execute('drop table test.t3, test.t4')
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t3')
-        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
+        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
         res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
-        self.wait_query(f'select * from information_schema.ins_tables where table_name = "{res_tb}"', 0, wait_query_seconds)
+        self.wait_query_err(f'desc `{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first

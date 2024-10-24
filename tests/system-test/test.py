@@ -24,6 +24,8 @@ import platform
 import socket
 import threading
 import importlib
+print(f"Python version: {sys.version}")
+print(f"Version info: {sys.version_info}")
 
 import toml
 sys.path.append("../pytest")
@@ -687,6 +689,6 @@ if __name__ == "__main__":
     if conn is not None:
         conn.close()
     if asan:
-        # tdDnodes.StopAllSigint()
+        tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
     sys.exit(0)
