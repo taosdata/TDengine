@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create database
-sql create database d0 duration 300
+sql create database d0 duration 120
 sql use d0
 
 print =============== create super table and child table
