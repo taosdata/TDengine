@@ -838,7 +838,7 @@ class TDCom:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM %s.exe"%processorName)
         else:
-            os.system("unset LD_PRELOAD; pkill %s " % processorName)
+            os.system("unset LD_PRELOAD; sudo pkill %s " % processorName)
 
     def gen_tag_col_str(self, gen_type, data_type, count):
         """
@@ -913,12 +913,13 @@ class TDCom:
             else:
                 stream_options += f" ignore update 0"
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
         else:
+            
             if watermark is None:
                 if trigger_mode == "max_delay":
                     stream_options = f'trigger {trigger_mode} {max_delay}'
@@ -938,12 +939,14 @@ class TDCom:
                 stream_options += f" ignore update {ignore_update}"
             else:
                 stream_options += f" ignore update 0"
+
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+        
 
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
