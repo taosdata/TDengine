@@ -1882,6 +1882,20 @@ int sml_td24559_Test() {
   pRes = taos_query(taos, "create database if not exists td24559");
   taos_free_result(pRes);
 
+  const char *sql1[] = {
+      "sttb,t1=1 f1=283i32,f2=g\"\" 1632299372000",
+      "sttb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
+  };
+
+  pRes = taos_query(taos, "use td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code);
+
   const char *sql[] = {
       "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299372000",
       "stb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
@@ -1895,7 +1909,7 @@ int sml_td24559_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 
-  int code = taos_errno(pRes);
+  code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);
 
@@ -2254,8 +2268,8 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_td18789_Test();
   ASSERT(!ret);
-//  ret = sml_td24070_Test();
-//  ASSERT(!ret);
+  ret = sml_td24070_Test();
+  ASSERT(!ret);
   ret = sml_td23881_Test();
   ASSERT(ret);
   ret = sml_escape_Test();
@@ -2264,8 +2278,8 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_ts3116_Test();
   ASSERT(!ret);
-//  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
-//  ASSERT(!ret);
+  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
+  ASSERT(!ret);
   ret = sml_ts3303_Test();
   ASSERT(!ret);
   ret = sml_ttl_Test();

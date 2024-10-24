@@ -172,14 +172,14 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   // parse metric
   smlParseTelnetElement(&sql, sqlEnd, &elements->measure, &elements->measureLen);
   if (unlikely((!(elements->measure) || IS_INVALID_TABLE_LEN(elements->measureLen)))) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid measure", sql);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
   // parse timestamp
   smlParseTelnetElement(&sql, sqlEnd, &elements->timestamp, &elements->timestampLen);
   if (unlikely(!elements->timestamp || elements->timestampLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid timestamp", sql);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -189,19 +189,21 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   }
   int64_t ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
   if (unlikely(ts < 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet parse timestamp failed", sql);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
 
   // parse value
   smlParseTelnetElement(&sql, sqlEnd, &elements->cols, &elements->colsLen);
   if (unlikely(!elements->cols || elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid value", sql);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
-  if (smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
+  int ret = smlParseValue(&kv, &info->msgBuf);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("SML:0x%" PRIx64 " %s parse value error:%d.", info->id, __FUNCTION__, ret);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -210,11 +212,11 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   elements->tags = sql;
   elements->tagsLen = sqlEnd - sql;
   if (unlikely(!elements->tags || elements->tagsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid tag value", sql);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  int ret = smlParseTelnetTags(info, sql, sqlEnd, elements);
+  ret = smlParseTelnetTags(info, sql, sqlEnd, elements);
   if (unlikely(ret != TSDB_CODE_SUCCESS)) {
     return ret;
   }

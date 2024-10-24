@@ -24,7 +24,7 @@
 static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SSmlLineInfo *elements) {
   elements->measureLen = strlen(metric->valuestring);
   if (IS_INVALID_TABLE_LEN(elements->measureLen)) {
-    uError("OTD:0x%" PRIx64 " Metric length is 0 or large than 192", info->id);
+    uError("SML:0x%" PRIx64 " Metric length is 0 or large than 192", info->id);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
@@ -44,7 +44,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
       child = child->next;
     }
     if (*marks[i] == NULL) {
-      uError("smlGetJsonElements error, not find mark:%d:%s", i, jsonName[i]);
+      uError("SML %s error, not find mark:%d:%s", __FUNCTION__, i, jsonName[i]);
       return TSDB_CODE_TSC_INVALID_JSON;
     }
   }
@@ -53,7 +53,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
 
 static int32_t smlConvertJSONBool(SSmlKv *pVal, char *typeStr, cJSON *value) {
   if (strcasecmp(typeStr, "bool") != 0) {
-    uError("OTD:invalid type(%s) for JSON Bool", typeStr);
+    uError("SML:invalid type(%s) for JSON Bool", typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
   pVal->type = TSDB_DATA_TYPE_BOOL;
@@ -67,7 +67,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   // tinyint
   if (strcasecmp(typeStr, "i8") == 0 || strcasecmp(typeStr, "tinyint") == 0) {
     if (!IS_VALID_TINYINT(value->valuedouble)) {
-      uError("OTD:JSON value(%f) cannot fit in type(tinyint)", value->valuedouble);
+      uError("SML:JSON value(%f) cannot fit in type(tinyint)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_TINYINT;
@@ -78,7 +78,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   // smallint
   if (strcasecmp(typeStr, "i16") == 0 || strcasecmp(typeStr, "smallint") == 0) {
     if (!IS_VALID_SMALLINT(value->valuedouble)) {
-      uError("OTD:JSON value(%f) cannot fit in type(smallint)", value->valuedouble);
+      uError("SML:JSON value(%f) cannot fit in type(smallint)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_SMALLINT;
@@ -89,7 +89,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   // int
   if (strcasecmp(typeStr, "i32") == 0 || strcasecmp(typeStr, "int") == 0) {
     if (!IS_VALID_INT(value->valuedouble)) {
-      uError("OTD:JSON value(%f) cannot fit in type(int)", value->valuedouble);
+      uError("SML:JSON value(%f) cannot fit in type(int)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_INT;
@@ -113,7 +113,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   // float
   if (strcasecmp(typeStr, "f32") == 0 || strcasecmp(typeStr, "float") == 0) {
     if (!IS_VALID_FLOAT(value->valuedouble)) {
-      uError("OTD:JSON value(%f) cannot fit in type(float)", value->valuedouble);
+      uError("SML:JSON value(%f) cannot fit in type(float)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_FLOAT;
@@ -130,7 +130,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   }
 
   // if reach here means type is unsupported
-  uError("OTD:invalid type(%s) for JSON Number", typeStr);
+  uError("SML:invalid type(%s) for JSON Number", typeStr);
   return TSDB_CODE_TSC_INVALID_JSON_TYPE;
 }
 
@@ -142,7 +142,7 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
   } else if (strcasecmp(typeStr, "nchar") == 0) {
     pVal->type = TSDB_DATA_TYPE_NCHAR;
   } else {
-    uError("OTD:invalid type(%s) for JSON String", typeStr);
+    uError("SML:invalid type(%s) for JSON String", typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
   pVal->length = strlen(value->valuestring);
@@ -225,7 +225,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
     case cJSON_String: {
       int32_t ret = smlConvertJSONString(kv, "binary", root);
       if (ret != TSDB_CODE_SUCCESS) {
-        uError("OTD:Failed to parse binary value from JSON Obj");
+        uError("SML:Failed to parse binary value from JSON Obj");
         return ret;
       }
       break;
@@ -233,7 +233,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
     case cJSON_Object: {
       int32_t ret = smlParseValueFromJSONObj(root, kv);
       if (ret != TSDB_CODE_SUCCESS) {
-        uError("OTD:Failed to parse value from JSON Obj");
+        uError("SML:Failed to parse value from JSON Obj");
         return ret;
       }
       break;
@@ -262,7 +262,7 @@ static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
     }
     size_t keyLen = strlen(tag->string);
     if (unlikely(IS_INVALID_COL_LEN(keyLen))) {
-      uError("OTD:Tag key length is 0 or too large than 64");
+      uError("SML:Tag key length is 0 or too large than 64");
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -436,7 +436,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   int32_t size = cJSON_GetArraySize(root);
   // outmost json fields has to be exactly 4
   if (size != OTD_JSON_FIELDS_NUM) {
-    uError("OTD:0x%" PRIx64 " Invalid number of JSON fields in data point %d", info->id, size);
+    uError("SML:0x%" PRIx64 " Invalid number of JSON fields in data point %d", info->id, size);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -465,9 +465,9 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   if (unlikely(ts < 0)) {
     char* tmp = cJSON_PrintUnformatted(tsJson);
     if (tmp == NULL) {
-      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %" PRId64, info->id, info->msgBuf.buf, ts);
+      uError("SML:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %" PRId64, info->id, info->msgBuf.buf, ts);
     } else {
-      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
+      uError("SML:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
       taosMemoryFree(tmp);
     }
     code = TSDB_CODE_INVALID_TIMESTAMP;
@@ -506,7 +506,7 @@ int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
   } else if (cJSON_IsObject(info->root)) {
     payloadNum = 1;
   } else {
-    uError("SML:0x%" PRIx64 " Invalid JSON Payload 3:%s", info->id, payload);
+    uError("SML:0x%" PRIx64 " Invalid JSON type:%s", info->id, payload);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -520,7 +520,6 @@ int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
       SSmlLineInfo element = {0};
       ret = smlParseJSONStringExt(info, dataPoint, &element);
       if (element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
-
     } else {
       ret = smlParseJSONStringExt(info, dataPoint, info->lines + cnt);
     }

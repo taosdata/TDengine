@@ -472,7 +472,7 @@ int32_t smlInitHandle(SQuery** query) {
 
   int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
   if (code != 0) {
-    uError("create pQuery error");
+    uError("SML create pQuery error");
     goto END;
   }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
@@ -480,12 +480,12 @@ int32_t smlInitHandle(SQuery** query) {
   pQuery->msgType = TDMT_VND_SUBMIT;
   code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&stmt);
   if (code != 0) {
-    uError("create SVnodeModifyOpStmt error");
+    uError("SML create SVnodeModifyOpStmt error");
     goto END;
   }
   stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (stmt->pTableBlockHashObj == NULL){
-    uError("create pTableBlockHashObj error");
+    uError("SML create pTableBlockHashObj error");
     code = terrno;
     goto END;
   }

@@ -68,6 +68,15 @@ TEST(testCase, smlParseInfluxString_Test) {
   taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
+  // case 0  false
+  tmp = "st,t1=3 c3=\"";
+  (void)memcpy(sql, tmp, strlen(tmp) + 1);
+  (void)memset(&elements, 0, sizeof(SSmlLineInfo));
+  ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
+  ASSERT_NE(ret, 0);
+  taosArrayDestroy(elements.colArray);
+  elements.colArray = nullptr;
+
   // case 2  false
   tmp = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
   (void)memcpy(sql, tmp, strlen(tmp) + 1);
