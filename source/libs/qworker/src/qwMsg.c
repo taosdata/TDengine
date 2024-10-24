@@ -502,6 +502,10 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 }
 
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
   int32_t            code = 0;
   int8_t             status = 0;
   bool               queryDone = false;

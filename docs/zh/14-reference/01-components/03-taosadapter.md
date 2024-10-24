@@ -330,7 +330,7 @@ taosAdapter 采集 REST/WebSocket 相关请求的监控指标。将监控指标�
 | other\_fail        | INT UNSIGNED |         | 其他失败请求数                      |
 | query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                  |
 | write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                  |
-| endpoint           | VARCHAR      |         | 请求端点                            |
+| endpoint           | VARCHAR      |         | 请求端点                           |
 | req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
 
 ## 结果返回条数限制
