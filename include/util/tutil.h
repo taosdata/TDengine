@@ -169,6 +169,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define QUERY_CHECK_NULL TSDB_CHECK_NULL
 
+#define SCL_CHECK_NULL TSDB_CHECK_NULL
+
+#define SCL_CHECK_CONDITION QUERY_CHECK_CONDITION
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)

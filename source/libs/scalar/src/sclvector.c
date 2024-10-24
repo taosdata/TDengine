@@ -44,6 +44,11 @@ bool noConvertBeforeCompare(int32_t leftType, int32_t rightType, int32_t optr) {
 }
 
 int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(inData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(outData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   switch (outType) {
     case TSDB_DATA_TYPE_BOOL: {
       GET_TYPED_DATA(*((bool *)outData), bool, inType, inData);
@@ -94,15 +99,23 @@ int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, 
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t convertNcharToDouble(const void *inData, void *outData) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char   *tmp = taosMemoryMalloc(varDataTLen(inData));
-  if (NULL == tmp) {
-    SCL_ERR_RET(terrno);
-  }
+  int32_t lino = 0;
+  char   *tmp = NULL;
+  SCL_CHECK_NULL(inData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(outData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  tmp = taosMemoryMalloc(varDataTLen(inData));
+  SCL_CHECK_NULL(tmp, code, lino, _return, terrno)
+
   int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
     sclError("castConvert taosUcs4ToMbs error 1");
@@ -116,71 +129,154 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   *((double *)outData) = value;
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(tmp);
   SCL_RET(code);
-}
-
-int32_t convertBinaryToDouble(const void *inData, void *outData) {
-  char *tmp = taosMemoryCalloc(1, varDataTLen(inData));
-  if (tmp == NULL) {
-    *((double *)outData) = 0.;
-    SCL_ERR_RET(terrno);
-  }
-  (void)memcpy(tmp, varDataVal(inData), varDataLen(inData));
-  double ret = taosStr2Double(tmp, NULL);
-  taosMemoryFreeClear(tmp);
-  *((double *)outData) = ret;
-  SCL_RET(TSDB_CODE_SUCCESS);
 }
 
 typedef int32_t (*_getBigintValue_fn_t)(void *src, int32_t index, int64_t *res);
 
 int32_t getVectorBigintValue_TINYINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((int8_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_UTINYINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((uint8_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_SMALLINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((int16_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_USMALLINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((uint16_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_INT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((int32_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_UINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((uint32_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_BIGINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((int64_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_UBIGINT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((uint64_t *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_FLOAT(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((float *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_DOUBLE(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((double *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 int32_t getVectorBigintValue_BOOL(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *res = (int64_t) * ((bool *)src + index);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t getVectorBigintValue_JSON(void *src, int32_t index, int64_t *res) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (colDataIsNull_var(((SColumnInfoData *)src), index)) {
     sclError("getVectorBigintValue_JSON get json data null with index %d", index);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -199,10 +295,17 @@ int32_t getVectorBigintValue_JSON(void *src, int32_t index, int64_t *res) {
     SCL_ERR_RET(convertNumberToNumber(data + CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE));
   }
   *res = (int64_t)out;
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(p, code, lino, _return, TSDB_CODE_INVALID_PARA)
    *p = NULL;
   if (srcType == TSDB_DATA_TYPE_TINYINT) {
     *p = getVectorBigintValue_TINYINT;
@@ -236,22 +339,41 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
     sclError("getVectorBigintValueFn invalid srcType : %d", srcType);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
+
   if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
     value = 0;
     code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
 
   colDataSetInt64(pOut->columnData, rowIndex, &value);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToSigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
+
   if (overflow) {
     int64_t minValue = tDataTypes[pOut->columnData->info.type].minValue;
     int64_t maxValue = tDataTypes[pOut->columnData->info.type].maxValue;
@@ -290,10 +412,20 @@ static FORCE_INLINE int32_t varToSigned(char *buf, SScalarParam *pOut, int32_t r
       break;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToUnsigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
+
   if (overflow) {
     uint64_t minValue = (uint64_t)tDataTypes[pOut->columnData->info.type].minValue;
     uint64_t maxValue = (uint64_t)tDataTypes[pOut->columnData->info.type].maxValue;
@@ -331,10 +463,20 @@ static FORCE_INLINE int32_t varToUnsigned(char *buf, SScalarParam *pOut, int32_t
       break;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToFloat(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
+
   if (TSDB_DATA_TYPE_FLOAT == pOut->columnData->info.type) {
     float value = taosStr2Float(buf, NULL);
     colDataSetFloat(pOut->columnData, rowIndex, &value);
@@ -343,18 +485,37 @@ static FORCE_INLINE int32_t varToFloat(char *buf, SScalarParam *pOut, int32_t ro
 
   double value = taosStr2Double(buf, NULL);
   colDataSetDouble(pOut->columnData, rowIndex, &value);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToBool(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
+
   int64_t value = taosStr2Int64(buf, NULL, 10);
   bool    v = (value != 0) ? true : false;
   colDataSetInt8(pOut->columnData, rowIndex, (int8_t *)&v);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 // todo remove this malloc
 static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  // overflow can be NULL, no need to check.
   if(isHex(varDataVal(buf), varDataLen(buf))){
     if(!isValidateHex(varDataVal(buf), varDataLen(buf))){
       SCL_ERR_RET(TSDB_CODE_PAR_INVALID_VARBINARY);
@@ -363,7 +524,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     void* data = NULL;
     uint32_t size = 0;
     if(taosHex2Ascii(varDataVal(buf), varDataLen(buf), &data, &size) < 0){
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     int32_t inputLen = size + VARSTR_HEADER_SIZE;
     char   *t = taosMemoryCalloc(1, inputLen);
@@ -374,11 +535,11 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     }
     varDataSetLen(t, size);
     (void)memcpy(varDataVal(t), data, size);
-    int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
+    code = colDataSetVal(pOut->columnData, rowIndex, t, false);
     taosMemoryFreeClear(t);
     taosMemoryFreeClear(data);
     SCL_ERR_RET(code);
-  }else{
+  } else {
     int32_t inputLen = varDataTLen(buf);
     char   *t = taosMemoryCalloc(1, inputLen);
     if (t == NULL) {
@@ -386,23 +547,30 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
       SCL_ERR_RET(terrno);
     }
     (void)memcpy(t, buf, inputLen);
-    int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
+    code = colDataSetVal(pOut->columnData, rowIndex, t, false);
     taosMemoryFreeClear(t);
     SCL_ERR_RET(code);
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   t = NULL;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t len = 0;
   int32_t inputLen = varDataLen(buf);
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  int32_t code = TSDB_CODE_SUCCESS;
 
-  char   *t = taosMemoryCalloc(1, outputMaxLen);
-  if (NULL == t) {
-    SCL_ERR_RET(terrno);
-  }
+  t = taosMemoryCalloc(1, outputMaxLen);
+  SCL_CHECK_NULL(t, code, lino, _return, terrno);
   int32_t ret =
       taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
   if (!ret) {
@@ -414,18 +582,23 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
   SCL_ERR_JRET(colDataSetVal(pOut->columnData, rowIndex, t, false));
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(t);
   SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
-  int32_t code =TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   t = NULL;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int32_t inputLen = varDataLen(buf);
 
-  char   *t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
-  if (NULL == t) {
-    SCL_ERR_RET(terrno);
-  }
+  t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
+  SCL_CHECK_NULL(t, code, lino, _return, terrno);
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
   if (len < 0) {
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -435,16 +608,22 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   SCL_ERR_JRET(colDataSetVal(pOut->columnData, rowIndex, t, false));
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(t);
   SCL_RET(code);
 }
 
 static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   //[ToDo] support to parse WKB as well as WKT
-  int32_t        code = TSDB_CODE_SUCCESS;
-  size_t         len = 0;
-  unsigned char *t = NULL;
-  char          *output = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  unsigned char*   t = NULL;
+  size_t           len = 0;
+  char*            output = NULL;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   if ((code = initCtxGeomFromText()) != 0) {
     sclError("failed to init geometry ctx, %s", getGeosErrMsg(code));
@@ -456,9 +635,7 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
   }
 
   output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-  if (NULL == output) {
-    SCL_ERR_JRET(terrno);
-  }
+  SCL_CHECK_NULL(output, code, lino, _return, terrno);
   (void)memcpy(output + VARSTR_HEADER_SIZE, t, len);
   varDataSetLen(output, len);
 
@@ -466,13 +643,16 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
 
   taosMemoryFreeClear(output);
   geosFreeBuffer(t);
-
+  taosMemoryFreeClear(t);
   SCL_RET(TSDB_CODE_SUCCESS);
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(output);
   geosFreeBuffer(t);
-  t = NULL;
+  taosMemoryFreeClear(t);
   VarDataLenT dummyHeader = 0;
   SCL_ERR_RET(colDataSetVal(pOut->columnData, rowIndex, (const char *)&dummyHeader, false));
   SCL_RET(code);
@@ -480,7 +660,10 @@ _return:
 
 // TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  char*            tmp = NULL;
+  SCL_CHECK_NULL(pCtx, code, lino, _return, TSDB_CODE_INVALID_PARA)
   bool vton = false;
 
   _bufConverteFunc func = NULL;
@@ -512,8 +695,9 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     SCL_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
+  SCL_CHECK_NULL(pCtx->pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCtx->pIn, code, lino, _return, TSDB_CODE_INVALID_PARA)
   pCtx->pOut->numOfRows = pCtx->pIn->numOfRows;
-  char* tmp = NULL;
 
   for (int32_t i = pCtx->startIndex; i <= pCtx->endIndex; ++i) {
     if (IS_HELPER_NULL(pCtx->pIn->columnData, i)) {
@@ -545,16 +729,24 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     }
 
     if (vton) {
+      if (varDataTLen(data) > bufSize) {
+        sclError("castConvert convert buffer size too small");
+        SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+      }
       (void)memcpy(tmp, data, varDataTLen(data));
     } else {
       if (TSDB_DATA_TYPE_VARCHAR == convertType || TSDB_DATA_TYPE_GEOMETRY == convertType) {
+        if (varDataLen(data) > bufSize) {
+          sclError("castConvert convert buffer size too small");
+          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+        }
         (void)memcpy(tmp, varDataVal(data), varDataLen(data));
         tmp[varDataLen(data)] = 0;
       } else if (TSDB_DATA_TYPE_NCHAR == convertType) {
         // we need to convert it to native char string, and then perform the string to numeric data
         if (varDataLen(data) > bufSize) {
           sclError("castConvert convert buffer size too small");
-          SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
+          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
         }
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
@@ -571,6 +763,9 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   }
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   if (tmp != NULL) {
     taosMemoryFreeClear(tmp);
   }
@@ -578,6 +773,10 @@ _return:
 }
 
 int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(out, code, lino, _return, TSDB_CODE_INVALID_PARA)
   char  *data = colDataGetVarData((SColumnInfoData *)src, index);
   *out = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
@@ -589,10 +788,18 @@ int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
   } else {
     SCL_ERR_RET(convertNumberToNumber(data + CHAR_BYTES, out, *data, TSDB_DATA_TYPE_DOUBLE));
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobinary is nchar
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(out, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
@@ -609,12 +816,27 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
   varDataSetLen(*out, len);
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData,
                       char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft,
                       bool *freeRight, bool *result) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(fp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeftData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeftOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(isNull, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(freeLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(freeRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(result, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *result = false;
   if (optr == OP_TYPE_JSON_CONTAINS) {
     *result = true;
@@ -716,10 +938,21 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
   }
 
   *result = true;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pCtx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCtx->pIn, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCtx->pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCtx->pIn->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCtx->pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SColumnInfoData *pInputCol = pCtx->pIn->columnData;
   SColumnInfoData *pOutputCol = pCtx->pOut->columnData;
   char             tmp[128] = {0};
@@ -780,13 +1013,22 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
     sclError("not supported input type:%d", pCtx->inType);
     return TSDB_CODE_APP_ERROR;
   }
-
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 // TODO opt performance
 int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex,
                                    int32_t numOfRows) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pIn, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pIn->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SColumnInfoData *pInputCol = pIn->columnData;
   SColumnInfoData *pOutputCol = pOut->columnData;
 
@@ -1003,7 +1245,11 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
       return TSDB_CODE_APP_ERROR;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
@@ -1069,27 +1315,34 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(input->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
   output->numOfRows = input->numOfRows;
 
   SDataType t = {.type = type};
   t.bytes = (IS_VAR_DATA_TYPE(t.type) && input->columnData) ? input->columnData->info.bytes:tDataTypes[type].bytes;
   t.precision = (IS_TIMESTAMP_TYPE(t.type) && input->columnData) ? input->columnData->info.precision : TSDB_TIME_PRECISION_MILLI;
 
-  int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
+  SCL_ERR_RET(sclCreateColumnInfoData(&t, input->numOfRows, output));
+  SCL_ERR_RET(vectorConvertSingleColImpl(input, output, NULL, startIndex, numOfRows));
+_return:
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-
-  code = vectorConvertSingleColImpl(input, output, NULL, startIndex, numOfRows);
-  if (code) {
-    return code;
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pLeftOut, SScalarParam *pRightOut,
                           int32_t startIndex, int32_t numOfRows) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeftOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int32_t leftType = GET_PARAM_TYPE(pLeft);
   int32_t rightType = GET_PARAM_TYPE(pRight);
   if (leftType == rightType) {
@@ -1097,7 +1350,6 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   }
 
   int8_t  type = 0;
-  int32_t code = 0;
 
   SScalarParam *param1 = NULL, *paramOut1 = NULL;
   SScalarParam *param2 = NULL, *paramOut2 = NULL;
@@ -1141,20 +1393,18 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   }
 
   if (type != GET_PARAM_TYPE(param1)) {
-    code = vectorConvertSingleCol(param1, paramOut1, type, startIndex, numOfRows);
-    if (code) {
-      return code;
-    }
+    SCL_ERR_RET(vectorConvertSingleCol(param1, paramOut1, type, startIndex, numOfRows));
   }
 
   if (type != GET_PARAM_TYPE(param2)) {
-    code = vectorConvertSingleCol(param2, paramOut2, type, startIndex, numOfRows);
-    if (code) {
-      return code;
-    }
+    SCL_ERR_RET(vectorConvertSingleCol(param2, paramOut2, type, startIndex, numOfRows));
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 enum {
@@ -1165,6 +1415,13 @@ enum {
 // TODO not correct for descending order scan
 static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                 int32_t numOfRows, int32_t step, int32_t i) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1187,11 +1444,22 @@ static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
       *output =  leftRes + rightRes;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                   int32_t numOfRows, int32_t step, int32_t i) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1214,15 +1482,26 @@ static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
           taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision);
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static int32_t vectorConvertVarToDouble(SScalarParam *pInput, int32_t *converted, SColumnInfoData **pOutputCol) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(converted, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SScalarParam     output = {0};
   SColumnInfoData *pCol = pInput->columnData;
 
   if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON && pCol->info.type != TSDB_DATA_TYPE_VARBINARY) {
-    int32_t code = vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1);
+    code = vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1);
     if (code != TSDB_CODE_SUCCESS) {
       *pOutputCol = NULL;
       SCL_ERR_RET(code);
@@ -1237,17 +1516,31 @@ static int32_t vectorConvertVarToDouble(SScalarParam *pInput, int32_t *converted
   *converted = VECTOR_UN_CONVERT;
 
   *pOutputCol = pInput->columnData;
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
-static void doReleaseVec(SColumnInfoData *pCol, int32_t type) {
+static void doReleaseVec(SColumnInfoData **pCol, int32_t type) {
   if (type == VECTOR_DO_CONVERT) {
-    colDataDestroy(pCol);
-    taosMemoryFreeClear(pCol);
+    colDataDestroy(*pCol);
+    taosMemoryFreeClear(*pCol);
   }
 }
 
 int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol = NULL;
+  SColumnInfoData *pRightCol = NULL;
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
 
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
@@ -1255,10 +1548,6 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          leftConvert = 0, rightConvert = 0;
-  SColumnInfoData *pLeftCol = NULL;
-  SColumnInfoData *pRightCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1322,14 +1611,24 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 // TODO not correct for descending order scan
 static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                 int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1352,11 +1651,22 @@ static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
       *output = (leftRes - rightRes) * factor;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                   int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1380,21 +1690,32 @@ static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
           taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision);
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol = NULL;
+  SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
-  int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  int32_t          leftConvert = 0, rightConvert = 0;
-  SColumnInfoData *pLeftCol = NULL;
-  SColumnInfoData *pRightCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1453,14 +1774,24 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 // TODO not correct for descending order scan
 static int32_t vectorMathMultiplyHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                      int32_t numOfRows, int32_t step, int32_t i) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1483,20 +1814,32 @@ static int32_t vectorMathMultiplyHelper(SColumnInfoData *pLeftCol, SColumnInfoDa
       *output = leftRes * rightRes;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t vectorMathMultiply(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1525,22 +1868,33 @@ int32_t vectorMathMultiply(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1609,22 +1963,33 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1700,22 +2065,33 @@ int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 int32_t vectorMathMinus(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          leftConvert = 0, rightConvert = 0;
+  SColumnInfoData *pLeftCol = NULL;
+  SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
 
   pOut->numOfRows = pLeft->numOfRows;
 
-  int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : (pLeft->numOfRows - 1);
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
-  int32_t          leftConvert = 0;
-  SColumnInfoData *pLeftCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
 
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
@@ -1733,11 +2109,23 @@ int32_t vectorMathMinus(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
   SCL_RET(code);
 }
 
 int32_t vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
   pOut->numOfRows = pLeft->numOfRows;
 
@@ -1755,11 +2143,23 @@ int32_t vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
     SCL_ERR_RET(TSDB_CODE_APP_ERROR);
   }
   pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                   int32_t numOfRows, int32_t step, int32_t i) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1782,20 +2182,31 @@ static int32_t vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pR
       *output =  leftRes & rightRes;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1824,13 +2235,24 @@ int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 static int32_t vectorBitOrHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                  int32_t numOfRows, int32_t step, int32_t i) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeftCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRightCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutputCol->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1853,20 +2275,31 @@ static int32_t vectorBitOrHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRi
       *output = lx | rx;
     }
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
@@ -1895,15 +2328,31 @@ int32_t vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOu
   }
 
 _return:
-  doReleaseVec(pLeftCol, leftConvert);
-  doReleaseVec(pRightCol, rightConvert);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  doReleaseVec(&pLeftCol, leftConvert);
+  doReleaseVec(&pRightCol, rightConvert);
   SCL_RET(code);
 }
 
 int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                             int32_t numOfRows, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeft->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(num, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(fp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+
   bool   *pRes = (bool *)pOut->columnData->pData;
-  int32_t code = TSDB_CODE_SUCCESS;
   if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
     if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
       for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
@@ -1988,11 +2437,23 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
     }
   }
 
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                      int32_t numOfRows, int32_t _ord, int32_t optr) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeft->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t       i = 0;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int32_t       lType = GET_PARAM_TYPE(pLeft);
@@ -2032,16 +2493,25 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   } else {  // normal compare
     SCL_ERR_RET(doVectorCompareImpl(pLeft, pRight, pOut, i, compRows, step, fp, optr, &(pOut->numOfQualified)));
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                           int32_t numOfRows, int32_t _ord, int32_t optr) {
-  SScalarParam  pLeftOut = {0};
-  SScalarParam  pRightOut = {0};
-  SScalarParam *param1 = NULL;
-  SScalarParam *param2 = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SScalarParam     pLeftOut = {0};
+  SScalarParam     pRightOut = {0};
+  SScalarParam    *param1 = NULL;
+  SScalarParam    *param2 = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
     param2 = pRight;
@@ -2054,6 +2524,9 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SCL_ERR_JRET(doVectorCompare(param1, param2, pOut, startIndex, numOfRows, _ord, optr));
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);
   SCL_RET(code);
@@ -2112,6 +2585,13 @@ int32_t vectorNotMatch(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
 }
 
 int32_t vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 1 : 0;
     if (v) {
@@ -2121,10 +2601,21 @@ int32_t vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
     colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
     if (v) {
@@ -2134,10 +2625,20 @@ int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SCL_ERR_RET(vectorConvertSingleColImpl(pLeft, pOut, NULL, -1, -1));
   for (int32_t i = 0; i < pOut->numOfRows; ++i) {
     if (colDataIsNull_s(pOut->columnData, i)) {
@@ -2154,10 +2655,18 @@ int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
     }
   }
   pOut->columnData->hasNull = false;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t getJsonValue(char *json, char *key, bool *isExist, STagVal *val) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  SCL_CHECK_NULL(val, code, lino, _return, TSDB_CODE_INVALID_PARA)
   val->pKey = key;
   if (json == NULL || tTagIsJson((const STag *)json) == false) {
     if (isExist) {
@@ -2170,23 +2679,35 @@ int32_t getJsonValue(char *json, char *key, bool *isExist, STagVal *val) {
   if (isExist) {
     *isExist = find;
   }
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  char            *jsonKey = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeft->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
 
-  int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
-  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
-  if (NULL == jsonKey) {
-    SCL_ERR_RET(terrno);
-  }
+  jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  SCL_CHECK_NULL(jsonKey, code, lino, _return, terrno)
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     bool isExist = false;
@@ -2203,24 +2724,35 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   }
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(jsonKey);
   SCL_RET(code);
 }
 
 int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  char            *jsonKey = NULL;
+
+  SCL_CHECK_NULL(pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pLeft->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pRight->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pOutputCol = pOut->columnData;
 
-  int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
-  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
-  if (NULL == jsonKey) {
-    SCL_ERR_RET(terrno);
-  }
+  jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  SCL_CHECK_NULL(jsonKey, code, lino, _return, terrno)
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     if (colDataIsNull_var(pLeft->columnData, i)) {
@@ -2241,6 +2773,9 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   }
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(jsonKey);
   SCL_RET(code);
 }
