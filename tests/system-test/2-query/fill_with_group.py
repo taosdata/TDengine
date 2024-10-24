@@ -237,11 +237,123 @@ class TDTestCase:
         tdSql.checkData(12, 1, None)
         tdSql.checkData(13, 1, None)
 
+    def test_fill_with_complex_expr(self):
+        sql = "SELECT _wstart, _wstart + 1d, count(*), now, 1+1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' INTERVAL(5m) FILL(NULL)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(12)
+        for i in range(0, 12, 2):
+            tdSql.checkData(i, 2, 10)
+        for i in range(1, 12, 2):
+            tdSql.checkData(i, 2, None)
+        for i in range(0, 12):
+            firstCol = tdSql.getData(i, 0)
+            secondCol = tdSql.getData(i, 1)
+            tdLog.debug(f"firstCol: {firstCol}, secondCol: {secondCol}, secondCol - firstCol: {secondCol - firstCol}")
+            if secondCol - firstCol != timedelta(days=1):
+                tdLog.exit(f"query error: secondCol - firstCol: {secondCol - firstCol}")
+            nowCol = tdSql.getData(i, 3)
+            if nowCol is None:
+                tdLog.exit(f"query error: nowCol: {nowCol}")
+            constCol = tdSql.getData(i, 4)
+            if constCol != 2:
+                tdLog.exit(f"query error: constCol: {constCol}")
+
+        sql = "SELECT _wstart + 1d, count(*), last(ts) + 1a, timediff(_wend, last(ts)) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' INTERVAL(5m) FILL(NULL)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(12)
+        for i in range(0, 12, 2):
+            tdSql.checkData(i, 1, 10)
+            tdSql.checkData(i, 3, 300000)
+        for i in range(1, 12, 2):
+            tdSql.checkData(i, 1, None)
+            tdSql.checkData(i, 2, None)
+            tdSql.checkData(i, 3, None)
+
+        sql = "SELECT count(*), tbname FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname INTERVAL(5m) FILL(NULL)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(120)
+
+        sql = "SELECT * from (SELECT count(*), timediff(_wend, last(ts)) + t1, tbname FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) LIMIT 1) order by tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+        j = 0
+        for i in range(0, 10):
+            tdSql.checkData(i, 1, 300000 + j)
+            j = j + 1
+            if j == 5:
+                j = 0
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, tbname,t1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) ORDER BY timediff(last(ts), _wstart)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(120)
+
+        sql = "SELECT 1+1, count(*), timediff(_wend, last(ts)) + t1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(timediff(last(ts), _wstart)+ t1 >= 1)  ORDER BY timediff(last(ts), _wstart)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(48)
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(timediff(last(ts), _wstart) + t1 >= 1)  ORDER BY timediff(last(ts), _wstart), tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(48)
+
+        sql = "SELECT count(*) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(timediff(last(ts), _wstart) >= 0)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
+        sql = "SELECT count(*) + 1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(NULL) HAVING(count(*) > 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(0)
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(value, 0, 0) HAVING(timediff(last(ts), _wstart) + t1 >= 1) ORDER BY timediff(last(ts), _wstart), tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(48)
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(value, 0, 0) HAVING(count(*) >= 0) ORDER BY timediff(last(ts), _wstart), tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(120)
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname, t1 INTERVAL(5m) FILL(value, 0, 0) HAVING(count(*) > 0) ORDER BY timediff(last(ts), _wstart), tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname INTERVAL(5m) FILL(linear) HAVING(count(*) >= 0 and t1 <= 1) ORDER BY timediff(last(ts), _wstart), tbname, t1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(44)
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname INTERVAL(5m) FILL(prev) HAVING(count(*) >= 0 and t1 > 1) ORDER BY timediff(last(ts), _wstart), tbname, t1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(72)
+
+        sql = "SELECT 1+1, count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname INTERVAL(5m) FILL(linear) ORDER BY tbname, _wstart;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(120)
+        for i in range(11, 120, 12):
+            tdSql.checkData(i, 1, None)
+        for i in range(0, 120):
+            tdSql.checkData(i, 0, 2)
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1, concat(to_char(_wstart, 'HH:MI:SS__'), tbname) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY tbname INTERVAL(5m) FILL(linear) HAVING(count(*) >= 0) ORDER BY tbname;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(110)
+        for i in range(0, 110, 11):
+            lastCol = tdSql.getData(i, 3)
+            tdLog.debug(f"lastCol: {lastCol}")
+            if lastCol[-1:] != str(i//11):
+                tdLog.exit(f"query error: lastCol: {lastCol}")
+
+        sql = "SELECT 1+1, count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1,t1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY t1 INTERVAL(5m) FILL(linear) ORDER BY t1, _wstart;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
+        sql = "SELECT 1+1, count(*), timediff(_wend, last(ts)) + t1, timediff('2018-09-20 01:00:00', _wstart) + t1,t1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY t1 INTERVAL(5m) FILL(linear) HAVING(count(*) > 0) ORDER BY t1, _wstart;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(55)
+
+        # TODO Fix Me!
+        sql = "explain SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like '%asd');"
+        tdSql.error(sql, -2147473664) # Error: Planner internal error
+
     def run(self):
         self.prepareTestEnv()
         self.test_partition_by_with_interval_fill_prev_new_group_fill_error()
         self.test_fill_with_order_by()
         self.test_fill_with_order_by2()
+        self.test_fill_with_complex_expr()
 
     def stop(self):
         tdSql.close()

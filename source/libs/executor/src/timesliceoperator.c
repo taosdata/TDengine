@@ -1147,7 +1147,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->fillType = convertFillType(pInterpPhyNode->fillMode);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  pInfo->pFillColInfo = createFillColInfo(pExprInfo, numOfExprs, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
+  pInfo->pFillColInfo =
+      createFillColInfo(pExprInfo, numOfExprs, NULL, 0, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
   QUERY_CHECK_NULL(pInfo->pFillColInfo, code, lino, _error, terrno);
 
   pInfo->pLinearInfo = NULL;
