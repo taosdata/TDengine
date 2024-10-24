@@ -54,5 +54,5 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          sudo pkill taosd
-          sudo pkill taosadapter
+          if pgrep taosd; then sudo pkill taosd; fi
+          if pgrep taosadapter; then sudo pkill taosadapter; fi
