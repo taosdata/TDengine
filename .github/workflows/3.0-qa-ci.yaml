@@ -397,9 +397,7 @@ jobs:
           }
 
           PR_INFO= Coverage Report\n
-          PR Title: ${{ github.event.pull_request.title }}\n
           PR Owner: @${{ github.actor }}\n
-          PR Page: ${{ github.event.pull_request.html_url }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           Coverage Report URL: $REPORT_BASE_URL/$DIR_PATH_3_0/\n"
 
