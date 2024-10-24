@@ -312,6 +312,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 
 static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *elements) {
   int32_t code = 0;
+  int32_t lino = 0;
   bool isSameCTable = IS_SAME_CHILD_TABLE;
   if(isSameCTable){
     return TSDB_CODE_SUCCESS;
@@ -327,7 +328,7 @@ END:
   if(info->reRun){
     return TSDB_CODE_SUCCESS;
   }
-  return code;
+  RETURN
 }
 
 static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *currElement) {

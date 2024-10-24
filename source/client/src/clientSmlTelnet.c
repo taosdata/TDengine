@@ -149,19 +149,20 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   }
 
   int32_t code = 0;
+  int32_t lino = 0;
   if(info->dataFormat){
     SML_CHECK_CODE(smlProcessSuperTable(info, elements));
   }
   SML_CHECK_CODE(smlProcessTagTelnet(info, data, sqlEnd));
   SML_CHECK_CODE(smlJoinMeasureTag(elements));
 
-  return smlProcessChildTable(info, elements);
+  code = smlProcessChildTable(info, elements);
 
 END:
   if(info->reRun){
     return TSDB_CODE_SUCCESS;
   }
-  return code;
+  RETURN
 }
 
 // format: <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
@@ -233,5 +234,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   } else {
     ret = smlParseEndTelnetJsonUnFormat(info, elements, &kvTs, &kv);
   }
+  info->preLine = *elements;
+
   return ret;
 }

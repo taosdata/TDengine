@@ -95,14 +95,22 @@ extern "C" {
 #define SML_CHECK_CODE(CMD)              \
   code = (CMD);                          \
   if (TSDB_CODE_SUCCESS != code) {       \
+    lino = __LINE__;                     \
     goto END;                            \
   }
 
 #define SML_CHECK_NULL(CMD)              \
   if (NULL == (CMD)) {                   \
     code = terrno;                       \
+    lino = __LINE__;                     \
     goto END;                            \
   }
+
+#define RETURN                          \
+  if (code != 0){                       \
+    uError("%s failed code:%d line:%d", __FUNCTION__ , code, lino);     \
+  } \
+  return code;
 
 typedef enum {
   SCHEMA_ACTION_NULL,
