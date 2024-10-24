@@ -635,7 +635,7 @@ static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, 
   }
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output);
   if (*outputLen < 0) {
-    taosMemoryFree(*output);
+    taosMemoryFreeClear(*output);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
   return TSDB_CODE_SUCCESS;
@@ -674,7 +674,7 @@ static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputTy
   pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
-    taosMemoryFree(remStr);
+    taosMemoryFreeClear(remStr);
   }
 
   int32_t resLen = orgLen - pos;
@@ -738,7 +738,7 @@ static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputTy
   pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
-    taosMemoryFree(remStr);
+    taosMemoryFreeClear(remStr);
   }
 
   (void)memcpy(varDataVal(output), orgStr, pos);
@@ -767,7 +767,7 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
     if (needFree) {
-      taosMemoryFree(remStr);
+      taosMemoryFreeClear(remStr);
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -776,7 +776,7 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
   int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
 
   if (needFree) {
-    taosMemoryFree(remStr);
+    taosMemoryFreeClear(remStr);
   }
 
   if (leftPos >= rightPos) {
@@ -819,12 +819,12 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
     int32_t len = varDataLen(input);
     bool    ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
     if (!ret) {
-      taosMemoryFree(newBuf);
+      taosMemoryFreeClear(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
-    taosMemoryFree(newBuf);
+    taosMemoryFreeClear(newBuf);
   } else {
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
@@ -914,9 +914,9 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   pOutput->numOfRows = numOfRows;
 
 _return:
-  taosMemoryFree(input);
-  taosMemoryFree(outputBuf);
-  taosMemoryFree(pInputData);
+  taosMemoryFreeClear(input);
+  taosMemoryFreeClear(outputBuf);
+  taosMemoryFreeClear(pInputData);
 
   SCL_RET(code);
 }
@@ -1001,8 +1001,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   pOutput->numOfRows = numOfRows;
 
 _return:
-  taosMemoryFree(outputBuf);
-  taosMemoryFree(pInputData);
+  taosMemoryFreeClear(outputBuf);
+  taosMemoryFreeClear(pInputData);
 
   return code;
 }
@@ -1041,14 +1041,14 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFree(outputBuf);
+      taosMemoryFreeClear(outputBuf);
       SCL_ERR_RET(code);
     }
     output += varDataTLen(output);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1111,7 +1111,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   pOutput->numOfRows = numOfRows;
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
   return code;
 }
 
@@ -1259,7 +1259,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   pOutput->numOfRows = numOfRows;
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
 
   return code;
 }
@@ -1293,13 +1293,13 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFree(pOutputBuf);
+      taosMemoryFreeClear(pOutputBuf);
       SCL_ERR_RET(code);
     }
 
   }
   pOutput->numOfRows = pInput->numOfRows;
-  taosMemoryFree(pOutputBuf);
+  taosMemoryFreeClear(pOutputBuf);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1345,14 +1345,14 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colDataGetData(pInput[j].columnData, colIdx)), varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf);
         if (len < 0) {
-          taosMemoryFree(convBuf);
+          taosMemoryFreeClear(convBuf);
           code = TSDB_CODE_SCALAR_CONVERT_ERROR;
           goto _return;
         }
         convBuf[len] = 0;
         num = taosStr2Int32(convBuf, NULL, 10);
         getAsciiChar(num, &output);
-        taosMemoryFree(convBuf);
+        taosMemoryFreeClear(convBuf);
       } else {
         code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
         goto _return;
@@ -1364,7 +1364,7 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   pOutput->numOfRows = pInput->numOfRows;
 
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
   return code;
 }
 
@@ -1388,7 +1388,7 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
                                              varDataLen(colDataGetData(pInputData, i)), &inLen,
                                              TSDB_DATA_TYPE_VARBINARY));
       out[i] = (uint8_t)(in)[0];
-      taosMemoryFree(in);
+      taosMemoryFreeClear(in);
     } else {
       char *in = colDataGetData(pInputData, i);
       out[i] = (uint8_t)(varDataVal(in))[0];
@@ -1460,7 +1460,7 @@ int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
     offset = findPosChars(orgstr, substr, orgLen, subLen, GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR);
     if (needFreeSub) {
-      taosMemoryFree(substr);
+      taosMemoryFreeClear(substr);
     }
     colDataSetInt64(pOutput->columnData, i, &offset);
   }
@@ -1571,7 +1571,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
                                         GET_PARAM_TYPE(&pInput[0]));
       if (TSDB_CODE_SUCCESS != code) {
         if (needFreeFrom) {
-          taosMemoryFree(fromStr);
+          taosMemoryFreeClear(fromStr);
         }
         goto _return;
       }
@@ -1603,10 +1603,10 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       }
     }
     if (needFreeTo) {
-      taosMemoryFree(toStr);
+      taosMemoryFreeClear(toStr);
     }
     if (needFreeFrom) {
-      taosMemoryFree(fromStr);
+      taosMemoryFreeClear(fromStr);
     }
     if (totalLen > TSDB_MAX_FIELD_LEN) {
       SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
@@ -1616,7 +1616,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   }
   pOutput->numOfRows = numOfRows;
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
   return code;
 }
 
@@ -1697,14 +1697,14 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       varDataSetLen(output, 0);
     }
     if (needFreeDelim) {
-      taosMemoryFree(delimStr);
+      taosMemoryFreeClear(delimStr);
     }
 
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
   }
   pOutput->numOfRows = numOfRows;
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
   return code;
 }
 
@@ -1816,7 +1816,7 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   pOutput->numOfRows = numOfRows;
 _return:
-  taosMemoryFree(outputBuf);
+  taosMemoryFreeClear(outputBuf);
   return code;
 }
 
@@ -2165,9 +2165,9 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   pOutput->numOfRows = pInput->numOfRows;
 
 _end:
-  taosMemoryFree(buf);
-  taosMemoryFree(output);
-  taosMemoryFree(convBuf);
+  taosMemoryFreeClear(buf);
+  taosMemoryFreeClear(output);
+  taosMemoryFreeClear(convBuf);
   return code;
 }
 
@@ -2391,8 +2391,8 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
 
 _return:
   if (formats) taosArrayDestroy(formats);
-  taosMemoryFree(tsStr);
-  taosMemoryFree(format);
+  taosMemoryFreeClear(tsStr);
+  taosMemoryFreeClear(format);
   return code;
 }
 
@@ -2431,8 +2431,8 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 
 _return:
   if (formats) taosArrayDestroy(formats);
-  taosMemoryFree(format);
-  taosMemoryFree(out);
+  taosMemoryFreeClear(format);
+  taosMemoryFreeClear(out);
   return code;
 }
 
@@ -4355,14 +4355,14 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
       if (width->valuedouble == 0) {
-        taosMemoryFree(intervals);
+        taosMemoryFreeClear(intervals);
         cJSON_Delete(binDesc);
         SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
         if (isinf(intervals[startIndex])) {
-          taosMemoryFree(intervals);
+          taosMemoryFreeClear(intervals);
           cJSON_Delete(binDesc);
           SCL_ERR_RET(TSDB_CODE_FAILED);
         }
@@ -4371,26 +4371,26 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
       // log bin process
       if (start->valuedouble == 0) {
-        taosMemoryFree(intervals);
+        taosMemoryFreeClear(intervals);
         cJSON_Delete(binDesc);
         SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
-        taosMemoryFree(intervals);
+        taosMemoryFreeClear(intervals);
         cJSON_Delete(binDesc);
         SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
         if (isinf(intervals[startIndex])) {
-          taosMemoryFree(intervals);
+          taosMemoryFreeClear(intervals);
           cJSON_Delete(binDesc);
           SCL_ERR_RET(TSDB_CODE_FAILED);
         }
         startIndex++;
       }
     } else {
-      taosMemoryFree(intervals);
+      taosMemoryFreeClear(intervals);
       cJSON_Delete(binDesc);
       SCL_ERR_RET(TSDB_CODE_FAILED);
     }
@@ -4419,7 +4419,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     }
     cJSON *bin = binDesc->child;
     if (bin == NULL) {
-      taosMemoryFree(intervals);
+      taosMemoryFreeClear(intervals);
       cJSON_Delete(binDesc);
       SCL_ERR_RET(TSDB_CODE_FAILED);
     }
@@ -4427,12 +4427,12 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     while (bin) {
       intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
-        taosMemoryFree(intervals);
+        taosMemoryFreeClear(intervals);
         cJSON_Delete(binDesc);
         SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
-        taosMemoryFree(intervals);
+        taosMemoryFreeClear(intervals);
         cJSON_Delete(binDesc);
         SCL_ERR_RET(TSDB_CODE_FAILED);
       }
@@ -4455,7 +4455,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     (*bins)[i].count = 0;
   }
 
-  taosMemoryFree(intervals);
+  taosMemoryFreeClear(intervals);
   cJSON_Delete(binDesc);
 
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -4474,7 +4474,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     SCL_ERR_RET(terrno);
   }
   int8_t binType = getHistogramBinType(binTypeStr);
-  taosMemoryFree(binTypeStr);
+  taosMemoryFreeClear(binTypeStr);
 
   char   *binDesc = taosStrndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
   if (NULL == binDesc) {
@@ -4485,10 +4485,10 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t type = GET_PARAM_TYPE(pInput);
   int32_t code = getHistogramBinDesc(&bins, &numOfBins, binDesc, binType, (bool)normalized);
   if (TSDB_CODE_SUCCESS != code) {
-    taosMemoryFree(binDesc);
+    taosMemoryFreeClear(binDesc);
     return code;
   }
-  taosMemoryFree(binDesc);
+  taosMemoryFreeClear(binDesc);
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -4536,7 +4536,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   pOutput->numOfRows = numOfBins;
 
 _return:
-  taosMemoryFree(bins);
+  taosMemoryFreeClear(bins);
   return code;
 }
 
