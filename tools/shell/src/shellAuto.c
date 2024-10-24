@@ -46,6 +46,7 @@ typedef struct SWord {
   int32_t       len;
   struct SWord* next;
   bool          free;  // if true need free
+  bool          end;   // if true is last keyword
 } SWord;
 
 typedef struct {
@@ -95,62 +96,62 @@ SWords shellCommands[] = {
      "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
     {"create dnode <anyword>", 0, 0, NULL},
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
-    {"create mnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
+    {"create mnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"create qnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
     {"create recursive tsma <anyword> on <tsma_name> interval(", 0, 0, NULL},
-    {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
-    {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
-    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
-    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
+    {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
+    {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
+    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE    
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
 #endif
-    {"describe <all_table>", 0, 0, NULL},
+    {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
-    {"drop database <db_name>", 0, 0, NULL},
-    {"drop index <anyword>", 0, 0, NULL},
-    {"drop table <all_table>", 0, 0, NULL},
-    {"drop dnode <dnode_id>", 0, 0, NULL},
-    {"drop mnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"drop qnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"drop user <user_name> ;", 0, 0, NULL},
+    {"drop database <db_name>;", 0, 0, NULL},
+    {"drop index <anyword>;", 0, 0, NULL},
+    {"drop table <all_table>;", 0, 0, NULL},
+    {"drop dnode <dnode_id>;", 0, 0, NULL},
+    {"drop mnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"drop qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"drop user <user_name>;", 0, 0, NULL},
     // 40
-    {"drop function <udf_name> ;", 0, 0, NULL},
+    {"drop function <udf_name>;", 0, 0, NULL},
     {"drop consumer group <anyword> on ", 0, 0, NULL},
-    {"drop topic <topic_name> ;", 0, 0, NULL},
-    {"drop stream <stream_name> ;", 0, 0, NULL},
-    {"drop tsma <tsma_name> ;", 0, 0, NULL},
-    {"explain select", 0, 0, NULL},  // 44 append sub sql
-    {"flush database <db_name> ;", 0, 0, NULL},
+    {"drop topic <topic_name>;", 0, 0, NULL},
+    {"drop stream <stream_name>;", 0, 0, NULL},
+    {"drop tsma <tsma_name>;", 0, 0, NULL},
+    {"explain select ", 0, 0, NULL},  // 44 append sub sql
+    {"flush database <db_name>;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
-    {"grant all on <anyword> to <user_name> ;", 0, 0, NULL},
-    {"grant read on <anyword> to <user_name> ;", 0, 0, NULL},
-    {"grant write on <anyword> to <user_name> ;", 0, 0, NULL},
-    {"kill connection <anyword> ;", 0, 0, NULL},
+    {"grant all on <anyword> to <user_name>;", 0, 0, NULL},
+    {"grant read on <anyword> to <user_name>;", 0, 0, NULL},
+    {"grant write on <anyword> to <user_name>;", 0, 0, NULL},
+    {"kill connection <anyword>;", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
-    {"merge vgroup <vgroup_id> <vgroup_id>", 0, 0, NULL},
+    {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
 #endif
-    {"pause stream <stream_name> ;", 0, 0, NULL},
+    {"pause stream <stream_name>;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
-    {"redistribute vgroup <vgroup_id> dnode <dnode_id> ;", 0, 0, NULL},
+    {"redistribute vgroup <vgroup_id> dnode <dnode_id>;", 0, 0, NULL},
 #endif
-    {"resume stream <stream_name> ;", 0, 0, NULL},
+    {"resume stream <stream_name>;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
-    {"restore dnode <dnode_id> ;", 0, 0, NULL},
-    {"restore vnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"restore mnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"restore qnode on dnode <dnode_id> ;", 0, 0, NULL},
-    {"revoke all on <anyword> from <user_name> ;", 0, 0, NULL},
-    {"revoke read on <anyword> from <user_name> ;", 0, 0, NULL},
-    {"revoke write on <anyword> from <user_name> ;", 0, 0, NULL},
+    {"restore dnode <dnode_id>;", 0, 0, NULL},
+    {"restore vnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"restore mnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"restore qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"revoke all on <anyword> from <user_name>;", 0, 0, NULL},
+    {"revoke read on <anyword> from <user_name>;", 0, 0, NULL},
+    {"revoke write on <anyword> from <user_name>;", 0, 0, NULL},
     {"select * from <all_table>", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
@@ -163,6 +164,7 @@ SWords shellCommands[] = {
     {"select timezone();", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
+    {"show alive;", 0, 0, NULL},
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
@@ -195,10 +197,9 @@ SWords shellCommands[] = {
     {"show subscriptions;", 0, 0, NULL},
     {"show tables;", 0, 0, NULL},
     {"show tables like", 0, 0, NULL},
-    {"show table distributed <all_table>", 0, 0, NULL},
-    {"show tags from <tb_name>", 0, 0, NULL},
-    {"show tags from <db_name>", 0, 0, NULL},
-    {"show table tags from <all_table>", 0, 0, NULL},
+    {"show table distributed <all_table>;", 0, 0, NULL},
+    {"show tags from <tb_name>;", 0, 0, NULL},
+    {"show table tags from <all_table>;", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
@@ -206,7 +207,7 @@ SWords shellCommands[] = {
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
     {"show vnodes;", 0, 0, NULL},
-    {"show vnodes on dnode <dnode_id> ;", 0, 0, NULL},
+    {"show vnodes on dnode <dnode_id>;", 0, 0, NULL},
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
@@ -215,15 +216,15 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
-    {"split vgroup <vgroup_id>", 0, 0, NULL},
-    {"s3migrate database <db_name>", 0, 0, NULL},
+    {"split vgroup <vgroup_id>;", 0, 0, NULL},
+    {"s3migrate database <db_name>;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
     {"insert into <tb_name> file ", 0, 0, NULL},
-    {"trim database <db_name>", 0, 0, NULL},
-    {"use <db_name>", 0, 0, NULL},
+    {"trim database <db_name>;", 0, 0, NULL},
+    {"use <db_name>;", 0, 0, NULL},
     {"quit", 0, 0, NULL}};
 
 // where keyword
@@ -362,7 +363,8 @@ char* field_options[] = {
 // global keys can tips on anywhere
 char* global_keys[] = {
     "tbname",         
-    "now",     
+    "now",
+    "vgroups",
     "_wstart",      
     "_wend",
     "_wduration",
@@ -581,6 +583,7 @@ void showHelp() {
     select timezone();\n\
     set max_binary_display_width ...\n\
     show apps;\n\
+    show alive;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
     show create table <tb_name>;\n\
@@ -698,7 +701,12 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
 
   // check format
   if (pattern && len > 0) {
-    word->type = wordType(p, len);
+    if (p[len-1] == ';') {
+      word->type = wordType(p, len - 1);
+      word->end  = true;
+    } else {
+      word->type = wordType(p, len);
+    }
   } else {
     word->type = WT_TEXT;
   }
@@ -1304,10 +1312,10 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   // first tab press
   const char* str = NULL;
   int         strLen = 0;
-
+  
+  SWord* word = MATCH_WORD(match);
   if (firstMatchIndex == curMatchIndex && lastWordBytes == -1) {
     // first press tab
-    SWord* word = MATCH_WORD(match);
     str = word->word + match->matchLen;
     strLen = word->len - match->matchLen;
     lastMatchIndex = firstMatchIndex;
@@ -1315,8 +1323,6 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   } else {
     if (lastWordBytes == -1) return;
     deleteCount(cmd, lastWordBytes);
-
-    SWord* word = MATCH_WORD(match);
     str = word->word;
     strLen = word->len;
     // set current to last
@@ -1324,8 +1330,17 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     lastWordBytes = word->len;
   }
 
-  // insert new
-  shellInsertStr(cmd, (char*)str, strLen);
+  if (word->end) {
+    // append end ';'
+    char *p = taosMemoryMalloc(strLen + 8);
+    strcpy(p, str);
+    strcat(p, ";");
+    shellInsertStr(cmd, (char *)p, strLen + 1);
+    taosMemoryFree(p);
+  } else {
+    // insert new
+    shellInsertStr(cmd, (char *)str, strLen);
+  }
 }
 
 // main key press tab , matched return true else false
