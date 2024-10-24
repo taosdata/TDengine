@@ -1289,7 +1289,9 @@ void smlDestroyInfo(SSmlHandle *info) {
     }
     taosMemoryFree(info->lines);
   }
-  taosMemoryFreeClear(info->preLine.tags);
+  if(info->protocol == TSDB_SML_JSON_PROTOCOL)  {
+    taosMemoryFreeClear(info->preLine.tags);
+  }
   cJSON_Delete(info->root);
   taosMemoryFreeClear(info);
 }
@@ -1546,7 +1548,9 @@ int32_t smlClearForRerun(SSmlHandle *info) {
   }
 
   taosArrayClearP(info->escapedStringList, taosMemoryFree);
-  taosMemoryFreeClear(info->preLine.tags);
+  if(info->protocol == TSDB_SML_JSON_PROTOCOL)  {
+    taosMemoryFreeClear(info->preLine.tags);
+  }
   (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;
   info->currTableDataCtx = NULL;
