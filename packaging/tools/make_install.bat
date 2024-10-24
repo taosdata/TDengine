@@ -13,8 +13,10 @@ if exist C:\\TDengine\\data\\dnode\\dnodeCfg.json (
 rem // stop and delete service
 mshta vbscript:createobject("shell.application").shellexecute("%~s0",":stop_delete","","runas",1)(window.close)
 echo This might take a few moment to accomplish deleting service taosd/taosadapter ...
+echo This might take a few moment to accomplish deleting service taosd/taoskeeper ...
 call :check_svc taosd
 call :check_svc taosadapter
+call :check_svc taoskeeper
 
 set source_dir=%2
 set source_dir=%source_dir:/=\\%
@@ -44,6 +46,11 @@ if not exist C:\\TDengine\\cfg\\taos.cfg (
 if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
     if not exist %target_dir%\\cfg\\taosadapter.toml (
         copy %binary_dir%\\test\\cfg\\taosadapter.toml %target_dir%\\cfg\\taosadapter.toml > nul
+    )
+)
+if exist %binary_dir%\\test\\cfg\\taoskeeper.toml (
+    if not exist %target_dir%\\cfg\\taoskeeper.toml (
+        copy %binary_dir%\\test\\cfg\\taoskeeper.toml %target_dir%\\cfg\\taoskeeper.toml > nul
     )
 )
 copy %source_dir%\\include\\client\\taos.h %target_dir%\\include > nul
@@ -98,11 +105,14 @@ if %Enterprise% == TRUE (
         copy %binary_dir%\\build\\bin\\*explorer.exe %target_dir% > nul
     )
 )
-    
+
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\udfd.exe %target_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %target_dir% > nul
+)
+if exist %binary_dir%\\build\\bin\\taoskeeper.exe (
+    copy %binary_dir%\\build\\bin\\taoskeeper.exe %target_dir% > nul
 )
 
 mshta vbscript:createobject("shell.application").shellexecute("%~s0",":hasAdmin","","runas",1)(window.close)
@@ -116,6 +126,10 @@ if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     echo To start/stop taosAdapter with administrator privileges: %ESC%[92msc start/stop taosadapter %ESC%[0m
 )
 
+if exist %binary_dir%\\build\\bin\\taoskeeper.exe (
+    echo To start/stop taosKeeper with administrator privileges: %ESC%[92msc start/stop taoskeeper %ESC%[0m
+)
+
 goto :eof
 
 :hasAdmin
@@ -123,6 +137,7 @@ goto :eof
 call :stop_delete
 call :check_svc taosd
 call :check_svc taosadapter
+call :check_svc taoskeeper
 
 if exist c:\\windows\\sysnative (
     echo x86
@@ -141,6 +156,7 @@ if exist c:\\windows\\sysnative (
 rem // create services
 sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
 sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND
+sc create "taoskeeper" binPath= "C:\\TDengine\\taoskeeper.exe" start= DEMAND
 
 set "env=HKLM\System\CurrentControlSet\Control\Session Manager\Environment"
 for /f "tokens=2*" %%I in ('reg query "%env%" /v Path ^| findstr /i "\<Path\>"') do (
@@ -181,6 +197,8 @@ sc stop taosd
 sc delete taosd
 sc stop taosadapter
 sc delete taosadapter
+sc stop taoskeeper
+sc delete taoskeeper
 exit /B 0
 
 :check_svc
