@@ -33,7 +33,7 @@ jobs:
       - name: Run tests with coverage
         working-directory: tools/keeper
         run: |
-          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+          sudo go test -v -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
 
       - name: Clean up
