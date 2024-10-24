@@ -365,7 +365,7 @@ jobs:
           # 单元测试报告
           java -jar $COVERAGE_BASE_DIR/jacococli.jar report $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/
           # 合并的报告
-          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/opentsdb/opentsdb_merged.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/merged/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opentsdb/"
 
           # influxdb report
