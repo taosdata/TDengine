@@ -102,7 +102,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
 
     code = colInfoDataEnsureCapacity(&idata, rows, true);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(&idata);
+      taosMemoryFree(&idata);
       SCL_ERR_RET(code);
     }
 
@@ -132,7 +132,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     idata.info = *colInfo;
     int32_t code = colInfoDataEnsureCapacity(&idata, rows, true);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(&idata);
+      taosMemoryFree(&idata);
       SCL_ERR_RET(code);
     }
 
@@ -200,7 +200,7 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
       code = colInfoDataEnsureCapacity(&idata, rowNum, true);
       if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFreeClear(&idata);
+        taosMemoryFree(&idata);
         SCL_ERR_RET(code);
       }
       code = blockDataAppendColInfo(res, &idata);
@@ -213,7 +213,7 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
     code = colInfoDataEnsureCapacity(&idata, rowNum, true);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(&idata);
+      taosMemoryFree(&idata);
       SCL_ERR_RET(code);
     }
     code = blockDataAppendColInfo(res, &idata);
@@ -245,7 +245,7 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
     code = colInfoDataEnsureCapacity(&idata, rowNum, true);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(&idata);
+      taosMemoryFree(&idata);
       SCL_ERR_RET(code);
     }
 
@@ -1598,7 +1598,7 @@ TEST(columnTest, json_column_arith_op) {
   }
 
   taosArrayDestroy(tags);
-  taosMemoryFreeClear(row);
+  taosMemoryFree(row);
 }
 
 void *prepareNchar(char *rightData) {
@@ -1652,7 +1652,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1673,7 +1673,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes1[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
@@ -1694,7 +1694,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes2[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1715,7 +1715,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes3[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json double--5.44 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1736,7 +1736,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes4[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json int--  -10 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1757,7 +1757,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json double--  -9.8 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1778,7 +1778,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes6[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1799,7 +1799,7 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes7[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
@@ -1823,7 +1823,7 @@ TEST(columnTest, json_column_logic_op) {
     }
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes8[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   (void)printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
@@ -1844,11 +1844,11 @@ TEST(columnTest, json_column_logic_op) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes9[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    taosMemoryFreeClear(rightData);
+    taosMemoryFree(rightData);
   }
 
   taosArrayDestroy(tags);
-  taosMemoryFreeClear(row);
+  taosMemoryFree(row);
 }
 
 TEST(columnTest, smallint_value_add_int_column) {
@@ -2536,8 +2536,8 @@ int32_t scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32
 
 void scltDestroyDataBlock(SScalarParam *pInput) {
   colDataDestroy(pInput->columnData);
-  taosMemoryFreeClear(pInput->columnData);
-  taosMemoryFreeClear(pInput);
+  taosMemoryFree(pInput->columnData);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, absFunction_constant) {
@@ -4011,7 +4011,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  taosMemoryFreeClear(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, logFunction_column) {
@@ -4108,7 +4108,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  taosMemoryFreeClear(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, powFunction_constant) {
@@ -4188,7 +4188,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  taosMemoryFreeClear(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, powFunction_column) {
@@ -4286,7 +4286,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  taosMemoryFreeClear(pInput);
+  taosMemoryFree(pInput);
 }
 
 int main(int argc, char **argv) {
