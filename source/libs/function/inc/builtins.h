@@ -31,10 +31,10 @@ typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pB
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
 #define MAX_FUNC_PARA_NUM 16
-
+#define MAX_FUNC_PARA_FIXED_VALUE_NUM 16
 typedef struct SParamRange {
-  double   dMinVal;
-  double   dMaxVal;
+  int64_t  iMinVal;
+  int64_t  iMaxVal;
 } SParamRange;
 
 typedef struct SParamInfo {
@@ -43,17 +43,11 @@ typedef struct SParamInfo {
   int8_t      endParam;
   uint64_t    validDataType;
   uint64_t    validNodeType;
-  bool        hasRange;
-  bool        isTs; // used for input parameter
-  bool        isPK; // used for input parameter
-  bool        isFixedValue; // used for input parameter
-  bool        hasColumn; // used for input parameter, parameter must contain columns
-  bool        isFirstLast; // special check for first and last
-  bool        isTimeUnit; // used for input parameter, need check whether time unit is valid
-  bool        isHistogramBin; // used for input parameter, need check whether histogram bin is valid
+  uint64_t    paramAttribute;
+  uint8_t     valueRangeFlag; // 0 for no range and no fixed value, 1 for value has range, 2 for fixed value
   uint8_t     fixedValueSize;
-  char        fixedStrValue[MAX_FUNC_PARA_NUM][16]; // used for input parameter
-  int32_t     fixedNumValue[MAX_FUNC_PARA_NUM]; // used for input parameter
+  char*       fixedStrValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
+  int64_t     fixedNumValue[MAX_FUNC_PARA_FIXED_VALUE_NUM]; // used for input parameter
   SParamRange range;
 } SParamInfo;
 

@@ -536,7 +536,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (numOfParams != 4) {
       (void)snprintf(errMsg, msgLen, "%s", msg1);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     cJSON* start = cJSON_GetObjectItem(binDesc, "start");
@@ -548,20 +548,20 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
       (void)snprintf(errMsg, msgLen, "%s", msg3);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
       (void)snprintf(errMsg, msgLen, "%s", msg4);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
       (void)snprintf(errMsg, msgLen, "%s", msg5);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     int32_t counter = (int32_t)count->valueint;
@@ -577,7 +577,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (intervals == NULL) {
       (void)snprintf(errMsg, msgLen, "%s", msg9);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
@@ -585,7 +585,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
         (void)snprintf(errMsg, msgLen, "%s", msg6);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
@@ -593,7 +593,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
           (void)snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
         startIndex++;
       }
@@ -603,13 +603,13 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
         (void)snprintf(errMsg, msgLen, "%s", msg7);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
         (void)snprintf(errMsg, msgLen, "%s", msg8);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
@@ -617,7 +617,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
           (void)snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
         startIndex++;
       }
@@ -625,7 +625,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
       (void)snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
     if (infinity->valueint == true) {
@@ -633,7 +633,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
       if (numOfBins < 4) {
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
 
       if (intervals[1] > intervals[numOfBins - 2]) {
@@ -644,7 +644,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     if (binType != USER_INPUT_BIN) {
       (void)snprintf(errMsg, msgLen, "%s", msg3);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
@@ -658,7 +658,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
       (void)snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     int i = 0;
     while (bin) {
@@ -667,13 +667,13 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
       bin = bin->next;
       i++;
@@ -681,7 +681,7 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
   } else {
     (void)snprintf(errMsg, msgLen, "%s", msg3);
     cJSON_Delete(binDesc);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
   }
 
   cJSON_Delete(binDesc);
@@ -689,6 +689,120 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkRangeValue(SNode *pNode, SParamRange range, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pNode->type == QUERY_NODE_VALUE) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
+      if (pVal->datum.i < range.iMinVal ||
+          pVal->datum.i > range.iMaxVal) {
+        code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
+        *isMatch = false;
+      }
+    } else {
+      if ((int64_t)pVal->datum.d < range.iMinVal ||
+          (int64_t)pVal->datum.d > range.iMaxVal) {
+        code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
+        *isMatch = false;
+      }
+    }
+  } else {
+    // for other node type, range check should be done in process function
+  }
+  return code;
+}
+
+static int32_t checkFixedValue(SNode *pNode, const SParamInfo *paramPattern, int32_t paramIdx, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    checkStr = paramSupportVarBinary(paramPattern->validDataType) ||
+                  paramSupportVarchar(paramPattern->validDataType) ||
+                  paramSupportNchar(paramPattern->validDataType);
+  if (pNode->type == QUERY_NODE_VALUE) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (!checkStr) {
+      for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
+        if (pVal->datum.i == paramPattern->fixedNumValue[k]) {
+          code = TSDB_CODE_SUCCESS;
+          *isMatch = true;
+          break;
+        } else {
+          code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+          *isMatch = false;
+        }
+      }
+    } else {
+      for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
+        if (strcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
+          code = TSDB_CODE_SUCCESS;
+          *isMatch = true;
+          break;
+        } else {
+          code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+          *isMatch = false;
+        }
+      }
+    }
+  } else {
+    // for other node type, fixed value check should be done in process function
+  }
+  return code;
+}
+
+static int32_t checkPrimTS(SNode *pNode, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
+      !((SColumnNode*)pNode)->isPrimTs) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS;
+    *isMatch = false;
+  }
+  return code;
+}
+
+static int32_t checkPrimaryKey(SNode *pNode, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
+      !((SColumnNode*)pNode)->isPk) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_PK;
+    *isMatch = false;
+  }
+  return code;
+}
+
+static int32_t checkHasColumn(SNode *pNode, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!nodesExprHasColumn(pNode)) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL;
+    *isMatch = false;
+  }
+  return code;
+}
+
+static int32_t checkValueNodeNotNull(SNode *pNode, bool *isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type) && QUERY_NODE_VALUE == nodeType(pNode)) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    *isMatch = false;
+  }
+  return code;
+}
+
+static int32_t checkTimeUnit(SNode *pNode, int32_t precision, bool *isMatch) {
+  if (nodeType(pNode) != QUERY_NODE_VALUE || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = false;
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = validateTimeUnitParam(precision, (SValueNode*)pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    *isMatch = false;
+  }
+  return code;
+}
 static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t           code = TSDB_CODE_SUCCESS;
   SNodeList*        paramList = pFunc->pParameterList;
@@ -736,139 +850,44 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
           SValueNode* pVal = (SValueNode*)pNode;
           pVal->notReserved = true;
         }
-        // check range value
-        if (paramPattern[paramIdx].hasRange) {
-          if (pNode->type == QUERY_NODE_VALUE) {
-            SValueNode* pVal = (SValueNode*)pNode;
-            if (IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
-              if ((double)pVal->datum.i < paramPattern[paramIdx].range.dMinVal ||
-                  (double)pVal->datum.i > paramPattern[paramIdx].range.dMaxVal) {
-                code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
-                isMatch = false;
-                break;
-              }
-            } else {
-              if ((double)pVal->datum.d < paramPattern[paramIdx].range.dMinVal ||
-                  (double)pVal->datum.d > paramPattern[paramIdx].range.dMaxVal) {
-                code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
-                isMatch = false;
-                break;
-              }
-            }
-          } else {
-            // for other node type, range check should be done in process function
-          }
+        switch (paramPattern[paramIdx].valueRangeFlag) {
+          case FUNC_PARAM_NO_SPECIFIC_VALUE:
+            break;
+          case FUNC_PARAM_HAS_RANGE:
+            code = checkRangeValue(pNode, paramPattern[paramIdx].range, &isMatch);
+            break;
+          case FUNC_PARAM_HAS_FIXED_VALUE:
+            code = checkFixedValue(pNode, &paramPattern[paramIdx], paramIdx, &isMatch);
+            break;
+          default:
+            break;
         }
-        // check fixed value
-        if (paramPattern[paramIdx].isFixedValue) {
-          if (pNode->type == QUERY_NODE_VALUE) {
-            SValueNode* pVal = (SValueNode*)pNode;
-            if (IS_NUMERIC_TYPE(getSDataTypeFromNode(pNode)->type)) {
-              for (int32_t k = 0; k < paramPattern[paramIdx].fixedValueSize; k++) {
-                if (pVal->datum.i == paramPattern[paramIdx].fixedNumValue[k]) {
-                  code = TSDB_CODE_SUCCESS;
-                  isMatch = true;
-                  break;
-                } else {
-                  code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-                  isMatch = false;
-                }
-              }
-            } else if (IS_STR_DATA_TYPE(getSDataTypeFromNode(pNode)->type)) {
-              for (int32_t k = 0; k < paramPattern[paramIdx].fixedValueSize; k++) {
-                if (strcasecmp(pVal->literal, paramPattern[paramIdx].fixedStrValue[k]) == 0) {
-                  code = TSDB_CODE_SUCCESS;
-                  isMatch = true;
-                  break;
-                } else {
-                  code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-                  isMatch = false;
-                }
-              }
-            }
-            if (!isMatch) {
-              break;
-            }
-          } else {
-            // for other node type, fixed value check should be done in process function
-          }
+        if (!isMatch) {
+          break;
         }
-        // check isTs
-        if (paramPattern[paramIdx].isTs) {
-          if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
-              !((SColumnNode*)pNode)->isPrimTs) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS;
-            isMatch = false;
+        switch (paramPattern[paramIdx].paramAttribute) {
+          case FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE:
             break;
-          }
+          case FUNC_PARAM_MUST_BE_PRIMTS:
+            code = checkPrimTS(pNode, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_BE_PK:
+            code = checkPrimaryKey(pNode, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_HAVE_COLUMN:
+            code = checkHasColumn(pNode, &isMatch);
+            break;
+          case FUNC_PARAM_VALUE_NODE_NOT_NULL:
+            code = checkValueNodeNotNull(pNode, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_BE_TIME_UNIT:
+            code = checkTimeUnit(pNode, pFunc->node.resType.precision, &isMatch);
+            break;
+          default:
+            break;
         }
-        // check isPK
-        if (paramPattern[paramIdx].isPK) {
-          if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
-              !((SColumnNode*)pNode)->isPk) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_PK;
-            isMatch = false;
-            break;
-          }
-        }
-        // check hasColumn
-        if (paramPattern[paramIdx].hasColumn) {
-          if (!nodesExprHasColumn(pNode)) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL;
-            isMatch = false;
-            break;
-          }
-        }
-        // check first and last
-        if (paramPattern[paramIdx].isFirstLast) {
-          if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type) && QUERY_NODE_VALUE == nodeType(pNode)) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-            isMatch = false;
-            break;
-          }
-        }
-        // check time unit
-        if (paramPattern[paramIdx].isTimeUnit) {
-          if (nodeType(pNode) != QUERY_NODE_VALUE || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-            isMatch = false;
-            break;
-          }
-
-          if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type)) {
-            code = TSDB_CODE_SUCCESS;
-            isMatch = true;
-            continue;
-          }
-
-          code = validateTimeUnitParam(pFunc->node.resType.precision, (SValueNode*)pNode);
-          if (TSDB_CODE_SUCCESS != code) {
-            isMatch = false;
-            break;
-          }
-        }
-        // check histogram binary
-        if (paramPattern[paramIdx].isHistogramBin) {
-          if (nodeType(pNode) != QUERY_NODE_VALUE) {
-            code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-            isMatch = false;
-            break;
-          }
-          SValueNode *pValue = (SValueNode *)pNode;
-          SValueNode *pBinValue = (SValueNode *)nodesListGetNode(paramList, 1);
-          char*  binDesc = varDataVal(pValue->datum.p);
-          int8_t binType = validateHistogramBinType(varDataVal(pBinValue->datum.p));
-          if (binType == UNKNOWN_BIN) {
-            code = TSDB_CODE_FUNC_FUNCTION_HISTO_TYPE;
-            isMatch = false;
-            break;
-          }
-          code = validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg));
-          if (TSDB_CODE_SUCCESS != code) {
-            code = TSDB_CODE_FUNC_HISTOGRAM_ERROR;
-            isMatch = false;
-            break;
-          }
+        if (!isMatch) {
+          break;
         }
       }
 
@@ -1650,6 +1669,45 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  int8_t binType;
+  char*  binDesc;
+  for (int32_t i = 1; i < numOfParams; ++i) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+    if (i == 1) {
+      binType = validateHistogramBinType(varDataVal(pValue->datum.p));
+      if (binType == UNKNOWN_BIN) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "HISTOGRAM function binType parameter should be "
+                               "\"user_input\", \"log_bin\" or \"linear_bin\"");
+      }
+    }
+
+    if (i == 2) {
+      char errMsg[128] = {0};
+      binDesc = varDataVal(pValue->datum.p);
+      if (TSDB_CODE_SUCCESS != validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHitogram(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(translateHistogramImpl(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(translateHistogramImpl(pFunc, pErrBuf, len));
+  pFunc->node.resType =
+      (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1664,10 +1722,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .dataRequiredFunc = countDataRequired,
@@ -1696,9 +1752,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE}},
     .translateFunc = translateSum,
     .dataRequiredFunc = statisDataRequired,
@@ -1727,9 +1782,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE}},
     .translateFunc = translateMinMax,
     .dataRequiredFunc = statisDataRequired,
@@ -1755,9 +1809,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE}},
     .translateFunc = translateMinMax,
     .dataRequiredFunc = statisDataRequired,
@@ -1783,10 +1836,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getStdFuncEnv,
@@ -1814,9 +1865,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getStdFuncEnv,
@@ -1840,9 +1890,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getStdFuncEnv,
@@ -1868,17 +1917,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getLeastSQRFuncEnv,
@@ -1903,10 +1950,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .dataRequiredFunc = statisDataRequired,
@@ -1936,9 +1981,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dataRequiredFunc = statisDataRequired,
@@ -1963,9 +2007,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getAvgFuncEnv,
@@ -1991,18 +2034,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 11,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 0.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 0, .iMaxVal = 100}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translatePercentile,
     .dataRequiredFunc = statisDataRequired,
@@ -2029,26 +2070,23 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 0.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 0, .iMaxVal = 100}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedStrValue = {"default", "t-digest"}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -2078,26 +2116,23 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 0.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 0, .iMaxVal = 100}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedStrValue = {"default", "t-digest"}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
@@ -2123,26 +2158,23 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 0.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 0, .iMaxVal = 100}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedStrValue = {"default", "t-digest"}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -2169,18 +2201,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = TOP_BOTTOM_QUERY_LIMIT}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = TOP_BOTTOM_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getTopBotFuncEnv,
@@ -2206,18 +2236,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = TOP_BOTTOM_QUERY_LIMIT}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = TOP_BOTTOM_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getTopBotFuncEnv,
@@ -2242,9 +2270,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .dataRequiredFunc = statisDataRequired,
@@ -2273,9 +2300,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dataRequiredFunc = statisDataRequired,
@@ -2299,9 +2325,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateOutDouble,
@@ -2330,19 +2355,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
-                                           .isTs = true,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_PRIMTS,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isTimeUnit = true},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .dataRequiredFunc = statisDataRequired,
     .translateFunc = translateOutDouble,
@@ -2398,17 +2419,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_NOT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
@@ -2432,26 +2451,23 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = DBL_MAX}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -2476,9 +2492,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateAddPrecOutDouble,
     .getEnvFunc   = getIrateFuncEnv,
@@ -2502,36 +2517,29 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_TINYINT_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = false,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
-                                           .isPK = false,
-                                           .isTs = true,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_PRIMTS,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
-                                           .isPK = true,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_PK,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getIrateFuncEnv,
@@ -2552,9 +2560,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateAddPrecOutDouble,
     .getEnvFunc   = getIrateFuncEnv,
@@ -2576,10 +2583,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .dynDataRequiredFunc = lastDynDataReq,
@@ -2605,10 +2610,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2628,10 +2631,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2652,10 +2653,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dynDataRequiredFunc = lastDynDataReq,
@@ -2677,10 +2676,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2701,10 +2698,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .dynDataRequiredFunc = firstDynDataReq,
@@ -2731,9 +2726,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dynDataRequiredFunc = firstDynDataReq,
@@ -2756,10 +2750,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2783,10 +2775,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .dynDataRequiredFunc = lastDynDataReq,
@@ -2813,10 +2803,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dynDataRequiredFunc = lastDynDataReq,
@@ -2839,10 +2827,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2866,10 +2852,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .dataRequiredFunc = statisDataRequired,
@@ -2891,42 +2875,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 3,
                                            .fixedStrValue = {"user_input", "linear_bin", "log_bin"}},
                    .inputParaInfo[0][2] = {.isLastParam = false,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .isHistogramBin = true,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
-    .translateFunc = translateOutVarchar,
+    .translateFunc = translateHitogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
@@ -2951,41 +2928,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 3,
                                            .fixedStrValue = {"user_input", "linear_bin", "log_bin"}},
                    .inputParaInfo[0][2] = {.isLastParam = false,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
-    .translateFunc = translateOutVarchar,
+    .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunctionPartial,
@@ -3007,10 +2978,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getHistogramFuncEnv,
@@ -3034,10 +3003,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = getHLLFuncEnv,
@@ -3063,10 +3030,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateOutVarchar,
@@ -3090,10 +3055,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateOutBigInt,
@@ -3120,19 +3083,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 4,
                                            .fixedNumValue = {0, 1, 2, 3}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -3158,19 +3117,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 6,
                                            .fixedStrValue = {"LT", "GT", "LE", "GE", "NE", "EQ"}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
@@ -3178,10 +3133,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_BIGINT_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = getStateFuncEnv,
@@ -3203,19 +3156,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 6,
                                            .fixedStrValue = {"LT", "GT", "LE", "GE", "NE", "EQ"}},
                    .inputParaInfo[0][2] = {.isLastParam = false,
@@ -3223,20 +3172,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_BIGINT_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
                                            .validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isTimeUnit = true},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = getStateFuncEnv,
@@ -3258,10 +3202,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE}},
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
@@ -3284,20 +3226,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = 1000.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getMavgFuncEnv,
@@ -3319,20 +3257,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = 1000.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSampleTail,
     .getEnvFunc   = getSampleFuncEnv,
@@ -3353,30 +3287,24 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 1.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = 100}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = true,
-                                           .range = {.dMinVal = 0.0, .dMaxVal = 100.0}},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 0, .iMaxVal = 100}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSampleTail,
     .getEnvFunc   = getTailFuncEnv,
@@ -3397,11 +3325,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .hasColumn = true},
+                                           .paramAttribute = FUNC_PARAM_MUST_HAVE_COLUMN,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getUniqueFuncEnv,
@@ -3422,11 +3347,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .hasColumn = true},
+                                           .paramAttribute = FUNC_PARAM_MUST_HAVE_COLUMN,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = getModeFuncEnv,
@@ -3448,10 +3370,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutNum,
     .getEnvFunc   = NULL,
@@ -3471,19 +3391,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3503,19 +3419,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3535,10 +3447,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3558,10 +3468,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutNum,
     .getEnvFunc   = NULL,
@@ -3581,10 +3489,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutNum,
     .getEnvFunc   = NULL,
@@ -3604,19 +3510,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutNum,
     .getEnvFunc   = NULL,
@@ -3636,10 +3538,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3659,10 +3559,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3682,10 +3580,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3705,10 +3601,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3728,10 +3622,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3751,10 +3643,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -3774,10 +3664,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = NULL,
@@ -3797,10 +3685,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = NULL,
@@ -3820,10 +3706,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 8,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateConcat,
     .getEnvFunc   = NULL,
@@ -3843,19 +3727,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 9,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateConcatWs,
     .getEnvFunc   = NULL,
@@ -3875,10 +3755,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -3898,10 +3776,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -3921,10 +3797,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateLtrim,
     .getEnvFunc   = NULL,
@@ -3944,10 +3818,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateRtrim,
     .getEnvFunc   = NULL,
@@ -3967,19 +3839,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -3999,10 +3867,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateCast,
     .getEnvFunc   = NULL,
@@ -4022,19 +3888,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateToIso8601,
     .getEnvFunc   = NULL,
@@ -4054,19 +3916,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
@@ -4088,29 +3946,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isTimeUnit = true},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 2,
                                            .fixedNumValue = {0, 1}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
@@ -4132,21 +3983,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isTimeUnit = true},
-                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateAddPrecOutBigint,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -4305,10 +4151,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_JSON_TYPE}},
     .translateFunc = translateToJson,
     .getEnvFunc   = NULL,
@@ -4489,10 +4333,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE}},
     .translateFunc = translateOutGeom,
     .getEnvFunc   = NULL,
@@ -4512,10 +4354,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE}},
     .translateFunc = translateInGeomOutStr,
     .getEnvFunc   = NULL,
@@ -4535,10 +4375,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE}},
     .translateFunc = translateOutGeom,
     .getEnvFunc   = NULL,
@@ -4558,10 +4396,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4581,10 +4417,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4604,10 +4438,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4627,10 +4459,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4650,10 +4480,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4673,10 +4501,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
     .translateFunc = translateIn2GeomOutBool,
     .getEnvFunc   = NULL,
@@ -4724,10 +4550,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translateToTimestamp,
     .getEnvFunc = NULL,
@@ -4747,19 +4571,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = NULL,
@@ -4779,10 +4599,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .dataRequiredFunc = statisDataRequired,
@@ -4821,10 +4639,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getStdFuncEnv,
@@ -4846,10 +4662,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getStdFuncEnv,
@@ -4869,10 +4683,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getAvgFuncEnv,
@@ -4894,10 +4706,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getAvgFuncEnv,
@@ -4917,10 +4727,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getSpreadFuncEnv,
@@ -4942,10 +4750,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getSpreadFuncEnv,
@@ -4966,11 +4772,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getFirstLastFuncEnv,
@@ -4993,10 +4796,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getFirstLastFuncEnv,
@@ -5017,11 +4818,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false,
-                                           .isFirstLast = true},
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getFirstLastFuncEnv,
@@ -5044,10 +4842,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getFirstLastFuncEnv,
@@ -5067,10 +4863,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getHLLFuncEnv,
@@ -5092,10 +4886,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = getHLLFuncEnv,
@@ -5115,10 +4907,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc = NULL,
@@ -5152,10 +4942,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getStdFuncEnv,
@@ -5183,10 +4971,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getStdFuncEnv,
@@ -5214,9 +5000,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getStdFuncEnv,
@@ -5256,10 +5041,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -5279,10 +5062,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -5302,19 +5083,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -5334,10 +5111,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE}},
     .translateFunc = translateOutNum,
     .getEnvFunc   = NULL,
@@ -5357,10 +5132,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -5380,10 +5153,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = NULL,
@@ -5403,19 +5174,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -5435,19 +5202,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -5467,28 +5230,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -5508,28 +5265,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateOutFirstIn,
     .getEnvFunc   = NULL,
@@ -5549,10 +5300,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateChar,
     .getEnvFunc   = NULL,
@@ -5572,10 +5321,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateAscii,
     .getEnvFunc   = NULL,
@@ -5595,10 +5342,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateOutBigInt,
     .getEnvFunc   = NULL,
@@ -5618,10 +5363,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateTrim,
     .getEnvFunc   = NULL,
@@ -5641,10 +5384,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateReplace,
     .getEnvFunc   = NULL,
@@ -5664,19 +5405,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
     .translateFunc = translateRepeat,
     .getEnvFunc   = NULL,
@@ -5696,10 +5433,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_UNIX_TS_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateAddPrecOutBigint,
     .getEnvFunc   = NULL,
@@ -5719,10 +5454,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_UNIX_TS_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateAddPrecOutBigint,
     .getEnvFunc   = NULL,
@@ -5742,19 +5475,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_UNIX_TS_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = true,
-                                           .hasRange = false,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
                                            .fixedValueSize = 8,
                                            .fixedNumValue = {0, 1, 2, 3, 4, 5, 6, 7}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
@@ -5776,10 +5505,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_UNIX_TS_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
     .translateFunc = translateAddPrecOutBigint,
     .getEnvFunc   = NULL,
@@ -5799,10 +5526,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .isPK = false,
-                                           .isTs = false,
-                                           .isFixedValue = false,
-                                           .hasRange = false},
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateRand,
     .getEnvFunc   = NULL,

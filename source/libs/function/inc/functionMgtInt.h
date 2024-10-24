@@ -102,7 +102,16 @@ extern "C" {
 #define FUNC_PARAM_SUPPORT_COLUMN_NODE                  FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(6)
 #define FUNC_PARAM_SUPPORT_NOT_VALUE_NODE               FUNC_MGT_FUNC_PARAM_SUPPORT_NODE(7)
 
-#define FUNC_PARAM_SUPPORT_NODE_MAX 7
+#define FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE               0
+#define FUNC_PARAM_MUST_BE_PRIMTS                      1
+#define FUNC_PARAM_MUST_BE_PK                          2
+#define FUNC_PARAM_MUST_HAVE_COLUMN                    3
+#define FUNC_PARAM_MUST_BE_TIME_UNIT                   4
+#define FUNC_PARAM_VALUE_NODE_NOT_NULL                 5
+
+#define FUNC_PARAM_NO_SPECIFIC_VALUE                  0
+#define FUNC_PARAM_HAS_RANGE                          1
+#define FUNC_PARAM_HAS_FIXED_VALUE                    2
 
 #define FUNC_ERR_RET(c)                \
   do {                                 \
