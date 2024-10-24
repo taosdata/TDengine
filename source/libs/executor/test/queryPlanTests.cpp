@@ -3027,7 +3027,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createTableScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-      qptCtx.result.code = createTableSeqScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
+      qptCtx.result.code = createTableSeqScanOperatorInfo(pReadHandle, pTaskInfo, ppOperaotr); // usless
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
       qptCtx.result.code = createTableMergeScanOperatorInfo((STableScanPhysiNode*)pNode, pReadHandle, NULL, pTaskInfo, ppOperaotr);
