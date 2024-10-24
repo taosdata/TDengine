@@ -3543,7 +3543,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i);
     isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     checkRows = pDataBlock->info.rows;
-    if(pCol->pData == NULL) continue;
+    if (pCol->info.reserve == true) continue;
 
     if (isVarType) {
       BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
@@ -3555,12 +3555,12 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
     for (int64_t r = 0; r < checkRows; ++r) {
       if (tsSafetyCheckLevel <= TSDB_SAFETY_CHECK_LEVELL_NORMAL) break;
       if (!colDataIsNull_s(pCol, r)) {
-        // BLOCK_DATA_CHECK_TRESSA(pCol->pData);
+        BLOCK_DATA_CHECK_TRESSA(pCol->pData);
         BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
-        
+
         if (isVarType) {
           BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.allocLen > 0);
-          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] < pCol->varmeta.length);
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] <= pCol->varmeta.length);
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
           } else if (0 == r) {
@@ -3571,7 +3571,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           
           colLen = varDataTLen(pCol->pData + pCol->varmeta.offset[r]);
           BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
-          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->varmeta.length);
+          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
           
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
