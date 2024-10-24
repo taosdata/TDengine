@@ -32,7 +32,11 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 ### 3. 配置连接信息
 
-在 **连接配置** 区域填写 **bootstrap-servers**，例如：`192.168.1.92:9092`。
+**bootstrap-server**，例如：`192.168.1.92`。
+
+**服务端口**，例如：`9092`。
+
+多个 broker 地址时，在连接配置右下增加 **新增 Broker** 按钮，成对增加 bootstrap-server 和服务端口。
 
 ![kafka-03.png](./kafka-03.png)
 
@@ -40,7 +44,49 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 如果服务端开启了 SASL 认证机制，此处需要启用 SASL 并配置相关内容，目前支持 PLAIN/SCRAM-SHA-256/GSSAPI 三种认证机制，请按实际情况进行选择。
 
+#### 4.1. PLAIN 认证
+
+选择 `PLAIN` 认证机制，输入用户名和密码：
+
+![kafka-04-sasl-plain.png](./kafka-04-sasl-plain.png)
+
+#### 4.1. SCRAM(SCRAM-SHA-256) 认证
+
+选择 `SCRAM-SHA-256` 认证机制，输入用户名和密码：
+
 ![kafka-04.png](./kafka-04.png)
+
+#### 4.3. GSSAPI 认证
+
+选择 `GSSAPI` ，将通过 [RDkafka 客户端](https://github.com/confluentinc/librdkafka) 调用 GSSAPI 应用 Kerberos 认证机制：
+
+![kafka-04-sasl-gssapi.png](./kafka-04-sasl-gssapi.png)
+
+需要输入的信息有：
+
+- Kerberos 服务名，一般是 `kafka`；
+- Kerberos 认证主体，即认证用户名，例如 `kafkaclient`；
+- Kerberos 初始化命令（可选，一般不用填写）；
+- Kerberos 密钥表，需提供文件并上传；
+
+以上信息均需由 Kafka 服务管理者提供。
+
+除此之外，在服务器上需要配置 [Kerberos](https://web.mit.edu/kerberos/) 认证服务。在 Ubuntu 下使用 `apt install krb5-user` ；在 CentOS 下，使用 `yum install krb5-workstation`；即可。
+
+配置完成后，可以使用 [kcat](https://github.com/edenhill/kcat) 工具进行 Kafka 主题消费验证：
+
+```bash
+kcat <topic> \
+  -b <kafka-server:port> \
+  -G kcat \
+  -X security.protocol=SASL_PLAINTEXT \
+  -X sasl.mechanism=GSSAPI \
+  -X sasl.kerberos.keytab=</path/to/kafkaclient.keytab> \
+  -X sasl.kerberos.principal=<kafkaclient> \
+  -X sasl.kerberos.service.name=kafka
+```
+
+如果出现错误：“Server xxxx not found in kerberos database”，则需要配置 Kafka 节点对应的域名并在 Kerberos 客户端配置文件 `/etc/krb5.conf` 中配置反向域名解析 `rdns = true`。
 
 ### 5. 配置 SSL 证书
 
@@ -55,6 +101,10 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 在 **超时时间** 中填写超时时间。当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。默认值是 0 ms。 当 timeout 设置为 0 时，会一直等待，直到有数据可用，或者发生错误。
 
 在 **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic ， Topic 之间用逗号分隔。例如：`tp1,tp2`。
+
+在 **Client ID** 中填写客户端标识，填写后会生成带有 `taosx` 前缀的客户端 ID （例如，如果填写的标识为 `foo`，则生成的客户端 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的客户端 ID 形如 `taosx100foo`）。需要注意的是，当使用多个 taosX 订阅同一 Topic 需要进行负载均衡时，必须填写一致的客户端 ID 才能达到均衡效果。
+
+在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID （例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
 
 在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。 默认值为Earliest。
 
@@ -72,13 +122,29 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 在 **Payload 解析** 区域填写 Payload 解析相关的配置参数。
 
 #### 7.1 解析
+
 有三种获取示例数据的方法：
 
 点击 **从服务器检索** 按钮，从 Kafka 获取示例数据。
 
 点击 **文件上传** 按钮，上传 CSV 文件，获取示例数据。
 
-在 **消息体** 中填写 Kafka 消息体中的示例数据，例如：`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`。之后会使用这条示例数据来配置提取和过滤条件。
+在 **消息体** 中填写 Kafka 消息体中的示例数据。
+
+json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解析一下数据：
+
+``` json
+{"id": 1, "message": "hello-word"}
+{"id": 2, "message": "hello-word"}
+```
+
+或者
+
+``` json
+[{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
+```
+
+解析结果如下所示：
 
 ![kafka-07.png](./kafka-07.png)
 

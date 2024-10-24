@@ -63,7 +63,7 @@ int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num) {
   p->pDownstream = taosMemoryCalloc(1, num * POINTER_BYTES);
   if (p->pDownstream == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(p->pDownstream, pDownstream, num * POINTER_BYTES);
@@ -180,7 +180,7 @@ ERetType extractOperatorInfo(SOperatorInfo* pOperator, STraverParam* pParam, con
 
 // QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN
 int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
@@ -282,7 +282,7 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
 
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t     code = 0;
   int32_t     type = nodeType(pPhyNode);
@@ -394,7 +394,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         }
       }
 
-      //pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
       code = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
       if (code) {
         pTaskInfo->code = code;
@@ -620,6 +619,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
+    code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
@@ -630,6 +631,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
+    code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
@@ -659,10 +662,6 @@ void destroyOperator(SOperatorInfo* pOperator) {
   freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
   freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
-  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
   if (pOperator->pDownstream != NULL) {
     for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
       destroyOperator(pOperator->pDownstream[i]);
@@ -670,6 +669,10 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
     taosMemoryFreeClear(pOperator->pDownstream);
     pOperator->numOfDownstream = 0;
+  }
+
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
@@ -824,7 +827,7 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   if (NULL == *pppDownstramParam) {
     *pppDownstramParam = taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
     if (NULL == *pppDownstramParam) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -868,26 +871,31 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
-  QRY_OPTR_CHECK(pRes);
+  QRY_PARAM_CHECK(pRes);
 
+  int32_t lino = 0;
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
-  if (TSDB_CODE_SUCCESS != code) {
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = pOperator->fpSet.getNextFn(pOperator, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pOperator->pTaskInfo->code = code;
-  } else {
-    code = pOperator->fpSet.getNextFn(pOperator, pRes);
-    if (code) {
-      pOperator->pTaskInfo->code = code;
-    }
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
 
   return code;

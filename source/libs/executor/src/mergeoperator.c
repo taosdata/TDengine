@@ -66,6 +66,10 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
+  if (code) {
+    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
   return code;
 }
 
@@ -228,7 +232,7 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    (void)applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
     if (p->info.rows > 0) {
       break;
@@ -336,7 +340,7 @@ int32_t openNonSortMergeOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -419,7 +423,7 @@ int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock
 }
 
 int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -491,6 +495,8 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   pOperator->status = OP_RES_TO_RETURN;
 
   if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
@@ -499,7 +505,9 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
 }
 
 int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return 0;
@@ -508,26 +516,27 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
 
-  int32_t code = pOperator->fpSet._openFn(pOperator);
-  if (code != TSDB_CODE_SUCCESS) {
-    pTaskInfo->code = code;
-    return code;
-  }
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
     code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
-    if (code) {
-      pTaskInfo->code = code;
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   if ((*pResBlock) != NULL) {
     pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
+    blockDataCheck(*pResBlock, false);
   } else {
     setOperatorCompleted(pOperator);
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
@@ -556,7 +565,7 @@ int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplai
 
 int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numStreams, SMergePhysiNode* pMergePhyNode,
                                         SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   SPhysiNode*                 pPhyNode = (SPhysiNode*)pMergePhyNode;
   int32_t                     lino = 0;
@@ -565,7 +574,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 

@@ -14,7 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "taos_monitor.h"
 #include "vmInt.h"
+
+extern taos_counter_t *tsInsertCounter;
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -32,10 +35,14 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {.vgId = pVnode->vgId};
     if (!pVnode->failed) {
-      (void)vnodeGetLoad(pVnode->pImpl, &vload);
+      if (vnodeGetLoad(pVnode->pImpl, &vload) != 0) {
+        dError("failed to get vnode load");
+      }
       if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     }
-    (void)taosArrayPush(pInfo->pVloads, &vload);
+    if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+      dError("failed to push vnode load");
+    }
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
@@ -113,8 +120,38 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pMgmt->state.numOfBatchInsertReqs = numOfBatchInsertReqs;
   pMgmt->state.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 
-  (void)tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
+  if (tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs) != 0) {
+    dError("failed to get tfs monitor info");
+  }
   taosArrayDestroy(pVloads);
+}
+
+void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
+  int list_size = taos_counter_get_keys_size(tsInsertCounter);
+  if (list_size == 0) return;
+  int32_t *vgroup_ids;
+  char   **keys;
+  int      r = 0;
+  r = taos_counter_get_vgroup_ids(tsInsertCounter, &keys, &vgroup_ids, &list_size);
+  if (r) {
+    dError("failed to get vgroup ids");
+    return;
+  }
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  for (int i = 0; i < list_size; i++) {
+    int32_t vgroup_id = vgroup_ids[i];
+    void   *vnode = taosHashGet(pMgmt->hash, &vgroup_id, sizeof(int32_t));
+    if (vnode == NULL) {
+      r = taos_counter_delete(tsInsertCounter, keys[i]);
+      if (r) {
+        dError("failed to delete monitor sample key:%s", keys[i]);
+      }
+    }
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  if (vgroup_ids) taosMemoryFree(vgroup_ids);
+  if (keys) taosMemoryFree(keys);
+  return;
 }
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
@@ -204,7 +241,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodePort = pCreate->replicas[pCfg->syncCfg.replicaNum].port;
     pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
     tstrncpy(pNode->nodeFqdn, pCreate->replicas[pCfg->syncCfg.replicaNum].fqdn, TSDB_FQDN_LEN);
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    bool ret = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     pCfg->syncCfg.replicaNum++;
   }
   if (pCreate->selfIndex != -1) {
@@ -216,7 +253,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pNode->nodePort = pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].port;
     pNode->nodeRole = TAOS_SYNC_ROLE_LEARNER;
     tstrncpy(pNode->nodeFqdn, pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].fqdn, TSDB_FQDN_LEN);
-    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    bool ret = tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     pCfg->syncCfg.totalReplicaNum++;
   }
   pCfg->syncCfg.totalReplicaNum += pCfg->syncCfg.replicaNum;
@@ -378,14 +415,24 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  // taosThreadMutexLock(&pMgmt->createLock);
+  code = taosThreadMutexLock(&pMgmt->createLock);
+  if (code != 0) {
+    dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(code));
+    goto _OVER;
+  }
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
-    // taosThreadMutexUnlock(&pMgmt->createLock);
+    int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
+    if (ret != 0) {
+      dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
+    }
     goto _OVER;
   }
-  // taosThreadMutexUnlock(&pMgmt->createLock);
+  int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
+  if (ret != 0) {
+    dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
+  }
 
 _OVER:
   if (code != 0) {
@@ -814,7 +861,9 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   vmCloseVnode(pMgmt, pVnode, false);
-  (void)vmWriteVnodeListToFile(pMgmt);
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", vgId, terrstr());
+  }
 
   dInfo("vgId:%d, is dropped", vgId);
   return 0;
@@ -890,7 +939,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     goto _OVER;
   }
 
@@ -961,6 +1010,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_INDEX, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_COMPACT_PROGRESS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_NAME, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -997,7 +1047,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TRIM, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_S3MIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;

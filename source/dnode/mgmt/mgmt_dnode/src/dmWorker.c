@@ -47,6 +47,35 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmStatusInfoThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-status-info");
+
+  int32_t upTimeCount = 0;
+  int64_t upTime = 0;
+
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsStatusInterval) {
+      dmUpdateStatusInfo(pMgmt);
+      lastTime = curTime;
+
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
+      }
+    }
+  }
+
+  return NULL;
+}
+
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
 #define TIMESERIES_STASH_NUM 5
 static void *dmNotifyThreadFp(void *param) {
@@ -168,6 +197,7 @@ static void *dmMonitorThreadFp(void *param) {
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
+      (*pMgmt->monitorCleanExpiredSamplesFp)();
       lastTime = curTime;
 
       trimCount = (trimCount + 1) % TRIM_FREQ;
@@ -279,10 +309,33 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->statusInfoThread, &thAttr, dmStatusInfoThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create status Info thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-status-info", "initialized");
+  return 0;
+}
+
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     (void)taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
+  }
+}
+
+void dmStopStatusInfoThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->statusInfoThread)) {
+    (void)taosThreadJoin(pMgmt->statusInfoThread, NULL);
+    taosThreadClear(&pMgmt->statusInfoThread);
   }
 }
 
@@ -304,11 +357,16 @@ int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
 
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
-    (void)tsem_post(&dmNotifyHdl.sem);
+    if (tsem_post(&dmNotifyHdl.sem) != 0) {
+      dError("failed to post notify sem");
+    }
+
     (void)taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  (void)tsem_destroy(&dmNotifyHdl.sem);
+  if (tsem_destroy(&dmNotifyHdl.sem) != 0) {
+    dError("failed to destroy notify sem");
+  }
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
@@ -346,14 +404,14 @@ int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     (void)taosThreadJoin(pMgmt->monitorThread, NULL);
-    (void)taosThreadClear(&pMgmt->monitorThread);
+    taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
 void dmStopAuditThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->auditThread)) {
     (void)taosThreadJoin(pMgmt->auditThread, NULL);
-    (void)taosThreadClear(&pMgmt->auditThread);
+    taosThreadClear(&pMgmt->auditThread);
   }
 }
 
@@ -384,7 +442,7 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
 
   if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
     (void)taosThreadJoin(pMgmt->crashReportThread, NULL);
-    (void)taosThreadClear(&pMgmt->crashReportThread);
+    taosThreadClear(&pMgmt->crashReportThread);
   }
 }
 

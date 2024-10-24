@@ -14,10 +14,10 @@ import RequestId from "./_request_id.mdx";
 Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
 
 ## 连接方式
-`taospy`主要提供三种形式的连接器。一般我们推荐使用 **Websocket 连接**。
+`taospy`主要提供三种形式的连接器。一般我们推荐使用 **WebSocket 连接**。
 - **原生连接**，对应 `taospy` 包的 `taos` 模块。通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
 - **REST 连接**，对应 `taospy` 包的 `taosrest` 模块。通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
-- **Websocket 连接**，对应 `taos-ws-py` 包，可以选装。通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
+- **WebSocket 连接**，对应 `taos-ws-py` 包，可以选装。通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
 
 连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
@@ -48,9 +48,9 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 |2.7.9|数据订阅支持获取消费进度和重置消费进度|
 |2.7.8|新增 `execute_many`|
 
-|Python Websocket Connector 版本|主要变化|
+|Python WebSocket Connector 版本|主要变化|
 |:----------------------------:|:-----:|
-|0.3.2|优化 Websocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|
+|0.3.2|优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题|
 |0.2.9|已知问题修复|
 |0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|
 |0.2.4|数据订阅新增取消订阅方法|
@@ -103,7 +103,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 |BINARY|str|
 |NCHAR|str|
 |JSON|str|
-
+|GEOMETRY|bytearray|
+|VARBINARY|bytearray|
 ## 示例程序汇总
 
 | 示例程序链接                                                                                                    | 示例程序内容            |
@@ -113,6 +114,13 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
 | [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)       | tmq 订阅              |
+| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | 支持全部类型示例 |
+| [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | 参数绑定支持全部类型示例 |
+
+示例程序源码请参考：
+
+1. [原生更多示例程序](https://github.com/taosdata/taos-connector-python/tree/main/examples)
+2. [WebSocket 更多示例程序](https://github.com/taosdata/taos-connector-python/tree/main/taos-ws-py/examples)
 
 ## 关于纳秒 (nanosecond)
 

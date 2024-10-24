@@ -285,7 +285,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   if (NULL == hbInfo->rsp.taskStatus) {
     QW_UNLOCK(QW_READ, &sch->tasksLock);
     QW_ELOG("taosArrayInit taskStatus failed, num:%d", taskNum);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   void       *key = NULL;
@@ -343,7 +343,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     
     if (len < 0) {
       QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
-      QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
     if (len == 0) {
@@ -354,18 +354,18 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
         if (code) {
           QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
-          QW_ERR_RET(code);
+          QW_ERR_JRET(code);
         }
 
         QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %" PRId64, pOutput->numOfBlocks,
                      pOutput->numOfRows);
 
         if (!ctx->dynamicTask) {
-          QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
+          QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
         }
 
         if (NULL == pRsp) {
-          QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, len, &pRsp));
+          QW_ERR_JRET(qwMallocFetchRsp(!ctx->localExec, len, &pRsp));
           *pOutput = output;
         } else {
           pOutput->queryEnd = output.queryEnd;
@@ -385,7 +385,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     *dataLen += len + PAYLOAD_PREFIX_LEN;
     *pRawDataLen += rawLen + PAYLOAD_PREFIX_LEN;
 
-    QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &pRsp));
+    QW_ERR_JRET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &pRsp));
 
     // set the serialize start position
     output.pData = pRsp->data + *dataLen - (len + PAYLOAD_PREFIX_LEN);
@@ -400,7 +400,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(code);
+      QW_ERR_JRET(code);
     }
 
     pOutput->queryEnd = output.queryEnd;
@@ -419,7 +419,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
       QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %" PRId64, pOutput->numOfBlocks,
                    pOutput->numOfRows);
-      QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
       break;
     }
 
@@ -436,8 +436,11 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     }
   }
 
+_return:
+
   *rspMsg = pRsp;
-  return TSDB_CODE_SUCCESS;
+  
+  return code;
 }
 
 int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes) {
@@ -458,7 +461,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
   output.pData = taosMemoryCalloc(1, len);
   if (NULL == output.pData) {
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
 
   QW_SINK_ENABLE_MEMPOOL(ctx);
@@ -495,6 +498,12 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg, int32
       SOutputData sOutput = {0};
       if (TSDB_CODE_SUCCESS == code) {
         code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput);
+      }
+
+      if (code) {
+        qwFreeFetchRsp(rsp);
+        rsp = NULL;
+        dataLen = 0;
       }
 
       if (NULL == rsp && TSDB_CODE_SUCCESS == code) {
@@ -911,10 +920,11 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       break;
     }
 
+    qwFreeFetchRsp(rsp);
+    rsp = NULL;
+
     if (code && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
-      qwFreeFetchRsp(rsp);
-      rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
       code = qwBuildAndSendFetchRsp(ctx->fetchMsgType + 1, &qwMsg->connInfo, NULL, 0, code);
@@ -1221,7 +1231,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   int32_t schNum = taosHashGetSize(mgmt->schHash);
   if (schNum <= 0) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1233,7 +1245,9 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     taosMemoryFree(rspList);
     taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed, code:%x", schNum, terrno);
-    (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+    if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+      qError("reset qworker hb timer error, timer stoppped");
+    }
     (void)qwRelease(refId); // ignore error
     return;
   }
@@ -1289,7 +1303,10 @@ _return:
   taosMemoryFreeClear(rspList);
   taosArrayDestroy(pExpiredSch);
 
-  (void)taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer); // ignore error
+  if (taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer)) {
+    qError("reset qworker hb timer error, timer stoppped");
+  }
+
   (void)qwRelease(refId); // ignore error
 }
 
@@ -1368,7 +1385,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorker));
     (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(terrno);
   }
 
   mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
@@ -1380,14 +1397,14 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (NULL == mgmt->schHash) {
     taosMemoryFreeClear(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   mgmt->ctxHash =
       taosHashInit(mgmt->cfg.maxTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->ctxHash) {
     qError("init %d task ctx hash failed", mgmt->cfg.maxTaskNum);
-    QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_JRET(terrno);
   }
 
   mgmt->timer = taosTmrInit(0, 0, 0, "qworker");
@@ -1467,9 +1484,12 @@ void qWorkerDestroy(void **qWorkerMgmt) {
     return;
   }
 
+  qInfo("wait for destroyed");
   while (0 == destroyed) {
     taosMsleep(2);
   }
+
+  *qWorkerMgmt = NULL;
 }
 
 int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat) {
@@ -1524,6 +1544,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   ctx->explainRes = explainRes;
 
   rHandle.pMsgCb = taosMemoryCalloc(1, sizeof(SMsgCb));
+  rHandle.pWorkerCb = qwMsg->pWorkerCb;
   if (NULL == rHandle.pMsgCb) {
     QW_ERR_JRET(terrno);
   }

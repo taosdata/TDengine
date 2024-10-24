@@ -74,6 +74,8 @@ const char *sdbTableName(ESdbType type) {
       return "grant";
     case SDB_ARBGROUP:
       return "arb_group";
+    case SDB_ANODE:
+      return "anode";
     default:
       return "undefine";
   }
@@ -162,24 +164,23 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   pRow->status = pRaw->status;
   sdbPrintOper(pSdb, pRow, "insert");
 
-  if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
+  int32_t code = 0;
+  if ((code = taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *))) != 0) {
     sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+    return code;
   }
 
-  int32_t     code = 0;
   SdbInsertFp insertFp = pSdb->insertFps[pRow->type];
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
-      if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
-      code = terrno;
-      (void)taosHashRemove(hash, pRow->pObj, keySize);
+      if (taosHashRemove(hash, pRow->pObj, keySize) != 0) {
+        mError("failed to remove row from hash");
+      }
       sdbFreeRow(pSdb, pRow, false);
-      terrno = code;
       sdbUnLock(pSdb, type);
+      terrno = code;
       return terrno;
     }
   }

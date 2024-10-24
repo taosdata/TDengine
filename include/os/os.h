@@ -130,6 +130,14 @@ extern int64_t          tsRandErrDivisor;
 extern int64_t          tsRandErrScope;
 extern threadlocal bool tsEnableRandErr;
 
+#define TAOS_UNUSED(expr) (void)(expr)
+#define TAOS_SKIP_ERROR(expr) \
+  {                           \
+    int32_t _code = terrno;   \
+    (void)(expr);             \
+    terrno = _code;           \
+  }
+
 #ifdef __cplusplus
 }
 #endif

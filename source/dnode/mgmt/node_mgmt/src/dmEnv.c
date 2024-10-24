@@ -20,6 +20,8 @@
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 #include "tcompare.h"
+#include "tcs.h"
+#include "tanal.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -47,8 +49,14 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
 }
 
 static int32_t dmInitSystem() {
-  (void)taosIgnSIGPIPE();
-  (void)taosBlockSIGPIPE();
+  if (taosIgnSIGPIPE() != 0) {
+    dError("failed to ignore SIGPIPE");
+  }
+
+  if (taosBlockSIGPIPE() != 0) {
+    dError("failed to block SIGPIPE");
+  }
+
   taosResolveCRC();
   return 0;
 }
@@ -89,9 +97,13 @@ static bool dmDataSpaceAvailable() {
 }
 
 static int32_t dmCheckDiskSpace() {
-  osUpdate();
   // availability
   int32_t code = 0;
+  code = osUpdate();
+  if (code != 0) {
+    code = 0;  // ignore the error, just log it
+    dError("failed to update os info since %s", tstrerror(code));
+  }
   if (!dmDataSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     return code;
@@ -152,13 +164,6 @@ static int32_t dmCheckDataDirVersionWrapper() {
   }
   return 0;
 }
-#if defined(USE_S3)
-
-extern int32_t s3Begin();
-extern void    s3End();
-extern int8_t  tsS3Enabled;
-
-#endif
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
@@ -176,7 +181,7 @@ int32_t dmInit() {
   if ((code = dmInitDnode(dmInstance())) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 #if defined(USE_S3)
-  if ((code = s3Begin()) != 0) return code;
+  if ((code = tcsInit()) != 0) return code;
 #endif
 
   dInfo("dnode env is initialized");
@@ -200,14 +205,17 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
-  (void)udfcClose();
+  if (udfcClose() != 0) {
+    dError("failed to close udfc");
+  }
   udfStopUdfd();
+  taosAnalCleanup();
   taosStopCacheRefreshWorker();
   (void)dmDiskClose();
   DestroyRegexCache();
 
 #if defined(USE_S3)
-  s3End();
+  tcsUninit();
 #endif
 
   dInfo("dnode env is cleaned up");
@@ -409,6 +417,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,

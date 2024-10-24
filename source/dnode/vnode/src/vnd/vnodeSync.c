@@ -28,7 +28,9 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
           TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
-  (void)tsem_wait(&pVnode->syncSem);
+  if (tsem_wait(&pVnode->syncSem) != 0) {
+    vError("vgId:%d, failed to wait sem", pVnode->config.vgId);
+  }
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
@@ -41,7 +43,9 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      (void)tsem_post(&pVnode->syncSem);
+      if (tsem_post(&pVnode->syncSem) != 0) {
+        vError("vgId:%d, failed to post sem", pVnode->config.vgId);
+      }
     }
     (void)taosThreadMutexUnlock(&pVnode->lock);
   }
@@ -69,7 +73,9 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (rsp.pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    (void)tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    if (tSerializeSEpSet(rsp.pCont, contLen, &newEpSet) < 0) {
+      vError("vgId:%d, failed to serialize ep set", pVnode->config.vgId);
+    }
     rsp.contLen = contLen;
   }
 
@@ -163,7 +169,9 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
     rpcFreeCont(rpcMsg.pCont);
     rpcMsg.pCont = NULL;
   } else {
-    (void)tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      vTrace("vgId:%d, failed to put vnode commit to queue since %s", pVnode->config.vgId, terrstr());
+    }
   }
 }
 
@@ -560,7 +568,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     }
   } while (true);
 
-  (void)walApplyVer(pVnode->pWal, commitIdx);
+  walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
@@ -587,7 +595,10 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         streamMetaWUnLock(pMeta);
 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        (void)streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        if (code != 0) {
+          tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
+        }
         return;
       }
     }
@@ -606,13 +617,17 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post sync semaphore", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    (void)tqStopStreamTasksAsync(pVnode->pTq);
+    if (tqStopStreamTasksAsync(pVnode->pTq) != 0) {
+      vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
+    }
   }
 }
 
@@ -624,7 +639,9 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post sync semaphore", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -747,14 +764,19 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
-  (void)syncLeaderTransfer(pVnode->sync);
+  int32_t code = syncLeaderTransfer(pVnode->sync);
+  if (code) {
+    vError("vgId:%d, failed to transfer leader since %s", pVnode->config.vgId, tstrerror(code));
+  }
   syncPreStop(pVnode->sync);
 
   (void)taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
     pVnode->blocked = false;
-    (void)tsem_post(&pVnode->syncSem);
+    if (tsem_post(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to post block", pVnode->config.vgId);
+    }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -789,7 +811,9 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      (void)tsem_post(&pVnode->syncSem);
+      if (tsem_post(&pVnode->syncSem) != 0) {
+        vError("vgId:%d, failed to post block", pVnode->config.vgId);
+      }
     }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);

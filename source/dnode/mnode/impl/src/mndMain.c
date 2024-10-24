@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
 #include "mndArbGroup.h"
+#include "mndAnode.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
@@ -85,7 +86,9 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   void *pReq = rpcMallocCont(contLen);
   if (pReq == NULL) return NULL;
 
-  (void)tSerializeSMTimerMsg(pReq, contLen, &timerReq);
+  if (tSerializeSMTimerMsg(pReq, contLen, &timerReq) < 0) {
+    mError("failed to serialize timer msg since %s", terrstr());
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -97,7 +100,9 @@ static void mndPullupTrans(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -108,7 +113,9 @@ static void mndPullupCompacts(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -118,7 +125,9 @@ static void mndPullupTtl(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
   // TODO check return value
-  (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
 }
 
 static void mndPullupTrimDb(SMnode *pMnode) {
@@ -127,7 +136,9 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   // TODO check return value
-  (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
 }
 
 static void mndPullupS3MigrateDb(SMnode *pMnode) {
@@ -136,7 +147,9 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   // TODO check return value
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
-  (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
 }
 
 static int32_t mndPullupArbHeartbeat(SMnode *pMnode) {
@@ -160,7 +173,9 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -170,7 +185,9 @@ static void mndStreamCheckpointTimer(SMnode *pMnode) {
     int32_t size = sizeof(SMStreamDoCheckpointMsg);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -180,7 +197,9 @@ static void mndStreamCheckNode(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into read-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -190,7 +209,9 @@ static void mndStreamConsensusChkpt(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CONSEN_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -201,7 +222,9 @@ static void mndPullupTelem(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into read-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -210,10 +233,15 @@ static void mndPullupGrant(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_GRANT_HB_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = 0};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -222,10 +250,15 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_UPTIME_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9528};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPTIME_TIMER,
+                      .pCont = pReq,
+                      .contLen = contLen,
+                      .info.notFreeAhandle = 1,
+                      .info.ahandle = (void *)0x9527};
     // TODO check return value
-    (void)tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
   }
 }
 
@@ -463,7 +496,7 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   int32_t code = 0;
   pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -483,6 +516,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .fsyncPeriod = 0,
                  .rollPeriod = -1,
                  .segSize = -1,
+                 .committed = -1,
                  .retentionPeriod = 0,
                  .retentionSize = 0,
                  .level = TAOS_WAL_FSYNC,
@@ -542,6 +576,8 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
     code = sdbReadFile(pMnode->pSdb);
   }
 
+  mInfo("vgId:1, mnode sdb is opened, with applied index:%" PRId64, pMnode->pSdb->commitIndex);
+
   atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
   return code;
 }
@@ -559,7 +595,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   step.initFp = initFp;
   step.cleanupFp = cleanupFp;
   if (taosArrayPush(pMnode->pSteps, &step) == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   TAOS_RETURN(0);
@@ -573,6 +609,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
@@ -676,7 +713,13 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  if (code < 0) {
+    mError("failed to parse time since %s", tstrerror(code));
+    (void)taosThreadRwlockDestroy(&pMnode->lock);
+    taosMemoryFree(pMnode);
+    return NULL;
+  }
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;
@@ -721,10 +764,17 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
 void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
+    int32_t code = 0;
     // TODO check return value
-    (void)syncLeaderTransfer(pMnode->syncMgmt.sync);
+    code = syncLeaderTransfer(pMnode->syncMgmt.sync);
+    if (code < 0) {
+      mError("failed to transfer leader since %s", tstrerror(code));
+    }
     syncPreStop(pMnode->syncMgmt.sync);
-    (void)sdbWriteFile(pMnode->pSdb, 0);
+    code = sdbWriteFile(pMnode->pSdb, 0);
+    if (code < 0) {
+      mError("failed to write sdb since %s", tstrerror(code));
+    }
   }
 }
 
@@ -872,7 +922,9 @@ _OVER:
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->info.rsp = rpcMallocCont(contLen);
   if (pMsg->info.rsp != NULL) {
-    (void)tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+    if (tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet) < 0) {
+      mError("failed to serialize ep set");
+    }
     pMsg->info.hasEpSet = 1;
     pMsg->info.rspLen = contLen;
   }
@@ -1039,7 +1091,12 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     desc.vgroup_id = pVgroup->vgId;
 
     SName name = {0};
-    (void)tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (code < 0) {
+      mError("failed to get db name since %s", tstrerror(code));
+      sdbRelease(pSdb, pVgroup);
+      TAOS_RETURN(code);
+    }
     (void)tNameGetDbName(&name, desc.database_name);
 
     desc.tables_num = pVgroup->numOfTables;
@@ -1077,11 +1134,21 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonStbDesc desc = {0};
 
     SName name1 = {0};
-    (void)tNameFromString(&name1, pStb->db, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    code = tNameFromString(&name1, pStb->db, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (code < 0) {
+      mError("failed to get db name since %s", tstrerror(code));
+      sdbRelease(pSdb, pStb);
+      TAOS_RETURN(code);
+    }
     (void)tNameGetDbName(&name1, desc.database_name);
 
     SName name2 = {0};
-    (void)tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    code = tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (code < 0) {
+      mError("failed to get table name since %s", tstrerror(code));
+      sdbRelease(pSdb, pStb);
+      TAOS_RETURN(code);
+    }
     tstrncpy(desc.stb_name, tNameGetTableName(&name2), TSDB_TABLE_NAME_LEN);
 
     if (taosArrayPush(pStbInfo->stbs, &desc) == NULL) {

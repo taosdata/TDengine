@@ -116,6 +116,7 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*MonitorCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
@@ -143,24 +144,26 @@ typedef struct {
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;
+  TdThreadMutex  statusInfolock;
 } SDnodeData;
 
 typedef struct {
-  const char            *path;
-  const char            *name;
-  STfs                  *pTfs;
-  SDnodeData            *pData;
-  SMsgCb                 msgCb;
-  ProcessCreateNodeFp    processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp      processDropNodeFp;
-  SendMonitorReportFp    sendMonitorReportFp;
-  SendAuditRecordsFp     sendAuditRecordFp;
-  GetVnodeLoadsFp        getVnodeLoadsFp;
-  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp        getMnodeLoadsFp;
-  GetQnodeLoadsFp        getQnodeLoadsFp;
-  StopDnodeFp            stopDnodeFp;
+  const char                  *path;
+  const char                  *name;
+  STfs                        *pTfs;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  SendAuditRecordsFp           sendAuditRecordFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -215,6 +218,7 @@ int32_t dmInitDndInfo(SDnodeData *pData);
 
 // dmEps.c
 int32_t dmGetDnodeSize(SDnodeData *pData);
+int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);

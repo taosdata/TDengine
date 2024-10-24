@@ -846,13 +846,13 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
     if (pVgEp == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
     pVgEp->vgId = pVgroup->vgId;
     if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       taosMemoryFree(pVgEp);
       goto END;
     }

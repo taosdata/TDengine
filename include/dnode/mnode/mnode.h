@@ -119,7 +119,9 @@ void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
  */
 void mndGenerateMachineCode();
 
-void mndDumpSdb();
+int32_t mndDumpSdb();
+
+int32_t mndDeleteTrans();
 
 #ifdef __cplusplus
 }

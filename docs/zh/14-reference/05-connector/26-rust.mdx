@@ -18,9 +18,9 @@ import RequestId from "./_request_id.mdx";
 
 ## 连接方式
 
-`taos` 提供两种建立连接的方式。一般我们推荐使用 **Websocket 连接**。
+`taos` 提供两种建立连接的方式。一般我们推荐使用 **WebSocket 连接**。
 - **原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。
-- **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。
+- **WebSocket 连接**，它通过 taosAdapter 的 WebSocket 接口连接 TDengine 运行实例。
 
 你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。
 
@@ -29,13 +29,13 @@ import RequestId from "./_request_id.mdx";
 ## 支持的平台
 
 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
-Websocket 连接支持所有能运行 Rust 的平台。
+WebSocket 连接支持所有能运行 Rust 的平台。
 
 ## 版本历史
 
 |   Rust 连接器版本   |   TDengine 版本   |                        主要功能                       |
 | :----------------: | :--------------: | :--------------------------------------------------: |
-|       v0.12.3      |      3.3.0.0 or later    | 优化了 Websocket 查询和插入性能，支持了 VARBINARY 和 GEOMETRY 类型 |
+|       v0.12.3      |      3.3.0.0 or later    | 优化了 WebSocket 查询和插入性能，支持了 VARBINARY 和 GEOMETRY 类型 |
 |       v0.12.0      |      3.2.3.0 or later    | WS 支持压缩。 |
 |       v0.11.0      |      3.2.0.0     | TMQ 功能优化。 |
 |       v0.10.0      |      3.1.0.0     | WS endpoint 变更。 |
@@ -80,6 +80,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对�
 | BINARY            | Vec\<u8>          |
 | NCHAR             | String            |
 | JSON              | serde_json::Value |
+| VARBINARY         | Bytes |
+| GEOMETRY          | Bytes |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -111,17 +113,17 @@ DSN 描述字符串基本结构如下：
 各部分意义见下表：
 
 - **driver**: 必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
-  - **taos**: 表名使用 TDengine 连接器驱动。
+  - **taos**: 使用 TDengine 连接器驱动，默认是使用 taos 驱动。
   - **tmq**: 使用 TMQ 订阅数据。
-  - **http/ws**: 使用 Websocket 创建连接。
-  - **https/wss**: 在 Websocket 连接方式下显示启用 SSL/TLS 连接。
-- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
+- **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 WebSocket 方式建立连接。
+  - **http/ws**: 使用 WebSocket 创建连接。
+  - **https/wss**: 在 WebSocket 连接方式下显示启用 SSL/TLS 连接。
 - **username/password**: 用于创建连接的用户名及密码。
-- **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，Websocket 连接默认为 `localhost:6041` 。
+- **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，WebSocket 连接默认为 `localhost:6041` 。
 - **database**: 指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
-一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 Websocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### TaosBuilder
 TaosBuilder 结构体主要提供了根据 DSN 构建 Taos 对象的方法，还提供了检查连接，以及获取客户端版本号等功能。
@@ -520,6 +522,6 @@ Offset 结构体提供了获取当前消息所属的数据库，主题和分区�
 
 ## 附录  
 - Rust 连接器文档：https://docs.rs/taos
-- Rust 连接器项目地址: https://github.com/taosdata/rust-connector-taos  
+- Rust 连接器项目地址: https://github.com/taosdata/taos-connector-rust  
 - deadpool 连接池: https://crates.io/crates/deadpool  
 - r2d2 连接池: https://crates.io/crates/r2d2  

@@ -24,14 +24,14 @@
 #include "tglobal.h"
 
 static void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
-  int32_t len = snprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
+  int32_t len = tsnprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
-    len += snprintf(buf + len, bufLen - len, "%s:%d", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+    len += tsnprintf(buf + len, bufLen - len, "%s:%d", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
     if (i < pCfg->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ", ");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "]}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "]}");
 }
 
 void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
@@ -60,7 +60,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
     return false;
   }
 
-  char ipbuf[128] = {0};
+  char ipbuf[TD_IP_LEN] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = SYNC_ADDR(pInfo);
   raftId->vgId = vgId;
@@ -111,29 +111,29 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
 // for leader
 static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ",");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 // for follower
 static void syncHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
     if (i < pSyncNode->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s", ",");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
@@ -142,35 +142,35 @@ static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t buf
     return;
   }
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
+  len += tsnprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
                   pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 }
 
 static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
     SSyncLogReplMgr* pMgr = pSyncNode->logReplMgrs[i];
     if (pMgr == NULL) break;
-    len += snprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
+    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
                     pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
     if (i + 1 < pSyncNode->replicaNum) {
-      len += snprintf(buf + len, bufLen - len, "%s", ", ");
+      len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int32_t len = 0;
-  len += snprintf(buf + len, bufLen - len, "%s", "{");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     SPeerState* pState = syncNodeGetPeerState(pSyncNode, &(pSyncNode->replicasId[i]));
     if (pState == NULL) break;
-    len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "%s", i, pState->lastSendIndex,
+    len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "%s", i, pState->lastSendIndex,
                     pState->lastSendTime, (i < pSyncNode->replicaNum - 1) ? ", " : "");
   }
-  len += snprintf(buf + len, bufLen - len, "%s", "}");
+  len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
@@ -470,13 +470,13 @@ void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
           pMsg->commitIndex, pMsg->dataLen, s);
 }
 
-void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted,
-                            const char* errmsg) {
+void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* errmsg,
+                            const char* opt) {
   char statusMsg[64];
   snprintf(statusMsg, sizeof(statusMsg), "granted:%d", voteGranted);
   sNInfo(pSyncNode,
-         "recv sync-request-vote from dnode:%d, {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64 "}, %s",
-         DID(&pMsg->srcId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm,
+         "%s sync-request-vote from dnode:%d, {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64 "}, %s",
+         opt, DID(&pMsg->srcId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm,
          (voteGranted != -1) ? statusMsg : errmsg);
 }
 
@@ -499,7 +499,7 @@ void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteRepl
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
   void* data = taosMemoryRealloc(pSnap->data, size);
   if (data == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pSnap->data = data;
   return 0;

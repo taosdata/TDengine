@@ -618,7 +618,7 @@ static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t re
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
   *output = taosMemoryCalloc(inputLen * TSDB_NCHAR_SIZE, 1);
   if (NULL == *output) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   bool ret = taosMbsToUcs4(input, inputLen, (TdUcs4 *)*output, inputLen * TSDB_NCHAR_SIZE, outputLen);
   if (!ret) {
@@ -631,7 +631,7 @@ static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, 
 static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
   *output = taosMemoryCalloc(inputLen, 1);
   if (NULL == *output) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output);
   if (*outputLen < 0) {
@@ -814,7 +814,7 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     int32_t len = varDataLen(input);
     bool    ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
@@ -853,10 +853,10 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char             *outputBuf = NULL;
 
   if (NULL == pInputData) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   if (NULL == input) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   int32_t inputLen = 0;
@@ -882,7 +882,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -928,7 +928,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char             *outputBuf = NULL;
 
   if (NULL == pInputData) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   int32_t inputLen = 0;
@@ -960,7 +960,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   outputBuf = taosMemoryCalloc(outputLen, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -1016,7 +1016,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   int32_t outputLen = pInputData->varmeta.length;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1070,7 +1070,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1178,7 +1178,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   char *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfRows = 0;
@@ -1271,7 +1271,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
   char* pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("md5 function alloc memory failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -1284,7 +1284,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
       if (!pOutputBuf) {
         qError("md5 function alloc memory failed");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
     char *output = pOutputBuf;
@@ -1528,7 +1528,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 
   char *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -1643,7 +1643,7 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   }
   char *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -1741,7 +1741,7 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   char *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   char   *output = outputBuf;
@@ -1834,7 +1834,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   char   *buf = taosMemoryMalloc(bufSize);
 
   if (convBuf == NULL || output == NULL || buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _end;
   }
 
@@ -2067,9 +2067,9 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
-          // NOTE: sprintf will append '\0' at the end of string
-          int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE),
-                                *(int8_t *)input ? "true" : "false");
+          // NOTE: snprintf will append '\0' at the end of string
+          int32_t len = tsnprintf(varDataVal(output), outputLen + TSDB_NCHAR_SIZE - VARSTR_HEADER_SIZE, "%.*s",
+                                 (int32_t)(outputLen - VARSTR_HEADER_SIZE), *(int8_t *)input ? "true" : "false");
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
@@ -2109,7 +2109,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         int32_t len;
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
-          len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
+          len = tsnprintf(tmp, sizeof(tmp), "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
             code = TSDB_CODE_SCALAR_CONVERT_ERROR;
@@ -2193,7 +2193,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     NUM_TO_STRING(type, input, sizeof(fraction), fraction);
     int32_t fractionLen;
 
-    char    buf[64] = {0};
+    char    buf[TD_TIME_STR_LEN] = {0};
     int64_t timeVal;
     char*   format = NULL;
     int64_t  quot = 0;
@@ -2244,14 +2244,14 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     struct tm tmInfo;
     int32_t len = 0;
 
-    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf) == NULL) {
+    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf, sizeof(buf)) == NULL) {
       len = (int32_t)strlen(buf);
       goto _end;
     }
 
     len = (int32_t)strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
 
-    len += snprintf(buf + len, fractionLen, format, mod);
+    len += tsnprintf(buf + len, fractionLen, format, mod);
 
     // add timezone string
     if (tzLen > 0) {
@@ -2306,7 +2306,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     SArray *pTagVals = taosArrayInit(8, sizeof(STagVal));
     if (NULL == pTagVals) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     STag   *pTag = NULL;
 
@@ -2356,7 +2356,7 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
   SArray *formats = NULL;
 
   if (tsStr == NULL || format == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
@@ -2403,7 +2403,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   int32_t code = 0;
 
   if (format == NULL || out == NULL) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
@@ -2887,6 +2887,24 @@ int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return doScalarFunction(pInput, inputNum, pOutput, floorf, floor);
 }
 
+int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t seed;
+  int32_t numOfRows = inputNum == 1 ? pInput[0].numOfRows : TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    // for constant seed, only set seed once
+    if ((pInput[0].numOfRows == 1 && i == 0) || (pInput[0].numOfRows != 1)) {
+      if (!IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) && !colDataIsNull_s(pInput[0].columnData, i)) {
+        GET_TYPED_DATA(seed, int32_t, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i));
+        taosSeedRand(seed);
+      }
+    }
+    double random_value = (double)(taosRand() % RAND_MAX) / RAND_MAX;
+    colDataSetDouble(pOutput->columnData, i, &random_value);
+  }
+  pOutput->numOfRows = numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 static double decimalFn(double val1, double val2, _double_fn fn) {
   if (val1 > DBL_MAX || val1 < -DBL_MAX) {
     return val1;
@@ -2988,20 +3006,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
           }
           break;
         }
-        case TSDB_DATA_TYPE_TINYINT:
-        case TSDB_DATA_TYPE_SMALLINT:
-        case TSDB_DATA_TYPE_INT:
-        case TSDB_DATA_TYPE_BIGINT:{
+        case TSDB_DATA_TYPE_TINYINT: {
+          int8_t *in = (int8_t *)pInputData[0]->pData;
+          int8_t *out = (int8_t *)pOutputData->pData;
+          int8_t result = (int8_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_SMALLINT: {
+          int16_t *in = (int16_t *)pInputData[0]->pData;
+          int16_t *out = (int16_t *)pOutputData->pData;
+          int16_t result = (int16_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_INT: {
+          int32_t *in = (int32_t *)pInputData[0]->pData;
+          int32_t *out = (int32_t *)pOutputData->pData;
+          int32_t result = (int32_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_BIGINT: {
           int64_t *in = (int64_t *)pInputData[0]->pData;
           int64_t *out = (int64_t *)pOutputData->pData;
           int64_t result = (int64_t)d1((double)in[i], in2);
           out[i] = result;
           break;
         }
-        case TSDB_DATA_TYPE_UTINYINT:
-        case TSDB_DATA_TYPE_USMALLINT:
-        case TSDB_DATA_TYPE_UINT:
-        case TSDB_DATA_TYPE_UBIGINT:{
+        case TSDB_DATA_TYPE_UTINYINT: {
+          uint8_t *in = (uint8_t *)pInputData[0]->pData;
+          uint8_t *out = (uint8_t *)pOutputData->pData;
+          uint8_t result = (uint8_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_USMALLINT: {
+          uint16_t *in = (uint16_t *)pInputData[0]->pData;
+          uint16_t *out = (uint16_t *)pOutputData->pData;
+          uint16_t result = (uint16_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_UINT: {
+          uint32_t *in = (uint32_t *)pInputData[0]->pData;
+          uint32_t *out = (uint32_t *)pOutputData->pData;
+          uint32_t result = (uint32_t)d1((double)in[i], in2);
+          out[i] = result;
+          break;
+        }
+        case TSDB_DATA_TYPE_UBIGINT: {
           uint64_t *in = (uint64_t *)pInputData[0]->pData;
           uint64_t *out = (uint64_t *)pOutputData->pData;
           uint64_t result = (uint64_t)d1((double)in[i], in2);
@@ -3044,20 +3098,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
             }
             break;
           }
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_BIGINT:{
+          case TSDB_DATA_TYPE_TINYINT: {
+            int8_t *in = (int8_t *)pInputData[0]->pData;
+            int8_t *out = (int8_t *)pOutputData->pData;
+            int8_t result = (int8_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_SMALLINT: {
+            int16_t *in = (int16_t *)pInputData[0]->pData;
+            int16_t *out = (int16_t *)pOutputData->pData;
+            int16_t result = (int16_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_INT: {
+            int32_t *in = (int32_t *)pInputData[0]->pData;
+            int32_t *out = (int32_t *)pOutputData->pData;
+            int32_t result = (int32_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_BIGINT: {
             int64_t *in = (int64_t *)pInputData[0]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
             int64_t result = (int64_t)d1((double)in[0], in2);
             out[i] = result;
             break;
           }
-          case TSDB_DATA_TYPE_UTINYINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-          case TSDB_DATA_TYPE_UINT:
-          case TSDB_DATA_TYPE_UBIGINT:{
+          case TSDB_DATA_TYPE_UTINYINT: {
+            uint8_t *in = (uint8_t *)pInputData[0]->pData;
+            uint8_t *out = (uint8_t *)pOutputData->pData;
+            uint8_t result = (uint8_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_USMALLINT: {
+            uint16_t *in = (uint16_t *)pInputData[0]->pData;
+            uint16_t *out = (uint16_t *)pOutputData->pData;
+            uint16_t result = (uint16_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UINT: {
+            uint32_t *in = (uint32_t *)pInputData[0]->pData;
+            uint32_t *out = (uint32_t *)pOutputData->pData;
+            uint32_t result = (uint32_t)d1((double)in[0], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UBIGINT: {
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
             uint64_t result = (uint64_t)d1((double)in[0], in2);
@@ -3101,20 +3191,56 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
             }
             break;
           }
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_BIGINT:{
+          case TSDB_DATA_TYPE_TINYINT: {
+            int8_t *in = (int8_t *)pInputData[0]->pData;
+            int8_t *out = (int8_t *)pOutputData->pData;
+            int8_t result = (int8_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_SMALLINT: {
+            int16_t *in = (int16_t *)pInputData[0]->pData;
+            int16_t *out = (int16_t *)pOutputData->pData;
+            int16_t result = (int16_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_INT: {
+            int32_t *in = (int32_t *)pInputData[0]->pData;
+            int32_t *out = (int32_t *)pOutputData->pData;
+            int32_t result = (int32_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_BIGINT: {
             int64_t *in = (int64_t *)pInputData[0]->pData;
             int64_t *out = (int64_t *)pOutputData->pData;
             int64_t result = (int64_t)d1((double)in[i], in2);
             out[i] = result;
             break;
           }
-          case TSDB_DATA_TYPE_UTINYINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-          case TSDB_DATA_TYPE_UINT:
-          case TSDB_DATA_TYPE_UBIGINT:{
+          case TSDB_DATA_TYPE_UTINYINT: {
+            uint8_t *in = (uint8_t *)pInputData[0]->pData;
+            uint8_t *out = (uint8_t *)pOutputData->pData;
+            uint8_t result = (uint8_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_USMALLINT: {
+            uint16_t *in = (uint16_t *)pInputData[0]->pData;
+            uint16_t *out = (uint16_t *)pOutputData->pData;
+            uint16_t result = (uint16_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UINT: {
+            uint32_t *in = (uint32_t *)pInputData[0]->pData;
+            uint32_t *out = (uint32_t *)pOutputData->pData;
+            uint32_t result = (uint32_t)d1((double)in[i], in2);
+            out[i] = result;
+            break;
+          }
+          case TSDB_DATA_TYPE_UBIGINT: {
             uint64_t *in = (uint64_t *)pInputData[0]->pData;
             uint64_t *out = (uint64_t *)pOutputData->pData;
             uint64_t result = (uint64_t)d1((double)in[i], in2);
@@ -3826,11 +3952,11 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
     char slopBuf[64] = {0};
     char interceptBuf[64] = {0};
-    int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
+    int  n = tsnprintf(slopBuf, 64, "%.6lf", matrix02);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
     }
-    n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
+    n = tsnprintf(interceptBuf, 64, "%.6lf", matrix12);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void) snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
@@ -3951,6 +4077,10 @@ int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 }
 
 int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
@@ -4215,7 +4345,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
@@ -4280,7 +4410,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     cJSON *bin = binDesc->child;
     if (bin == NULL) {
@@ -4312,7 +4442,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
   *binNum = numOfBins - 1;
   *bins = taosMemoryCalloc(numOfBins, sizeof(SHistoFuncBin));
   if (NULL == bins) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   for (int32_t i = 0; i < *binNum; ++i) {
     (*bins)[i].lower = intervals[i] < intervals[i + 1] ? intervals[i] : intervals[i + 1];
@@ -4334,11 +4464,17 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  char *binTypeStr = taosStrndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  if (NULL == binTypeStr) {
+    SCL_ERR_RET(terrno);
+  }
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 
-  char   *binDesc = strndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
+  char   *binDesc = taosStrndup(varDataVal(pInput[2].columnData->pData), varDataLen(pInput[2].columnData->pData));
+  if (NULL == binDesc) {
+    SCL_ERR_RET(terrno);
+  }
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
   int32_t type = GET_PARAM_TYPE(pInput);
@@ -4383,11 +4519,11 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t len;
     char    buf[512] = {0};
     if (!normalized) {
-      len = sprintf(varDataVal(buf), "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", bins[k].lower,
-                    bins[k].upper, bins[k].count);
+      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}",
+                     bins[k].lower, bins[k].upper, bins[k].count);
     } else {
-      len = sprintf(varDataVal(buf), "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", bins[k].lower,
-                    bins[k].upper, bins[k].percentage);
+      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}",
+                     bins[k].lower, bins[k].upper, bins[k].percentage);
     }
     varDataSetLen(buf, len);
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, buf, false));

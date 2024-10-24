@@ -205,6 +205,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 _return:
 
+  taosMemoryFreeClear(pBuf->pData);
   taosFreeQitem(pBuf);
   return code;
 }
@@ -233,7 +234,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
   }
 
   SDataDispatchBuf* pBuf = NULL;
-  (void)taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
+  taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
   if (pBuf != NULL) {
     TAOS_MEMCPY(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
     taosFreeQitem(pBuf);
@@ -291,7 +292,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
-    (void)taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
+    taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
     if (pBuf != NULL) {
       taosMemoryFreeClear(pBuf->pData);
       taosFreeQitem(pBuf);

@@ -91,11 +91,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
@@ -112,15 +108,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    (void)strcat(tmpPath, fileNamePrefix);
-    (void)strcat(tmpPath, "-%d-%s");
-  }
+  snprintf(tmpPath + len, sizeof(tmpPath) - len, "%s%s%s", TD_TMP_FILE_PREFIX, fileNamePrefix, "-%d-%s");
 
   char rand[32] = {0};
 
-  (void)sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
   (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 
@@ -132,6 +124,7 @@ int64_t taosCopyFile(const char *from, const char *to) {
   if (CopyFile(from, to, 0)) {
     return 1;
   } else {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return -1;
   }
 #else
@@ -173,9 +166,12 @@ int64_t taosCopyFile(const char *from, const char *to) {
   }
 
   code = taosFsyncFile(pFileTo);
+  if (code != 0) {
+    goto _err;
+  }
 
-  (void)taosCloseFile(&pFileFrom);
-  (void)taosCloseFile(&pFileTo);
+  TAOS_UNUSED(taosCloseFile(&pFileFrom));
+  TAOS_UNUSED(taosCloseFile(&pFileTo));
 
   if (code != 0) {
     terrno = code;
@@ -186,10 +182,10 @@ int64_t taosCopyFile(const char *from, const char *to) {
 
 _err:
 
-  if (pFileFrom != NULL) (void)taosCloseFile(&pFileFrom);
-  if (pFileTo != NULL) (void)taosCloseFile(&pFileTo);
+  if (pFileFrom != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileFrom));
+  if (pFileTo != NULL) TAOS_SKIP_ERROR(taosCloseFile(&pFileTo));
   /* coverity[+retval] */
-  (void)taosRemoveFile(to);
+  TAOS_SKIP_ERROR(taosRemoveFile(to));
 
   terrno = code;
   return -1;
@@ -231,8 +227,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 
   HANDLE transactionHandle = CreateTransaction(NULL, NULL, 0, 0, 0, INFINITE, NULL);
   if (transactionHandle == INVALID_HANDLE_VALUE) {
-    printf("failed to rename file %s to %s, reason: CreateTransaction failed.\n", oldName, newName);
-    return -1;
+    DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
+    return terrno;
   }
 
   BOOL result = MoveFileTransacted(oldName, newName, NULL, NULL, MOVEFILE_REPLACE_EXISTING, transactionHandle);
@@ -241,18 +238,18 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     finished = CommitTransaction(transactionHandle);
     if (!finished) {
       DWORD error = GetLastError();
-      printf("failed to rename file %s to %s, reason: CommitTransaction errcode %d.\n", oldName, newName, error);
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     }
   } else {
     RollbackTransaction(transactionHandle);
     DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     finished = false;
-    printf("failed to rename file %s to %s, reason: MoveFileTransacted errcode %d.\n", oldName, newName, error);
   }
 
   CloseHandle(transactionHandle);
 
-  return finished ? 0 : -1;
+  return finished ? 0 : terrno;
 #else
   int32_t code = rename(oldName, newName);
   if (-1 == code) {
@@ -260,7 +257,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     return terrno;
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 #endif
 }
 
@@ -294,12 +291,14 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *a
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 #ifdef WINDOWS
   if (pFile == NULL || pFile->hFile == NULL) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   BY_HANDLE_FILE_INFORMATION bhfi;
   if (GetFileInformationByHandle(pFile->hFile, &bhfi) == FALSE) {
-    printf("taosFStatFile get file info fail.");
-    return -1;
+    DWORD error = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
+    return terrno;
   }
 
   if (stDev != NULL) {
@@ -395,68 +394,79 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   if (h != INVALID_HANDLE_VALUE && (tdFileOptions & TD_FILE_APPEND) && (tdFileOptions & TD_FILE_WRITE)) {
     SetFilePointer(h, 0, NULL, FILE_END);
   }
-  // if (h == INVALID_HANDLE_VALUE) {
-  //   DWORD dwError = GetLastError();
-  //   LPVOID lpMsgBuf;
-  //   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError,
-  //                 0,
-  //                 (LPTSTR)&lpMsgBuf, 0, NULL);
-  //   printf("CreateFile failed with error %d: %s", dwError, (char*)lpMsgBuf);
-  //   LocalFree(lpMsgBuf);
-  // }
+  if (h == INVALID_HANDLE_VALUE) {
+    DWORD dwError = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+    // LPVOID lpMsgBuf;
+    // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf,
+    // 0,
+    //               NULL);
+    // printf("CreateFile failed with error %d: %s", dwError, (char *)lpMsgBuf);
+    // LocalFree(lpMsgBuf);
+  }
   return h;
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #if FILE_WITH_LOCK
-  taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   if (pFile->hFile == NULL) {
 #if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
+  int64_t res = 0;
   DWORD bytesRead;
   if (!ReadFile(pFile->hFile, buf, count, &bytesRead, NULL)) {
-    bytesRead = -1;
+    DWORD errCode = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errCode);
+    res = -1;
+  } else {
+    res = bytesRead;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-  return bytesRead;
+  return res;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   if (pFile == NULL || pFile->hFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&(pFile->rwlock));
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
 
   DWORD bytesWritten;
   if (!WriteFile(pFile->hFile, buf, count, &bytesWritten, NULL)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     bytesWritten = -1;
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return bytesWritten;
 }
 
 int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
   if (pFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&(pFile->rwlock));
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
   if (pFile->hFile == NULL) {
 #if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
     return 0;
   }
@@ -470,48 +480,57 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
   BOOL result = WriteFile(pFile->hFile, buf, count, &ret, &ol);
   if (!result) {
     errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     ret = -1;
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return ret;
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL || pFile->hFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
 
   LARGE_INTEGER liOffset;
   liOffset.QuadPart = offset;
   if (!SetFilePointerEx(pFile->hFile, liOffset, NULL, whence)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     return -1;
   }
 
   liOffset.QuadPart = 0;
   if (!SetFilePointerEx(pFile->hFile, liOffset, &liOffset, FILE_CURRENT)) {
+    errno = GetLastError();
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
     return -1;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return liOffset.QuadPart;
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL || pFile->hFile == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   if (size != NULL) {
     LARGE_INTEGER fileSize;
     if (!GetFileSizeEx(pFile->hFile, &fileSize)) {
-      return -1;  // Error getting file size
+      errno = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
+      return terrno;  // Error getting file size
     }
     *size = fileSize.QuadPart;
   }
@@ -519,7 +538,9 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (mtime != NULL) {
     FILETIME creationTime, lastAccessTime, lastWriteTime;
     if (!GetFileTime(pFile->hFile, &creationTime, &lastAccessTime, &lastWriteTime)) {
-      return -1;  // Error getting file time
+      errno = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(errno);
+      return terrno;  // Error getting file time
     }
     // Convert the FILETIME structure to a time_t value
     ULARGE_INTEGER ull;
@@ -532,7 +553,8 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
 int32_t taosLockFile(TdFilePtr pFile) {
   if (pFile == NULL || pFile->hFile == NULL) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   BOOL          fSuccess = FALSE;
@@ -546,7 +568,7 @@ int32_t taosLockFile(TdFilePtr pFile) {
                         &overlapped  // overlapped structure
   );
   if (!fSuccess) {
-    return GetLastError();
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
   return 0;
 }
@@ -560,18 +582,20 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
 
   fSuccess = UnlockFileEx(pFile->hFile, 0, ~0, ~0, &overlapped);
   if (!fSuccess) {
-    return GetLastError();
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
   return 0;
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
   if (pFile == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   if (pFile->hFile == NULL) {
     printf("Ftruncate file error, hFile was null\n");
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   LARGE_INTEGER li_0;
@@ -579,7 +603,8 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
   BOOL cur = SetFilePointerEx(pFile->hFile, li_0, NULL, FILE_CURRENT);
   if (!cur) {
     printf("SetFilePointerEx Error getting current position in file.\n");
-    return -1;
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
   }
 
   LARGE_INTEGER li_size;
@@ -587,7 +612,6 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
   BOOL cur2 = SetFilePointerEx(pFile->hFile, li_size, NULL, FILE_BEGIN);
   if (cur2 == 0) {
     int error = GetLastError();
-    printf("SetFilePointerEx GetLastError is: %d\n", error);
     switch (error) {
       case ERROR_INVALID_HANDLE:
         errno = EBADF;
@@ -596,7 +620,8 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
         errno = EIO;
         break;
     }
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (!SetEndOfFile(pFile->hFile)) {
@@ -610,23 +635,27 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
         errno = EIO;
         break;
     }
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
   return 0;
 }
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
   if (pFileOut == NULL || pFileIn == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
   }
   if (pFileIn->hFile == NULL || pFileOut->hFile == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
   }
 
   LARGE_INTEGER fileOffset;
   fileOffset.QuadPart = *offset;
 
   if (!SetFilePointerEx(pFileIn->hFile, fileOffset, &fileOffset, FILE_BEGIN)) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return -1;
   }
 
@@ -637,6 +666,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   DWORD bytesWritten;
   for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
     if (!ReadFile(pFileIn->hFile, buffer, _SEND_FILE_STEP_, &bytesRead, NULL)) {
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
       return writeLen;
     }
 
@@ -644,12 +674,14 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
       return writeLen;
     } else if (bytesRead < _SEND_FILE_STEP_) {
       if (!WriteFile(pFileOut->hFile, buffer, bytesRead, &bytesWritten, NULL)) {
+        terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
         return -1;
       } else {
         return (int64_t)(writeLen + bytesRead);
       }
     } else {
       if (!WriteFile(pFileOut->hFile, buffer, _SEND_FILE_STEP_, &bytesWritten, NULL)) {
+        terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
         return -1;
       } else {
         writeLen += _SEND_FILE_STEP_;
@@ -661,6 +693,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   if (remain > 0) {
     DWORD bytesRead;
     if (!ReadFile(pFileIn->hFile, buffer, (DWORD)remain, &bytesRead, NULL)) {
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
       return -1;
     }
 
@@ -669,6 +702,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
     } else {
       DWORD bytesWritten;
       if (!WriteFile(pFileOut->hFile, buffer, bytesRead, &bytesWritten, NULL)) {
+        terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
         return -1;
       } else {
         writeLen += bytesWritten;
@@ -718,7 +752,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 
   int64_t leftbytes = count;
@@ -741,7 +775,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
         (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
         terrno = code;
-        return terrno;
+        return -1;
       }
     } else if (readbytes == 0) {
 #if FILE_WITH_LOCK
@@ -826,25 +860,11 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
   }
 #endif
 
-#ifdef WINDOWS
-  DWORD      ret = 0;
-  OVERLAPPED ol = {0};
-  ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
-  ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
-
-  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
-  SetLastError(0);
-  BOOL result = WriteFile(handle, buf, count, &ret, &ol);
-  if (!result) {
-    errno = GetLastError();
-    ret = -1;
-  }
-#else
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(errno);
   }
-#endif
+
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -859,7 +879,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL || pFile->fd < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockRdlock(&(pFile->rwlock));
@@ -867,14 +887,10 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
   int32_t code = 0;
 
-#ifdef WINDOWS
-  int64_t ret = _lseeki64(pFile->fd, offset, whence);
-#else
   int64_t ret = lseek(pFile->fd, offset, whence);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(errno);
   }
-#endif
 
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -882,7 +898,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
   if (code) {
     terrno = code;
-    return terrno;
+    return -1;
   }
 
   return ret;
@@ -899,16 +915,11 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     return terrno;
   }
 
-#ifdef WINDOWS
-  struct __stat64 fileStat;
-  int32_t         code = _fstat64(pFile->fd, &fileStat);
-#else
   struct stat fileStat;
-  int32_t code = fstat(pFile->fd, &fileStat);
-#endif
+  int32_t     code = fstat(pFile->fd, &fileStat);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return code;
+    return terrno;
   }
 
   if (size != NULL) {
@@ -927,32 +938,12 @@ int32_t taosLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-
-#ifdef WINDOWS
-  BOOL          fSuccess = FALSE;
-  LARGE_INTEGER fileSize;
-  OVERLAPPED    overlapped = {0};
-
-  HANDLE hFile = (HANDLE)_get_osfhandle(pFile->fd);
-
-  fSuccess = LockFileEx(hFile, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
-                        0,           // reserved
-                        ~0,          // number of bytes to lock low
-                        ~0,          // number of bytes to lock high
-                        &overlapped  // overlapped structure
-  );
-  if (!fSuccess) {
-    return GetLastError();
-  }
-  return 0;
-#else
   int32_t code = (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  return code;
-#endif
+  return 0;
 }
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
@@ -960,25 +951,12 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-
-#ifdef WINDOWS
-  BOOL       fSuccess = FALSE;
-  OVERLAPPED overlapped = {0};
-  HANDLE     hFile = (HANDLE)_get_osfhandle(pFile->fd);
-
-  fSuccess = UnlockFileEx(hFile, 0, ~0, ~0, &overlapped);
-  if (!fSuccess) {
-    return GetLastError();
-  }
-  return 0;
-#else
   int32_t code = (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  return code;
-#endif
+  return 0;
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
@@ -987,104 +965,29 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
     return terrno;
   }
 
-#ifdef WINDOWS
-
-  HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
-
-  LARGE_INTEGER li_0;
-  li_0.QuadPart = (int64_t)0;
-  BOOL cur = SetFilePointerEx(h, li_0, NULL, FILE_CURRENT);
-  if (!cur) {
-    printf("SetFilePointerEx Error getting current position in file.\n");
-    return -1;
-  }
-
-  LARGE_INTEGER li_size;
-  li_size.QuadPart = l_size;
-  BOOL cur2 = SetFilePointerEx(h, li_size, NULL, FILE_BEGIN);
-  if (cur2 == 0) {
-    int error = GetLastError();
-    printf("SetFilePointerEx GetLastError is: %d\n", error);
-    switch (error) {
-      case ERROR_INVALID_HANDLE:
-        errno = EBADF;
-        break;
-      default:
-        errno = EIO;
-        break;
-    }
-    return -1;
-  }
-
-  if (!SetEndOfFile(h)) {
-    int error = GetLastError();
-    printf("SetEndOfFile GetLastError is:%d", error);
-    switch (error) {
-      case ERROR_INVALID_HANDLE:
-        errno = EBADF;
-        break;
-      default:
-        errno = EIO;
-        break;
-    }
-    return -1;
-  }
-
-  return 0;
-#else
   int32_t code = ftruncate(pFile->fd, l_size);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  return code;
-#endif
+  return 0;
 }
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
   if (pFileOut == NULL || pFileIn == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
   if (pFileIn->fd < 0 || pFileOut->fd < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 
-#ifdef WINDOWS
-
-  _lseeki64(pFileIn->fd, *offset, 0);
-  int64_t writeLen = 0;
-  uint8_t buffer[_SEND_FILE_STEP_] = {0};
-
-  for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
-    size_t rlen = _read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
-    if (rlen <= 0) {
-      return writeLen;
-    } else if (rlen < _SEND_FILE_STEP_) {
-      write(pFileOut->fd, (void *)buffer, (uint32_t)rlen);
-      return (int64_t)(writeLen + rlen);
-    } else {
-      write(pFileOut->fd, (void *)buffer, _SEND_FILE_STEP_);
-      writeLen += _SEND_FILE_STEP_;
-    }
+#ifdef _TD_DARWIN_64
+  if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   }
-
-  int64_t remain = size - writeLen;
-  if (remain > 0) {
-    size_t rlen = _read(pFileIn->fd, (void *)buffer, (size_t)remain);
-    if (rlen <= 0) {
-      return writeLen;
-    } else {
-      write(pFileOut->fd, (void *)buffer, (uint32_t)remain);
-      writeLen += remain;
-    }
-  }
-  return writeLen;
-
-#elif defined(_TD_DARWIN_64)
-
-  lseek(pFileIn->fd, (int32_t)(*offset), 0);
   int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
@@ -1113,7 +1016,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
   return writeLen;
 
-#else
+#else  // for linux
 
   int64_t leftbytes = size;
   int64_t sentbytes;
@@ -1129,7 +1032,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
         continue;
       } else {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        return terrno;
+        return -1;
       }
     } else if (sentbytes == 0) {
       return (int64_t)(size - leftbytes);
@@ -1216,14 +1119,15 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   (void)taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
   if ((*ppFile)->fp != NULL) {
-    (void)fflush((*ppFile)->fp);
-    (void)fclose((*ppFile)->fp);
+    TAOS_UNUSED(fflush((*ppFile)->fp));
+    TAOS_UNUSED(fclose((*ppFile)->fp));
     (*ppFile)->fp = NULL;
   }
 #ifdef WINDOWS
   if ((*ppFile)->hFile != NULL) {
     // FlushFileBuffers((*ppFile)->hFile);
     if (!CloseHandle((*ppFile)->hFile)) {
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
       code = -1;
     }
     (*ppFile)->hFile = NULL;
@@ -1252,7 +1156,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   STUB_RAND_IO_ERR(terrno)
   if (pFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 
   int32_t code = 0;
@@ -1268,7 +1172,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
 
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
 
   DWORD      ret = 0;
@@ -1279,7 +1183,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   SetLastError(0);
   BOOL result = ReadFile(pFile->hFile, buf, count, &ret, &ol);
   if (!result && GetLastError() != ERROR_HANDLE_EOF) {
-    errno = GetLastError();
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     ret = -1;
   }
 #else
@@ -1292,7 +1196,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
     terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return -1;
   }
   int64_t ret = pread(pFile->fd, buf, count, offset);
   if (-1 == ret) {
@@ -1305,7 +1209,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 
   if (code) {
     terrno = code;
-    return code;
+    return -1;
   }
 
   return ret;
@@ -1334,7 +1238,12 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
     if (pFile->tdFileOptions & TD_FILE_WRITE_THROUGH) {
       return 0;
     }
-    return !FlushFileBuffers(pFile->hFile);
+    bool ret = FlushFileBuffers(pFile->hFile);
+    if (!ret) {
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      return terrno;
+    }
+    return 0;
   }
 #else
   if (pFile->fd >= 0) {
@@ -1398,7 +1307,9 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
 #ifdef WINDOWS
   size_t bufferSize = 512;
   *ptrBuf = taosMemoryMalloc(bufferSize);
-  if (*ptrBuf == NULL) goto END;
+  if (*ptrBuf == NULL) {
+    goto END;
+  }
 
   size_t bytesRead = 0;
   size_t totalBytesRead = 0;
@@ -1406,8 +1317,14 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   while (1) {
     char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
     if (result == NULL) {
-      taosMemoryFreeClear(*ptrBuf);
-      goto END;
+      if (feof(pFile->fp)) {
+        break;
+      } else {
+        ret = -1;
+        terrno = TAOS_SYSTEM_ERROR(ferror(pFile->fp));
+        taosMemoryFreeClear(*ptrBuf);
+        goto END;
+      }
     }
     bytesRead = strlen(*ptrBuf + totalBytesRead);
     totalBytesRead += bytesRead;
@@ -1432,7 +1349,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   size_t len = 0;
   ret = getline(ptrBuf, &len, pFile->fp);
   if (-1 == ret) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
   }
 #endif
 
@@ -1441,10 +1358,6 @@ END:
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-
-  if (code) {
-    terrno = code;
-  }
 
   return ret;
 }
@@ -1557,21 +1470,25 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   while (!feof(pSrcFile->fp)) {
     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
     if (len > 0) {
-      (void)gzwrite(dstFp, data, len);
+      if (gzwrite(dstFp, data, len) == 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        ret = terrno;
+        goto cmp_end;
+      }
     }
   }
 
 cmp_end:
 
   if (fd >= 0) {
-    (void)close(fd);
+    TAOS_SKIP_ERROR(close(fd));
   }
   if (pSrcFile) {
-    (void)taosCloseFile(&pSrcFile);
+    TAOS_SKIP_ERROR(taosCloseFile(&pSrcFile));
   }
 
   if (dstFp) {
-    (void)gzclose(dstFp);
+    TAOS_SKIP_ERROR(gzclose(dstFp));
   }
 
   taosMemoryFree(data);
@@ -1614,8 +1531,9 @@ int taosSeekCFile(FILE *file, int64_t offset, int whence) {
   int     code = fseeko(file, offset, whence);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
   }
-  return terrno;
+  return code;
 #endif
 }
 
@@ -1637,8 +1555,7 @@ int taosSetAutoDelFile(char *path) {
   if (succ) {
     return 0;
   } else {
-    DWORD error = GetLastError();
-    terrno = TAOS_SYSTEM_ERROR(error);
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 #else

@@ -70,6 +70,8 @@ typedef struct SActiveCheckpointInfo SActiveCheckpointInfo;
 #define SSTREAM_TASK_NEED_CONVERT_VER     2
 #define SSTREAM_TASK_SUBTABLE_CHANGED_VER 3
 
+extern int32_t streamMetaId;
+
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
@@ -133,11 +135,6 @@ enum {
   STREAM_QUEUE__SUCESS = 1,
   STREAM_QUEUE__FAILED,
   STREAM_QUEUE__PROCESSING,
-};
-
-enum {
-  STREAM_META_WILL_STOP = 1,
-  STREAM_META_OK_TO_STOP = 2,
 };
 
 typedef enum EStreamTaskEvent {
@@ -239,7 +236,7 @@ typedef struct {
   void*           vnode;  // not available to encoder and decoder
   FTbSink*        tbSinkFunc;
   STSchema*       pTSchema;
-  SSHashObj*      pTblInfo;
+  SSHashObj*      pTbInfo;
 } STaskSinkTb;
 
 typedef struct {
@@ -282,7 +279,6 @@ typedef enum {
 } EConsenChkptStatus;
 
 typedef struct SConsenChkptInfo {
-//  bool               alreadySendChkptId;
   EConsenChkptStatus status;
   int64_t            statusTs;
   int32_t            consenChkptTransId;
@@ -494,6 +490,14 @@ typedef struct SScanWalInfo {
   tmr_h   scanTimer;
 } SScanWalInfo;
 
+typedef struct SFatalErrInfo {
+  int32_t code;
+  int64_t ts;
+  int32_t threadId;
+  int32_t line;
+  char    func[128];
+} SFatalErrInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*           path;
@@ -523,14 +527,13 @@ typedef struct SStreamMeta {
   int32_t         numOfStreamTasks;  // this value should be increased when a new task is added into the meta
   int32_t         numOfPausedTasks;
   int64_t         rid;
-
-  int64_t  chkpId;
-  int32_t  chkpCap;
-  SArray*  chkpSaved;
-  SArray*  chkpInUse;
-  SRWLatch chkpDirLock;
-  void*    qHandle;  // todo remove it
-  void*    bkdChkptMgt;
+  SFatalErrInfo   fatalInfo;  // fatal error occurs, stream stop to execute
+  int64_t         chkpId;
+  int32_t         chkpCap;
+  SArray*         chkpSaved;
+  SArray*         chkpInUse;
+  SRWLatch        chkpDirLock;
+  void*           bkdChkptMgt;
 } SStreamMeta;
 
 typedef struct STaskUpdateEntry {
@@ -636,7 +639,7 @@ typedef struct SCheckpointConsensusInfo {
   int64_t streamId;
 } SCheckpointConsensusInfo;
 
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
+void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -673,7 +676,7 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt);
 
 int32_t streamExecTask(SStreamTask* pTask);
-void    streamResumeTask(SStreamTask* pTask);
+int32_t streamResumeTask(SStreamTask* pTask);
 int32_t streamTrySchedExec(SStreamTask* pTask);
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType);
 void    streamTaskResumeInFuture(SStreamTask* pTask);
@@ -705,7 +708,7 @@ int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeChec
 void    streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
-void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
@@ -751,7 +754,7 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 int32_t streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 void    streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-void    streamMetaAcquireOneTask(SStreamTask* pTask);
+int32_t streamMetaAcquireOneTask(SStreamTask* pTask);
 void    streamMetaClear(SStreamMeta* pMeta);
 void    streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
@@ -776,6 +779,9 @@ void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
 void    streamMetaWUnLock(SStreamMeta* pMeta);
+void    streamSetFatalError(SStreamMeta* pMeta, int32_t code, const char* funcName, int32_t lino);
+int32_t streamGetFatalError(const SStreamMeta* pMeta);
+
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pTaskList);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
@@ -791,8 +797,9 @@ void    streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);
-void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+void    streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, int32_t vgId,
                        const char* pMsg);
+void    streamTmrStop(tmr_h tmrId);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
@@ -810,6 +817,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq);
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes);
+void    streamTaskSetCheckpointFailed(SStreamTask* pTask);
 
 // stream task state machine, and event handling
 int32_t streamCreateStateMachine(SStreamTask* pTask);

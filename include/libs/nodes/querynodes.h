@@ -57,10 +57,10 @@ typedef struct SExprNode {
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
-  bool      orderAlias;
   bool      asAlias;
   bool      asParam;
   bool      asPosition;
+  int32_t   projIdx;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -91,6 +91,8 @@ typedef struct SColumnNode {
   int16_t     numOfPKs;
   bool        tableHasPk;
   bool        isPk;
+  int32_t     projRefIdx;
+  int32_t     resIdx;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -188,6 +190,7 @@ typedef struct SFunctionNode {
   bool       hasOriginalFunc;
   int32_t    originalFuncId;
   ETrimType  trimType;
+  bool       dual; // whether select stmt without from stmt, true for without.
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -214,6 +217,7 @@ typedef struct SRealTableNode {
   double             ratio;
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
+  int8_t             stbRewrite;
   SArray*            pTsmas;
   SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only
@@ -343,6 +347,13 @@ typedef struct SCountWindowNode {
   int64_t   windowSliding;
 } SCountWindowNode;
 
+typedef struct SAnomalyWindowNode {
+  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  SNode*    pExpr;
+  char      anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+} SAnomalyWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -438,6 +449,8 @@ typedef struct SSelectStmt {
   bool          hasTailFunc;
   bool          hasInterpFunc;
   bool          hasInterpPseudoColFunc;
+  bool          hasForecastFunc;
+  bool          hasForecastPseudoColFunc;
   bool          hasLastRowFunc;
   bool          hasLastFunc;
   bool          hasTimeLineFunc;

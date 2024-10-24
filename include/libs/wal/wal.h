@@ -50,6 +50,7 @@ typedef struct {
   int32_t  rollPeriod;       // secs
   int64_t  retentionSize;
   int64_t  segSize;
+  int64_t  committed;
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
@@ -112,8 +113,8 @@ typedef struct SWal {
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t       refId;
-  TdThreadMutex mutex;
+  int64_t        refId;
+  TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
   // path
@@ -177,7 +178,7 @@ int32_t walRollback(SWal *, int64_t ver);
 int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
-int32_t walApplyVer(SWal *, int64_t ver);
+void    walApplyVer(SWal *, int64_t ver);
 
 // wal reader
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);

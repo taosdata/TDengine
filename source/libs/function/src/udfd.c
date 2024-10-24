@@ -85,13 +85,19 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
   char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *mergeSuffix = "_merge";
   snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
-  (void)(uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc)));
+  int ret = uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
+  if (ret != 0) {
+    fnInfo("uv_dlsym function %s. error: %s", mergeFuncName, uv_strerror(ret));
+  }
   return 0;
 }
 
 int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   int32_t         err = 0;
   SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
+  if (NULL == udfCtx) {
+    return terrno;
+  }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
@@ -390,7 +396,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
   // todo: windows support
-  sprintf(plugin->libPath, "%s", "libtaospyudf.so");
+  snprintf(plugin->libPath, PATH_MAX, "%s", "libtaospyudf.so");
   plugin->libLoaded = false;
   const char *funcName[UDFD_MAX_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
                                                  "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
@@ -474,7 +480,7 @@ void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
 int32_t udfdInitScriptPlugin(int8_t scriptType) {
   SUdfScriptPlugin *plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
   if (plugin == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t err = 0;
   switch (scriptType) {
@@ -524,7 +530,12 @@ void udfdDeinitScriptPlugins() {
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
   SUdfRequest request = {0};
-  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL) return;
+  if(decodeUdfRequest(uvUdf->input.base, &request) == NULL)
+  {
+    taosMemoryFree(uvUdf->input.base);
+    fnError("udf request decode failed");
+    return;
+  }
 
   switch (request.type) {
     case UDF_TASK_SETUP: {
@@ -601,9 +612,12 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
 int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
   SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
+  if (NULL == udfNew) {
+    return terrno;
+  }
   udfNew->refCount = 1;
   udfNew->lastFetchTime = taosGetTimestampMs();
-  strncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
 
   udfNew->state = UDF_STATE_INIT;
   if (uv_mutex_init(&udfNew->lock) != 0) return TSDB_CODE_UDF_UV_EXEC_FAILURE;
@@ -904,7 +918,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     unloadUdf = true;
     code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
     if (code != 0) {
-      fnError("udf name %s remove from hash failed", udf->name);
+      fnError("udf name %s remove from hash failed, err:%0x %s", udf->name, code, tstrerror(code));
+      uv_mutex_unlock(&global.udfsMutex);
       goto _send;
     }
   }
@@ -982,14 +997,14 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   udfdGetFuncBodyPath(udf, path);
   bool fileExist = !(taosStatFile(path, NULL, NULL, NULL) < 0);
   if (fileExist) {
-    strncpy(udf->path, path, PATH_MAX);
+    tstrncpy(udf->path, path, PATH_MAX);
     fnInfo("udfd func body file. reuse existing file %s", path);
     return TSDB_CODE_SUCCESS;
   }
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
+    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
@@ -1002,7 +1017,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
-  strncpy(udf->path, path, PATH_MAX);
+  tstrncpy(udf->path, path, PATH_MAX);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1100,6 +1115,9 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   taosArrayDestroy(retrieveReq.pFuncNames);
 
   SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  if(NULL == msgInfo) {
+    return terrno;
+  }
   msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
   msgInfo->param = udf;
   if(uv_sem_init(&msgInfo->resultSem, 0)  != 0) {
@@ -1594,12 +1612,12 @@ int32_t udfdInitResidentFuncs() {
   char *token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
     char func[TSDB_FUNC_NAME_LEN + 1] = {0};
-    strncpy(func, token, TSDB_FUNC_NAME_LEN);
+    tstrncpy(func, token, TSDB_FUNC_NAME_LEN);
     fnInfo("udfd add resident function %s", func);
     if(taosArrayPush(global.residentFuncs, func) == NULL)
     {
       taosArrayDestroy(global.residentFuncs);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 

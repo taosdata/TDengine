@@ -39,7 +39,6 @@ typedef void (*_ref_fn_t)(const void *pObj);
 // set the initial reference count value
 #define T_REF_INIT_VAL(x, _v)                \
   do {                                       \
-    assert(_v >= 0);                         \
     atomic_store_32(&((x)->_ref.val), (_v)); \
   } while (0)
 
@@ -63,8 +62,6 @@ typedef void (*_ref_fn_t)(const void *pObj);
       (p)->_ref_func.end((x));                            \
     }                                                     \
   } while (0)
-
-#define T_REF_VAL_CHECK(x) assert((x)->_ref.val >= 0);
 
 #define T_REF_VAL_GET(x) (x)->_ref.val
 

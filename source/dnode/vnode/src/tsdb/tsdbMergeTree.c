@@ -379,6 +379,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   int32_t lino = 0;
   void   *px = NULL;
   int32_t startIndex = 0;
+  int32_t ret = 0;
 
   int32_t numOfBlocks = TARRAY2_SIZE(pStatisBlkArray);
   if (numOfBlocks <= 0) {
@@ -402,15 +403,14 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   pBlockLoadInfo->cost.loadStatisBlocks += num;
 
   STbStatisBlock block;
-  TAOS_UNUSED(tStatisBlockInit(&block));
+  code = tStatisBlockInit(&block);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   int64_t st = taosGetTimestampUs();
 
   for (int32_t k = startIndex; k < endIndex; ++k) {
     code = tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[k], &block);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     int32_t i = 0;
     int32_t rows = block.numOfRecords;
@@ -489,7 +489,9 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       } else {
         STbStatisRecord record = {0};
         while (i < rows) {
-          (void)tStatisBlockGet(&block, i, &record);
+          code = tStatisBlockGet(&block, i, &record);
+          TSDB_CHECK_CODE(code, lino, _end);
+
           if (record.suid != suid) {
             break;
           }
@@ -536,12 +538,15 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   }
 
 _end:
-  (void)tStatisBlockDestroy(&block);
+  tStatisBlockDestroy(&block);
+  if (code != 0) {
+    tsdbError("%s error happens at:%s line number: %d, code:%s", id, __func__, lino, tstrerror(code));
+  } else {
+    double el = (taosGetTimestampUs() - st) / 1000.0;
+    pBlockLoadInfo->cost.statisElapsedTime += el;
 
-  double el = (taosGetTimestampUs() - st) / 1000.0;
-  pBlockLoadInfo->cost.statisElapsedTime += el;
-
-  tsdbDebug("%s load %d statis blocks into buf, elapsed time:%.2fms", id, num, el);
+    tsdbDebug("%s load %d statis blocks into buf, elapsed time:%.2fms", id, num, el);
+  }
   return code;
 }
 
@@ -677,7 +682,7 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
 }
 
 void tLDataIterClose2(SLDataIter *pIter) {
-  (void)tsdbSttFileReaderClose(&pIter->pReader);  // always return 0
+  tsdbSttFileReaderClose(&pIter->pReader);
   pIter->pReader = NULL;
 }
 
@@ -953,6 +958,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
   pMTree->pIter = NULL;
   pMTree->backward = pConf->backward;
   pMTree->idStr = pConf->idstr;
+  int32_t lino = 0;
 
   if (!pMTree->backward) {  // asc
     tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
@@ -1027,9 +1033,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         // let's record the time window for current table of uid in the stt files
         if (pSttDataInfo != NULL && numOfRows > 0) {
           void *px = taosArrayPush(pSttDataInfo->pKeyRangeList, &range);
-          if (px == NULL) {
-            return terrno;
-          }
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {
@@ -1047,7 +1052,9 @@ _end:
   return code;
 }
 
-void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) { (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter); }
+void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) {
+  SRBTreeNode *node = tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter);
+}
 
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree) { return pMTree->ignoreEarlierTs; }
 

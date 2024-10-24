@@ -81,14 +81,17 @@ int32_t taosResetTerminalMode();
       unw_get_reg(&cursor, UNW_REG_IP, &pc);                                                                          \
       fname[0] = '\0';                                                                                                \
       (void)unw_get_proc_name(&cursor, fname, sizeof(fname), &offset);                                                \
-      size += 1;                                                                                                      \
       array[size] = (char *)taosMemoryMalloc(sizeof(char) * STACKSIZE + 1);                                           \
+      if(NULL == array[size]) {                                                                                       \
+        break;                                                                                                        \
+      }                                                                                                               \
+      size += 1;                                                                                                      \
       snprintf(array[size], STACKSIZE, "0x%lx : (%s+0x%lx) [0x%lx]\n", (long)pc, fname, (long)offset, (long)pc);      \
     }                                                                                                                 \
     if (ignoreNum < size && size > 0) {                                                                               \
-      offset = snprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);   \
+      offset = tsnprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);   \
       for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                              \
-        offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, \
+        offset += tsnprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, \
                            array[i]);                                                                                 \
       }                                                                                                               \
     }                                                                                                                 \
@@ -137,9 +140,9 @@ int32_t taosResetTerminalMode();
     char  **strings = backtrace_symbols(array, size);                                                                 \
     int32_t offset = 0;                                                                                               \
     if (strings != NULL) {                                                                                            \
-      offset = snprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);   \
+      offset = tsnprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? size - ignoreNum : size);   \
       for (int32_t i = (ignoreNum > 0) ? ignoreNum : 0; i < size; i++) {                                              \
-        offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, \
+        offset += tsnprintf(buf + offset, bufSize - 1 - offset, "frame:%d, %s\n", (ignoreNum > 0) ? i - ignoreNum : i, \
                            strings[i]);                                                                               \
       }                                                                                                               \
     }                                                                                                                 \
@@ -190,7 +193,7 @@ int32_t taosResetTerminalMode();
             snprintf(buf, bufSize - 1, "obtained %d stack frames\n", (ignoreNum > 0) ? frames - ignoreNum : frames); \
         for (i = (ignoreNum > 0) ? ignoreNum : 0; i < frames; i++) {                                                 \
           SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);                                                      \
-          offset += snprintf(buf + offset, bufSize - 1 - offset, "frame:%i, %s - 0x%0X\n",                           \
+          offset += tsnprintf(buf + offset, bufSize - 1 - offset, "frame:%i, %s - 0x%0X\n",                           \
                              (ignoreNum > 0) ? i - ignoreNum : i, symbol->Name, symbol->Address);                    \
         }                                                                                                            \
       }                                                                                                              \

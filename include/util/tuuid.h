@@ -37,3 +37,17 @@ int32_t tGenIdPI32(void);
  * @return
  */
 int64_t tGenIdPI64(void);
+
+/**
+ * Generate an qid
+ *+------------+-----+-----------+---------------+
+ *| nodeid|      0| serial number | 0            |
+ *+------------+-----+-----------+---------------+
+ *| 8bit  |  16bit|32bit          |8bit          |
+ *+------------+-----+-----------+---------------+
+ * @return
+ */
+int64_t tGenQid64(int8_t dnodeId);
+
+int32_t taosGetSystemUUIDU32(uint32_t *uuid);
+int32_t taosGetSystemUUIDU64(uint64_t *uuid);

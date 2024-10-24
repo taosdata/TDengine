@@ -63,7 +63,7 @@
       "childtable_offset": 0,
       "insert_rows": 20,
       "insert_interval": 0,
-      "interlace_rows": 5,
+      "interlace_rows": 0,
       "disorder_ratio": 0,
       "disorder_range": 1000,
       "timestamp_step": 1,

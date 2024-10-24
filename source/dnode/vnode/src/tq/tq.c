@@ -70,11 +70,14 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   }
   pVnode->pTq = pTq;
   pTq->path = taosStrdup(path);
+  if (pTq->path == NULL) {
+    return terrno;
+  }
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (pTq->pHandle == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pHandle, tqDestroyTqHandle);
 
@@ -82,18 +85,18 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   if (pTq->pPushMgr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pTq->pCheckInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   taosHashSetFreeFp(pTq->pOffset, (FDelete)tDeleteSTqOffset);
 
@@ -102,7 +105,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-
   int32_t code = streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1,
                                 tqStartTaskCompleteCallback, &pTq->pStreamMeta);
   if (code != TSDB_CODE_SUCCESS) {
@@ -110,7 +112,6 @@ int32_t tqInitialize(STQ* pTq) {
   }
 
   streamMetaLoadAllTasks(pTq->pStreamMeta);
-
   return tqMetaOpen(pTq);
 }
 
@@ -165,14 +166,14 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  code = tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  code = tqInitDataRsp(&dataRsp, req.reqOffset);
   if (code != 0) {
     tqError("tqInitDataRsp failed, code:%d", code);
     return;
   }
-  dataRsp.common.blockNum = 0;
+  dataRsp.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.reqOffset);
+  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s,QID:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
@@ -183,18 +184,18 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   tDeleteMqDataRsp(&dataRsp);
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp, int32_t type,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type,
                       int32_t vgId) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
   char buf1[TSDB_OFFSET_LEN] = {0};
   char buf2[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->reqOffset);
-  (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->rspOffset);
+  (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &(pRsp->reqOffset));
+  (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &(pRsp->rspOffset));
 
   tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
-          vgId, pReq->consumerId, pReq->epoch, ((SMqDataRspCommon*)pRsp)->blockNum, buf1, buf2, pReq->reqId);
+          vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
 }
@@ -344,7 +345,9 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
                        .pCont = pHandle->msg->pCont,
                        .contLen = pHandle->msg->contLen,
                        .info = pHandle->msg->info};
-        (void)tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        if (tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg) != 0){
+          tqError("vgId:%d tmsgPutToQueue failed, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
+        }
         taosMemoryFree(pHandle->msg);
         pHandle->msg = NULL;
       }
@@ -464,7 +467,6 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   void* buf = rpcMallocCont(len);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
   SEncoder encoder = {0};
@@ -516,7 +518,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRUnLockLatch(&pTq->lock);
 
   SMqDataRsp dataRsp = {0};
-  code = tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  code = tqInitDataRsp(&dataRsp, req.reqOffset);
   if (code != 0) {
     return code;
   }
@@ -527,10 +529,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     goto END;
   }
 
-  dataRsp.common.rspOffset.type = TMQ_OFFSET__LOG;
+  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
   if (reqOffset.type == TMQ_OFFSET__LOG) {
-    dataRsp.common.rspOffset.version = reqOffset.version;
+    dataRsp.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
     STqOffset* pOffset = NULL;
     code = tqMetaGetOffset(pTq, req.subKey, &pOffset);
@@ -541,17 +543,17 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
         goto END;
       }
 
-      dataRsp.common.rspOffset.version = pOffset->val.version;
+      dataRsp.rspOffset.version = pOffset->val.version;
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%" PRId64, consumerId, vgId,
-             req.subKey, dataRsp.common.rspOffset.version);
+             req.subKey, dataRsp.rspOffset.version);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-        dataRsp.common.rspOffset.version = sver;  // not consume yet, set the earliest position
+        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        dataRsp.common.rspOffset.version = ever;
+        dataRsp.rspOffset.version = ever;
       }
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%" PRId64, consumerId, vgId, req.subKey,
-             dataRsp.common.rspOffset.version);
+             dataRsp.rspOffset.version);
     }
   } else {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
@@ -643,7 +645,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   tDecoderInit(&dc, (uint8_t*)msg, msgLen);
   ret = tDecodeSMqRebVgReq(&dc, &req);
-  // decode req
   if (ret < 0) {
     goto end;
   }
@@ -653,7 +654,10 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   taosRLockLatch(&pTq->lock);
   STqHandle* pHandle = NULL;
-  (void)tqMetaGetHandle(pTq, req.subKey, &pHandle);  // ignore return code
+  int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
+  if (code != 0){
+    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one", pTq->pVnode->config.vgId, req.subKey);
+  }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -662,6 +666,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
     if (req.newConsumerId == -1) {
       tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      ret = TSDB_CODE_INVALID_PARA;
       goto end;
     }
     STqHandle handle = {0};
@@ -708,8 +713,7 @@ end:
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
 int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessVer) {
-  STQ* pTq = (STQ*)pTqObj;
-
+  STQ*    pTq = (STQ*)pTqObj;
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to build task", pTask->id.taskId);
 
@@ -739,20 +743,29 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
     SSchemaWrapper* pschemaWrapper = pOutputInfo->tbSink.pSchemaWrapper;
     pOutputInfo->tbSink.pTSchema = tBuildTSchema(pschemaWrapper->pSchema, pschemaWrapper->nCols, ver1);
     if (pOutputInfo->tbSink.pTSchema == NULL) {
-      return -1;
+      return terrno;
     }
 
-    pOutputInfo->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTblInfo, freePtr);
+    pOutputInfo->tbSink.pTbInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pOutputInfo->tbSink.pTbInfo == NULL) {
+      tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
+
+    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTbInfo, freePtr);
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
+    if (pTask->exec.pWalReader == NULL) {
+      tqError("vgId:%d failed init wal reader, code:%s", vgId, tstrerror(terrno));
+      return terrno;
+    }
   }
 
   streamTaskResetUpstreamStageInfo(pTask);
-  (void)streamSetupScheduleTrigger(pTask);
+  streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
@@ -802,6 +815,7 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   const char*    id = pTask->id.idStr;
   int64_t        nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
   SVersionRange* pStep2Range = &pTask->step2Range;
+  int32_t        vgId = pTask->pMeta->vgId;
 
   // if it's an source task, extract the last version in wal.
   bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
@@ -837,12 +851,15 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
     tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
             pStep2Range->maxVer, TASK_SCHED_STATUS__INACTIVE);
 
-    (void)streamTaskSetSchedStatusInactive(pTask);
+    int8_t status = streamTaskSetSchedStatusInactive(pTask);
 
     // now the fill-history task starts to scan data from wal files.
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
     if (code == TSDB_CODE_SUCCESS) {
-      (void)tqScanWalAsync(pTq, false);
+      code = tqScanWalAsync(pTq, false);
+      if (code) {
+        tqError("vgId:%d failed to start scan wal file, code:%s", vgId, tstrerror(code));
+      }
     }
   }
 }
@@ -998,10 +1015,17 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
+  if (code) {
+    tqError("vgId:%d failed to create task run req, code:%s", TD_VID(pTq->pVnode), tstrerror(code));
+    return code;
+  }
 
   // let's continue scan data in the wal files
-  if (code == 0 && (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK)) {
-    (void)tqScanWalAsync(pTq, false);  // it's ok to failed
+  if (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK) {
+    code = tqScanWalAsync(pTq, false);  // it's ok to failed
+    if (code) {
+      tqError("vgId:%d failed to start scan wal file, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
+    }
   }
 
   return code;
@@ -1103,7 +1127,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     tqError("vgId:%d failed to decode checkpoint-source msg, code:%s", vgId, tstrerror(code));
 
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, todo: handle failure of build and send msg to mnode
   }
@@ -1112,7 +1140,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
     tqDebug("vgId:%d not leader, ignore checkpoint-source msg, s-task:0x%x", vgId, req.taskId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, todo: handle failure of build and send msg to mnode
   }
@@ -1122,19 +1154,26 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
             ", transId:%d s-task:0x%x ignore it",
             vgId, req.checkpointId, req.transId, req.taskId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:0x%x failed to build checkpoint-source rsp, code:%s", req.taskId, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // always return success to mnode, , todo: handle failure of build and send msg to mnode
   }
 
   SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
-  if (pTask == NULL) {
+  if (pTask == NULL || code != 0) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
             " transId:%d it may have been destroyed",
             vgId, req.taskId, req.checkpointId, req.transId);
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }
@@ -1147,7 +1186,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     streamMetaReleaseTask(pMeta, pTask);
 
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+
     tmsgSendRsp(&rsp);         // error occurs
     return TSDB_CODE_SUCCESS;  // todo retry handle error
   }
@@ -1165,7 +1208,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       streamMetaReleaseTask(pMeta, pTask);
 
       SRpcMsg rsp = {0};
-      (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      if (ret) {  // suppress the error in build checkpointsource rsp
+        tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+
       tmsgSendRsp(&rsp);  // error occurs
       return TSDB_CODE_SUCCESS;
     }
@@ -1199,7 +1246,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       streamMetaReleaseTask(pMeta, pTask);
 
       SRpcMsg rsp = {0};
-      (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+      if (ret) {  // suppress the error in build checkpointsource rsp
+        tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+
       tmsgSendRsp(&rsp);  // error occurs
 
       return TSDB_CODE_SUCCESS;
@@ -1228,7 +1279,10 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask);
   if (code != TSDB_CODE_SUCCESS) {
     SRpcMsg rsp = {0};
-    (void)streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    int32_t ret = streamTaskBuildCheckpointSourceRsp(&req, &pMsg->info, &rsp, TSDB_CODE_SUCCESS);
+    if (ret) {  // suppress the error in build checkpointsource rsp
+      tqError("s-task:%s failed to build checkpoint-source rsp, code:%s", pTask->id.idStr, tstrerror(code));
+    }
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }

@@ -127,7 +127,10 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pData->dnodeId);
 
   float numCpuCores = 4;
-  taosGetCpuCores(&numCpuCores, false);
+  int32_t code = taosGetCpuCores(&numCpuCores, false);
+  if(code != 0) {
+    fnError("failed to get cpu cores, code:%d", code);
+  }
   numCpuCores = TMAX(numCpuCores, 2);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores * 2);
 
@@ -140,10 +143,10 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
-  strncpy(udfdPathLdLib, tsUdfdLdLibPath, tListLen(udfdPathLdLib));
+  tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib));
 
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
+  tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
@@ -155,10 +158,12 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
   if (taosFqdn != NULL) {
-    taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
+    int subLen = strlen(taosFqdn);
+    int len = strlen("TAOS_FQDN=") + subLen + 1;
+    taosFqdnEnvItem = taosMemoryMalloc(len);
     if (taosFqdnEnvItem != NULL) {
-      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
-      TAOS_STRCAT(taosFqdnEnvItem, taosFqdn);
+      tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
+      TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
@@ -897,6 +902,9 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       udfCol->colData.fixLenCol.dataLen = colDataGetLength(col, udfBlock->numOfRows);
       int32_t dataLen = udfCol->colData.fixLenCol.dataLen;
       udfCol->colData.fixLenCol.data = taosMemoryMalloc(udfCol->colData.fixLenCol.dataLen);
+      if (NULL == udfCol->colData.fixLenCol.data) {
+        return terrno;
+      }
       char *data = udfCol->colData.fixLenCol.data;
       memcpy(data, col->pData, dataLen);
     }
@@ -1066,7 +1074,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   int32_t code = 0, line = 0;
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   int32_t stubIndex = taosArraySearchIdx(gUdfcProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (stubIndex != -1) {
     SUdfcFuncStub *foundStub = taosArrayGet(gUdfcProxy.udfStubs, stubIndex);
@@ -1085,7 +1093,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
         taosArrayRemove(gUdfcProxy.udfStubs, stubIndex);
       }
     } else {
-      fnInfo("udf handle expired for %s, will setup udf. move it to expired list", udfName);
+      fnDebug("udf handle expired for %s, will setup udf. move it to expired list", udfName);
       if (taosArrayPush(gUdfcProxy.expiredUdfStubs, foundStub) == NULL) {
         fnError("acquireUdfFuncHandle: failed to push udf stub to array");
       } else {
@@ -1099,7 +1107,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
     SUdfcFuncStub stub = {0};
-    strncpy(stub.udfName, udfName, TSDB_FUNC_NAME_LEN);
+    tstrncpy(stub.udfName, udfName, TSDB_FUNC_NAME_LEN);
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.createTime = taosGetTimestampUs();
@@ -1123,7 +1131,7 @@ _exit:
 void releaseUdfFuncHandle(char *udfName, UdfcFuncHandle handle) {
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   SUdfcFuncStub *foundStub = taosArraySearch(gUdfcProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   SUdfcFuncStub *expiredStub = taosArraySearch(gUdfcProxy.expiredUdfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (!foundStub && !expiredStub) {
@@ -1672,7 +1680,7 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
     void *bufBegin = taosMemoryMalloc(bufLen);
     if(bufBegin == NULL) {
       fnError("udfc create uv task, malloc buffer failed. size: %d", bufLen);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void *buf = bufBegin;
     if(encodeUdfRequest(&buf, &request) <= 0)
@@ -1712,7 +1720,7 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   }
 
   uv_sem_wait(&uvTask->taskSem);
-  fnInfo("udfc uvTask finished. uvTask:%" PRId64 "-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
+  fnDebug("udfc uvTask finished. uvTask:%" PRId64 "-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
   uv_sem_destroy(&uvTask->taskSem);
 
   return 0;
@@ -1727,7 +1735,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
       if(pipe == NULL) {
         fnError("udfc event loop start connect task malloc pipe failed.");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       if (uv_pipe_init(&uvTask->udfc->uvLoop, pipe, 0) != 0) {
         fnError("udfc event loop start connect task uv_pipe_init failed.");
@@ -1756,7 +1764,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         fnError("udfc event loop start connect task malloc connReq failed.");
         taosMemoryFree(pipe);
         taosMemoryFree(conn);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       connReq->data = uvTask;
       uv_pipe_connect(connReq, pipe, uvTask->udfc->udfdPipeName, onUdfcPipeConnect);
@@ -1771,7 +1779,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
         if(write == NULL) {
           fnError("udfc event loop start req_rsp task malloc write failed.");
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         write->data = pipe->data;
         QUEUE *connTaskQueue = &((SClientUvConn *)pipe->data)->taskQueue;
@@ -2014,7 +2022,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
-  strncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
 
   code = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -2027,7 +2035,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->session->outputType = rsp->outputType;
   task->session->bytes = rsp->bytes;
   task->session->bufSize = rsp->bufSize;
-  strncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
   fnInfo("successfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
   *funcHandle = task->session;
   taosMemoryFree(task);

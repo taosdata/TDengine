@@ -23,7 +23,7 @@ static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
       .contLen = pMsg->info.rspLen,
       .info = pMsg->info,
   };
-  (void)tmsgSendRsp(&rsp);
+  tmsgSendRsp(&rsp);
 }
 
 static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {

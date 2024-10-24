@@ -85,7 +85,6 @@ typedef int32_t SOCKET;
 #else
 #define TAOS_EPOLL_WAIT_TIME 500
 typedef int32_t SOCKET;
-typedef SOCKET  EpollFd;
 #define EpollClose(pollFd)   taosCloseSocket(pollFd)
 #endif
 
@@ -138,12 +137,13 @@ int32_t taosShutDownSocketRDWR(TdSocketPtr pSocket);
 int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer);
 int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on);
 int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t optlen);
+int32_t taosSetSockOpt2(int32_t fd);
 int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t *optlen);
 int32_t taosWriteMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosNonblockwrite(TdSocketPtr pSocket, char *ptr, int32_t nbytes);
 int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len);
-void    taosWinSocketInit();
+int32_t taosWinSocketInit();
 
 /*
  * set timeout(ms)
@@ -160,12 +160,11 @@ TdSocketPtr       taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, st
 int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *addrLen);
 
 int32_t     taosBlockSIGPIPE();
-int32_t     taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip);
+int32_t     taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip);
 int32_t     taosGetFqdn(char *);
 void        tinet_ntoa(char *ipstr, uint32_t ip);
 uint32_t    ip2uint(const char *const ip_addr);
 int32_t     taosIgnSIGPIPE();
-uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
 uint64_t taosHton64(uint64_t val);

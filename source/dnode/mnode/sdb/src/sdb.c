@@ -68,7 +68,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mInfo("start to cleanup sdb");
 
-  (void)sdbWriteFile(pSdb, 0);
+  int32_t code = 0;
+
+  if ((code = sdbWriteFile(pSdb, 0)) != 0) {
+    mError("failed to write sdb file since %s", tstrerror(code));
+  }
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -136,7 +140,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pSdb->maxId[sdbType] = 0;
@@ -164,11 +168,10 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 }
 
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
-#if 1
-  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64,
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
-#endif
+  mInfo("vgId:1, mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+        " term:%" PRId64 " config:%" PRId64,
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+
   pSdb->applyIndex = index;
   pSdb->applyTerm = term;
   pSdb->applyConfig = config;

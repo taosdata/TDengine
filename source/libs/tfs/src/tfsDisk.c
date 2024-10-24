@@ -22,18 +22,18 @@ int32_t tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *path, 
   STfsDisk *pDisk = NULL;
 
   if ((pDisk = taosMemoryCalloc(1, sizeof(STfsDisk))) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   if ((pDisk->path = taosStrdup(path)) == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
   pDisk->level = level;
   pDisk->id = id;
   pDisk->disable = disable;
   if (taosGetDiskSize(pDisk->path, &pDisk->size) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);  // TODO: refactor this line
+    code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 _exit:
@@ -57,7 +57,7 @@ STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
 
 int32_t tfsUpdateDiskSize(STfsDisk *pDisk) {
   if (taosGetDiskSize(pDisk->path, &pDisk->size) < 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);  // TODO: refactor this line
+    int32_t code = terrno;
     fError("failed to get disk:%s size, level:%d id:%d since %s", pDisk->path, pDisk->level, pDisk->id,
            tstrerror(code));
     TAOS_RETURN(code);

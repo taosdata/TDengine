@@ -22,6 +22,7 @@
 // Private
 #include "taos_collector_t.h"
 #include "taos_linked_list_t.h"
+#include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_metric_formatter_i.h"
 #include "taos_metric_sample_t.h"
@@ -33,35 +34,28 @@ taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));
   self->string_builder = taos_string_builder_new();
   if (self->string_builder == NULL) {
-    (void)taos_metric_formatter_destroy(self);
+    taos_metric_formatter_destroy(self);
     return NULL;
   }
   self->err_builder = taos_string_builder_new();
   if (self->err_builder == NULL) {
-    (void)taos_metric_formatter_destroy(self);
+    taos_metric_formatter_destroy(self);
     return NULL;
   }
   return self;
 }
 
-int taos_metric_formatter_destroy(taos_metric_formatter_t *self) {
-  TAOS_TEST_PARA(self != NULL);
-  if (self == NULL) return 0;
+void taos_metric_formatter_destroy(taos_metric_formatter_t *self) {
+  TAOS_TEST_PARA_VOID(self != NULL);
 
-  int r = 0;
-  int ret = 0;
-
-  r = taos_string_builder_destroy(self->string_builder);
+  taos_string_builder_destroy(self->string_builder);
   self->string_builder = NULL;
-  if (r) ret = r;
 
-  r = taos_string_builder_destroy(self->err_builder);
+  taos_string_builder_destroy(self->err_builder);
   self->err_builder = NULL;
-  if (r) ret = r;
 
   taos_free(self);
   self = NULL;
-  return ret;
 }
 /*
 int taos_metric_formatter_load_help(taos_metric_formatter_t *self, const char *name, const char *help) {
@@ -153,6 +147,21 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
       r = taos_string_builder_add_char(self->string_builder, ',');
       if (r) return r;
     }
+  }
+  return 0;
+}
+int32_t taos_metric_formatter_get_vgroup_id(char *key) {
+  char *start, *end;
+  char  vgroupid[10];
+  start = strstr(key, "vgroup_id=\"");
+  if (start) {
+    start += strlen("vgroup_id=\"");
+    end = strchr(start, '\"');
+    if (end) {
+      strncpy(vgroupid, start, end - start);
+      vgroupid[end - start] = '\0';
+    }
+    return strtol(vgroupid, NULL, 10);
   }
   return 0;
 }

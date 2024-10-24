@@ -544,7 +544,7 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pPrevRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -579,7 +579,7 @@ static int32_t initNextRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pNextRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pNextRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -615,7 +615,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pLinearInfo = taosArrayInit(4, sizeof(SFillLinearInfo));
   if (pInfo->pLinearInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -652,7 +652,7 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
 
   pInfo->pPrevGroupKey = taosMemoryCalloc(1, sizeof(SGroupKeys));
   if (pInfo->pPrevGroupKey == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
@@ -1104,7 +1104,7 @@ static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn
 }
 
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -1112,7 +1112,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 

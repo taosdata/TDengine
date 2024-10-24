@@ -131,9 +131,6 @@ const SSTabFltFuncDef filterDict[] = {
 static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta,
                                      size_t size, const char* dbName, int64_t* pRows);
 
-static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
-                                      "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
-
 static char* SYSTABLE_SPECIAL_COL[] = {"db_name", "vgroup_id"};
 
 static int32_t        buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
@@ -1114,6 +1111,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       if (tagType == TSDB_DATA_TYPE_JSON) {
         char* tagJson = NULL;
         parseTagDatatoJson(tagData, &tagJson);
+        if (tagJson == NULL) {
+          code = terrno;
+          goto _end;
+        }
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);
         QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         memcpy(varDataVal(tagVarChar), tagJson, strlen(tagJson));
@@ -1575,8 +1576,8 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     SMetaReader mr = {0};
     pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    code = doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, &mr, *uid, dbname, vgId, p,
-                           numOfRows, GET_TASKID(pTaskInfo));
+    code = doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, &mr, *uid, dbname, vgId,
+                                  p, numOfRows, GET_TASKID(pTaskInfo));
 
     pAPI->metaReaderFn.clearReader(&mr);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2045,7 +2046,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      return pTaskInfo->code;
+      break;
     }
 
     blockDataCleanup(pInfo->pRes);
@@ -2088,12 +2089,18 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         continue;
       }
       (*ppRes) = pBlock;
-      return pTaskInfo->code;
     } else {
       (*ppRes) = NULL;
-      return pTaskInfo->code;
     }
+    break;
   }
+
+_end:
+  if (pTaskInfo->code) {
+    qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
+  return pTaskInfo->code;
 }
 
 static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,
@@ -2170,10 +2177,8 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->fp = loadSysTableCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
-    int64_t transporterId = 0;
-    void* poolHandle = NULL;
     taosSaveDisableMemoryPoolUsage(poolHandle);
-    code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, &transporterId, pMsgSendInfo);
+    code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     taosRestoreEnableMemoryPoolUsage(poolHandle);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -2181,7 +2186,12 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    (void)tsem_wait(&pInfo->ready);
+    code = tsem_wait(&pInfo->ready);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
 
     if (pTaskInfo->code) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
@@ -2232,14 +2242,14 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
 int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
                                        SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     lino = __LINE__;
     goto _error;
   }
@@ -2331,7 +2341,10 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
 
 void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
-  (void)tsem_destroy(&pInfo->ready);
+  int32_t            code = tsem_destroy(&pInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   blockDataDestroy(pInfo->pRes);
 
   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
@@ -2387,7 +2400,10 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  (void)tsem_post(&pScanResInfo->ready);
+  int32_t res = tsem_post(&pScanResInfo->ready);
+  if (res != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2565,7 +2581,7 @@ int32_t optSysIntersection(SArray* in, SArray* out) {
     if (has == true) {
       void* tmp = taosArrayPush(out, &tgt);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _end;
       }
     }
@@ -2811,12 +2827,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doBlockInfoScanNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
@@ -2835,7 +2845,8 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t));
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pCond->colList);
+    taosMemoryFree(pCond->pSlotList);
     return terrno;
   }
 
@@ -2858,14 +2869,14 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
 int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t         code = 0;
   int32_t         lino = 0;
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    pTaskInfo->code = code = TSDB_CODE_OUT_OF_MEMORY;
+    pTaskInfo->code = code = terrno;
     goto _error;
   }
 
@@ -2884,7 +2895,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     code = tableListGetSize(pTableListInfo, &num);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    void*  pList = tableListGetInfo(pTableListInfo, 0);
+    void* pList = tableListGetInfo(pTableListInfo, 0);
 
     code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,
                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);

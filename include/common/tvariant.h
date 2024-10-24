@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 // variant, each number/string/field_id has a corresponding struct during parsing sql
+// **NOTE**: if you want to change this struct, please consider the backward compatibility of function top and bottom.
 typedef struct SVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless
@@ -49,7 +50,7 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value);
  */
 int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value);
 
-void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
+int32_t taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 
 void taosVariantDestroy(SVariant *pV);
 

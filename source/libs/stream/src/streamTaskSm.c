@@ -88,7 +88,7 @@ static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEv
   if (px == NULL) {
     stError("s-task:%s failed to add into waiting list, total waiting events:%d, code: out of memory", pTask->id.idStr,
             (int32_t)taosArrayGetSize(pList));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     stDebug("s-task:%s add into waiting list, total waiting events:%d", pTask->id.idStr,
             (int32_t)taosArrayGetSize(pList));
@@ -191,10 +191,9 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
             GET_EVT_NAME(pEvtInfo->event), pSM->current.name);
 
     // remove it
-    (void) taosArrayPop(pSM->pWaitingEventList);
+    void* px = taosArrayPop(pSM->pWaitingEventList);
 
     STaskStateTrans* pNextTrans = streamTaskFindTransform(pSM->current.state, pEvtInfo->event);
-    ASSERT(pSM->pActiveTrans == NULL && pNextTrans != NULL);
 
     pSM->pActiveTrans = pNextTrans;
     pSM->startTs = taosGetTimestampMs();
@@ -218,10 +217,9 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
 
 static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent event) {
   SStreamTaskSM* pSM = pTask->status.pSM;
+  bool           removed = false;
+  int32_t        num = taosArrayGetSize(pSM->pWaitingEventList);
 
-  bool removed = false;
-
-  int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
     if (pInfo == NULL) {
@@ -267,7 +265,11 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
       stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
     }
   } else {
-    (void)removeEventInWaitingList(pTask, TASK_EVENT_PAUSE);  // ignore the return value,
+    code = removeEventInWaitingList(pTask, TASK_EVENT_PAUSE);  // ignore the return value,
+    if (code) {
+      stError("s-task:%s failed to remove event in waiting list, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+
     code = TSDB_CODE_FAILED;  // failed to restore the status, since it is not in pause status
   }
 
@@ -287,7 +289,7 @@ int32_t streamCreateStateMachine(SStreamTask* pTask) {
   if (pSM == NULL) {
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSM->pTask = pTask;
@@ -296,7 +298,7 @@ int32_t streamCreateStateMachine(SStreamTask* pTask) {
     taosMemoryFree(pSM);
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   // set the initial state for the state-machine of stream task
@@ -489,8 +491,8 @@ static void keepPrevInfo(SStreamTaskSM* pSM) {
 
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param) {
   SStreamTask* pTask = pSM->pTask;
-  const char* id = pTask->id.idStr;
-  int32_t code = 0;
+  const char*  id = pTask->id.idStr;
+  int32_t      code = 0;
 
   // do update the task status
   streamMutexLock(&pTask->lock);
@@ -499,9 +501,10 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
 
-    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP &&
-           s != TASK_STATUS__UNINIT && s != TASK_STATUS__READY) {
-      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
+    if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP && s != TASK_STATUS__UNINIT &&
+        s != TASK_STATUS__READY) {
+      stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name,
+              GET_EVT_NAME(pSM->prev.evt));
     }
 
     // the pSM->prev.evt may be 0, so print string is not appropriate.
@@ -519,11 +522,15 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
-  keepPrevInfo(pSM);
+  // repeat pause will not overwrite the previous pause state
+  if (pSM->current.state != TASK_STATUS__PAUSE || pTrans->next.state != TASK_STATUS__PAUSE) {
+    keepPrevInfo(pSM);
+    pSM->current = pTrans->next;
+  } else {
+    stDebug("s-task:%s repeat pause evt recv, not update prev status", id);
+  }
 
-  pSM->current = pTrans->next;
   pSM->pActiveTrans = NULL;
-
   // todo remove it
   // todo: handle the error code
   // on success callback, add into lock if necessary, or maybe we should add an option for this?

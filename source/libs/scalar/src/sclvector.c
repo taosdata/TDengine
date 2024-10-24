@@ -101,7 +101,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   int32_t code = TSDB_CODE_SUCCESS;
   char   *tmp = taosMemoryMalloc(varDataTLen(inData));
   if (NULL == tmp) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
@@ -124,7 +124,7 @@ int32_t convertBinaryToDouble(const void *inData, void *outData) {
   char *tmp = taosMemoryCalloc(1, varDataTLen(inData));
   if (tmp == NULL) {
     *((double *)outData) = 0.;
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(tmp, varDataVal(inData), varDataLen(inData));
   double ret = taosStr2Double(tmp, NULL);
@@ -370,7 +370,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     if (t == NULL) {
       sclError("Out of memory");
       taosMemoryFree(data);
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     varDataSetLen(t, size);
     (void)memcpy(varDataVal(t), data, size);
@@ -383,7 +383,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
     char   *t = taosMemoryCalloc(1, inputLen);
     if (t == NULL) {
       sclError("Out of memory");
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     (void)memcpy(t, buf, inputLen);
     int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
@@ -401,7 +401,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
 
   char   *t = taosMemoryCalloc(1, outputMaxLen);
   if (NULL == t) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t ret =
       taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
@@ -424,7 +424,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
 
   char   *t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
   if (NULL == t) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
   if (len < 0) {
@@ -457,7 +457,7 @@ static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t
 
   output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   if (NULL == output) {
-    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_JRET(terrno);
   }
   (void)memcpy(output + VARSTR_HEADER_SIZE, t, len);
   varDataSetLen(output, len);
@@ -540,7 +540,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
       tmp = taosMemoryMalloc(bufSize);
       if (tmp == NULL) {
         sclError("out of memory in vectorConvertFromVarData");
-        SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        SCL_ERR_JRET(terrno);
       }
     }
 
@@ -596,6 +596,11 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
+  if (NULL == *out) {
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+    SCL_ERR_RET(terrno);
+  }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
   if (len < 0) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -729,7 +734,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       int64_t value = 0;
       GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%" PRId64, value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -746,7 +751,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       uint64_t value = 0;
       GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%" PRIu64, value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -763,7 +768,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
 
       double value = 0;
       GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i));
-      int32_t len = sprintf(varDataVal(tmp), "%lf", value);
+      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -1024,6 +1029,31 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
     /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
     /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, 0};
+
+int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
+              /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIME NCHA UTINY USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+    /*NULL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  -1,  -1,  -1,   8,
+    /*BOOL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   5,  10,  11,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*TINY*/    0,   0,   2,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*SMAL*/    0,   0,   0,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*INT */    0,   0,   0,   0,   4,   5,   8,   8,   8,   5,  10,   4,   4,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*BIGI*/    0,   0,   0,   0,   0,   5,   8,   8,   8,   5,  10,   5,   5,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*FLOA*/    0,   0,   0,   0,   0,   0,   6,   7,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*DOUB*/    0,   0,   0,   0,   0,   0,   0,   7,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*VARC*/    0,   0,   0,   0,   0,   0,   0,   0,   8,   8,  10,   8,   8,   8,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*TIME*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   9,  10,   5,   5,   5,   8,   8,  -1,  -1,  -1,  -1,   8,
+    /*NCHA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  10,  10,  10,  10,  10,  10,  -1,  -1,  -1,  -1,  10,
+    /*UTINY*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  11,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*USMA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  12,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*UINT*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  13,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*UBIG*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  14,   8,  -1,  -1,  -1,  -1,   8,
+    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  15,  -1,  -1,  -1,  -1,   8,
+    /*VARB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  16,  -1,  -1,  -1,  -1,
+    /*DECI*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,
+    /*BLOB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,
+    /*MEDB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,
+    /*GEOM*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  20
+};
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   if (type1 == type2) {
@@ -2155,7 +2185,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
@@ -2189,7 +2219,7 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {

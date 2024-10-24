@@ -284,7 +284,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
-#define TSDB_FQDN_LEN             128
+#define TSDB_FQDN_LEN             TD_FQDN_LEN
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
@@ -293,6 +293,12 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+#define TSDB_ANAL_ANODE_URL_LEN   128
+#define TSDB_ANAL_ALGO_NAME_LEN   64
+#define TSDB_ANAL_ALGO_TYPE_LEN   24
+#define TSDB_ANAL_ALGO_KEY_LEN    (TSDB_ANAL_ALGO_NAME_LEN + 9)
+#define TSDB_ANAL_ALGO_URL_LEN    (TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1)
+#define TSDB_ANAL_ALGO_OPTION_LEN 256
 
 #define TSDB_MAX_EP_NUM 10
 
@@ -332,6 +338,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
@@ -499,7 +506,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 10
+#define TSDB_MAX_RPC_THREADS 50
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -602,6 +609,13 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+typedef enum {
+  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANAL_ALGO_TYPE_FORECAST = 1,
+  ANAL_ALGO_TYPE_END,
+} EAnalAlgoType;
+
 #ifdef __cplusplus
 }
 #endif

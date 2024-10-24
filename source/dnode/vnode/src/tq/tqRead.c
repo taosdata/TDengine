@@ -351,11 +351,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       if (data == NULL) {
         // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then
         // retry
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        terrno = code;
-
         tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
-        return code;
+        return terrno;
       }
 
       (void)memcpy(data, pBody, len);
@@ -565,9 +562,18 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+  SSDataBlock* pBlock = pReader->pResBlock;
   if (blockDataGetNumOfCols(pBlock) > 0) {
-    return TSDB_CODE_SUCCESS;
+      blockDataDestroy(pBlock);
+      int32_t code = createDataBlock(&pReader->pResBlock);
+      if (code) {
+        return code;
+      }
+      pBlock = pReader->pResBlock;
+
+      pBlock->info.id.uid = pReader->cachedSchemaUid;
+      pBlock->info.version = pReader->msg.ver;
   }
 
   int32_t numOfCols = taosArrayGetSize(pColIdList);
@@ -580,7 +586,7 @@ static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, 
       int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != TSDB_CODE_SUCCESS) {
         blockDataFreeRes(pBlock);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
     }
   } else {
@@ -681,10 +687,10 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
               vgId, suid, uid, sversion, pReader->pSchemaWrapper->version);
       return TSDB_CODE_TQ_INTERNAL_ERROR;
     }
-    if (blockDataGetNumOfCols(pBlock) == 0) {
-      code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
-      TSDB_CHECK_CODE(code, line, END);
-    }
+    code = buildResSDataBlock(pReader, pReader->pSchemaWrapper, pReader->pColIdList);
+    TSDB_CHECK_CODE(code, line, END);
+    pBlock = pReader->pResBlock;
+    *pRes = pBlock;
   }
 
   int32_t numOfRows = 0;

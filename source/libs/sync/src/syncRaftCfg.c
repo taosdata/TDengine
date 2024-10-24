@@ -49,7 +49,7 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   if ((code = tjsonAddItemToObject(pJson, "nodeInfo", nodeInfo)) < 0) {
@@ -60,7 +60,7 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) {
-      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(info, "nodePort", pCfg->nodeInfo[i].nodePort), NULL, _err);
     TAOS_CHECK_GOTO(tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn), NULL, _err);
@@ -97,7 +97,7 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
 
   SJson *configIndexArr = tjsonCreateArray();
   if (configIndexArr == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   if ((code = tjsonAddItemToObject(pJson, "configIndexArr", configIndexArr)) < 0) {
@@ -108,7 +108,7 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   for (int32_t i = 0; i < pCfg->configIndexCount; ++i) {
     SJson *configIndex = tjsonCreateObject();
     if (configIndex == NULL) {
-      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tjsonAddIntegerToObject(configIndex, "index", pCfg->configIndexArr[i]));
     TAOS_CHECK_EXIT(tjsonAddItemToArray(configIndexArr, configIndex));
@@ -139,34 +139,32 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   (void)snprintf(file, sizeof(file), "%s.bak", realfile);
 
   if ((pJson = tjsonCreateObject()) == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   TAOS_CHECK_EXIT(tjsonAddObject(pJson, "RaftCfg", syncEncodeRaftCfg, pCfg));
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    code = terrno ? terrno : TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     TAOS_CHECK_EXIT(code);
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(terrno);
   }
 
   if (taosFsyncFile(pFile) < 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
-  (void)taosCloseFile(&pFile);
-  if (taosRenameFile(file, realfile) != 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-  }
+  TAOS_CHECK_EXIT(taosCloseFile(&pFile));
+  TAOS_CHECK_EXIT(taosRenameFile(file, realfile));
 
   sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", changeVersion:%d",
         pNode->vgId, realfile, len, pNode->raftCfg.lastConfigIndex, pNode->raftCfg.cfg.changeVersion);
@@ -261,26 +259,26 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = terrno;
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }

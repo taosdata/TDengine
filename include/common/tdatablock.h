@@ -41,7 +41,7 @@ typedef struct SBlockOrderInfo {
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
 #define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
-#define QRY_OPTR_CHECK(_o)           \
+#define QRY_PARAM_CHECK(_o)           \
   do {                               \
     if ((_o) == NULL) {              \
       return TSDB_CODE_INVALID_PARA; \
@@ -233,6 +233,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
  * @brief find how many rows already in order start from first row
  */
 int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
+void    blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
@@ -276,7 +277,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pData
 
 bool    alreadyAddGroupId(char* ctbName, int64_t groupId);
 bool    isAutoTableName(char* ctbName);
-void    buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
+int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap);
 int32_t buildCtbNameByGroupId(const char* stbName, uint64_t groupId, char** pName);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 

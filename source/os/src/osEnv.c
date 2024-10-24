@@ -37,7 +37,7 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsSIMDEnable = 0;
+char tsSIMDEnable = 1;
 char tsAVX512Enable = 0;
 char tsSSE42Supported = 0;
 char tsAVXSupported = 0;
@@ -50,7 +50,10 @@ int32_t osDefaultInit() {
 
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  if(code != 0) {
+    return code;
+  }
   if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
     if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
       return code;
@@ -64,43 +67,48 @@ int32_t osDefaultInit() {
   }
 
 #ifdef WINDOWS
-  taosWinSocketInit();
+  code = taosWinSocketInit();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   const char *tmpDir = getenv("tmp");
   if (tmpDir == NULL) {
     tmpDir = getenv("temp");
   }
   if (tmpDir != NULL) {
-    (void)strcpy(tsTempDir, tmpDir);
+    tstrncpy(tsTempDir, tmpDir, sizeof(tsTempDir));
   }
-  (void)strcpy(tsOsName, "Windows");
+  tstrncpy(tsOsName, "Windows", sizeof(tsOsName));
 #elif defined(_TD_DARWIN_64)
-  (void)strcpy(tsOsName, "Darwin");
+  tstrncpy(tsOsName, "Darwin", sizeof(tsOsName));
 #else
-  (void)strcpy(tsOsName, "Linux");
+  tstrncpy(tsOsName, "Linux", sizeof(tsOsName));
 #endif
   if (configDir[0] == 0) {
-    (void)strcpy(configDir, TD_CFG_DIR_PATH);
+    tstrncpy(configDir, TD_CFG_DIR_PATH, sizeof(configDir));
   }
-  (void)strcpy(tsDataDir, TD_DATA_DIR_PATH);
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  if(strlen(tsTempDir) == 0){
-    (void)strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
+  if (strlen(tsTempDir) == 0){
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }
 
   return code;
 }
 
-void osUpdate() {
+int32_t osUpdate() {
+  int code = 0;
   if (tsLogDir[0] != 0) {
-    (void)taosGetDiskSize(tsLogDir, &tsLogSpace.size);
+    code = taosGetDiskSize(tsLogDir, &tsLogSpace.size);
   }
   if (tsDataDir[0] != 0) {
-    (void)taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+    code = taosGetDiskSize(tsDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
-    (void)taosGetDiskSize(tsTempDir, &tsTempSpace.size);
+    code = taosGetDiskSize(tsTempDir, &tsTempSpace.size);
   }
+  return code;
 }
 
 void osCleanup() {}
