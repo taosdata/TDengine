@@ -1895,6 +1895,7 @@ int sml_td24559_Test() {
   int code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code);
+  taos_free_result(pRes);
 
   const char *sql[] = {
       "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299372000",
