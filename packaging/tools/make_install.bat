@@ -12,8 +12,15 @@ if exist C:\\TDengine\\data\\dnode\\dnodeCfg.json (
 
 rem // stop and delete service
 mshta vbscript:createobject("shell.application").shellexecute("%~s0",":stop_delete","","runas",1)(window.close)
-echo This might take a few moment to accomplish deleting service taosd/taosadapter ...
-echo This might take a few moment to accomplish deleting service taosd/taoskeeper ...
+
+if exist %binary_dir%\\build\\bin\\taosadapter.exe (
+    echo This might take a few moment to accomplish deleting service taosd/taosadapter ...
+)
+
+if exist %binary_dir%\\build\\bin\\taoskeeper.exe (
+    echo This might take a few moment to accomplish deleting service taosd/taoskeeper ...
+)
+
 call :check_svc taosd
 call :check_svc taosadapter
 call :check_svc taoskeeper
