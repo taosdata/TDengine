@@ -1329,7 +1329,7 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timezone");
-  if (0 == strlen(pItem->str)) {
+  if (0 == strlen(pItem->str)) { 
     uError("timezone is not set");
   } else {
     TAOS_CHECK_RETURN(osSetTimezone(pItem->str));
@@ -1359,8 +1359,6 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
   tsEnableCoreFile = pItem->bval;
   taosSetCoreDump(tsEnableCoreFile);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "assert");
 
   // todo
   tsVersion = 30000000;
