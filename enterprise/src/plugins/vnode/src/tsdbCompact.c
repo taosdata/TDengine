@@ -81,9 +81,6 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
   int32_t    lino = 0;
   STFileObj *fobj;
 
-  ASSERT(compactor->ctx->dataReader == NULL);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->sttReaderArr) == 0);
-
   // data
   SDataFileReaderConfig dataFileReaderConfig = {
       .tsdb = compactor->tsdb,
@@ -144,7 +141,7 @@ _exit:
 
 static int32_t tsdbCompactFSetCloseReader(SCompactor2 *compactor) {
   TARRAY2_CLEAR(compactor->ctx->sttReaderArr, tsdbSttFileReaderClose);
-  TAOS_UNUSED(tsdbDataFileReaderClose(&compactor->ctx->dataReader));
+  tsdbDataFileReaderClose(&compactor->ctx->dataReader);
   return 0;
 }
 
@@ -154,11 +151,6 @@ static int32_t tsdbCompactFSetOpenIter(SCompactor2 *compactor) {
 
   STsdbIter      *iter;
   STsdbIterConfig iterConfig = {0};
-
-  ASSERT(compactor->ctx->dataIterMerger == NULL);
-  ASSERT(compactor->ctx->tombIterMerger == NULL);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->dataIterArr) == 0);
-  ASSERT(TARRAY2_SIZE(compactor->ctx->tombIterArr) == 0);
 
   // data
   if (compactor->ctx->dataReader != NULL) {
@@ -223,8 +215,8 @@ _exit:
 }
 
 static int32_t tsdbCompactFSetCloseIter(SCompactor2 *compactor) {
-  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->dataIterMerger));
-  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->tombIterMerger));
+  tsdbIterMergerClose(&compactor->ctx->dataIterMerger);
+  tsdbIterMergerClose(&compactor->ctx->tombIterMerger);
   TARRAY2_CLEAR(compactor->ctx->tombIterArr, tsdbIterClose);
   TARRAY2_CLEAR(compactor->ctx->dataIterArr, tsdbIterClose);
   return 0;
@@ -240,7 +232,6 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
     lcn = fobj->f->lcn;
   }
 
-  ASSERT(compactor->ctx->writer == NULL);
   SFSetWriterConfig config = {
       .tsdb = compactor->tsdb,
       .toSttOnly = false,
@@ -422,7 +413,6 @@ static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
       return true;
     }
   } else if (tKey.ts == compactor->ctx->pDKey->ts) {
-    ASSERT(compactor->ctx->iSkyLine < nKey);
     if (tKey.version > TMAX(compactor->ctx->pDKey->version, aKey[compactor->ctx->iSkyLine].version)) {
       return false;
     } else {
@@ -543,7 +533,7 @@ static int32_t tsdbCompact(void *arg) {
 
   // begin task
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  TAOS_UNUSED(tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset));
+  tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset))) {
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -560,7 +550,7 @@ _exit:
   // finish task
   if (compactor.fset) {
     TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-    TAOS_UNUSED(tsdbFinishTaskOnFileSet(tsdb, compactArg->fid));
+    tsdbFinishTaskOnFileSet(tsdb, compactArg->fid);
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   }
 

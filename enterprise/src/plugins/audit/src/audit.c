@@ -115,9 +115,12 @@ int32_t auditSend(SJson *pJson) {
     return code;
   }
 
-  uDebug("audit record cont:%s\n", pCont);
+  char tmp[100] = {0};
+  (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
+  uDebug("audit record with QID:%s cont:%s\n", tmp, pCont);
   EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-  if (taosSendHttpReport(tsAudit.cfg.server, tsAuditUri, tsAudit.cfg.port, pCont, strlen(pCont), flag) != 0) {
+  if (taosSendHttpReportWithQID(tsAudit.cfg.server, tsAuditUri, tsAudit.cfg.port, pCont, strlen(pCont), flag, tmp) !=
+      0) {
     uError("failed to send audit msg, cont:%s", pCont);
     code = TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD;
     taosMemoryFree(pCont);
@@ -256,9 +259,12 @@ void auditSendRecordsInBatchImp(){
 
   char *pCont = tjsonToString(pJson);
   if (pCont != NULL) {
-    uDebug("audit batch record count: %d\n", setSize);
+    char tmp[100] = {0};
+    (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
+    uDebug("audit batch record with QID:%s cont: %d\n", tmp, setSize);
     EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsAudit.cfg.server, tsAuditBatchUri, tsAudit.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReportWithQID(tsAudit.cfg.server, tsAuditBatchUri, tsAudit.cfg.port, pCont, strlen(pCont), flag,
+                                  tmp) != 0) {
       uError("failed to send audit msg, cont:%s", pCont);
     }
     taosMemoryFree(pCont);

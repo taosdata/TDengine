@@ -47,14 +47,12 @@ int32_t tsdbOpenCompMonitor(STsdb *tsdb) {
   return 0;
 }
 
-int32_t tsdbCloseCompMonitor(STsdb *tsdb) {
+void tsdbCloseCompMonitor(STsdb *tsdb) {
   if (tsdb->pCompMonitor) {
-    ASSERT(TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr) == 0);
     TARRAY2_DESTROY(&tsdb->pCompMonitor->stateArr, NULL);
     taosMemoryFree(tsdb->pCompMonitor);
     tsdb->pCompMonitor = NULL;
   }
-  return 0;
 }
 
 int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId) {
@@ -93,14 +91,14 @@ int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
   return 0;
 }
 
-int32_t tsdbStopAllCompTask(STsdb *tsdb) {
+void tsdbStopAllCompTask(STsdb *tsdb) {
   int32_t i;
 
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   if (tsdb->pCompMonitor == NULL) {
     TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-    return 0;
+    return;
   }
 
   i = 0;
@@ -114,7 +112,7 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   }
 
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-  return 0;
+  return;
 }
 
 int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {

@@ -16,21 +16,39 @@ fi
 
 osType=$(uname)
 
-for service in "${services[@]}"; do
+MAX_RETRY=3
+
+
+function start_service() {
     if [ "$osType" == "Linux" ]; then
-        ${csudo}systemctl start $service	
-        if systemctl is-active $service >/dev/null; then
-            echo "$service has been started successfully"
-        else
-            echo "failed to start $service"
+        ${csudo}systemctl start $1
+        while [ $MAX_RETRY -gt 0 ]; do
+            sleep 0.5
+            if systemctl is-active $1 >/dev/null; then
+                echo "$1 has been started successfully"
+                break            
+            fi
+            MAX_RETRY=$((MAX_RETRY - 1))
+        done
+        if [ $MAX_RETRY -eq 0 ]; then
+            echo "failed to start $1"
         fi
     elif [ "$osType" == "Darwin" ]; then
-        ${csudo}launchctl start com.tdengine.${service}
-        sleep 1	    
-        if launchctl print system/com.tdengine.${service} | grep 'state = running' > /dev/null; then
-            echo "$service has been started successfully"
-        else
-            echo "failed to start $service"
+        ${csudo}launchctl start com.tdengine.$1
+        while [ $MAX_RETRY -gt 0 ]; do
+            sleep 0.5
+            if launchctl print system/com.tdengine.$1 | grep 'state = running' > /dev/null; then
+                echo "$1 has been started successfully"
+                break
+            fi
+            MAX_RETRY=$((MAX_RETRY - 1))
+        done
+        if [ $MAX_RETRY -eq 0 ]; then
+            echo "failed to start $1"
         fi
     fi
+}
+
+for service in "${services[@]}"; do
+    start_service $service
 done

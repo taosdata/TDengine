@@ -244,63 +244,74 @@ IF(TD_BULID_TAOSX)
     ENDIF ()
 ENDIF ()
 
-IF ("${BUILD_EXPLORER}" MATCHES "true")
-    SET(TD_BULID_EXPLORER TRUE)
-    MESSAGE("Enable explorer")
-    ADD_DEFINITIONS(-DTD_BULID_EXPLORER)
-ELSE ()
-    SET(TD_BULID_EXPLORER FALSE)
-ENDIF ()
+IF(TD_BUILD_KEEPER_INTERNAL)
+    MESSAGE("")
+    MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
-if ("${CUS_PROMPT}" STREQUAL "")
-    MESSAGE("CUS_PROMPT EMPTY set taos:${CUS_PROMPT}")
-    SET(EXPLORER_PREFIX "taos")
-ELSE()
-    MESSAGE("CUS_PROMPT:${CUS_PROMPT}")
-    SET(EXPLORER_PREFIX "${CUS_PROMPT}")
-ENDIF()
+    EXECUTE_PROCESS(
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
+        COMMAND git rev-parse HEAD
+        OUTPUT_VARIABLE taoskeeper_commit_sha1
+    )
 
-IF(TD_BULID_EXPLORER)
-    include(ExternalProject)
-    set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
-    set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
-    set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
-    set(EXPLORER_ETC_PATH ${CMAKE_BINARY_DIR}/build/share/etc)
-    file(MAKE_DIRECTORY ${EXPLORER_ETC_PATH})
-    IF (TD_WINDOWS)
-        ExternalProject_Add(explorer
-            PREFIX              explorer
-            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
-            BUILD_ALWAYS        off
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND
-            # COMMAND cargo update
-            COMMAND git status
+    IF("${taoskeeper_commit_sha1}" STREQUAL "")
+        SET(taoskeeper_commit_sha1 "unknown")
+    ELSE()
+        STRING(STRIP "${taoskeeper_commit_sha1}" taoskeeper_commit_sha1)
+    ENDIF()
+
+    SET(taos_version ${TD_VER_NUMBER})
+    MESSAGE("${Green} taoskeeper will use ${taos_version} and commit ${taoskeeper_commit_sha1} as version ${ColourReset}")
+    MESSAGE(" current source dir is ${CMAKE_CURRENT_SOURCE_DIR}")
+
+    IF(TD_WINDOWS)
+        MESSAGE("Building taoskeeper on Windows")
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
+            BUILD_ALWAYS off
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+            PATCH_COMMAND
+            COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND yarn --version || npm install -g yarn
-            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && set CUS_CONFIG=${CUS_CONFIG} && set VER_NUMBER=${VER_NUMBER} && yarn && yarn build && cargo build --release
-            COMMAND git checkout .
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
-            COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
-            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
-            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
+            COMMAND cmake -E echo "Copy taoskeeper.exe"
+            COMMAND cmake -E copy taoskeeper.exe ${CMAKE_BINARY_DIR}/build/bin
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E echo "Copy taoskeeper.toml"
+            COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/config/taoskeeper_enterprise.toml ${CMAKE_BINARY_DIR}/test/cfg/taoskeeper.toml
+            COMMAND cmake -E echo "Copy taoskeeper.service"
+            COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
         )
     ELSE()
-        ExternalProject_Add(explorer
-            PREFIX              explorer
-            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
-            BUILD_ALWAYS        off
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND
-            COMMAND git status
+        IF(TD_DARWIN)
+            MESSAGE("Building taoskeeper on macOS")
+        ELSE()
+            MESSAGE("Building taoskeeper on Linux")
+        ENDIF()
+
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taoskeeper
+            PREFIX "taoskeeper"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper
+            BUILD_ALWAYS off
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
+            PATCH_COMMAND
+            COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND yarn --version || npm install -g yarn
-            COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} CUS_CONFIG=${CUS_CONFIG} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
-            COMMAND git checkout .
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
-            COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
-            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
-            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
+            COMMAND cmake -E echo "Copy taoskeeper"
+            COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin/
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+            COMMAND cmake -E echo "Copy taoskeeper.toml"
+            COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/config/taoskeeper_enterprise.toml ${CMAKE_BINARY_DIR}/test/cfg/taoskeeper.toml
+            COMMAND cmake -E echo "Copy taoskeeper.service"
+            COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/keeper/taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
         )
-    ENDIF ()
-ENDIF ()
+    ENDIF()
+ENDIF()

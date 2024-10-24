@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
+extern void    tsdbStopAllCompTask(STsdb *tsdb);
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
 
@@ -34,13 +34,14 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVKillCompactReq req = {0};
 
+  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d, pReq:%p, len:%d", TD_VID(pVnode), req.compactId,
+        pReq, len);
   int32_t code = tDeserializeSVKillCompactReq(pReq, len, &req);
   if (code) {
     return TSDB_CODE_INVALID_MSG;
   }
-  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode), req.compactId);
 
-  TAOS_UNUSED(tsdbStopAllCompTask(pVnode->pTsdb));
+  tsdbStopAllCompTask(pVnode->pTsdb);
 
   pRsp->msgType = TDMT_VND_KILL_COMPACT_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;

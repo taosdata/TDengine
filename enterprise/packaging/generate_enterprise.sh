@@ -99,6 +99,7 @@ fi
 
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
+rm -rf build-taoskeeper
 
 server_tar=$(ls *-enterprise-*.tar.gz | grep -v client)
 [ "$server_tar" == "" ] && exit # build taoskeeper only with server
@@ -116,7 +117,11 @@ else
   arch=$cpuType
 fi
 
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
+if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
+  taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
+else
+  taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version -N ${cusName} -M ${cusEmail} -P ${cusPrompt}`
+fi
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.

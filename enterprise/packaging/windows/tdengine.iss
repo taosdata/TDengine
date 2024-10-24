@@ -42,6 +42,8 @@ CloseApplications=force
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
@@ -55,23 +57,23 @@ Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
 Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
-Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
-Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
-Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
-Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
-Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
-Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
-Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
-Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
-
+Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
+Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
+Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
+Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
+Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
+Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
+Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
+Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
-;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
-;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins\"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -90,6 +92,8 @@ Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+Filename: "C:\Windows\System32\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x64"; Flags: runhidden; StatusMsg: "Configuring ODBC x64"
+Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x86"; Flags: runhidden; StatusMsg: "Configuring ODBC x86"
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
@@ -487,14 +491,42 @@ begin
   end;
 end;
 
+function DeleteOdbcDsnRegistry: Boolean;
+begin
+  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_DSN');  
+  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_WS_DSN')
+
+  RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_DSN'); 
+  RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_WS_DSN'); 
+     
+  Result := True;
+end;
+
+function DeleteOdbcDriverRegistry: Boolean;
+begin
+  // Delete 64-bit ODBC driver registry 
+  RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\TAOS_ODBC_DRIVER');    
+  RegDeleteValue(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers', 'TAOS_ODBC_DRIVER');
+
+  // Delete 32-bit ODBC driver registry 
+  RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\Wow6432Node\ODBC\ODBCINST.INI\TAOS_ODBC_DRIVER');
+  RegDeleteValue(HKLM64, 'SOFTWARE\Wow6432Node\ODBC\ODBCINST.INI\ODBC Drivers', 'TAOS_ODBC_DRIVER');
+
+  Result := True;
+end;
+
+procedure DeinitializeUninstall();
+begin
+	DeleteOdbcDsnRegistry();
+	DeleteOdbcDriverRegistry();
+end;
+
 function ShouldInstallOPC: Boolean;
 begin
   Result := OPCInstallFileFlag;
 end;
 
 [UninstallDelete]
-Name: {app}\cfg; Type: filesandordirs
-Name: {app}\log; Type: filesandordirs 
 Name: {app}\driver; Type: filesandordirs 
 Name: {app}\connector; Type: filesandordirs
 Name: {app}\examples; Type: filesandordirs
