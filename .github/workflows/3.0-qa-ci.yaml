@@ -15,7 +15,7 @@ env:
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  DIR_PATH_3_0: "3.01024"
+  DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
 
 concurrency:
