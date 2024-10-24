@@ -496,6 +496,7 @@ void metaULock(SMeta *pMeta) {
 static void metaCleanup(SMeta **ppMeta) {
   SMeta *pMeta = *ppMeta;
   if (pMeta) {
+    metaInfo("vgId:%d meta clean up, path:%s", TD_VID(pMeta->pVnode), pMeta->path);
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
 #ifdef BUILD_NO_CALL
