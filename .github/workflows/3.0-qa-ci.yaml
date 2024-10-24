@@ -6,16 +6,16 @@ on:
   #  - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
   workflow_dispatch:
   # pull_request:
-  # push:
-    # branches:
-      # - ref/support-cancel-previous-run
+  push:
+    branches:
+      - ref/ci-support-rerun-failed
 
 env:
   RELEASE_HOST: 192.168.1.45
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  DIR_PATH_3_0: "3.0"
+  DIR_PATH_3_0: "3.01024"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
 
 concurrency:
@@ -30,6 +30,8 @@ jobs:
         run: |
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
+          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
 
   build_rust:
     needs: remove_artifacts
@@ -42,6 +44,10 @@ jobs:
           pwd
           rustup component add llvm-tools-preview
           rustc --version
+      
+      - name: Build Explorer
+        run: |
+          cargo make explorer
 
       - name: Build taosx
         run: |
@@ -50,17 +56,15 @@ jobs:
           rm -rf ./target/debug/taosx-profraw/
           export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           cargo build --target-dir ./target/debug/taosx-build/
+
       - name: taosx unit test
         run: |
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-              echo "run taosx unit test"
-              # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
-              # cargo test --target-dir ./target/debug/taosx-build/
-              cargo llvm-cov nextest --workspace --ignore-run-fail
-              cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
-              ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
-          fi
-          
+          echo "run taosx unit test"
+          # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+          # cargo test --target-dir ./target/debug/taosx-build/
+          cargo llvm-cov nextest --workspace --ignore-run-fail
+          cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+
       - name: Build agent
         run: |
           # build agent
@@ -69,30 +73,22 @@ jobs:
           export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
           cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
 
-      # - name: taosx unit test    
-      #   continue-on-error: true
-      #   run: |
-      #     if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-      #       echo "run unit test"
-      #       export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
-      #       cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
-      #     fi
-
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin
           cp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/
+          cp ./target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/
           cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cd ..
-          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          tar --exclude=./taosx/target/* --exclude=./taosx/explorer -zcvf taosx.tar.gz ./taosx
           cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm taosx.tar.gz
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz
 
   build_go:
-    runs-on: [self-hosted, linux, x64, qa, go]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     needs: remove_artifacts
     steps:
       - name: Check out repository code
@@ -109,21 +105,18 @@ jobs:
         continue-on-error: true
         run: |
           cd plugins/opc
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run opc unit test"
-            go test -coverpkg=./... -coverprofile=opc_unit_report.txt  -timeout=5s ./...
-          fi
+          # pip3 install opcua
+          # nohup python3 plugins/opc/test/ua_server.py & disown
+          go test -coverpkg=./... -coverprofile=opc_unit_report.txt ./...
       - name: Copy OPC Files
         run: |
           cd plugins/opc
-          if [-f "opc_unit_report.txt"]; then
-            echo "Copy OPC Unit Test Coverage Data"
-            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
-            scp opc_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
-            rm opc_unit_report.txt
-          fi
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/"
-          scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
+          echo "Copy OPC Unit Test Coverage Data"
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
+          cp opc_unit_report.txt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
+          rm opc_unit_report.txt
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
+          cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
 
       - name: Build mqtt
         run: |
@@ -134,23 +127,20 @@ jobs:
         continue-on-error: true
         run: |
           cd plugins/mqtt
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run mqtt unit test"
-            go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
-          fi
+          echo "run mqtt unit test"
+          go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=20s ./...
+
       - name: Copy MQTT Files
         run: |
           cd plugins/mqtt
-          if [ -f "mqtt_unit_report.txt" ]; then
-            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/"
-            scp mqtt_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
-            rm mqtt_unit_report.txt
-          fi
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/"
-          scp taosx-mqtt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
+          cp mqtt_unit_report.txt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
+          rm mqtt_unit_report.txt
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/
+          cp taosx-mqtt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/
 
   build_java:
-    runs-on: [self-hosted, linux, x64, qa, java]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     needs: remove_artifacts
     steps:
       - name: Check out repository code
@@ -164,155 +154,146 @@ jobs:
         continue-on-error: true
         run: |
           cd plugins/influxdb
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run influxdb unit test"
-            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
-            mvn test
-          fi
-      - name: Package influxdb 
+          # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+          mvn test
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/
+          mv ./target/jacoco.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/influxdb_unit_test_jacoco.exec
+
+      - name: Package influxdb
         run: |
           cd plugins/influxdb
           mvn clean package -Dmaven.test.skip=true
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/"
-          # scp ./target/taosx-influxdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
-          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
+          cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
 
       - name: Run OpenTSDB Unit Test
         continue-on-error: true
         run: |
           cd plugins/opentsdb
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run opentsdb unit test"
-            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
-            mvn test
-          fi
+          mvn test
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/
+          mv ./target/jacoco.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec
+
       - name: Package OpenTSDB
         run: |
           cd plugins/opentsdb
           mvn clean package -Dmaven.test.skip=true
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/"
-          #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
-          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
+          cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
 
   deploy_for_mqtt:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust, build_go, build_java]
+    outputs:
+      CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
+      RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
+      EXPLORER_PORT: ${{ steps.run_container.outputs.explorer_port }}
     steps:
-      - name: Deploy taosx
+      - name: run container
+        id: run_container
         run: |
           pwd
           ls ${{ github.workspace }}
           # run taosx
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/"
-          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
+
+          for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
+
+          PWD=$(pwd)
+          echo "PWD: $PWD"
+          run_container_id=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/$DIR_PATH_3_0:$COVERAGE_BASE_DIR/$DIR_PATH_3_0 -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          echo "container_id: $run_container_id"
+          echo "rpc_port: $rpc_port"
+          echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
+          echo "explorer_port=$explorer_port" >> "$GITHUB_OUTPUT"
+          # 激活 taosd
+          docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
           
-      - name: Deploy taosx-agent
+      - name: run taosx & taosx-agent & taos-explorer in container
         run: |
-          pwd
-          ls ${{ github.workspace }}
-          # run taosx-agent
-          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
+          echo "container_id: ${{ steps.run_container.outputs.container_id }}"
+          # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
+          echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'\""
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'\""
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "ps -ef |grep taos"
 
   test_mqtt:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: deploy_for_mqtt
+    needs: [deploy_for_mqtt]
     steps:
-      - name: Update Repo
-        run: |
-          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
-          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
-      
-      - name: Restart taos-explorer & taosadapter
-        run: |
-          systemctl restart taos-explorer
-          systemctl restart taosadapter
-      
       - name: Run Test
         continue-on-error: true
         run: |
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity mqtt_test.py
 
-      - name: Stop taosx-agent & taosx
-        # if: always()
-        shell: bash {0}
-        run: |
-          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
-      
-      - name: Sleep for 20 seconds
-        uses: jakejarvis/wait-action@master
-        with:
-          time: '20s'
-      
-      - name: Force stop taosx-agent & taosx
-        if: always()
-        shell: bash {0}
-        run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
-  
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry install --no-root"
+
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
+
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_mqtt]
+    outputs:
+      CONTAINER_ID2: ${{ steps.run_container2.outputs.container_id2 }}
+      RPC_PORT2: ${{ steps.run_container2.outputs.rpc_port2 }}
+      EXPLORER_PORT2: ${{ steps.run_container2.outputs.explorer_port2 }}
     steps:
-      - name: Deploy taosx
+      - name: run container 2
+        id: run_container2
         run: |
-          pwd
-          ls ${{ github.workspace }}
-          # run taosx
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
-          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
+          for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port2=$port; break; }; done && for port in $(seq $((rpc_port2+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port2=$port; break; }; done && echo "First available rpc_port2: $rpc_port2, Second available explorer_port2: $explorer_port2"
+
+          run_container_id2=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/:$COVERAGE_BASE_DIR/ -p $rpc_port2:6055 -p $explorer_port2:6060 taosxci:latest)
+          echo "container_id2: $run_container_id2"
+          echo "rpc_port2: $rpc_port2"
+          echo "container_id2=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "rpc_port2=$rpc_port2" >> "$GITHUB_OUTPUT"
+          echo "explorer_port2=$explorer_port2" >> "$GITHUB_OUTPUT"
+          # 激活 taosd
+          docker exec $run_container_id2 bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id2 bash -c "taos -s $sql"
           
-      - name: Deploy taosx-agent
+      - name: run taosx & taosx-agent & taos-explorer in container
         run: |
-          pwd
-          ls ${{ github.workspace }}
-          # run taosx-agent
-          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
-  
+          echo "container_id2: ${{ steps.run_container2.outputs.container_id2 }}"
+          # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
+          echo "docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'\""
+          echo "run command: docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'\""
+          docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
+          docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ OCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
+          docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer.log 2>&1 &'"
+          docker exec ${{ steps.run_container2.outputs.container_id2 }} bash -c "ps -ef |grep taos"
+
+      - name: Deploy windows agent    
+        id: deploy_windows_agent
+        run: |
+          echo "RPC_PORT: ${{ steps.run_container2.outputs.rpc_port2 }}"
+          # 调用 windows 远程服务拉起 windows-agent
+          echo $PATH
+          cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container2.outputs.rpc_port2 }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+
   test_others:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: deploy_for_others
     steps:
-      - name: Update Repo
-        run: |
-          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
-          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
-      - name: Restart taos-explorer & taosadapter
-        run: |
-          systemctl restart taos-explorer
-          systemctl restart taosadapter
-      
       - name: Run Test
         continue-on-error: true
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -k "not mqtt_test.py"
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
 
-      - name: Stop taosx-agent & taosx
-        shell: bash {0}
-        run: |
-          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+          docker exec ${{needs.deploy_for_others.outputs.CONTAINER_ID2}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/ -k \"not mqtt_test.py\""
+
+          # docker exec ${{needs.deploy_for_others.outputs.CONTAINER_ID2}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry add pytest-xdist && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/ -k \"not mqtt_test.py\""
+
+          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/ -k "not mqtt_test.py"
     
-      # - name: Sleep for 60 seconds
-      #   uses: jakejarvis/wait-action@master
-      #   with:
-      #     time: '60s'
-      
-      # - name: Force stop taosx-agent & taosx
-      #   if: always()
-      #   shell: bash {0}
-      #   run: |
-      #     pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-      #     pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
-
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_others]
@@ -325,91 +306,104 @@ jobs:
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/allure_report/"
       - name: taosx & agent Report
         run: |
-          # taosx report
-          grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx -t html --branch --ignore-not-existing --ignore build.rs -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx
-          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/taosx/"
-          # taosx-agent report
-          grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent -t html --branch --ignore-not-existing --ignore build.rs -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-agent
-          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/taosx-agent/"
-
           # taosx merged report
           grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info
-          /root/.cargo/bin/grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info
-          # merge filter report
-          if [-f "$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info"]; then
-            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info \
+          grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info
+          # 1.端到端测试报告合并
+          lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info --quiet
+          # 2.总的覆盖率文件合并
+          lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info \
               -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
               -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
               -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info --quiet
-          else
-            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
-              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
-              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info --quiet
-          fi
 
+          # 移除覆盖率附件中不属于源码的部分
+          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info --quiet
           lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info --quiet
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-merged/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info
-          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/taosx-report-merged/"
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-unit/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info
+          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
 
       - name: mqtt & opc Report
         run: |
           # mqtt report
-          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt 
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged
           cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/mqtt
-          # go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
-          if [ -f "$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt" ]; then
-            # go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
-            mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
-            go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_report.txt
-            /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/index.html
-          else 
-            go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_report.txt
-            /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/index.html
-          fi
+          # 1.mqtt 单元测试覆盖率文件
+          mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
+          # 2.mqtt 端到端测试覆盖率文件
+          go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_e2e_report.txt
+          # 3.mqtt 总的覆盖率报告
+          /root/go/bin/gocov convert mqtt_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit/index.html
+          /root/go/bin/gocov convert mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e/index.html
+          /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged/index.html
+         
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
           # opc report
-          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged
           cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opc
-          if [ -f "$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/opc_unit_report.txt" ]; then
-            mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/opc_unit_report.txt .
-            go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data -o=opc_report.txt
-            /root/go/bin/gocov convert opc_unit_report.txt opc_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/index.html
-          else 
-            go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data -o=opc_report.txt
-            /root/go/bin/gocov convert opc_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/index.html
-          fi
+          mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/opc_unit_report.txt .
+          go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data -o=opc_e2e_report.txt
+          /root/go/bin/gocov convert opc_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/unit/index.html
+          /root/go/bin/gocov convert opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/e2e/index.html
+          /root/go/bin/gocov convert opc_unit_report.txt opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged/index.html
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opc/"
 
       - name: influxdb & opentsdb report
         run: |
           # opentsdb report
-          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/opentsdb/*.exec --destfile $COVERAGE_BASE_DIR/opentsdb/opentsdb.exec
-          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/opentsdb/opentsdb.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/e2e/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/merged/
+          # 合并端到端测试的中间文件
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/opentsdb/*.exec --destfile $COVERAGE_BASE_DIR/opentsdb/opentsdb_e2e.exec
+          # 将端到端的中间文件与单元测试的文件合并
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/opentsdb/opentsdb_e2e.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec --destfile $COVERAGE_BASE_DIR/opentsdb/opentsdb_merged.exec
+          # 端到端报告
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/opentsdb/opentsdb_e2e.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/e2e/
+          # 单元测试报告
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/
+          # 合并的报告
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opentsdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opentsdb/"
+
           # influxdb report
-          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/influxdb/*.exec --destfile $COVERAGE_BASE_DIR/influxdb/influxdb.exec
-          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/influxdb/*.exec --destfile $COVERAGE_BASE_DIR/influxdb/influxdb_e2e.exec
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/influxdb/influxdb_e2e.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/influxdb_unit_test_jacoco.exec --destfile $COVERAGE_BASE_DIR/influxdb/influxdb_merged.exec
+
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/influxdb_unit_test_jacoco.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/unit/
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb_e2e.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/e2e/
+          java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb_merged.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/merged/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/influxdb/"
       
-      - name: Force stop taosx-agent & taosx
-        if: always()
-        shell: bash {0}
-        run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
-    
-  
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [build_rust, build_go, build_java, deploy_for_mqtt, test_mqtt, deploy_for_others, test_others, generate_report]
-    if: failure()
-    steps: 
+    needs: [generate_report]
+    steps:
       - name: Send Feishu Message
-        # if: ${{ needs.generate_report.result != 'success' }}
         run: |
-          curl -X POST -H "Content-Type: application/json" \
-          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
-          https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO= Coverage Report\n
+          PR Title: ${{ github.event.pull_request.title }}\n
+          PR Owner: @${{ github.actor }}\n
+          PR Page: ${{ github.event.pull_request.html_url }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          Coverage Report URL: $REPORT_BASE_URL/$DIR_PATH_3_0/\n"
+
+          post_to_feishu "$PR_INFO"
       
 
 
