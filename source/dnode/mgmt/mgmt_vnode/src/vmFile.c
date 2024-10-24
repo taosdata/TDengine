@@ -203,6 +203,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   SVnodeObj **ppVnodes = NULL;
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
+  int32_t     lino = 0;
 
   int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
@@ -215,8 +216,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
 
   int32_t numOfVnodes = 0;
-  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
-  if (code) goto _OVER;
+  TAOS_CHECK_GOTO(vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes), &lino, _OVER);
 
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
@@ -224,36 +224,41 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     code = terrno;
     goto _OVER;
   }
-  if ((code = vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes)) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(vmEncodeVnodeList(pJson, ppVnodes, numOfVnodes), &lino, _OVER);
 
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
+    lino = __LINE__;
     goto _OVER;
   }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     code = terrno;
+    lino = __LINE__;
     goto _OVER;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
     code = terrno;
+    lino = __LINE__;
     goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
+    lino = __LINE__;
     goto _OVER;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
+    lino = __LINE__;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER);
 
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
@@ -272,7 +277,8 @@ _OVER:
   }
 
   if (code != 0) {
-    dError("failed to write vnodes file:%s since %s, vnodes:%d", realfile, tstrerror(code), numOfVnodes);
+    dError("failed to write vnodes file:%s at line:%d since %s, vnodes:%d", realfile, lino, tstrerror(code),
+           numOfVnodes);
   }
   return code;
 }
