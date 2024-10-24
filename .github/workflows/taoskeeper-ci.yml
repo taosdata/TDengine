@@ -1,0 +1,56 @@
+name: taoskeeper CI
+
+on:
+  push:
+    paths:
+      - "tools/keeper/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Run taoskeeper unit tests
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.18
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential cmake libgeos-dev
+
+      - name: Install TDengine
+        run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true
+          make -j 4
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
+
+      - name: Start taosd
+        run: |
+          cp /etc/taos/taos.cfg ./
+          sudo echo "supportVnodes 256" >> taos.cfg
+          nohup sudo taosd -c taos.cfg &
+
+      - name: Start taosadapter
+        run: nohup sudo taosadapter &
+
+      - name: Run tests
+        run: |
+          go mod tidy
+          go test -v ./...
+
+      - name: Clean up
+        if: always()
+        run: |
+          sudo pkill taosd
+          sudo pkill taosadapter
