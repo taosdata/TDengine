@@ -8,13 +8,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Run taoskeeper unit tests
+    name: Run unit tests
+
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Setup Go env
+        uses: actions/setup-go@v5
         with:
           go-version: 1.18
 
@@ -25,7 +26,7 @@ jobs:
 
       - name: Install TDengine
         run: |
-          cd TDengine
+          # cd TDengine
           mkdir debug
           cd debug
           cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true
