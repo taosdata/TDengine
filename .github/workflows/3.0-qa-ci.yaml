@@ -107,7 +107,7 @@ jobs:
           cd plugins/opc
           # pip3 install opcua
           # nohup python3 plugins/opc/test/ua_server.py & disown
-          go test -coverpkg=./... -coverprofile=opc_unit_report.txt ./...
+          go test -coverpkg=./... -coverprofile=opc_unit_report.txt -timeout=120s ./...
       - name: Copy OPC Files
         run: |
           cd plugins/opc
