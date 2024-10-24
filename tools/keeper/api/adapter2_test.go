@@ -13,6 +13,7 @@ import (
 )
 
 func TestAdapter2(t *testing.T) {
+	//
 	c := &config.Config{
 		Port: 6043,
 		TDengine: config.TDengineRestful{
