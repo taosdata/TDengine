@@ -86,18 +86,18 @@
     }                                                          \
   } while (0)
 
-#define GRANT_EXPIRE_SHOW(expireSec)                   \
-  do {                                                 \
-    ++cols;                                            \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols); \
-    if ((expireSec) != GRANT_UNIQ_UNLIMITED) {         \
-      (void)grantSecondsToString((expireSec), ts);           \
-      src = ts;                                        \
-    } else {                                           \
-      src = GRANT_UNIQ_UNLIMITED_S;                    \
-    }                                                  \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));    \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);    \
+#define GRANT_EXPIRE_SHOW(expireSec)                      \
+  do {                                                    \
+    ++cols;                                               \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);    \
+    if ((expireSec) != GRANT_UNIQ_UNLIMITED) {            \
+      TAOS_UNUSED(grantSecondsToString((expireSec), ts)); \
+      src = ts;                                           \
+    } else {                                              \
+      src = GRANT_UNIQ_UNLIMITED_S;                       \
+    }                                                     \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));       \
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);       \
   } while (0)
 
 #define GRANT_ITEM_SHOW(cur, limit, unit)                                            \
@@ -718,7 +718,7 @@ static void mndProcessGrantStatusCheck() {
   } else {
     gStatus.expired = 1;
     char ts[GRANT_TS_SEC_LEN] = {0};
-    (void)grantSecondsToString(expireSec, ts);
+    TAOS_UNUSED(grantSecondsToString(expireSec, ts));
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
           grantCurTime, gGrantState[gStatus.grantState]);
   }
@@ -930,7 +930,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     COMPARE_SET_VAL(gStatus.expired, 0, !=);
   } else {
     COMPARE_SET_VAL(gStatus.expired, 1, !=);
-    (void)grantSecondsToString(expireSec, ts);
+    TAOS_UNUSED(grantSecondsToString(expireSec, ts));
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
   }
 
@@ -1244,7 +1244,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   TAOS_CHECK_EXIT(grantCheckClusterInfo(pMnode));
 
   grantClusterTime = grantClusterEpoch + mndGetClusterUpTime(pMnode);
-  (void)mndProcessGrantHBSyncInfo(pMnode, type);
+  TAOS_CHECK_EXIT(mndProcessGrantHBSyncInfo(pMnode, type));
   COMPARE_SET_VAL(gStatus.nDiskCfg, grantHandle.nDiskCfg, !=);
 
   // reset grantHandle and send gStatus to all dnodes, no resp needed
@@ -1289,9 +1289,9 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
           TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
         (void)memcpy(qCont, pCont, contLen);
-        (void)mndSendGrantStatusToDnode(pMnode, info, contLen, qCont);
+        TAOS_UNUSED(mndSendGrantStatusToDnode(pMnode, info, contLen, qCont));
       } else {
-        (void)mndSendGrantStatusToDnode(pMnode, info, contLen, pCont);
+        TAOS_UNUSED(mndSendGrantStatusToDnode(pMnode, info, contLen, pCont));
         pCont = NULL;
       }
     }
@@ -1321,7 +1321,7 @@ static uint8_t grantGetMachineFlag(const char *machineCode) {
   uint8_t  flag = 0;
   int32_t  outlen = 0;
   uint8_t *machine = NULL;
-  (void)base64_decode(machineCode, TSDB_MACHINE_ID_LEN, &outlen, &machine);
+  TAOS_UNUSED(base64_decode(machineCode, TSDB_MACHINE_ID_LEN, &outlen, &machine));
   if (machine) {
     flag = machine[0];
     taosMemoryFree(machine);
@@ -1352,9 +1352,10 @@ void grantParseParameter() {
 static int32_t grantSecondsToString(int64_t seconds, char *ts) {
   time_t    sec = seconds;
   struct tm ptm;
-  if (taosLocalTime(&sec, &ptm, ts) != NULL) {
-    (void)strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm);
-    return 0;
+  if (taosLocalTime(&sec, &ptm, ts, GRANT_TS_SEC_LEN) != NULL) {
+    if (strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm)) {
+      return 0;
+    }
   }
   ts[0] = 0;
   return -1;
@@ -1639,7 +1640,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
       uDebug("not send grant notify to dnode:%d since duplicated node", info->id);
       continue;
     }
-    (void)mndSendGrantNotifyToDnode(pMnode, info, &notify);
+    TAOS_UNUSED(mndSendGrantNotifyToDnode(pMnode, info, &notify));
   }
 
   grantNotifyTimestamp = taosGetTimestampMs();
@@ -1661,10 +1662,10 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
 #ifndef GRANTS_CFG
   if ((gStatus.curTimeSeries > gStatus.limitTimeSeries) ||
       ((gStatus.curTimeSeries > lastTimeSeries) && (taosGetTimestampMs() - grantNotifyTimestamp > 500))) {
-    (void)mndProcessGrantNotify(pReq);
+    TAOS_UNUSED(mndProcessGrantNotify(pReq));
   } else {
     if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
-      (void)mndProcessGrantNotify(pReq);
+      TAOS_UNUSED(mndProcessGrantNotify(pReq));
     }
   }
 #endif
@@ -1710,7 +1711,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     gStatus.expired = expireSec > grantCurTime ? 0 : 1;
     if (gStatus.expired) {
       char ts[GRANT_TS_SEC_LEN] = {0};
-      (void)grantSecondsToString(expireSec, ts);
+      TAOS_UNUSED(grantSecondsToString(expireSec, ts));
       uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
     }
     gStatus.serviceExpireSec = grantClusterEpoch;
@@ -2412,7 +2413,7 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   if (expire == GRANT_UNIQ_UNLIMITED) {
     (void)snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
   } else {
-    (void)grantSecondsToString(expire, ts);
+    TAOS_UNUSED(grantSecondsToString(expire, ts));
     (void)snprintf(qBuf, colLen, "%s", ts);
   }
   varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
@@ -2422,7 +2423,7 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (isDataIn) {
-    if (expire != GRANT_UNIQ_UNLIMITED) (void)grantSecondsToString(expire, ts);
+    if (expire != GRANT_UNIQ_UNLIMITED) TAOS_UNUSED(grantSecondsToString(expire, ts));
     (void)snprintf(qBuf, colLen,
                    "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
                    curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
@@ -2588,7 +2589,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < pGrant->nStates; ++i) {
       SGrantState *pState = &pGrant->states[i];
-      (void)grantSecondsToString(pState->ts, ts);
+      TAOS_UNUSED(grantSecondsToString(pState->ts, ts));
       if (i == 0) {
         (void)snprintf(tmp, 70, "%s,%s,%s,%s", ts, gGrantReason[pState->reason], gGrantState[pState->lastState],
                        gGrantState[pState->state]);
@@ -2609,7 +2610,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < pGrant->nActives; ++i) {
       SGrantActive *pActive = &pGrant->actives[i];
-      (void)grantSecondsToString(pActive->ts, ts);
+      TAOS_UNUSED(grantSecondsToString(pActive->ts, ts));
       if (i == 0) {
         (void)snprintf(tmp, 70, "%s,%s", ts, pActive->active);
       } else {
@@ -2628,7 +2629,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < nMachines; ++i) {
       SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
-      (void)grantSecondsToString(pMachine->ts, ts);
+      TAOS_UNUSED(grantSecondsToString(pMachine->ts, ts));
       if (i == 0) {
         (void)snprintf(tmp, 70, "%s,%d,%s,%" PRIu8, ts, pMachine->id, pMachine->machine,
                        grantGetMachineFlag(pMachine->machine));

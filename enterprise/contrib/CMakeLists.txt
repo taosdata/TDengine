@@ -33,10 +33,6 @@ IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/taosx)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
 
-IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/explorer)
-	cat("${TD_SOURCE_DIR}/enterprise/cmake/explorer_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-ENDIF ()
-
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_SOURCE_DIR}/enterprise/contrib/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .

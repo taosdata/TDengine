@@ -34,11 +34,13 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVKillCompactReq req = {0};
 
+  vDebug("vgId:%d, kill compact msg will be processed, pReq:%p, len:%d", TD_VID(pVnode), pReq, len);
   int32_t code = tDeserializeSVKillCompactReq(pReq, len, &req);
   if (code) {
     return TSDB_CODE_INVALID_MSG;
   }
-  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode), req.compactId);
+  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d, dnodeId:%d, vgId:%d", TD_VID(pVnode), req.compactId,
+        req.dnodeId, req.vgId);
 
   tsdbStopAllCompTask(pVnode->pTsdb);
 
