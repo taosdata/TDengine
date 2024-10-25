@@ -586,6 +586,13 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     pMgmt->hash = NULL;
   }
 
+  void *pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    vmFreeVnodeObj(ppVnode);
+    pIter = taosHashIterate(pMgmt->closedHash, pIter);
+  }
+
   if (pMgmt->closedHash != NULL) {
     taosHashCleanup(pMgmt->closedHash);
     pMgmt->closedHash = NULL;
