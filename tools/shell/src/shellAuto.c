@@ -1828,7 +1828,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
     // find only one ')' , can insert tags
     char* p1 = strchr(ps, ')');
     if (p1) {
-      if (strchr(p1 + 1, ')') == NULL && strstr(p1 + 1, "tags") == NULL) {
+      if (strstr(p1 + 1, "tags") == NULL) {
         // can insert tags keyword
         ret = fillWithType(con, cmd, last, WT_VAR_KEYTAGS);
       }
