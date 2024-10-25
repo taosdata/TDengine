@@ -50,6 +50,8 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                          SRpcMsg *pOriginRpc);
 
 static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
@@ -481,6 +483,75 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t vnodePreProcessDropTSmaCtbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVDropTbBatchReq dropReq = {0};
+  int32_t          code = 0;
+  int32_t          lino = 0;
+  SDecoder         dc = {0};
+  SEncoder         ec = {0};
+  int32_t          nTbs = 0;
+  SDeleteRes       res = {0};
+  int32_t          size = 0;
+  uint8_t         *pCont = NULL;
+  tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
+  if (tDecodeSVDropTbBatchReq(&dc, &dropReq) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  nTbs = dropReq.nReqs;
+  res.skey = INT64_MIN;
+  res.ekey = INT64_MAX;
+  res.affectedRows = 1;
+  res.uidList = taosArrayInit(nTbs, sizeof(tb_uid_t));
+  if (!res.uidList) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  vDebug("vnode preprocess drop tsma ctb, vgId:%d tb num: %d", TD_VID(pVnode), nTbs);
+  for (int32_t i = 0; i < nTbs; ++i) {
+    SVDeleteRsp rsp = {.affectedRows = 1};
+    tb_uid_t uid = metaGetTableEntryUidByName(pVnode->pMeta, dropReq.pReqs[i].name);
+    if (uid == 0) {
+      vWarn("vgId:%d, drop tsma ctb:%s not found", TD_VID(pVnode), dropReq.pReqs[i].name);
+      continue;
+    }
+    if (NULL == taosArrayPush(res.uidList, &uid)) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+  tEncodeSize(tEncodeDeleteRes, &res, size, code);
+  pCont = rpcMallocCont(size + sizeof(SMsgHead));
+  if (!pCont) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+  ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
+
+  tEncoderInit(&ec, pCont + sizeof(SMsgHead), size);
+  code = tEncodeDeleteRes(&ec, &res);
+  tEncoderClear(&ec);
+  if (code != 0) {
+    vError("vgId:%d %s failed to encode delete response", TD_VID(pVnode), __func__);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = pCont;
+  pCont = NULL;
+  pMsg->contLen = size + sizeof(SMsgHead);
+
+_exit:
+  if (res.uidList) {
+    taosArrayDestroy(res.uidList);
+  }
+  tDecoderClear(&dc);
+  rpcFreeCont(pCont);
+  return code;
+}
+
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -506,6 +577,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     } break;
     case TDMT_VND_ARB_CHECK_SYNC: {
       code = vnodePreProcessArbCheckSyncMsg(pVnode, pMsg);
+    } break;
+    case TDMT_VND_DROP_TSMA_CTB: {
+      code = vnodePreProcessDropTSmaCtbMsg(pVnode, pMsg);
     } break;
     default:
       break;
@@ -710,6 +784,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
+      break;
+    case TDMT_VND_DROP_TSMA_CTB:
+      if (vnodeProcessDropTSmaCtbReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) {
+        goto _err;
+      }
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
@@ -2512,3 +2591,10 @@ _OVER:
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) { return 0; }
 #endif
+
+static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                          SRpcMsg *pOriginalMsg) {
+  pRsp->msgType = TDMT_VND_DROP_TSMA_CTB_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  return pRsp->code;
+}

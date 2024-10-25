@@ -96,6 +96,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA, mndProcessDropTbWithTsma);
   mndSetMsgHandle(pMnode, TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP, mndProcessFetchTtlExpiredTbs);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TABLE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TSMA_CTB_RSP, mndTransProcessRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -4088,7 +4089,8 @@ typedef struct SMDropTbTsmaInfos {
 typedef struct SMndDropTbsWithTsmaCtx {
   SHashObj *pTsmaMap;     // <suid, SMDropTbTsmaInfos>
   SHashObj *pDbMap;       // <dbuid, SMDropTbDbInfo>
-  SHashObj *pVgMap;       // <vgId, SVDropTbVgReqs>
+  SHashObj *pVgMap;       // <vgId, SVDropTbVgReqs>, only for non tsma result child table
+  SHashObj *pTsmaTbVgMap; // <vgid, SVDropTbVgReqs>, only for tsma result child table
   SArray   *pResTbNames;  // SArray<char*>
 } SMndDropTbsWithTsmaCtx;
 
@@ -4129,6 +4131,16 @@ static void mndDestroyDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx *p) {
     }
     taosHashCleanup(p->pVgMap);
   }
+
+  if (p->pTsmaTbVgMap) {
+    void *pIter = taosHashIterate(p->pTsmaTbVgMap, NULL);
+    while (pIter) {
+      SVDropTbVgReqs *pReqs = pIter;
+      taosArrayDestroy(pReqs->req.pArray);
+      pIter = taosHashIterate(p->pTsmaTbVgMap, pIter);
+    }
+    taosHashCleanup(p->pTsmaTbVgMap);
+  }
   taosMemoryFree(p);
 }
 
@@ -4151,6 +4163,12 @@ static int32_t mndInitDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx **ppCtx) {
 
   pCtx->pVgMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (!pCtx->pVgMap) {
+    code = terrno;
+    goto _end;
+  }
+
+  pCtx->pTsmaTbVgMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (!pCtx->pTsmaTbVgMap) {
     code = terrno;
     goto _end;
   }
@@ -4192,14 +4210,36 @@ static void *mndBuildVDropTbsReq(SMnode *pMnode, const SVgroupInfo *pVgInfo, con
 }
 
 static int32_t mndSetDropTbsRedoActions(SMnode *pMnode, STrans *pTrans, const SVDropTbVgReqs *pVgReqs, void *pCont,
-                                        int32_t contLen) {
+                                        int32_t contLen, tmsg_t msgType) {
   STransAction action = {0};
   action.epSet = pVgReqs->info.epSet;
   action.pCont = pCont;
   action.contLen = contLen;
-  action.msgType = TDMT_VND_DROP_TABLE;
+  action.msgType = msgType;
   action.acceptableCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   return mndTransAppendRedoAction(pTrans, &action);
+}
+
+static int32_t mndBuildDropTbRedoActions(SMnode* pMnode, STrans* pTrans, SHashObj* pVgMap, tmsg_t msgType) {
+  int32_t code = 0;
+  void* pIter = taosHashIterate(pVgMap, NULL);
+  while (pIter) {
+    const SVDropTbVgReqs *pVgReqs = pIter;
+    int32_t               len = 0;
+    void                 *p = mndBuildVDropTbsReq(pMnode, &pVgReqs->info, &pVgReqs->req, &len);
+    if (!p) {
+      taosHashCancelIterate(pVgMap, pIter);
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      break;
+    }
+    if ((code = mndSetDropTbsRedoActions(pMnode, pTrans, pVgReqs, p, len, msgType)) != 0) {
+      taosHashCancelIterate(pVgMap, pIter);
+      break;
+    }
+    pIter = taosHashIterate(pVgMap, pIter);
+  }
+  return code;
 }
 
 static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg *pRsp, SMndDropTbsWithTsmaCtx *pCtx) {
@@ -4216,23 +4256,9 @@ static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg *pRsp, SMndDropTbsWithTsmaCtx 
 
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  void *pIter = taosHashIterate(pCtx->pVgMap, NULL);
-  while (pIter) {
-    const SVDropTbVgReqs *pVgReqs = pIter;
-    int32_t               len = 0;
-    void                 *p = mndBuildVDropTbsReq(pMnode, &pVgReqs->info, &pVgReqs->req, &len);
-    if (!p) {
-      taosHashCancelIterate(pCtx->pVgMap, pIter);
-      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-      if (terrno != 0) code = terrno;
-      goto _OVER;
-    }
-    if ((code = mndSetDropTbsRedoActions(pMnode, pTrans, pVgReqs, p, len)) != 0) {
-      taosHashCancelIterate(pCtx->pVgMap, pIter);
-      goto _OVER;
-    }
-    pIter = taosHashIterate(pCtx->pVgMap, pIter);
-  }
+  if ((code = mndBuildDropTbRedoActions(pMnode, pTrans, pCtx->pVgMap, TDMT_VND_DROP_TABLE)) != 0) goto _OVER;
+  if ((code = mndBuildDropTbRedoActions(pMnode, pTrans, pCtx->pTsmaTbVgMap, TDMT_VND_DROP_TSMA_CTB)) != 0) goto _OVER;
+  if ((code = mndBuildDropTbRedoActions(pMnode, pTrans, pCtx->pTsmaTbVgMap, TDMT_VND_DROP_TABLE)) != 0) goto _OVER;
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
 _OVER:
@@ -4260,7 +4286,8 @@ static int32_t mndProcessDropTbWithTsma(SRpcMsg *pReq) {
     code = mndDropTbAddTsmaResTbsForSingleVg(pMnode, pCtx, pReq->pTbs, pReq->vgInfo.vgId);
     if (code) goto _OVER;
   }
-  if (mndCreateDropTbsTxnPrepare(pReq, pCtx) == 0) {
+  code = mndCreateDropTbsTxnPrepare(pReq, pCtx);
+  if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 _OVER:
@@ -4445,7 +4472,7 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
         code = terrno;
         goto _end;
       }
-      TAOS_CHECK_GOTO(mndDropTbAdd(pMnode, pCtx->pVgMap, pVgInfo, p, pInfo->suid, true), NULL, _end);
+      TAOS_CHECK_GOTO(mndDropTbAdd(pMnode, pCtx->pTsmaTbVgMap, pVgInfo, p, pInfo->suid, true), NULL, _end);
     }
   }
 _end:
@@ -4476,7 +4503,8 @@ static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pRsp) {
 
   code = mndDropTbAddTsmaResTbsForSingleVg(pMnode, pCtx, rsp.pExpiredTbs, rsp.vgId);
   if (code) goto _end;
-  if (mndCreateDropTbsTxnPrepare(pRsp, pCtx) == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  code = mndCreateDropTbsTxnPrepare(pRsp, pCtx);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 _end:
   if (pCtx) mndDestroyDropTbsWithTsmaCtx(pCtx);
   tDecoderClear(&decoder);
