@@ -1,32 +1,47 @@
-select DEGREES(0);
-select DEGREES(1);
-select DEGREES(1.5);
-select DEGREES(100);
-select DEGREES(-1);
-select DEGREES(-1.5);
-select DEGREES(-100);
-select DEGREES(1) + 1;
-select DEGREES(1) - 1;
-select DEGREES(1) * 1;
-select DEGREES(1) / 1;
-select DEGREES(1) from ts_4893.meters limit 5;
-select DEGREES(1) + 1 from ts_4893.meters limit 1;
-select DEGREES(1) - 1 from ts_4893.meters limit 1;
-select DEGREES(1) * 2 from ts_4893.meters limit 1;
-select DEGREES(1) / 2 from ts_4893.meters limit 1;
-select DEGREES(2) + DEGREES(1) from ts_4893.meters limit 1;
-select DEGREES(2) - DEGREES(1) from ts_4893.meters limit 1;
-select DEGREES(2) * DEGREES(1) from ts_4893.meters limit 1;
-select DEGREES(2) / DEGREES(1) from ts_4893.meters limit 1;
-select DEGREES(1) + id from ts_4893.meters order by ts limit 5;
-select DEGREES(id) + id from ts_4893.meters order by ts limit 5;
-select DEGREES(abs(10));
-select DEGREES(PI());
-select abs(DEGREES(10));
-select pow(DEGREES(10), 2);
-select sqrt(DEGREES(10));
-select cast(DEGREES(10) as int);
-select DEGREES(sqrt(id)) from ts_4893.meters order by ts limit 5;
-select degrees(pi());
-select degrees(current) from ts_4893.d0 order by ts limit 10;
-select degrees(current) from ts_4893.meters order by ts limit 10;
+select DEGREES(0)
+select DEGREES(1)
+select DEGREES(1.5)
+select DEGREES(100)
+select DEGREES(-1)
+select DEGREES(-1.5)
+select DEGREES(-100)
+select DEGREES(1) + 1
+select DEGREES(1) - 1
+select DEGREES(1) * 1
+select DEGREES(1) / 1
+select DEGREES(1) from ts_4893.meters limit 5
+select DEGREES(1) + 1 from ts_4893.meters limit 1
+select DEGREES(1) - 1 from ts_4893.meters limit 1
+select DEGREES(1) * 2 from ts_4893.meters limit 1
+select DEGREES(1) / 2 from ts_4893.meters limit 1
+select DEGREES(2) + DEGREES(1) from ts_4893.meters limit 1
+select DEGREES(2) - DEGREES(1) from ts_4893.meters limit 1
+select DEGREES(2) * DEGREES(1) from ts_4893.meters limit 1
+select DEGREES(2) / DEGREES(1) from ts_4893.meters limit 1
+select DEGREES(1) + id from ts_4893.meters order by ts limit 5
+select DEGREES(id) + id from ts_4893.meters order by ts limit 5
+select DEGREES(abs(10))
+select DEGREES(PI())
+select abs(DEGREES(10))
+select pow(DEGREES(10), 2)
+select sqrt(DEGREES(10))
+select cast(DEGREES(10) as int)
+select DEGREES(sqrt(id)) from ts_4893.meters order by ts limit 5
+select degrees(pi())
+select degrees(current) from ts_4893.d0 order by ts limit 10
+select degrees(current) from ts_4893.meters order by ts limit 10
+select degrees(null)
+select degrees(-5)
+select degrees(3.14)
+select degrees(2*pi())
+select degrees(pi()/2)
+select degrees(-pi()/2)
+select degrees(1000000)
+select degrees(sin(1))
+select degrees(cos(1))
+select degrees(tan(1))
+select degrees(radians(90))
+select degrees(atan(1))
+select degrees(phase) from ts_4893.meters limit 1
+select degrees(current) from ts_4893.meters limit 1
+select degrees(voltage) from ts_4893.meters limit 1
