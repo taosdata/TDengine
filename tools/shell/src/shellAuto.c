@@ -168,7 +168,6 @@ SWords shellCommands[] = {
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
-    {"show create tsma <tsma_name> \\G;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE    
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
@@ -290,7 +289,7 @@ char* tb_actions[] = {
 
 char* user_actions[] = {"pass ", "enable ", "sysinfo "};
 
-char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
+char* tb_options[] = {"tags(", "comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
 
 char* db_options[] = {"keep ",
                       "replica ",
@@ -335,7 +334,7 @@ char* data_types[] = {"timestamp",    "int",
                       "bigint",       "bigint unsigned",
                       "smallint",     "smallint unsigned",
                       "tinyint",      "tinyint unsigned",
-                      "geometry",     "varbinary(16)",
+                      "geometry(64)", "varbinary(16)",
                       "bool",         "json"};
 
 char* key_tags[] = {"tags("};
@@ -1759,36 +1758,24 @@ bool fieldOptionsArea(char* p) {
 
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
-  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
-  char* p1 = taosStrdup(p);
-  bool  ret = false;
-  while (1) {
-    char* left = strrchr(p1, '(');
-    if (left == NULL) {
-      // like 'create table st'
-      ret = false;
+  int32_t n = 0; // count
+  char *p1  = p;
+  while (*p1 != 0) {
+    switch (*p1) {
+    case '(':
+      ++ n;
+      break;
+    case ')':
+      -- n;
+      break;
+    default:
       break;
     }
-
-    char* right = strrchr(p1, ')');
-    if (right == NULL) {
-      // like 'create table st( '
-      ret = true;
-      break;
-    }
-
-    if (left > right) {
-      // like 'create table st( ts timestamp, age int) tags(area '
-      ret = true;
-      break;
-    }
-
-    // set string end by small for next strrchr search
-    *left = 0;
+    // move next
+    ++p1;
   }
-  taosMemoryFree(p1);
 
-  return ret;
+  return n > 0;
 }
 
 bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
