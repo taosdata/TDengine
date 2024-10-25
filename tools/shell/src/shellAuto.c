@@ -1731,13 +1731,19 @@ bool fieldOptionsArea(char* p) {
   int32_t cnt = 0;
   while(p2) {
     p2 = strchr(p2, ' ');
-    if(p2) {
-      cnt ++;
+    if (p2) {
+      if ((p2 - 1)[0] != ',') {
+        // blank if before comma, not calc count.  like st(ts timestamp,  age int + BLANK + TAB only two blank
+        cnt ++;
+      }
+      
+      // continue blank is one blank
       while (p2[1] != 0 && p2[1] == ' ') {
         // move next if blank again
         p2 += 1;
       }
-    } 
+      p2 += 1;
+    }
   }
 
   // like  create table st(ts timestamp TAB-KEY or  st(ts timestamp , age int TAB-KEY
