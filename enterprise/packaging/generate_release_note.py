@@ -110,23 +110,28 @@ def get_release_note(user, passwd, release_version):
         if issue.fields.customfield_12330 is not None and issue.fields.customfield_12330 != "-" :
             content_zh= f"{issue.key} {issue.fields.customfield_12330} \n"
             processed_content_zh = process_content(content_zh, replacements)
-            contents_zh.append(processed_content_zh)
-        
+            # append_to_file(zh_file, processed_content_zh)
+            # contents_zh.append(processed_content_zh)
+            file_handler_zh.write(processed_content_zh)
         # issue.fields.customfield_12331  is relsease note in english
         if issue.fields.customfield_12331 is not None and issue.fields.customfield_12331 != "-" :
             content_en= f"{issue.key} {issue.fields.customfield_12331} \n"
             processed_content_en = process_content(content_en, replacements)
-            contents_en.append(processed_content_en)
+            # append_to_file(en_file, processed_content_en)
+            # contents_en.append(processed_content_en)
+            file_handler_en.write(processed_content_en)
+
 
     # write_line_to_file(zh_file, contents_zh)
     # write_line_to_file(en_file, contents_en)
-    file_handler_en.write_line(contents_en)
-    file_handler_zh.write_line(contents_zh)
+    # file_handler_en.write_line(contents_en)
+    # file_handler_zh.write_line(contents_zh)
 
     file_handler_zh.close()
     file_handler_en.close()
     print_file_content(zh_file)
     print_file_content(en_file)
+    logger.info(f"generate release_version-{release_version} release note done")
 
 def process_content(content, replacements):
     """
