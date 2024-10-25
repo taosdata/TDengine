@@ -231,9 +231,9 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
 
-          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry install --no-root"
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry install --no-root"
 
-          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
 
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -287,6 +287,8 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
+
+          docker exec ${{needs.deploy_for_others.outputs.CONTAINER_ID2}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry install --no-root"
 
           docker exec ${{needs.deploy_for_others.outputs.CONTAINER_ID2}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/ -k \"not mqtt_test.py\""
 
