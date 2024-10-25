@@ -6,29 +6,30 @@
 
 ### 1. Install Poetry
 
-```
-curl -sSL https://install.python-poetry.org | python3 -
+```shell
+pip3 install poetry
 ```
 Add `export PATH="/root/.local/bin:$PATH"` to your shell configuration file.
 
-### 2. Setup Poetry
+### 2. Setup Poetry (Optional)
 
-Create virtualenv within the root directory of the project.
+Create virtualenv within the root directory of the project. Otherwise, use poetry to manage it.
+
 ```
 poetry config virtualenvs.in-project true
 ```
 
 ### 3. Install Dependencies
 
-```
-poetry install
+```shell
+poetry install --no-root
 ```
 
 ## Allure
 
 [Allure](https://qameta.io/allure-report/) is used to generate test repot in this project.
 
-```
+```shell
 wget https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.24.0/allure-commandline-2.24.0.tgz
 tar -zxvf allure-commandline-2.24.0.tgz -C /opt/
 ln -s /opt/allure-2.24.0/bin/allure /usr/bin/allure
@@ -37,12 +38,30 @@ allure --version
 
 ## Run Test
 
-```
-# Please modify the file according to your env
+Prepare environments:
+
+```shell
 cp setenv.sh.example setenv.sh
-source ./setenv.sh
-cd test
+# Change HOST to your test env ip or fqdn. We can just use localhost for local test.
+source setenv.sh
+```
+
+Run all tests:
+
+```shell
 poetry run pytest --alluredir=../report
+```
+
+Run cases in a test file:
+
+```shell
+poetry run pytest /path/to/test_function/tmq_test.py
+```
+
+Run single case in a test file:
+
+```shell
+poetry run pytest /path/to/test_function/tmq_test.py::test_sanity
 ```
 
 ### More ways to run cases
@@ -72,7 +91,7 @@ pytest -m <marker> --collect-only
 
 ## Check Report
 
-```
+```shell
 allure serve report
 ```
 
