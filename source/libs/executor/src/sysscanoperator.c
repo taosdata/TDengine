@@ -2032,8 +2032,7 @@ static EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
 
       SValueNode* node = (SValueNode*)pNode;
       char*       dbName = nodesGetValueFromNode(node);
-      tstrncpy((char*)pContext, varDataVal(dbName), varDataLen(dbName));
-      *((char*)pContext + varDataLen(dbName)) = 0;
+      tstrncpy((char*)pContext, varDataVal(dbName), varDataLen(dbName) + 1);
       return DEAL_RES_END;  // stop walk
     }
     default:
