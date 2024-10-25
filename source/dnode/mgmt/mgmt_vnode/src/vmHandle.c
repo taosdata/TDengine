@@ -683,7 +683,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, close vnode", srcVgId);
-  vmCloseVnode(pMgmt, pVnode, true, true);
+  vmCloseVnode(pMgmt, pVnode, true, false);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
   char    srcPath[TSDB_FILENAME_LEN] = {0};
