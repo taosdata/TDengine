@@ -5,11 +5,6 @@ description = ""
 authors = ["WANG Xu <feici02@outlook.com>"]
 readme = "README.md"
 
-[[tool.poetry.source]]
-name = "aliyun"
-url = "https://mirrors.aliyun.com/pypi/simple/"
-priority = "primary"
-
 [tool.poetry.dependencies]
 python = "^3.9"
 pytest = "^7.4.2"
