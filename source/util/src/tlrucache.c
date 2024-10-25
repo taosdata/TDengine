@@ -163,28 +163,6 @@ static int taosLRUEntryTableApplyF(SLRUEntryTable *table, _taos_lru_functor_t fu
   return ret;
 }
 
-static int32_t taosLRUEntryTableRefByCondF(SLRUEntryTable *table, _taos_lru_condition_t condition, SArray *handleArray,
-                                           void *ud) {
-  int32_t  code = 0;
-  uint32_t end = 1 << table->lengthBits;
-  for (uint32_t i = 0; i < end; ++i) {
-    SLRUEntry *h = table->list[i];
-    while (h) {
-      SLRUEntry *n = h->nextHash;
-      if (condition(h->keyData, h->keyLength, h->value, ud)) {
-        if (taosArrayPush(handleArray, &h) == NULL) {
-          return terrno;
-        }
-        TAOS_LRU_ENTRY_REF(h);
-      }
-
-      h = n;
-    }
-  }
-
-  return 0;
-}
-
 static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable *table, const void *key, size_t keyLen, uint32_t hash) {
   SLRUEntry **entry = &table->list[hash >> (32 - table->lengthBits)];
   while (*entry && ((*entry)->hash != hash || memcmp(key, (*entry)->keyData, keyLen) != 0)) {
@@ -549,16 +527,35 @@ static int taosLRUCacheShardApply(SLRUCacheShard *shard, _taos_lru_functor_t fun
   return ret;
 }
 
-static int taosLRUCacheShardRefByCond(SLRUCacheShard *shard, _taos_lru_condition_t condition, SArray* handleArray, void *ud) {
-  int ret;
-
+static int32_t taosLRUCacheShardRefByCond(SLRUCacheShard *shard, _taos_lru_condition_t condition, SArray *handleArray,
+                                          void *ud) {
   (void)taosThreadMutexLock(&shard->mutex);
 
-  ret = taosLRUEntryTableRefByCondF(&shard->table, condition, handleArray, ud);
+  int32_t         code = 0;
+  SLRUEntryTable *table = &shard->table;
+  uint32_t        end = 1 << table->lengthBits;
+  for (uint32_t i = 0; i < end; ++i) {
+    SLRUEntry *h = table->list[i];
+    while (h) {
+      SLRUEntry *n = h->nextHash;
+      if (condition(h->keyData, h->keyLength, h->value, ud)) {
+        if (taosArrayPush(handleArray, &h) == NULL) {
+          return terrno;
+        }
+        if (!TAOS_LRU_ENTRY_HAS_REFS(h)) {
+          taosLRUCacheShardLRURemove(shard, h);
+        }
+        TAOS_LRU_ENTRY_REF(h);
+        TAOS_LRU_ENTRY_SET_HIT(h);
+      }
+
+      h = n;
+    }
+  }
 
   (void)taosThreadMutexUnlock(&shard->mutex);
 
-  return ret;
+  return code;
 }
 
 static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
