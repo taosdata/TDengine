@@ -47,20 +47,17 @@ extern "C" {
 
 
 // STAT FLAGS
-#define MP_STAT_FLAG_LOG_ALL_MEM_STAT (1 << 0)
-#define MP_STAT_FLAG_LOG_ALL_CHUNK_STAT (1 << 1)
+#define MP_LOG_FLAG_ALL_MEM (1 << 0)
+#define MP_LOG_FLAG_ALL_CHUNK (1 << 1)
+#define MP_LOG_FLAG_ALL_POS (1 << 2)
+#define MP_LOG_FLAG_ALL_SESSION (1 << 3)
+#define MP_LOG_FLAG_ALL_NODE (1 << 4)
+#define MP_LOG_FLAG_ALL_POOL (1 << 5)
 
-#define MP_STAT_FLAG_LOG_ALL_FILE_STAT (1 << 2)
-#define MP_STAT_FLAG_LOG_ALL_LINE_STAT (1 << 3)
-#define MP_STAT_FLAG_LOG_ALL_SESSION_STAT (1 << 4)
-#define MP_STAT_FLAG_LOG_ALL_NODE_STAT (1 << 5)
-#define MP_STAT_FLAG_LOG_ALL_POOL_STAT (1 << 6)
-
-#define MP_STAT_FLAG_LOG_SOME_FILE_STAT (1 << 7)
-#define MP_STAT_FLAG_LOG_SOME_LINE_STAT (1 << 8)
-#define MP_STAT_FLAG_LOG_SOME_SESSION_STAT (1 << 9)
-#define MP_STAT_FLAG_LOG_SOME_NODE_STAT (1 << 10)
-#define MP_STAT_FLAG_LOG_SOME_POOL_STAT (1 << 11)
+#define MP_LOG_FLAG_SOME_POS (1 << 6)
+#define MP_LOG_FLAG_SOME_SESSION (1 << 7)
+#define MP_LOG_FLAG_SOME_NODE (1 << 8)
+#define MP_LOG_FLAG_SOME_POOL (1 << 9)
 
 #define MP_STAT_FLAG_LOG_ALL            (0xFFFFFFFFFFFFFFFF)
 
@@ -140,6 +137,8 @@ typedef struct SMPStatInput {
   int64_t  origSize;
   int32_t  procFlags;
   int32_t  line;
+  void*    pMem;
+  void*    pOrigMem;
 } SMPStatInput;
 
 
@@ -159,8 +158,7 @@ typedef struct SMPStatInfo {
   SMPStatSession statSession;
   SHashObj*      sessStat;
   SHashObj*      nodeStat;
-  SHashObj*      fileStat;
-  SHashObj*      lineStat;
+  SHashObj*      posStat;
 } SMPStatInfo;
 
 
@@ -198,7 +196,7 @@ typedef struct SMPSession {
 
   char*              sessionId;
   SMPJob*            pJob;
-  SMPCtrlInfo        ctrlInfo;
+  SMPCtrlInfo        ctrl;
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
 
@@ -248,7 +246,7 @@ typedef struct SMemPool {
   SMemPoolCfg        cfg;
   int64_t            retireThreshold[3];
   int64_t            retireUnit;
-  SMPCtrlInfo        ctrlInfo;
+  SMPCtrlInfo        ctrl;
 
   int64_t            maxAllocMemSize;
   int64_t            allocMemSize;

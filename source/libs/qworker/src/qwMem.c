@@ -313,6 +313,7 @@ int32_t qwInitQueryPool(void) {
 
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
+  cfg.chunkSize = 1048576;
   cfg.jobQuota = tsSingleQueryMaxMemorySize * 1048576UL;
   cfg.cb.setSessFp = qwSetConcurrentTaskNumCb;
   cfg.cb.decSessFp = qwDecConcurrentTaskNumCb;
