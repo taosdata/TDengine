@@ -21,6 +21,7 @@
 #include "tlog.h"
 #include "tlrucache.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 typedef struct SLRUEntry      SLRUEntry;
 typedef struct SLRUEntryTable SLRUEntryTable;
@@ -110,7 +111,7 @@ struct SLRUEntryTable {
 };
 
 static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
-  table->lengthBits = 4;
+  table->lengthBits = tsLruTableBits;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
     TAOS_RETURN(terrno);
