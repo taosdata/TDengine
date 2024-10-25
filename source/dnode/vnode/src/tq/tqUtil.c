@@ -570,7 +570,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   return 0;
 }
 
-int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
+int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type, EStreamType blockType) {
   int32_t     code = 0;
   int32_t     line = 0;
   SDecoder*   pCoder = &(SDecoder){0};
@@ -591,7 +591,7 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
   }
 
   SSDataBlock* pDelBlock = NULL;
-  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pDelBlock);
+  code = createSpecialDataBlock(blockType, &pDelBlock);
   TSDB_CHECK_CODE(code, line, END);
 
   code = blockDataEnsureCapacity(pDelBlock, numOfTables);
