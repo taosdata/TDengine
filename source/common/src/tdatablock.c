@@ -3541,9 +3541,10 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < colNum; ++i) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i);
+    BLOCK_DATA_CHECK_TRESSA(pCol != NULL);
     isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     checkRows = pDataBlock->info.rows;
-    if (pCol->info.reserve == true) continue;
+    if (pCol->info.reserve == false) continue;
 
     if (isVarType) {
       BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
