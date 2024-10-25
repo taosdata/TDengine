@@ -314,7 +314,7 @@ jobs:
 
           echo "date: $(date)"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry install --no-root"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry lock --no-update && poetry install --no-root"
 
           echo "date: $(date)"
 
