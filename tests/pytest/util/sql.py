@@ -104,7 +104,7 @@ class TDSql:
         for k, v in kwargs.items():
             s += f" {k} {v}"
         if "duration" not in kwargs:
-            s += " duration 300"
+            s += " duration 100"
         self.cursor.execute(s)
         s = f'use {dbname}'
         self.cursor.execute(s)
