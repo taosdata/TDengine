@@ -1065,10 +1065,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    int32_t tagStrBufflen = 32;
-    char tagTypeStr[VARSTR_HEADER_SIZE + tagStrBufflen];
-    int  tagTypeLen = tsnprintf(varDataVal(tagTypeStr), tagStrBufflen, "%s", tDataTypes[tagType].name);
-    tagStrBufflen -= tagTypeLen;
+    const int32_t bufflen = 32;
+    char tagTypeStr[VARSTR_HEADER_SIZE + bufflen];
+    int  tagTypeLen = tsnprintf(varDataVal(tagTypeStr), bufflen, "%s", tDataTypes[tagType].name);
+    int32_t tagStrBufflen = bufflen - tagTypeLen;
     if (tagStrBufflen <= 0) {
       code = TSDB_CODE_INVALID_PARA;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1204,10 +1204,10 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     int8_t colType = schemaRow->pSchema[i].type;
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    int32_t colStrBufflen = 32;
-    char colTypeStr[VARSTR_HEADER_SIZE + colStrBufflen];
-    int  colTypeLen = tsnprintf(varDataVal(colTypeStr), colStrBufflen, "%s", tDataTypes[colType].name);
-    colStrBufflen -= colTypeLen;
+    const int32_t bufflen = 32;
+    char colTypeStr[VARSTR_HEADER_SIZE + bufflen];
+    int  colTypeLen = tsnprintf(varDataVal(colTypeStr), bufflen, "%s", tDataTypes[colType].name);
+    int32_t colStrBufflen = bufflen - colTypeLen;
     if (colStrBufflen <= 0) {
       code = TSDB_CODE_INVALID_PARA;
       QUERY_CHECK_CODE(code, lino, _end);
