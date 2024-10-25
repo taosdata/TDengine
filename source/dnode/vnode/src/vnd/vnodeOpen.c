@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cos.h"
 #include "sync.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -327,7 +327,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
     char vnode_prefix[TSDB_FILENAME_LEN];
     snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
-    s3DeleteObjectsByPrefix(vnode_prefix);
+    tcsDeleteObjectsByPrefix(vnode_prefix);
   }
 }
 

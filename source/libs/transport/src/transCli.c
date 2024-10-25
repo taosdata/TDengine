@@ -27,7 +27,7 @@ typedef struct {
 typedef struct SConnList {
   queue   conns;
   int32_t size;
-  int32_t totaSize;
+  int32_t totalSize;
 } SConnList;
 
 typedef struct {
@@ -703,8 +703,9 @@ void cliHandleResp(SCliConn* conn) {
 
   code = cliBuildRespFromCont(pReq, &resp, pHead);
   STraceId* trace = &resp.info.traceId;
-  tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%" PRId64 ", sid:%" PRId64 "",
-          CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId);
+  tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, seq:%" PRId64 ", sid:%" PRId64 ", code:%s",
+          CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(resp.msgType), conn->dst, conn->src, pHead->msgLen, seq, qId,
+          tstrerror(pHead->code));
 
   code = cliNotifyCb(conn, pReq, &resp);
   if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
@@ -854,10 +855,9 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
   }
 
   if (QUEUE_IS_EMPTY(&plist->conns)) {
-    if (plist->size >= pInst->connLimitNum) {
+    if (plist->totalSize >= pInst->connLimitNum) {
       return TSDB_CODE_RPC_MAX_SESSIONS;
     }
-    plist->totaSize += 1;
     return TSDB_CODE_RPC_NETWORK_BUSY;
   }
 
@@ -1045,7 +1045,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   conn->hostThrd = pThrd;
   conn->seq = 0;
 
-  conn->pQTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  conn->pQTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (conn->pQTable == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _failed);
   }
@@ -1248,7 +1248,7 @@ static void cliHandleException(SCliConn* conn) {
   cliDestroyAllQidFromThrd(conn);
   QUEUE_REMOVE(&conn->q);
   if (conn->list) {
-    conn->list->totaSize -= 1;
+    conn->list->totalSize -= 1;
     conn->list = NULL;
   }
 
@@ -1547,10 +1547,15 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   }
 
   transRefCliHandle(conn);
+
+  conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
+  if (conn->list != NULL) {
+    conn->list->totalSize += 1;
+  }
+
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
-
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
   }
 
@@ -2362,7 +2367,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     }
   }
 
-  pThrd->pool = createConnPool(4);
+  pThrd->pool = createConnPool(128);
   if (pThrd->pool == NULL) {
     code = terrno;
     TAOS_CHECK_GOTO(terrno, NULL, _end);
@@ -2381,22 +2386,22 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->destroyAhandleFp = pInst->destroyFp;
 
-  pThrd->fqdn2ipCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->fqdn2ipCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->fqdn2ipCache == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pThrd->batchCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->batchCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->batchCache == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pThrd->connHeapCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->connHeapCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->connHeapCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
 
-  pThrd->pIdConnTable = taosHashInit(512, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pThrd->pIdConnTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pThrd->connHeapCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
@@ -2956,11 +2961,12 @@ int32_t cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   STrans*   pInst = pThrd->pInst;
 
   if (pReq != NULL) {
-    if (cliMayRetry(pConn, pReq, pResp)) {
-      return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+    if (pResp->code != TSDB_CODE_SUCCESS) {
+      if (cliMayRetry(pConn, pReq, pResp)) {
+        return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
+      }
+      cliMayResetRespCode(pReq, pResp);
     }
-
-    cliMayResetRespCode(pReq, pResp);
 
     if (cliTryUpdateEpset(pReq, pResp)) {
       cliPerfLog_epset(pConn, pReq);
@@ -3737,7 +3743,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totaSize >= pInst->connLimitNum / 4) {
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
       tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
 
       if (cliConnRemoveTimeoutMsg(pConn)) {

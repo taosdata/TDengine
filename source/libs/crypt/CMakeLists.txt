@@ -1,8 +1,8 @@
 aux_source_directory(src CRYPT_SRC)
 
-IF (TD_ENTERPRISE)
+IF(TD_ENTERPRISE)
   LIST(APPEND CRYPT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/crypt/cryptImpl.c)
-ENDIF ()
+ENDIF()
 
 add_library(crypt STATIC ${CRYPT_SRC})
 target_include_directories(

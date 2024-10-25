@@ -56,7 +56,7 @@ int32_t tsShellActivityTimer = 3;  // second
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
-int32_t tsShareConnLimit = 8;
+int32_t tsShareConnLimit = 10;
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
@@ -288,7 +288,7 @@ int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
 int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vgroups
-bool    tsS3MigrateEnabled = 1;
+bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
@@ -309,6 +309,7 @@ char   tsS3AppId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<appid>"};
 int8_t tsS3Enabled = false;
 int8_t tsS3EnabledCfg = false;
 int8_t tsS3Oss[TSDB_MAX_EP_NUM] = {false};
+int8_t tsS3Ablob = false;
 int8_t tsS3StreamEnabled = false;
 
 int8_t tsS3Https[TSDB_MAX_EP_NUM] = {true};
@@ -437,6 +438,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
     }
     tsS3Https[i] = (strstr(tsS3Endpoint[i], "https://") != NULL);
     tsS3Oss[i] = (strstr(tsS3Endpoint[i], "aliyuncs.") != NULL);
+    tsS3Ablob = (strstr(tsS3Endpoint[i], ".blob.core.windows.net") != NULL);
   }
 
   if (tsS3BucketName[0] != '<') {
@@ -543,6 +545,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "azDebugFlag", azDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
@@ -1064,6 +1067,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "wDebugFlag");
   wDebugFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "azDebugFlag");
+  azDebugFlag = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sDebugFlag");
   sDebugFlag = pItem->i32;
@@ -1992,13 +1998,14 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
-        {"dDebugFlag", &dDebugFlag},     {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
-        {"wDebugFlag", &wDebugFlag},     {"sDebugFlag", &sDebugFlag},     {"tsdbDebugFlag", &tsdbDebugFlag},
-        {"tqDebugFlag", &tqDebugFlag},   {"fsDebugFlag", &fsDebugFlag},   {"udfDebugFlag", &udfDebugFlag},
-        {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag}, {"tdbDebugFlag", &tdbDebugFlag},
-        {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},     {"smaDebugFlag", &smaDebugFlag},
-        {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},     {"metaDebugFlag", &metaDebugFlag},
-        {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag}, {"tqClientDebug", &tqClientDebug},
+        {"dDebugFlag", &dDebugFlag},       {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
+        {"wDebugFlag", &wDebugFlag},       {"azDebugFlag", &azDebugFlag},   {"sDebugFlag", &sDebugFlag},
+        {"tsdbDebugFlag", &tsdbDebugFlag}, {"tqDebugFlag", &tqDebugFlag},   {"fsDebugFlag", &fsDebugFlag},
+        {"udfDebugFlag", &udfDebugFlag},   {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag},
+        {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},
+        {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
+        {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
+        {"tqClientDebug", &tqClientDebug},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -2378,6 +2385,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&azDebugFlag, "azDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
