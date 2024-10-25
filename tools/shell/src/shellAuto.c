@@ -1722,6 +1722,11 @@ bool fieldOptionsArea(char* p) {
     return false;
   }
 
+  // find tags
+  if(strstr(p, " tags") != NULL) {
+    return false;
+  }
+
   if(p2 == NULL) {
     // first field area
     p2 = p1;
