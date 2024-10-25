@@ -1851,7 +1851,7 @@ END:
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
                                                            int precision, int32_t ttl, int64_t reqid, char *tbnameKey) {
-  if (taos == NULL || lines == NULL || numLines <= 0) {
+  if (taos == NULL || lines == NULL || numLines < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -1901,7 +1901,7 @@ static int32_t getRawLineLen(char *lines, int len, int protocol) {
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
                                                                int protocol, int precision, int32_t ttl, int64_t reqid,
                                                                char *tbnameKey) {
-  if (taos == NULL || lines == NULL || len <= 0) {
+  if (taos == NULL || lines == NULL || len < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
