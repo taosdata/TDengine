@@ -30,9 +30,18 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
   if (epSet.numOfEps <= 1) {
-    pMsg->pCont = NULL;
-    pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
-    return;
+    if (epSet.numOfEps == 0) {
+      pMsg->pCont = NULL;
+      pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+      return;
+    }
+    // dnode is not the mnode or mnode leader  and This ensures that the function correctly handles cases where the
+    // dnode cannot obtain a valid epSet and avoids returning an incorrect or misleading epSet.
+    if (strcmp(epSet.eps[0].fqdn, tsLocalFqdn) == 0 && epSet.eps[0].port == tsServerPort) {
+      pMsg->pCont = NULL;
+      pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+      return;
+    }
   }
 
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
