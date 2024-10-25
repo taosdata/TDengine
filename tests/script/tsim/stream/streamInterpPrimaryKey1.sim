@@ -204,10 +204,10 @@ $loop_count = 0
 
 loop4:
 
-sleep 300
+sleep 500
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 20 then
   return -1
 endi
 
