@@ -19,7 +19,7 @@ use taos::Code;
 use utoipa::*;
 
 use taosx_core::core_metrics::CoreMetrics;
-use taosx_core::{get_data_dir, get_file_upload_home_dir};
+use taosx_core::{get_csv_files_from_task, get_data_dir, get_file_upload_home_dir};
 
 use super::controller::agent::AgentActivityFilter;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
@@ -679,6 +679,33 @@ pub(super) async fn get_task_metrics(
         Ok(None) => "{}".to_string(),
         Err(err) => {
             tracing::error!("get task metrics error: {}", err);
+            "{}".to_string()
+        }
+    }
+}
+
+/// Get csv files json string of a task for displaying on the web UI
+#[get("/tasks/{id}/csv_files")]
+pub(super) async fn get_task_csv_files(
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+) -> impl Responder {
+    let task_id = id.into_inner();
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(_)) => {
+            let csv_files = get_csv_files_from_task(Some(task_id)).await;
+            match csv_files {
+                Ok(csv_files) => serde_json::to_string(&csv_files).unwrap(),
+                Err(err) => {
+                    tracing::error!("get task csv files error: {}", err);
+                    "{}".to_string()
+                }
+            }
+        }
+        Ok(None) => "{}".to_string(),
+        Err(err) => {
+            tracing::error!("get task csv files error: {}", err);
             "{}".to_string()
         }
     }
