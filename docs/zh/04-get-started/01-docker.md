@@ -17,7 +17,7 @@ docker pull tdengine/tdengine:latest
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine:3.0.1.4
+docker pull tdengine/tdengine:3.3.3.0
 ```
 
 然后只需执行下面的命令：
