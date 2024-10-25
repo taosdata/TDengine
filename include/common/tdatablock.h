@@ -233,7 +233,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
  * @brief find how many rows already in order start from first row
  */
 int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
-void    blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk);
+int32_t blockDataCheck(const SSDataBlock* pDataBlock);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
@@ -266,7 +266,7 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
 int32_t         bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug

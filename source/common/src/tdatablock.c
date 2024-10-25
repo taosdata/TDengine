@@ -18,6 +18,7 @@
 #include "tcompare.h"
 #include "tlog.h"
 #include "tname.h"
+#include "tglobal.h"
 
 #define MALLOC_ALIGN_BYTES 32
 
@@ -3041,8 +3042,12 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 }
 
 // return length of encoded data, return -1 if failed
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
-  blockDataCheck(pBlock, false);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
+  int32_t code = blockDataCheck(pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return -1;
+  }
 
   int32_t dataLen = 0;
 
@@ -3106,9 +3111,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       metaSize = numOfRows * sizeof(int32_t);
+      if(dataLen + metaSize > dataBuflen) goto _exit;
       memcpy(data, pColRes->varmeta.offset, metaSize);
     } else {
       metaSize = BitmapLen(numOfRows);
+      if(dataLen + metaSize > dataBuflen) goto _exit;
       memcpy(data, pColRes->nullbitmap, metaSize);
     }
 
@@ -3127,12 +3134,14 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
         }
         colSizes[col] += colSize;
         dataLen += colSize;
+        if(dataLen > dataBuflen) goto _exit;
         (void) memmove(data, pColData, colSize);
         data += colSize;
       }
     } else {
       colSizes[col] = colDataGetLength(pColRes, numOfRows);
       dataLen += colSizes[col];
+      if(dataLen > dataBuflen) goto _exit;
       if (pColRes->pData != NULL) {
         (void) memmove(data, pColRes->pData, colSizes[col]);
       }
@@ -3156,7 +3165,14 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
+  if (dataLen > dataBuflen) goto _exit;
+
   return dataLen;
+
+_exit:
+  uError("blockEncode dataLen:%d, dataBuflen:%zu", dataLen, dataBuflen);
+  terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  return -1;
 }
 
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
@@ -3286,9 +3302,13 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
   *pEndPos = pStart;
 
-  blockDataCheck(pBlock, false);
+  code = blockDataCheck(pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
@@ -3498,20 +3518,19 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   return nextRowIdx;
 }
 
-void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
-  return;
-  
-  if (NULL == pDataBlock || pDataBlock->info.rows == 0) {
-    return;
+#define BLOCK_DATA_CHECK_TRESSA(o)                      \
+  if (!(o)) {                                           \
+    uError("blockDataCheck failed! line:%d", __LINE__); \
+    return TSDB_CODE_INTERNAL_ERROR;                    \
+  }
+int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER || NULL == pDataBlock || pDataBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
   }
 
-#define BLOCK_DATA_CHECK_TRESSA(o) ;
-//#define BLOCK_DATA_CHECK_TRESSA(o) A S S E R T(o)
-
   BLOCK_DATA_CHECK_TRESSA(pDataBlock->info.rows > 0);
-
-  if (!pDataBlock->info.dataLoad && !forceChk) {
-    return;
+  if (!pDataBlock->info.dataLoad) {
+    return TSDB_CODE_SUCCESS;
   }
 
   bool isVarType = false;
@@ -3524,6 +3543,7 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i);
     isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     checkRows = pDataBlock->info.rows;
+    if (pCol->info.reserve == true) continue;
 
     if (isVarType) {
       BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
@@ -3533,13 +3553,14 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
 
     nextPos = 0;
     for (int64_t r = 0; r < checkRows; ++r) {
+      if (tsSafetyCheckLevel <= TSDB_SAFETY_CHECK_LEVELL_NORMAL) break;
       if (!colDataIsNull_s(pCol, r)) {
         BLOCK_DATA_CHECK_TRESSA(pCol->pData);
         BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.length <= pCol->varmeta.allocLen);
-        
+
         if (isVarType) {
           BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.allocLen > 0);
-          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] < pCol->varmeta.length);
+          BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] <= pCol->varmeta.length);
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
           } else if (0 == r) {
@@ -3561,13 +3582,21 @@ void blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk) {
 
           typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
         } else {
-          GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+          if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+            float v = 0;
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r));
+          } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
+            double v = 0;
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r));
+          } else {
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+          }
         }
       }
     }
   }
 
-  return;
+  return TSDB_CODE_SUCCESS;
 }
 
 

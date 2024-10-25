@@ -695,7 +695,8 @@ static int32_t translateIsFilledPseudoColumn(SFunctionNode* pFunc, char* pErrBuf
 }
 
 static int32_t translateTimezone(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType){.bytes = TD_TIMEZONE_LEN, .type = TSDB_DATA_TYPE_BINARY};
+  int32_t bytesLen = timeZoneStrLen();
+  pFunc->node.resType = (SDataType){.bytes = bytesLen, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2465,9 +2466,12 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
-  int32_t count = TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
-
-  int32_t resLen = orgLen * count;
+  int32_t resLen;
+  if (nodeType(nodesListGetNode(pFunc->pParameterList, 1)) == QUERY_NODE_VALUE) {
+    resLen = orgLen * TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
+  } else {
+    resLen = TSDB_MAX_BINARY_LEN;
+  }
   pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
   return TSDB_CODE_SUCCESS;
 }

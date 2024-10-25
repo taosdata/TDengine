@@ -2662,6 +2662,10 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t timeZoneStrLen() {
+  return sizeof(VarDataLenT) + strlen(tsTimezoneStr);
+}
+
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
   (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
