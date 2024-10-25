@@ -289,7 +289,7 @@ char* tb_actions[] = {
 
 char* user_actions[] = {"pass ", "enable ", "sysinfo "};
 
-char* tb_options[] = {"tags(", "comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
+char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
 
 char* db_options[] = {"keep ",
                       "replica ",
