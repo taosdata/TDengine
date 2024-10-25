@@ -1,0 +1,9 @@
+version: '3.6'
+services:
+  telegraf:
+    image: telegraf:1.20-alpine
+    hostname: telegraf
+    volumes:
+    - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+      TAOSKEEPER: http://taoskeeper:6043/metrics

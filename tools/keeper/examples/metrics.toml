@@ -1,0 +1,39 @@
+prefix = "taos"
+cluster = "localhost"
+database = "log"
+explicit = false
+
+[tables.restful_info]
+[tables.slowquery]
+[tables.cluster_info]
+[tables.grants_info]
+[tables.disks_info]
+
+[tables.logs]
+explicit = true
+[tables.logs.metrics.content]
+type = "info"
+help = "login types or messages"
+[tables.logs.metrics.level]
+type = "gauge"
+help = "login level"
+
+[tables.dnodes_info]
+[tables.dnodes_info.metrics.has_mnode]
+type = "gauge"
+help = "check if the node has mnode"
+
+[tables.vgroups_info]
+column_as_variables = ["database_name", "dnode_roles", "dnode_ids"]
+explicit = false
+
+[tables.vgroups_info.metrics.tables_num]
+type = "gauge"
+help = "Tables count of the vgroup"
+[tables.vgroups_info.metrics.online_vnodes]
+type = "gauge"
+help = "Online v-nodes of the v-group"
+[tables.vgroups_info.metrics.status]
+type = "info"
+help = "Status of the v-group"
+
