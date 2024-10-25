@@ -1732,7 +1732,9 @@ bool fieldOptionsArea(char* p) {
   while(p2) {
     p2 = strchr(p2, ' ');
     if (p2) {
-      if ((p2 - 1)[0] != ',') {
+      // get prev char
+      char prec = *(p2 - 1);
+      if (prec != ',' && prec != '(') {
         // blank if before comma, not calc count.  like st(ts timestamp,  age int + BLANK + TAB only two blank
         cnt ++;
       }
