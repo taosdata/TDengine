@@ -95,4 +95,38 @@ endi
 if $data20 != @      Time Range: [1657441840000, 1657441980000]@ then
   return -1
 endi
+
+sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, true);
+if $rows != 4 then
+  return -1
+endi
+if $data20 != @      Time Range: [0, 1657441980000]@ then
+  return -1
+endi
+
+sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, false);
+if $rows != 4 then
+  return -1
+endi
+if $data20 != @      Time Range: [1, 1657441980000]@ then
+  return -1
+endi
+
+sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, 1.02);
+if $rows != 4 then
+  return -1
+endi
+if $data20 != @      Time Range: [1, 1657441980000]@ then
+  return -1
+endi
+
+sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, -1.02);
+if $rows != 4 then
+  return -1
+endi
+if $data20 != @      Time Range: [-1, 1657441980000]@ then
+  return -1
+endi
+
+sql_error explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000, 'abc');
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

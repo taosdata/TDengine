@@ -5034,8 +5034,13 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
           SValueNode *valueNode = (SValueNode *)cell->pNode;
           SFltSclDatum valDatum;
           FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
-          minDatum.i = TMIN(minDatum.i, valDatum.i);
-          maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+          if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
+            minDatum.i = TMIN(minDatum.i, valDatum.d);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.d);
+          } else {
+            minDatum.i = TMIN(minDatum.i, valDatum.i);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+          }
           cell = cell->pNext;
         }
         SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
