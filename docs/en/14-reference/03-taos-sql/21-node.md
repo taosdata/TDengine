@@ -32,6 +32,16 @@ DROP DNODE dnode_id
 
 Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
 
+```sql
+DROP DNODE dnode_id force
+```
+Only online node is allowed to be deleted. Drop is executed forcely if the offline node need to be deleted.
+
+```sql
+DROP DNODE dnode_id unsafe
+```
+Drop is executed unsafely if the node with single replica is offline, and the data on it is not able to be restored.
+
 ## Modify Dnode Configuration
 
 ```sql

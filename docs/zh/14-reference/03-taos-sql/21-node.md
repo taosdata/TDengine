@@ -32,6 +32,16 @@ DROP DNODE dnode_id
 
 注意删除 dnode 不等于停止相应的进程。实际中推荐先将一个 dnode 删除之后再停止其所对应的进程。
 
+```sql
+DROP DNODE dnode_id force
+```
+只有在线节点可以被删除。如果要强制删除离线节点，需要执行强制删除操作。
+
+```sql
+DROP DNODE dnode_id unsafe
+```
+当节点上存在单副本，并且节点处于离线，如果要强制删除该节点，需要执行非安全删除，并且数据不可再恢复。
+
 ## 修改数据节点配置
 
 ```sql
