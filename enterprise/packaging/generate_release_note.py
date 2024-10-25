@@ -102,8 +102,7 @@ def process_content(content, replacements):
 
 def main():
     parser = argparse.ArgumentParser(description="Example script.")
-    parser.add_argument("hrchen", help="jenkins user")
-
+    parser.add_argument("user", help="jenkins user")
     parser.add_argument("passwd", help="jenkins passwd")
     parser.add_argument("version", help="release_version")
 
