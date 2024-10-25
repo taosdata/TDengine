@@ -838,7 +838,7 @@ endi
 if $data20 != 11 then
  return -1
 endi
-if $data30 != 1664176504 then
+if $data30 != 1664176504000 then
  return -1
 endi
 
@@ -1130,36 +1130,32 @@ if $data00 != varchar_val then
   return -1
 endi
 
-sql select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
-if $data00 != varchar_val then
+sql select case when 1 then 1234567890987654 else 'abcertyuiojhgfddhjgfcvbn' end;
+if $data00 != 1234567890987654 then
   return -1
 endi
 
-sql select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
-if $data00 != true then
+sql select case when 0 then 1234567890987654 else 'abcertyuiojhgfddhjgfcvbn' end;
+if $data00 != abcertyuiojhgfddhjgfcvbn then
   return -1
 endi
 
-sql select case when 0 then tag_id else c_geometry end as result from t_test;
-if $data00 != 16842773 then
-  return -1
-endi
-
-sql select case when 0 then tag_id else c_nchar end as result from t_test;
+sql select case when 0 then 1234567890987654 else c_nchar end from t_test;
 if $data00 != 涛思数据 then
   return -1
 endi
 
-sql select case when 0 then tag_id else c_int end as result from t_test;
-if $data00 != 123 then
+sql select case when 1 then 1234567890987654 else c_nchar end from t_test;
+if $data00 != 1234567890987654 then
   return -1
 endi
 
-sql select case when 0 then tag_id else c_float end as result from t_test;
-if $data00 != 123.449997 then
-  return -1
-endi
-
+sql_error select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
+sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
+sql_error select case when 0 then tag_id else c_geometry end as result from t_test;
+sql_error select case when 0 then tag_id else c_nchar end as result from t_test;
+sql_error select case when 0 then tag_id else c_int end as result from t_test;
+sql_error select case when 0 then tag_id else c_float end as result from t_test;
 sql_error select case when c_double > 100 then c_varbinary else c_geometry end as result from t_test;
 sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
 sql_error select case when c_bool then c_varbinary else c_varchar end as result from t_test;

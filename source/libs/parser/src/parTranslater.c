@@ -3314,17 +3314,13 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
-  if (resultType == commonType->type){
-    return TSDB_CODE_SUCCESS;
-  }
-  if(resultType == newType->type) {
-    *commonType = *newType;
-    return TSDB_CODE_SUCCESS;
-  }
   commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
-  if(resultType == TSDB_DATA_TYPE_VARCHAR && (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type))) {
-    commonType->bytes += TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE];
-  }
+  if((resultType == TSDB_DATA_TYPE_VARCHAR || resultType == TSDB_DATA_TYPE_NCHAR) && (
+    (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type)) ||
+    (IS_NUMERIC_TYPE(commonType->type) || IS_NUMERIC_TYPE(newType->type))))
+    {
+      commonType->bytes = TMAX(commonType->bytes, 32);
+    }
   commonType->type = resultType;
   return TSDB_CODE_SUCCESS;
 
