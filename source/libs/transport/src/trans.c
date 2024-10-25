@@ -74,19 +74,19 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->noDelayFp = pInit->noDelayFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
-    pRpc->connLimitNum = 20;
+    pRpc->connLimitNum = 1024;
   }
 
   pRpc->connLimitLock = pInit->connLimitLock;
   pRpc->supportBatch = pInit->supportBatch;
   pRpc->shareConnLimit = pInit->shareConnLimit;
   if (pRpc->shareConnLimit <= 0) {
-    pRpc->shareConnLimit = BUFFER_LIMIT;
+    pRpc->shareConnLimit = tsShareConnLimit;
   }
 
   pRpc->readTimeout = pInit->readTimeout;
-  if (pRpc->readTimeout < 0) {
-    pRpc->readTimeout = INT64_MAX;
+  if (pRpc->readTimeout <= 0) {
+    pRpc->readTimeout = INT32_MAX;
   }
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;

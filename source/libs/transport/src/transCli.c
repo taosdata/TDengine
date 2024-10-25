@@ -614,7 +614,7 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   int32_t code = 0;
   int64_t qId = taosHton64(pHead->qid);
   if (qId == 0) {
-    return 0;
+    return TSDB_CODE_RPC_NO_STATE;
   }
 
   STransCtx* pCtx = taosHashGet(conn->pQTable, &qId, sizeof(qId));
@@ -682,6 +682,7 @@ void cliHandleResp(SCliConn* conn) {
       code = cliNotifyCb(conn, NULL, &resp);
       return;
     }
+
     if (code != 0) {
       tWarn("%s conn %p recv unexpected packet, msgType:%s, seqNum:%" PRId64 ", sid:%" PRId64
             ", the sever may sends repeated response since %s",
@@ -1249,6 +1250,7 @@ static void cliHandleException(SCliConn* conn) {
   QUEUE_REMOVE(&conn->q);
   if (conn->list) {
     conn->list->totalSize -= 1;
+    tDebug("%s conn %p removed from pool, total conn size %d", CONN_GET_INST_LABEL(conn), conn, conn->list->totalSize);
     conn->list = NULL;
   }
 
@@ -1551,6 +1553,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
   if (conn->list != NULL) {
     conn->list->totalSize += 1;
+    tInfo("%s conn %p created, total conn size %d", CONN_GET_INST_LABEL(conn), conn, conn->list->totalSize);
   }
 
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);

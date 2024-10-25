@@ -107,8 +107,8 @@ void *processShellMsg(void *arg) {
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
-      void *handle = pRpcMsg->info.handle;
       taosFreeQitem(pRpcMsg);
+      // void *handle = pRpcMsg->info.handle;
       //{
       //  SRpcMsg nRpcMsg = {0};
       //  nRpcMsg.pCont = rpcMallocCont(msgSize);
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
   rpcInit.localPort = 7000;
   memcpy(rpcInit.localFqdn, "localhost", strlen("localhost"));
   rpcInit.label = "SER";
-  rpcInit.numOfThreads = 1;
+  rpcInit.numOfThreads = 10;
   rpcInit.cfp = processRequestMsg;
   rpcInit.idleTime = 2 * 1500;
 
@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
   }
 
   int32_t numOfAthread = 5;
-  multiQ = taosMemoryMalloc(sizeof(numOfAthread));
+  multiQ = taosMemoryMalloc(sizeof(MultiThreadQhandle));
   multiQ->numOfThread = numOfAthread;
   multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
   multiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
