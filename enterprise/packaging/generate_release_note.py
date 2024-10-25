@@ -2,6 +2,32 @@ from jira import JIRA
 import argparse
 import re
 import os
+import time 
+
+
+class FileHandler:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.file = None
+
+    def open(self):
+        self.file = open(self.file_path, 'a')
+
+    def write(self, data):
+        self.file.write(data)
+
+    def write_line(self, data):
+        self.file.writelines(data)
+            
+    def close(self):
+        if self.file:
+            self.file.close()
+            self.file = None
+            
+    def __del__(self):
+        # 确保文件在对象被销毁时被关闭
+        if self.file:
+            self.file.close()
 
 
 
@@ -15,6 +41,17 @@ def append_to_file(file_path, content):
     with open(file_path, 'a') as file:
         file.write(content + '\n')  # 添加换行符确保内容在新行
 
+
+def write_line_to_file(file_path, content):
+    """
+    Write str list content to a file.
+    
+    :param file_path: Path to the file.
+    :param content: Content to be written to the file.
+    """
+    with open(file_path, 'a') as file:
+        file.writelines(content )  # 添加换行符确保内容在新行
+
 def clear_file(file_path):
     """
     Clear the file if it's not empty
@@ -25,14 +62,11 @@ def clear_file(file_path):
     # 检查文件是否存在且不为空
     if not os.path.exists(file_path):
         return True# 文件不存在，不需要清空
-    with open(file_path, 'r+') as file:  # 使用 'r+' 模式，允许读写
-        content_now = file.read()
-        if len(content_now.strip()) > 0:
-            # 文件不为空，清空文件内容
-            file.seek(0)  # 回到文件开头
-            file.truncate()  # 清空文件
+    with open(file_path, 'w+') as file:  # 使用 'r+' 模式，允许读写
+        content = ""
+        file.write(content)  # 清空文件
 
-def open_file(file_name):
+def print_file_content(file_name):
     # open file and print content
     with open(file_name, 'r') as file:
         content = file.read()
@@ -68,23 +102,41 @@ def get_release_note(user, passwd, release_version):
         "taosrestful": "taosRestful",
         "taosexplorer": "taosExplorer",
     }
+
+    # 记录开始时间
+    start_time = time.time()
+
     clear_file(zh_file)
     clear_file(en_file)
+    file_handler_zh = FileHandler(zh_file)
+    file_handler_en = FileHandler(en_file)
+    file_handler_zh.open()
+    file_handler_en.open()
+    contents_zh=[]
+    contents_en=[]
 
     for issue in issues:
+        # issue.fields.customfield_12330  is relsease note in chinese
         if issue.fields.customfield_12330 is not None and issue.fields.customfield_12330 != "-" :
-            content = issue.key + ": " + issue.fields.customfield_12330 
-            processed_content = process_content(content, replacements)
-            append_to_file(zh_file, processed_content)
-
-    for issue in issues:
+            content_zh= f"{issue.key} {issue.fields.customfield_12330} \n"
+            processed_content_zh = process_content(content_zh, replacements)
+            contents_zh.append(processed_content_zh)
+        
+        # issue.fields.customfield_12331  is relsease note in english
         if issue.fields.customfield_12331 is not None and issue.fields.customfield_12331 != "-" :
-            content = issue.key + ": " + issue.fields.customfield_12331
-            processed_content = process_content(content, replacements)
-            append_to_file(en_file, processed_content)
+            content_en= f"{issue.key} {issue.fields.customfield_12331} \n"
+            processed_content_en = process_content(content_en, replacements)
+            contents_en.append(processed_content_en)
 
-    open_file(zh_file)
-    open_file(en_file)  
+    # write_line_to_file(zh_file, contents_zh)
+    # write_line_to_file(en_file, contents_en)
+    file_handler_en.write_line(contents_en)
+    file_handler_zh.write_line(contents_zh)
+
+    file_handler_zh.close()
+    file_handler_en.close()
+    print_file_content(zh_file)
+    print_file_content(en_file)
 
 def process_content(content, replacements):
     """
@@ -110,7 +162,8 @@ def main():
     args = parser.parse_args()
 
     # 使用参数执行操作
-    get_release_note(args.passwd, args.version)
+        
+    get_release_note(args.user,args.passwd, args.version)
 
 if __name__ == "__main__":
     main()
