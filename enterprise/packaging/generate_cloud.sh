@@ -12,7 +12,7 @@ cpuType=$5
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 archiveDir=/nas/TDengine/v$version/cloud  # version’package directory
-allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
+allocator=glibc              # glibc  or  jemalloc, default is jemalloc
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
