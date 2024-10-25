@@ -46,15 +46,15 @@ def replace_case_insensitive(text, search_term, replace_term):
     return replaced_text
 
 
-def get_release_note(passwd,release_version):
-    jira = JIRA(server='https://jira.taosdata.com:18080', basic_auth=('hrchen', 'passwd'))
+def get_release_note(passwd, release_version):
+    jira = JIRA(server='https://jira.taosdata.com:18080', basic_auth=('hrchen', passwd))
 
     #jql = "\"Epic Link\" = TD-27435 and status = DONE  AND (assignee in membersof(\"application group 1\") or assignee in membersOf(\"application group 2\"))"
     #jql = "project = \"Taos Support\" and type = Bug and status = DONE  and created >= 2024-7-1 and created  < 2024-9-30"
 
     jql = f"statusCategory = indeterminate AND project in (\"Taos Support\",\"Taos Development\") AND fixVersion = {release_version}   ORDER BY priority DESC, key ASC"
-    print(f"jql:{jql}")
-    print(f"release_version: {release_version}")
+    # print(f"jql:{jql}")
+    print(f"generate release_version-{release_version} release note")
     # jql = "key in (TS-4785,TS-5383,TS-5384,TS-5532,TS-5537,TS-5529,TS-5531,TS-5540,TS-4785)"
     zh_file = f'release_note_{release_version}_zh.txt'
     en_file = f'release_note_{release_version}_en.txt'
