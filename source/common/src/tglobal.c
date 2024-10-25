@@ -56,7 +56,7 @@ int32_t tsShellActivityTimer = 3;  // second
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
-int32_t tsShareConnLimit = 8;
+int32_t tsShareConnLimit = 10;
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
@@ -287,7 +287,7 @@ int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
 int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vgroups
-bool    tsS3MigrateEnabled = 1;
+bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits

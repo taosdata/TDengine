@@ -453,10 +453,10 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
-#define TSDB_DEFAULT_S3_COMPACT    0
+#define TSDB_DEFAULT_S3_COMPACT    1
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -506,7 +506,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 20
+#define TSDB_MAX_RPC_THREADS 50
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type

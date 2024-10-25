@@ -14,7 +14,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## 连接方式
 
-Node.js 连接器目前仅支持 Websocket 连接器， 其通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。
+Node.js 连接器目前仅支持 WebSocket 连接器， 其通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例。
 
 连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
@@ -48,7 +48,7 @@ Node.js 连接器目前仅支持 Websocket 连接器， 其通过 taosAdapter �
 | 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
 | 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
 | 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败                    |
-| 110     | websocket connection has reached its maximum limit              | Websocket 连接达到上限                                                   |
+| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限                                                   |
 - [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 - TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
@@ -104,7 +104,7 @@ Node.js 连接器目前仅支持 Websocket 连接器， 其通过 taosAdapter �
 
 ## API 参考
 
-Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。
+Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例。
 
 ### URL 规范
 
