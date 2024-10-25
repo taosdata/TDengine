@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use std::vec;
 
@@ -11,8 +11,10 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use bytes::Bytes;
 use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
+use faststr::FastStr;
 use futures_util::stream::FuturesUnordered;
 use futures_util::{Stream, StreamExt, TryStreamExt};
+use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
 use taosx_ipc::stream::flat::FlatMessage;
 use taosx_ipc::stream::reader::IpcMessage;
@@ -23,7 +25,9 @@ use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn, Instrument, Span};
 
+use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
 use crate::sink::channel_based_transformer;
+use crate::sink::ipc_metric::IpcMetrics;
 use crate::utils::breakpoints;
 use crate::utils::port_pool::PortPool;
 use crate::{utils, Parser, Transferred};
@@ -32,6 +36,15 @@ type MsgSender = flume::Sender<std::result::Result<Box<dyn IpcMessage>, ArrowErr
 trait CsvReaderExt: Send + Sync + std::io::Read {}
 
 impl<T: Send + Sync + std::io::Read> CsvReaderExt for T {}
+
+const TOTAL_CSV_FILES: FastStr = FastStr::from_static_str("total_csv_files");
+const TOTAL_CSV_FILES_COMPLETED: FastStr = FastStr::from_static_str("total_csv_files_completed");
+const TOTAL_CSV_FILES_COMPLETED_ROWS: FastStr =
+    FastStr::from_static_str("total_csv_files_completed_rows");
+
+const CSV_FILES: FastStr = FastStr::from_static_str("csv_files");
+const CSV_FILES_COMPLETED: FastStr = FastStr::from_static_str("csv_files_completed");
+const CSV_FILES_COMPLETED_ROWS: FastStr = FastStr::from_static_str("csv_files_completed_rows");
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -129,9 +142,9 @@ pub async fn csv_header(
     })
 }
 
-pub const METRIC_CSV_FILES: &str = "metrics.csv.files";
-pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
-pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
+// pub const METRIC_CSV_FILES: &str = "metrics.csv.files";
+// pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
+// pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
 
 async fn csv_to_taos_with_channel(
     mut from: Dsn,
@@ -141,6 +154,9 @@ async fn csv_to_taos_with_channel(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
+    // load metrics
+    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();
@@ -156,7 +172,7 @@ async fn csv_to_taos_with_channel(
         info!("CSV worker finished, total record batches: {}", count);
     });
 
-    let mut source = CsvSource::new(task_id, &mut from, msg)?;
+    let mut source = CsvSource::new(task_id, &mut from, msg, metrics_arc.clone())?;
     // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(
@@ -165,7 +181,7 @@ async fn csv_to_taos_with_channel(
                 "Reading CSV with config(concurrent: {}, batch_size: {})",
                 source.concurrent, source.batch_size
             );
-            let handlers = source.read().await?;
+            let handlers = source.read(metrics_arc.clone()).await?;
             for handler in handlers {
                 tokio::task::yield_now().await;
                 handler.await??;
@@ -530,6 +546,7 @@ impl CsvOption {
         Ok(())
     }
 
+    #[allow(unused)]
     #[instrument(skip(self), fields(path = %path.as_ref().display()))]
     fn open_path_into_stream(
         &self,
@@ -662,7 +679,12 @@ impl std::fmt::Debug for CsvSource {
     }
 }
 impl CsvSource {
-    fn new(task_id: Option<i64>, dsn: &mut Dsn, sender: MsgSender) -> Result<CsvSource> {
+    fn new(
+        task_id: Option<i64>,
+        dsn: &mut Dsn,
+        sender: MsgSender,
+        metrics_arc: Arc<CoreMetrics>,
+    ) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
@@ -683,8 +705,15 @@ impl CsvSource {
             }
         }
 
-        // filter by breakpoint
+        // get breakpoint
         let breakpoints = get_breakpoint(task_id).unwrap_or_default();
+
+        // record the files in breakpoint to file list
+        breakpoints.iter().for_each(|(path, rows)| {
+            add_csv_file_to_task(task_id, path, FileStatus::Completed, *rows);
+        });
+
+        // filter by breakpoint
         let paths = paths
             .into_iter()
             .filter(|path| {
@@ -692,10 +721,29 @@ impl CsvSource {
                     tracing::info!("file '{path}' is already processed, skip it");
                     false
                 } else {
+                    // record to file list, the status is not started
+                    add_csv_file_to_task(task_id, path, FileStatus::NotStarted, 0);
+                    // keep the file
                     true
                 }
             })
             .collect_vec();
+
+        // extra metrics
+        let total_csv_files = breakpoints.len() + paths.len();
+        let total_csv_files_completed = breakpoints.len();
+        let total_csv_files_completed_rows = breakpoints.values().map(|v| v).sum::<usize>();
+
+        let metrics = metrics_arc.ipc();
+        metrics.set_extra_metric(&TOTAL_CSV_FILES, total_csv_files as u64);
+        metrics.set_extra_metric(&TOTAL_CSV_FILES_COMPLETED, total_csv_files_completed as u64);
+        metrics.set_extra_metric(
+            &TOTAL_CSV_FILES_COMPLETED_ROWS,
+            total_csv_files_completed_rows as u64,
+        );
+        metrics.set_extra_metric(&CSV_FILES, total_csv_files as u64);
+        metrics.set_extra_metric(&CSV_FILES_COMPLETED, 0);
+        metrics.set_extra_metric(&CSV_FILES_COMPLETED_ROWS, 0);
 
         let has_header: bool = dsn
             .remove("has_header")
@@ -909,7 +957,10 @@ impl CsvSource {
             || (!has_header && old_header.len() == new_header.len())
     }
 
-    async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
+    async fn read(
+        &mut self,
+        metrics_arc: Arc<CoreMetrics>,
+    ) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
         let batch_size = self.batch_size;
         // let skip_error = self.skip_error;
         tracing::info!("reading csv files with batch size: {batch_size}");
@@ -923,10 +974,15 @@ impl CsvSource {
             let sender = self.sender.clone();
             let task_id = self.task_id.clone();
             let keep_processed_files = self.keep_processed_files.clone();
+            let metrics_arc = metrics_arc.clone();
             // let total = total.clone();
             let future = tokio::spawn(
                 async move {
                     info!("Deal with csv reader");
+
+                    // record to file list, the status is processing
+                    add_csv_file_to_task(task_id, &path, FileStatus::Processing, 0);
+
                     // let res =
                     //     CsvSource::deal_file(reader, port, batch_size, skip_error, null_pattern)
                     //         .await?;
@@ -940,10 +996,23 @@ impl CsvSource {
                             Box::new(FlatMessage::new(vec![batch.into()])) as Box<dyn IpcMessage>;
                         sender.send_async(Ok(msg)).await?;
                         tracing::debug!(path, count, "send batches to writer");
+
+                        // record to file list, the status is processing
+                        add_csv_file_to_task(task_id, &path, FileStatus::Processing, count);
                     }
 
                     // write to breakpoint file
                     let _ = set_breakpoint(task_id, &path, count).await;
+
+                    // record to file list, the status is completed
+                    add_csv_file_to_task(task_id, &path, FileStatus::Completed, count);
+
+                    // record in metrics
+                    let metrics = metrics_arc.ipc();
+                    metrics.add_extra_metric(&CSV_FILES_COMPLETED, 1);
+                    metrics.add_extra_metric(&CSV_FILES_COMPLETED_ROWS, count as u64);
+                    metrics.add_extra_metric(&TOTAL_CSV_FILES_COMPLETED, 1);
+                    metrics.add_extra_metric(&TOTAL_CSV_FILES_COMPLETED_ROWS, count as u64);
 
                     // if keep_processed_files is false, delete the processed file
                     if !keep_processed_files {
@@ -1149,7 +1218,12 @@ async fn test_csv_source() -> anyhow::Result<()> {
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     let (sender, _) = flume::bounded(0);
-    if let Err(err) = CsvSource::new(None, &mut from.clone(), sender) {
+    if let Err(err) = CsvSource::new(
+        None,
+        &mut from.clone(),
+        sender,
+        Arc::new(CoreMetrics::IPC(IpcMetrics::default())),
+    ) {
         DataSourceValidation::invalid("csv".to_string(), err.to_string())
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
@@ -1190,6 +1264,58 @@ pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, us
             Err(e)
         }
     }
+}
+
+#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+pub enum FileStatus {
+    #[default]
+    NotStarted,
+    Processing,
+    Completed,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct TaskFile {
+    path: String,
+    status: FileStatus,
+    amount: usize,
+}
+
+static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new(scc::HashMap::new);
+
+pub async fn get_csv_files_from_task(task_id: Option<i64>) -> anyhow::Result<Vec<TaskFile>> {
+    let task_id = format!("{}", task_id.unwrap_or(0));
+    if let Some(files) = TASK_FILES.get_async(&task_id).await {
+        Ok(files.get().clone())
+    } else {
+        Ok(vec![])
+    }
+}
+
+fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, amount: usize) {
+    let task_id = format!("{}", task_id.unwrap_or(0));
+    TASK_FILES
+        .entry(task_id)
+        .and_modify(|files| {
+            for file in files.iter_mut() {
+                if file.path == path {
+                    // update status and amount
+                    file.status = status;
+                    file.amount = amount;
+                    return;
+                }
+            }
+            files.push(TaskFile {
+                path: path.to_string(),
+                status,
+                amount,
+            });
+        })
+        .or_insert(vec![TaskFile {
+            path: path.to_string(),
+            status,
+            amount,
+        }]);
 }
 
 #[cfg(test)]
@@ -1434,7 +1560,12 @@ mod tests {
         assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
 
         let (tx, _) = flume::bounded(0);
-        let csv = CsvSource::new(None, &mut "csv:./test.csv.gz".parse().unwrap(), tx);
+        let csv = CsvSource::new(
+            None,
+            &mut "csv:./test.csv.gz".parse().unwrap(),
+            tx,
+            Arc::new(CoreMetrics::IPC(IpcMetrics::default())),
+        );
         assert!(csv.is_ok(), "{csv:?}");
         delete_csv_file(&path).unwrap();
     }
