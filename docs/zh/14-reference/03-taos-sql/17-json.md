@@ -33,7 +33,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 ## 支持的操作
 
-1. 在 where 条件中时，支持函数 match/nmatch/between and/like/and/or/is null/is no null，不支持 in
+1. 在 where 条件中时，支持函数 match/nmatch/between and/like/and/or/is null/is not null，不支持 in
 
    ```
    select * from s1 where info->'k1' match 'v*';
