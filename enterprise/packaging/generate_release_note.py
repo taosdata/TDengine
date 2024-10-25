@@ -2,7 +2,8 @@ from jira import JIRA
 import argparse
 import re
 import os
-import time 
+import logging
+from loguru import logger
 
 
 class FileHandler:
@@ -25,10 +26,11 @@ class FileHandler:
             self.file = None
             
     def __del__(self):
-        # 确保文件在对象被销毁时被关闭
         if self.file:
             self.file.close()
 
+jira_server = "https://jira.taosdata.com:18080"
+logger.level("INFO")
 
 
 def append_to_file(file_path, content):
@@ -39,7 +41,7 @@ def append_to_file(file_path, content):
     :param content: Content to be written to the file.
     """
     with open(file_path, 'a') as file:
-        file.write(content + '\n')  # 添加换行符确保内容在新行
+        file.write(content + '\n') 
 
 
 def write_line_to_file(file_path, content):
@@ -50,7 +52,7 @@ def write_line_to_file(file_path, content):
     :param content: Content to be written to the file.
     """
     with open(file_path, 'a') as file:
-        file.writelines(content )  # 添加换行符确保内容在新行
+        file.writelines(content) 
 
 def clear_file(file_path):
     """
@@ -59,36 +61,27 @@ def clear_file(file_path):
     :param file_path: Path to the file.
     :param content: Content to be written to the file.
     """
-    # 检查文件是否存在且不为空
     if not os.path.exists(file_path):
-        return True# 文件不存在，不需要清空
-    with open(file_path, 'w+') as file:  # 使用 'r+' 模式，允许读写
+        return True
+    with open(file_path, 'w+') as file:  
         content = ""
-        file.write(content)  # 清空文件
+        file.write(content) 
 
 def print_file_content(file_name):
     # open file and print content
     with open(file_name, 'r') as file:
         content = file.read()
-    print(content)
-
-def replace_case_insensitive(text, search_term, replace_term):
-    # 编译一个正则表达式模式，忽略大小写
-    pattern = re.compile(re.escape(search_term), re.IGNORECASE)
-    # 替换所有匹配的字符串
-    replaced_text = pattern.sub(replace_term, text)
-    return replaced_text
-
+    logger.info(f"\n{content}")
 
 def get_release_note(user, passwd, release_version):
-    jira = JIRA(server='https://jira.taosdata.com:18080', basic_auth=(user, passwd))
+    jira = JIRA(server=jira_server, basic_auth=(user, passwd))
 
     #jql = "\"Epic Link\" = TD-27435 and status = DONE  AND (assignee in membersof(\"application group 1\") or assignee in membersOf(\"application group 2\"))"
     #jql = "project = \"Taos Support\" and type = Bug and status = DONE  and created >= 2024-7-1 and created  < 2024-9-30"
 
     jql = f"statusCategory = indeterminate AND project in (\"Taos Support\",\"Taos Development\") AND fixVersion = {release_version}   ORDER BY priority DESC, key ASC"
     # print(f"jql:{jql}")
-    print(f"generate release_version-{release_version} release note")
+    logger.info(f"generate release_version-{release_version} release note")
     # jql = "key in (TS-4785,TS-5383,TS-5384,TS-5532,TS-5537,TS-5529,TS-5531,TS-5540,TS-4785)"
     zh_file = f'release_note_{release_version}_zh.txt'
     en_file = f'release_note_{release_version}_en.txt'
@@ -102,9 +95,6 @@ def get_release_note(user, passwd, release_version):
         "taosrestful": "taosRestful",
         "taosexplorer": "taosExplorer",
     }
-
-    # 记录开始时间
-    start_time = time.time()
 
     clear_file(zh_file)
     clear_file(en_file)
@@ -158,11 +148,8 @@ def main():
     parser.add_argument("passwd", help="jenkins passwd")
     parser.add_argument("version", help="release_version")
 
-    # 解析命令行参数
-    args = parser.parse_args()
-
-    # 使用参数执行操作
-        
+    args = parser.parse_args()    
+    # get release note:    
     get_release_note(args.user,args.passwd, args.version)
 
 if __name__ == "__main__":
