@@ -36,6 +36,7 @@ typedef struct SVnodeMgmt {
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
   SHashObj             *hash;
+  SHashObj             *closedHash;
   TdThreadRwlock        lock;
   SVnodesStat           state;
   STfs                 *pTfs;
@@ -111,6 +112,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);
