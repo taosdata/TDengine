@@ -24,6 +24,8 @@ sql_error create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 
 sql_error create stream streams7 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt7 as select _wstart, twa(a) from st partition by tbname,ta session(ts, 2s);
 sql_error create stream streams8 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt8 as select _wstart, twa(a) from st partition by tbname,ta state_window(a);
 
+sql_error create stream streams9 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt9 as select _wstart, elapsed(ts) from st partition by tbname,ta interval(2s) fill(prev);
+
 print end
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
