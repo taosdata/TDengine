@@ -761,6 +761,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up fail
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_RANGE,       "Invalid function para range")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS,      "Function parameter should be primary timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PK,          "Function parameter should be primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL,     "Function parameter should have column")
+
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
