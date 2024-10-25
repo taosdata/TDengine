@@ -442,7 +442,8 @@ _OVER:
       dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(r));
     }
     if (r == 0) {
-      r = taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
+      dInfo("vgId:%d, remove from hash", req.vgId);
+      r = taosHashRemove(pMgmt->hash, &req.vgId, sizeof(int32_t));
       if (r != 0) {
         dError("vgId:%d, failed to remove vnode since %s", req.vgId, tstrerror(r));
       }
