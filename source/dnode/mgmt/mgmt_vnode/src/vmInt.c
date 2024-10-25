@@ -545,7 +545,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   (void)taosThreadRwlockDestroy(&pMgmt->lock);
-  (void)taosThreadMutexDestroy(&pMgmt->createLock);
+  (void)taosThreadMutexDestroy(&pMgmt->fileLock);
   taosMemoryFree(pMgmt);
 }
 
@@ -637,7 +637,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     goto _OVER;
   }
 
-  code = taosThreadMutexInit(&pMgmt->createLock, NULL);
+  code = taosThreadMutexInit(&pMgmt->fileLock, NULL);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
