@@ -1293,7 +1293,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       SQueryPlan* pDag = NULL;
       code = getPlan(pRequest, pQuery, &pDag, pMnodeList);
       if (TSDB_CODE_SUCCESS == code) {
-        subplanNum = pDag->numOfSubplans;
+        pRequest->body.subplanNum = pDag->numOfSubplans;
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
@@ -1301,10 +1301,6 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
           taosArrayDestroy(pNodeList);
-        }
-        
-        if (TSDB_CODE_SUCCESS == code) {
-          pRequest->body.subplanNum = subplanNum;
         }
       }
       taosArrayDestroy(pMnodeList);
@@ -1348,7 +1344,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   pRequest->type = pQuery->msgType;
   SArray*     pMnodeList = NULL;
   SQueryPlan* pDag = NULL;
-  int32_t     subplanNum = 0;
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
@@ -1375,7 +1370,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                pRequest->requestId);
     } else {
-      subplanNum = pDag->numOfSubplans;
+      pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
     }
   }
@@ -1412,9 +1407,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (TSDB_CODE_SUCCESS == code) {
       code = schedulerExecJob(&req, &pRequest->body.queryJob);
     }
-    if (TSDB_CODE_SUCCESS == code) {
-      pRequest->body.subplanNum = subplanNum;
-    }
+
     taosArrayDestroy(pNodeList);
   } else {
     qDestroyQueryPlan(pDag);
