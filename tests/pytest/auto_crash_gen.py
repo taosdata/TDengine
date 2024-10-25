@@ -6,15 +6,12 @@ import requests
 # -*- coding: utf-8 -*-
 import os ,sys
 import random
-import argparse
 import subprocess
-import time
-import platform
 
 # valgrind mode ?
 valgrind_mode =  False
 
-msg_dict = {0:"success" , 1:"failed" , 2:"other errors" , 3:"crash occured" , 4:"Invalid read/write" , 5:"memory leak" }
+msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occured", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
 
 # formal
 hostname = socket.gethostname()
@@ -112,9 +109,9 @@ def random_args(args_list):
     # args_list["--connector-type"]=connect_types[random.randint(0,2)]
     args_list["--connector-type"]= connect_types[0]
     args_list["--max-dbs"]= random.randint(1,10)
-    
+
     # dnodes = [1,3] # set single dnodes;
-    
+
     # args_list["--num-dnodes"]= random.sample(dnodes,1)[0]
     # args_list["--num-replicas"]= random.randint(1,args_list["--num-dnodes"])
     args_list["--debug"]=False
@@ -125,7 +122,7 @@ def random_args(args_list):
 
     # args_list["--ignore-errors"]=[]   ## can add error codes for detail
 
-    
+
     args_list["--run-tdengine"]= False
     args_list["--use-shadow-db"]= False
     args_list["--dynamic-db-table-names"]= True
@@ -162,7 +159,7 @@ def random_args(args_list):
     if args_list["--larger-data"]:
         threads = [16,32]
     else:
-        threads = [32,64,128,256] 
+        threads = [32,64,128,256]
     args_list["--num-threads"]=random.sample(threads,1)[0] #$ debug
 
     return args_list
@@ -176,7 +173,7 @@ def limits(args_list):
             pass
 
     # env is start by test frame , not crash_gen instance
-    
+
     # elif args_list["--num-replicas"]==0:
     #     print(" make sure num-replicas is at least 1 ")
     #     args_list["--num-replicas"]=1
@@ -186,10 +183,10 @@ def limits(args_list):
     # elif args_list["--num-replicas"]>1:
     #     if not args_list["--auto-start-service"]:
     #         print("it should be deployed by crash_gen auto-start-service for multi replicas")
-            
+
     # else:
     #     pass
-         
+
     return  args_list
 
 def get_auto_mix_cmds(args_list ,valgrind=valgrind_mode):
@@ -216,9 +213,9 @@ def get_auto_mix_cmds(args_list ,valgrind=valgrind_mode):
             arguments+=""
         else:
             arguments+=(k+"="+str(v)+" ")
-    
+
     if valgrind :
-         
+
         crash_gen_cmd = 'cd %s && ./crash_gen.sh  --valgrind %s -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550,0x0203,0x4012 '%(crash_gen_path ,arguments)
 
     else:
@@ -239,7 +236,7 @@ def start_taosd():
     start_cmd = 'cd %s && python3 test.py >>/dev/null '%(start_path)
     os.system(start_cmd)
 
-def get_cmds(args_list):    
+def get_cmds(args_list):
     crash_gen_cmd = get_auto_mix_cmds(args_list,valgrind=valgrind_mode)
     return crash_gen_cmd
 
@@ -276,11 +273,15 @@ def check_status():
     os.system("tail -n 50 %s>>%s"%(result_file,exit_status_logs))
 
     core_check = subprocess.Popen('ls -l  %s | grep "^-" | wc -l'%core_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+    dead_lock_check = subprocess.Popen("grep -i 'dead locked' %s "%result_file, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
 
     if int(core_check.strip().rstrip()) > 0:
         # it means core files has occured
         return 3
-    
+
+    if dead_lock_check:
+        return 6
+
     if "Crash_Gen is now exiting with status code: 1" in run_code:
         return 1
     elif "Crash_Gen is now exiting with status code: 0" in run_code:
@@ -293,7 +294,7 @@ def main():
 
     args_list = {"--auto-start-service":False ,"--max-dbs":0,"--connector-type":"native","--debug":False,"--run-tdengine":False,"--ignore-errors":[],
     "--track-memory-leaks":False , "--larger-data":False, "--mix-oos-data":False, "--dynamic-db-table-names":False,
-    "--per-thread-db-connection":False , "--record-ops":False , "--max-steps":100, "--num-threads":10, "--verify-data":False,"--use-shadow-db":False , 
+    "--per-thread-db-connection":False , "--record-ops":False , "--max-steps":100, "--num-threads":10, "--verify-data":False,"--use-shadow-db":False ,
     "--continue-on-exception":False }
 
     args = random_args(args_list)
@@ -301,24 +302,24 @@ def main():
 
 
     build_path = get_path()
-        
+
     if repo =="community":
         crash_gen_path = build_path[:-5]+"community/tests/pytest/"
     elif repo =="TDengine":
         crash_gen_path = build_path[:-5]+"/tests/pytest/"
     else:
         pass
-    
+
     if os.path.exists(crash_gen_path+"crash_gen.sh"):
         print(" make sure crash_gen.sh is ready")
     else:
         print( " crash_gen.sh is not exists ")
         sys.exit(1)
-    
+
     git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[7:16]
-    
+
     # crash_cmds = get_cmds()
-    
+
     crash_cmds = get_cmds(args)
     # clean run_dir
     os.system('rm -rf %s'%run_dir )
@@ -329,9 +330,9 @@ def main():
     run_crash_gen(crash_cmds)
     endtime = datetime.datetime.now()
     status = check_status()
-    
+
     print("exit status : ", status)
-    
+
     if status ==4:
         print('======== crash_gen found memory bugs   ========')
     if status ==5:
@@ -344,15 +345,15 @@ def main():
     try:
         cmd = crash_cmds.split('&')[2]
         if status == 0:
-            log_dir = "none"            
+            log_dir = "none"
         else:
-            log_dir= "/root/pxiao/crash_gen_logs" 
-        
+            log_dir= "/root/pxiao/crash_gen_logs"
+
         if status == 3:
             core_dir = "/root/pxiao/crash_gen_logs"
         else:
             core_dir = "none"
-            
+
         text = f'''
         exit status: {msg_dict[status]}
         test scope: crash_gen
@@ -364,12 +365,12 @@ def main():
         log dir: {log_dir}
         core dir: {core_dir}
         cmd: {cmd}'''
-                
-        send_msg(get_msg(text))  
+
+        send_msg(get_msg(text))
     except Exception as e:
         print("exception:", e)
     exit(status)
-        
+
 
 if __name__ == '__main__':
     main()
