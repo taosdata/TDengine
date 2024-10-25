@@ -35,6 +35,14 @@ if $rows != 3 then
   return -1
 endi
 
+sql explain verbose true select * from tb1 where tts in ('2022-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+if $rows != 3 then
+  return -1
+endi
+if $data20 != @      Time Range: [-9223372036854775808, 9223372036854775807]@ then
+  return -1
+endi
+
 sql select * from tb1 where fbool in (0, 3);
 if $rows != 5 then
   return -1
@@ -80,4 +88,11 @@ if $rows != 0 then
   return -1
 endi
 
+sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', '2022-07-10 16:33:00', 1657441840000);
+if $rows != 4 then
+  return -1
+endi
+if $data20 != @      Time Range: [1657441840000, 1657441980000]@ then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
