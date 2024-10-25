@@ -24,6 +24,18 @@ extern "C" {
 #include "tsimplehash.h"
 #include "taoserror.h"
 
+
+typedef struct SPhysiPlanContext {
+  SPlanContext* pPlanCxt;
+  int32_t       errCode;
+  int16_t       nextDataBlockId;
+  SArray*       pLocationHelper;
+  SArray*       pProjIdxLocHelper;
+  bool          hasScan;
+  bool          hasSysScan;
+} SPhysiPlanContext;
+
+
 #define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
 #define planError(param, ...)  qError("PLAN: " param, ##__VA_ARGS__)
 #define planWarn(param, ...)   qWarn("PLAN: " param, ##__VA_ARGS__)

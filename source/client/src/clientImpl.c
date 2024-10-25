@@ -1250,6 +1250,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
+  int32_t subplanNum = 0;
 
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
@@ -1405,6 +1406,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (TSDB_CODE_SUCCESS == code) {
       code = schedulerExecJob(&req, &pRequest->body.queryJob);
     }
+
     taosArrayDestroy(pNodeList);
   } else {
     qDestroyQueryPlan(pDag);

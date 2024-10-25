@@ -26,6 +26,8 @@ extern "C" {
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
 
+extern const int32_t funcMgtBuiltinsNum;
+
 typedef enum EFunctionType {
   // aggregate function
   FUNCTION_TYPE_APERCENTILE = 1,
