@@ -1546,7 +1546,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
         if ((code = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
-                                          &packData.pDataBlock, 1))) {
+                                          &packData.pDataBlock, 1, STREAM_DELETE_DATA))) {
           taosFreeQitem(msg);
           TAOS_CHECK_EXIT(code);
         }

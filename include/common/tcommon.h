@@ -154,6 +154,7 @@ typedef enum EStreamType {
   STREAM_TRANS_STATE,
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
+  STREAM_DELETE_GROUP_DATA,
 } EStreamType;
 
 #pragma pack(push, 1)
