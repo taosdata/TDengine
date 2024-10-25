@@ -4076,7 +4076,7 @@ typedef struct SMDropTbDbInfo {
 
 typedef struct SMDropTbTsmaInfo {
   char           tsmaResTbDbFName[TSDB_DB_FNAME_LEN];
-  char           tsmaResTbNamePrefix[TSDB_TABLE_NAME_LEN];
+  char           tsmaResTbNamePrefix[TSDB_TABLE_FNAME_LEN];
   int32_t        suid;
   SMDropTbDbInfo dbInfo;  // reference to DbInfo in pDbMap
 } SMDropTbTsmaInfo;
@@ -4207,6 +4207,7 @@ static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg *pRsp, SMndDropTbsWithTsmaCtx 
   SMnode *pMnode = pRsp->info.node;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pRsp, "drop-tbs");
   mndTransSetChangeless(pTrans);
+  mndTransSetSerial(pTrans);
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -4294,6 +4295,18 @@ static int32_t mndDropTbAdd(SMnode *pMnode, SHashObj *pVgHashMap, const SVgroupI
   return 0;
 }
 
+int vgInfoCmp(const void* lp, const void* rp) {
+  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
+  SVgroupInfo* pRight = (SVgroupInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static int32_t mndGetDbVgInfoForTsma(SMnode *pMnode, const char *dbname, SMDropTbTsmaInfo *pInfo) {
   int32_t code = 0;
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
@@ -4308,6 +4321,7 @@ static int32_t mndGetDbVgInfoForTsma(SMnode *pMnode, const char *dbname, SMDropT
     goto _end;
   }
   mndBuildDBVgroupInfo(pDb, pMnode, pInfo->dbInfo.dbVgInfos);
+  taosArraySort(pInfo->dbInfo.dbVgInfos, vgInfoCmp);
 
   pInfo->dbInfo.hashPrefix = pDb->cfg.hashPrefix;
   pInfo->dbInfo.hashSuffix = pDb->cfg.hashSuffix;
@@ -4380,9 +4394,8 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
     if (pInfos) {
       SMDropTbTsmaInfo info = {0};
       int32_t          len = sprintf(buf, "%s", pSma->name);
-      len = taosCreateMD5Hash(buf, len);
       sprintf(info.tsmaResTbDbFName, "%s", pSma->db);
-      snprintf(info.tsmaResTbNamePrefix, TSDB_TABLE_NAME_LEN, "%s", buf);
+      snprintf(info.tsmaResTbNamePrefix, TSDB_TABLE_FNAME_LEN, "%s", buf);
       SMDropTbDbInfo *pDbInfo = taosHashGet(pCtx->pDbMap, pSma->db, TSDB_DB_FNAME_LEN);
       info.suid = pSma->dstTbUid;
       if (!pDbInfo) {
@@ -4417,14 +4430,17 @@ static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode *pMnode, SMndDropTbsWith
 
     SMDropTbTsmaInfos *pInfos = taosHashGet(pCtx->pTsmaMap, &pTb->suid, sizeof(pTb->suid));
     SArray            *pVgInfos = NULL;
-    char               buf[TSDB_TABLE_FNAME_LEN];
+    char               buf[TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1];
+    char               resTbFullName[TSDB_TABLE_FNAME_LEN + 1] = {0};
     for (int32_t j = 0; j < pInfos->pTsmaInfos->size; ++j) {
       SMDropTbTsmaInfo *pInfo = taosArrayGet(pInfos->pTsmaInfos, j);
-      int32_t           len = sprintf(buf, "%s.%s_%s", pInfo->tsmaResTbDbFName, pInfo->tsmaResTbNamePrefix, pTb->name);
-      uint32_t          hashVal =
-          taosGetTbHashVal(buf, len, pInfo->dbInfo.hashMethod, pInfo->dbInfo.hashPrefix, pInfo->dbInfo.hashSuffix);
+      int32_t           len = sprintf(buf, "%s_%s", pInfo->tsmaResTbNamePrefix, pTb->name);
+      len = taosCreateMD5Hash(buf, len);
+      len = snprintf(resTbFullName, TSDB_TABLE_FNAME_LEN + 1, "%s.%s", pInfo->tsmaResTbDbFName, buf);
+      uint32_t hashVal = taosGetTbHashVal(resTbFullName, len, pInfo->dbInfo.hashMethod, pInfo->dbInfo.hashPrefix,
+                                          pInfo->dbInfo.hashSuffix);
       const SVgroupInfo *pVgInfo = taosArraySearch(pInfo->dbInfo.dbVgInfos, &hashVal, vgHashValCmp, TD_EQ);
-      void              *p = taosStrdup(buf + strlen(pInfo->tsmaResTbDbFName) + TSDB_NAME_DELIMITER_LEN);
+      void              *p = taosStrdup(resTbFullName + strlen(pInfo->tsmaResTbDbFName) + TSDB_NAME_DELIMITER_LEN);
       if (taosArrayPush(pCtx->pResTbNames, &p) == NULL) {
         code = terrno;
         goto _end;
