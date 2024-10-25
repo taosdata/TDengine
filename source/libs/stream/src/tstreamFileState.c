@@ -777,7 +777,7 @@ _end:
 
 int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
   char keyBuf[128] = {0};
-  tsnprintf(keyBuf, sizeof(keyBuf), "%s:%" PRId64 "", TASK_KEY, checkpointId);
+  TAOS_UNUSED(tsnprintf(keyBuf, sizeof(keyBuf), "%s:%" PRId64 "", TASK_KEY, checkpointId));
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
 }
 
@@ -806,7 +806,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     char    buf[128] = {0};
     void*   val = 0;
     int32_t len = 0;
-    tsnprintf(buf, sizeof(buf), "%s:%" PRId64 "", TASK_KEY, i);
+    TAOS_UNUSED(tsnprintf(buf, sizeof(buf), "%s:%" PRId64 "", TASK_KEY, i));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
     if (code != 0) {
       return TSDB_CODE_FAILED;

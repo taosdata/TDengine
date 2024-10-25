@@ -120,7 +120,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   SStreamTask* pStreamTask = pTask;
   pState->streamId = streamId;
   pState->taskId = taskId;
-  tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId);
+  TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId));
 
   code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
   QUERY_CHECK_CODE(code, lino, _end);
