@@ -46,8 +46,8 @@ def replace_case_insensitive(text, search_term, replace_term):
     return replaced_text
 
 
-def get_release_note(passwd, release_version):
-    jira = JIRA(server='https://jira.taosdata.com:18080', basic_auth=('hrchen', passwd))
+def get_release_note(user, passwd, release_version):
+    jira = JIRA(server='https://jira.taosdata.com:18080', basic_auth=(user, passwd))
 
     #jql = "\"Epic Link\" = TD-27435 and status = DONE  AND (assignee in membersof(\"application group 1\") or assignee in membersOf(\"application group 2\"))"
     #jql = "project = \"Taos Support\" and type = Bug and status = DONE  and created >= 2024-7-1 and created  < 2024-9-30"
@@ -102,6 +102,8 @@ def process_content(content, replacements):
 
 def main():
     parser = argparse.ArgumentParser(description="Example script.")
+    parser.add_argument("hrchen", help="jenkins user")
+
     parser.add_argument("passwd", help="jenkins passwd")
     parser.add_argument("version", help="release_version")
 
