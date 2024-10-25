@@ -229,7 +229,7 @@ SWords shellCommands[] = {
 
 // where keyword
 char* keywords[] = {
-    "and ",         "asc ",      "desc ",     "from ",    "fill(",         "limit ",    "where ",
+    "where ",       "and ",      "asc ",      "desc ",    "from ",         "fill(",     "limit ",
     "interval(",    "order by ", "order by ", "offset ",  "or ",           "group by ", "now()",
     "session(",     "sliding ",  "slimit ",   "soffset ", "state_window(", "today() ",  "union all select ",
     "partition by ", "match",    "nmatch ",    "between ",  "like ",           "is null ",   "is not null ",
@@ -1330,7 +1330,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     lastWordBytes = word->len;
   }
 
-  if (word->end) {
+  if (word->end && str[strLen - 1] != ';') {
     // append end ';'
     char *p = taosMemoryMalloc(strLen + 8);
     strcpy(p, str);
