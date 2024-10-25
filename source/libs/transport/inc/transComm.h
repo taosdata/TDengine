@@ -278,19 +278,19 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                                                 \
-  do {                                                                                                      \
-    if (id > 0) {                                                                                           \
-      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                                    \
-      if (exh2 == NULL || exh1 != exh2  || (exh2 != NULL && exh2->refId != id)) {                           \
-        tError("handle not match, exh1:%p, exh2:%p, refId:%"PRId64"", exh1, exh2, id);                      \
-        code = TSDB_CODE_INVALID_MSG;                                                                       \
-        goto _return1;                                                                                      \
-      }                                                                                                     \
-    } else {                                                                                                \
-      tError("invalid handle to release");                                                                  \
-      goto _return2;                                                                                        \
-    }                                                                                                       \
+#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                              \
+  do {                                                                                   \
+    if (id > 0) {                                                                        \
+      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
+      if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
+        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        code = TSDB_CODE_INVALID_MSG;                                                    \
+        goto _return1;                                                                   \
+      }                                                                                  \
+    } else {                                                                             \
+      tDebug("invalid handle to release");                                               \
+      goto _return2;                                                                     \
+    }                                                                                    \
   } while (0)
 
 int32_t transInitBuffer(SConnBuffer* buf);
