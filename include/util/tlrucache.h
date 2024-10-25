@@ -27,6 +27,7 @@ typedef struct SLRUCache SLRUCache;
 typedef void (*_taos_lru_deleter_t)(const void *key, size_t keyLen, void *value, void *ud);
 typedef void (*_taos_lru_overwriter_t)(const void *key, size_t keyLen, void *value, void *ud);
 typedef int (*_taos_lru_functor_t)(const void *key, size_t keyLen, void *value, void *ud);
+typedef bool (*_taos_lru_condition_t)(const void *key, size_t keyLen, void *value, void *ud);
 
 typedef struct LRUHandle LRUHandle;
 
@@ -51,10 +52,14 @@ void       taosLRUCacheErase(SLRUCache *cache, const void *key, size_t keyLen);
 void taosLRUCacheApply(SLRUCache *cache, _taos_lru_functor_t functor, void *ud);
 void taosLRUCacheEraseUnrefEntries(SLRUCache *cache);
 
-bool taosLRUCacheRef(SLRUCache *cache, LRUHandle *handle);
-bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef);
+bool    taosLRUCacheRef(SLRUCache *cache, LRUHandle *handle);
+bool    taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef);
+int32_t taosLRUCacheRefByCond(SLRUCache *cache, _taos_lru_condition_t condition, SArray *handleArray, void *ud);
+void    taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseIfLastRef);
 
-void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
+void  *taosLRUCacheKey(SLRUCache *cache, LRUHandle *handle);
+size_t taosLRUCacheKeyLen(SLRUCache *cache, LRUHandle *handle);
+void  *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
 
 size_t taosLRUCacheGetUsage(SLRUCache *cache);
 size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache);

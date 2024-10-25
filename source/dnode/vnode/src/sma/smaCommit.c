@@ -227,7 +227,10 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    smaInfo("vgId:%d, %s done", TD_VID(pVnode), __func__);
   }
+
   TAOS_RETURN(code);
 }
 
