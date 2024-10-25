@@ -262,6 +262,7 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
 }
 
 void tqReaderClose(STqReader* pReader) {
+  if (pReader == NULL) return;
   // close wal reader
   if (pReader->pWalReader) {
     walCloseReader(pReader->pWalReader);
