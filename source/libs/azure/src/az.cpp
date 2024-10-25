@@ -416,7 +416,7 @@ _exit:
   return 0;
 }
 
-int32_t azGetObjectToFileImpl(const char *object_name, const char *fileName) {
+static int32_t azGetObjectToFileImpl(const char *object_name, const char *fileName) {
   int32_t     code = TSDB_CODE_SUCCESS;
   std::string accountName = tsS3AccessKeyId[0];
   std::string accountKey = tsS3AccessKeySecret[0];
