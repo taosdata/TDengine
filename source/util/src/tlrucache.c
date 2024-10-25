@@ -845,14 +845,13 @@ void taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseI
     return;
   }
 
-  SArray *freeArray = taosArrayInit(size, sizeof(int8_t));
-  int8_t needFree = 1;
+  SArray *freeArray = taosArrayInit(size, sizeof(bool));
 
   uint32_t        lastShardIndex = UINT32_MAX;
   SLRUCacheShard *shard = NULL;
 
   for (int i = 0; i < size; ++i) {
-    SLRUEntry *e = (SLRUEntry *)taosArrayGet(handleArray, i);
+    SLRUEntry *e = *(SLRUEntry **)taosArrayGet(handleArray, i);
 
     uint32_t hash = e->hash;
     uint32_t shardIndex = hash & cache->shardedCache.shardMask;
@@ -881,9 +880,7 @@ void taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseI
       shard->usage -= e->totalCharge;
     }
 
-    if (lastReference) {
-      taosArraySet(freeArray, i, &needFree);
-    }
+    taosArrayPush(freeArray, &lastReference);
   }
 
   if (shard != NULL) {
@@ -891,8 +888,9 @@ void taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseI
   }
 
   for (int i = 0; i < size; ++i) {
-    if (*(int8_t *)taosArrayGet(freeArray, i) == needFree) {
-      taosLRUEntryFree((SLRUEntry *)taosArrayGet(handleArray, i));
+    bool lastReference = *(bool*)taosArrayGet(freeArray, i);
+    if (lastReference) {
+      taosLRUEntryFree(*(SLRUEntry **)taosArrayGet(handleArray, i));
     }
   }
 
