@@ -343,6 +343,7 @@ function build_taosx() {
             echo "export VUE_APP_INDUSTRY=${industryName}"
             export VUE_APP_INDUSTRY=${industryName}
         fi
+        export CFLAGS="-fno-builtin"
         python3 release.py -ob -vn $version
         if [ -f "${taosxDir}/release/taosx/bin/taosx" ] && [ -f "${taosxDir}/release/taosx/bin/taos-explorer" ]; then
             echo "build taosx done"
