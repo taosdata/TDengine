@@ -10996,6 +10996,18 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
           &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
           "When trigger was force window close, Stream must not set  ignore update 0");
     }
+
+    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      SIntervalWindowNode* pWindow = (SIntervalWindowNode*)pSelect->pWindow;
+      if (NULL != pWindow->pSliding) {
+        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
+        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
+        if (interval != sliding) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream unsupported sliding");
+        }
+      }
+    }
   }
 
   if (NULL != pSelect->pGroupByList) {
