@@ -1150,6 +1150,11 @@ if $data00 != 1234567890987654 then
   return -1
 endi
 
+sql select case when 1 then c_varchar else c_varbinary end from t_test;
+if $data00 != null then
+  return -1
+endi
+
 sql_error select case when ts > '2022-01-01 00:00:00' then c_varchar else c_geometry end as result from t_test;
 sql_error select case when ts > '2022-01-01 00:00:00' then c_bool else c_geometry end as result from t_test;
 sql_error select case when 0 then tag_id else c_geometry end as result from t_test;
@@ -1158,6 +1163,5 @@ sql_error select case when 0 then tag_id else c_int end as result from t_test;
 sql_error select case when 0 then tag_id else c_float end as result from t_test;
 sql_error select case when c_double > 100 then c_varbinary else c_geometry end as result from t_test;
 sql_error select case when c_bool then c_double else c_varbinary end as result from t_test;
-sql_error select case when c_bool then c_varbinary else c_varchar end as result from t_test;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
