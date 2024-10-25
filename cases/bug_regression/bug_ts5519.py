@@ -27,7 +27,7 @@ class TestTs5519(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
         )
-        
+
         self.restart_dnode = self.taosd_setting["spec"]["dnodes"]
         self.sorted_dnodes = sorted(self.restart_dnode, key=lambda x: int(x['endpoint'].split(':')[1]))
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 3
@@ -35,16 +35,16 @@ class TestTs5519(TDCase):
         self.childtable_count = 100
         self.insert_rows1 = 2000000
         self.insert_rows2 = 200000
-        
+
         self.keep = "1000d"
-        self.duration = "200d"
+        self.duration = "100d"
         self.stt_trigger = 1
         self.wal_retention_period = 0
         self.today_zero_ts = self.tdCom.genTodayZeroTs()
         self.today_zero_dt = self.tdCom.genTs(ts=self.today_zero_ts/1000)[1]
         self.restore_ts = self.today_zero_ts + 12 * 60 * 60 * 1000
         self.restore_dt = self.tdCom.genTs(ts=self.restore_ts/1000)[1]
-        
+
         self.dbname = "test"
         self.stbname = "stb"
         self.keep_trying = -1
@@ -53,7 +53,7 @@ class TestTs5519(TDCase):
         self.host = self.get_fqdn("taosd")[0]
         self.thread_count = 40
         self.num_of_records_per_req = 1000
-        
+
         self.column_info_list = [
             {
               "type": "BIGINT",
@@ -94,7 +94,7 @@ class TestTs5519(TDCase):
 
     def delete_wal(self, host, data_dir):
         self._remote.cmd(host, [f"rm -rf {data_dir}/vnode/vnode*/wal"])
-        
+
     def run(self):
         self.insert_data("yes", "no", self.insert_rows1, self.today_zero_ts, self.json_file_name1)
         self.taosd.kill_by_port(self.sorted_dnodes[2]["endpoint"])
