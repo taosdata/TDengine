@@ -762,7 +762,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   }
 }
 
-bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
+bool taos_is_update_query(TAOS_RES *res) { return !((SRequestObj*)res)->isQuery; }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   int32_t numOfRows = 0;

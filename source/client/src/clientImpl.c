@@ -3075,6 +3075,7 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    pRequest->code = 0;
   }
   pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   SRequestObj* pReq = acquireRequest(this);
