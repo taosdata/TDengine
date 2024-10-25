@@ -415,23 +415,10 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  code = taosThreadMutexLock(&pMgmt->createLock);
-  if (code != 0) {
-    dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(code));
-    goto _OVER;
-  }
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
-    int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
-    if (ret != 0) {
-      dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
-    }
     goto _OVER;
-  }
-  int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
-  if (ret != 0) {
-    dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
   }
 
 _OVER:
