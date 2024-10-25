@@ -148,31 +148,21 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t ret = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
   if(info->dataFormat){
-    ret = smlProcessSuperTable(info, elements);
-    if(ret != 0){
-      if(info->reRun){
-        return TSDB_CODE_SUCCESS;
-      }
-      return ret;
-    }
+    SML_CHECK_CODE(smlProcessSuperTable(info, elements));
   }
+  SML_CHECK_CODE(smlProcessTagTelnet(info, data, sqlEnd));
+  SML_CHECK_CODE(smlJoinMeasureTag(elements));
 
-  ret = smlProcessTagTelnet(info, data, sqlEnd);
-  if(ret != 0){
-    if (info->reRun){
-      return TSDB_CODE_SUCCESS;
-    }
-    return ret;
+  code = smlProcessChildTable(info, elements);
+
+END:
+  if(info->reRun){
+    return TSDB_CODE_SUCCESS;
   }
-
-  ret = smlJoinMeasureTag(elements);
-  if(ret != 0){
-    return ret;
-  }
-
-  return smlProcessChildTable(info, elements);
+  RETURN
 }
 
 // format: <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
@@ -182,14 +172,14 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   // parse metric
   smlParseTelnetElement(&sql, sqlEnd, &elements->measure, &elements->measureLen);
   if (unlikely((!(elements->measure) || IS_INVALID_TABLE_LEN(elements->measureLen)))) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid measure", sql);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
   // parse timestamp
   smlParseTelnetElement(&sql, sqlEnd, &elements->timestamp, &elements->timestampLen);
   if (unlikely(!elements->timestamp || elements->timestampLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid timestamp", sql);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -199,19 +189,21 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   }
   int64_t ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
   if (unlikely(ts < 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet parse timestamp failed", sql);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
 
   // parse value
   smlParseTelnetElement(&sql, sqlEnd, &elements->cols, &elements->colsLen);
   if (unlikely(!elements->cols || elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid value", sql);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   SSmlKv kv = {.key = VALUE, .keyLen = VALUE_LEN, .value = elements->cols, .length = (size_t)elements->colsLen};
-  if (smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
+  int ret = smlParseValue(&kv, &info->msgBuf);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("SML:0x%" PRIx64 " %s parse value error:%d.", info->id, __FUNCTION__, ret);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -220,11 +212,11 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   elements->tags = sql;
   elements->tagsLen = sqlEnd - sql;
   if (unlikely(!elements->tags || elements->tagsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML telnet invalid tag value", sql);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  int ret = smlParseTelnetTags(info, sql, sqlEnd, elements);
+  ret = smlParseTelnetTags(info, sql, sqlEnd, elements);
   if (unlikely(ret != TSDB_CODE_SUCCESS)) {
     return ret;
   }
@@ -239,5 +231,12 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
   }
 
-  return smlParseEndTelnetJson(info, elements, &kvTs, &kv);
+  if (info->dataFormat){
+    ret = smlParseEndTelnetJsonFormat(info, elements, &kvTs, &kv);
+  } else {
+    ret = smlParseEndTelnetJsonUnFormat(info, elements, &kvTs, &kv);
+  }
+  info->preLine = *elements;
+
+  return ret;
 }
