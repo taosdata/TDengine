@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
 
-  int32_t numOfAthread = 5;
+  int32_t numOfAthread = 20;
   multiQ = taosMemoryMalloc(sizeof(MultiThreadQhandle));
   multiQ->numOfThread = numOfAthread;
   multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
