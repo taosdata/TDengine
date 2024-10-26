@@ -521,12 +521,12 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
       int32_t topReqs = transQueueSize(&topConn->reqsSentOut) + transQueueSize(&topConn->reqsToSend);
       int32_t currReqs = transQueueSize(&conn->reqsSentOut) + transQueueSize(&conn->reqsToSend);
       if (topReqs <= currReqs) {
-        tTrace("%s conn %p not balance conn heap since top conn has less req, topConnReqs:%d, currConnReqs:%d",
-               CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
+        tTrace("%s conn %p not balance conn heap since top conn %p has less req, topConnReqs:%d, currConnReqs:%d",
+               CONN_GET_INST_LABEL(conn), conn, topConn, topReqs, currReqs);
         return 0;
       } else {
-        tDebug("%s conn %p do balance conn heap since top conn has more reqs, topConnReqs:%d, currConnReqs:%d",
-               CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
+        tDebug("%s conn %p do balance conn heap since top conn %p has more reqs, topConnReqs:%d, currConnReqs:%d",
+               CONN_GET_INST_LABEL(conn), conn, topConn, topReqs, currReqs);
         TAOS_UNUSED(transHeapBalance(conn->heap, conn));
       }
     }
@@ -3746,11 +3746,17 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
-      tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
 
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
       if (cliConnRemoveTimeoutMsg(pConn)) {
-        tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
+        return 0;
+      }
+      if (pConn->list->totalSize >= pInst->connLimitNum / 2) {
+        if (totalReqs < TRANSPORT_MAX_REQ_PER_CONN) {
+          return 0;
+        }
+      } else {
+        return 0;
       }
       return 1;
     }

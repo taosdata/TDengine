@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
       printf("  [-u user]: user name for the connection, default is:%s\n", rpcInit.user);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
       printf("  [-c compressSize]: compress size, default:%d\n", tsCompressMsgSize);
-      printf("  [-s shareConnLimit]: share conn limit, default:%d\n", tsShareConnLimit);
+      printf("  [-l shareConnLimit]: share conn limit, default:%d\n", tsShareConnLimit);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
