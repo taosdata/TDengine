@@ -3750,21 +3750,11 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
       if (cliConnRemoveTimeoutMsg(pConn)) {
         return 0;
       }
-      if (pConn->list->totalSize >= pInst->connLimitNum / 2) {
-        if (totalReqs < TRANSPORT_MAX_REQ_PER_CONN) {
-          return 0;
-        } else {
-          return 1;
-        }
-      } else {
-        return 0;
-      }
+      return totalReqs < TRANSPORT_MAX_REQ_PER_CONN ? 0 : 1;
+    } else {
       return 1;
     }
-    // check req timeout or not
-    return 1;
   }
-
   return 0;
 }
 
