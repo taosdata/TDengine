@@ -319,7 +319,6 @@ typedef struct {
   // void*    p;
   Heap* heap;
   int32_t (*cmpFunc)(const HeapNode* a, const HeapNode* b);
-  int64_t lastUpdateTs;
   int64_t lastConnFailTs;
 } SHeap;
 
@@ -3754,6 +3753,8 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
       if (pConn->list->totalSize >= pInst->connLimitNum / 2) {
         if (totalReqs < TRANSPORT_MAX_REQ_PER_CONN) {
           return 0;
+        } else {
+          return 1;
         }
       } else {
         return 0;
@@ -3860,14 +3861,10 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
 
 static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   if (pConn->heap != NULL && pConn->inHeap != 0) {
-    SHeap* heap = pConn->heap;
-    tTrace("conn %p'heap may should do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
+    SHeap*  heap = pConn->heap;
     int64_t now = taosGetTimestampMs();
-    if (((now - heap->lastUpdateTs) / 1000) > 30) {
-      heap->lastUpdateTs = now;
-      tTrace("conn %p'heap do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
-      return transHeapBalance(pConn->heap, pConn);
-    }
+    tTrace("conn %p'heap do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
+    return transHeapBalance(pConn->heap, pConn);
   }
   return 0;
 }
