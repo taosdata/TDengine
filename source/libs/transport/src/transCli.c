@@ -3735,7 +3735,6 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   tDebug("get conn %p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
   int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
   int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
-  int32_t stateNum = taosHashGetSize(pConn->pQTable);
   int32_t totalReqs = reqsNum + reqsSentOut;
 
   if (totalReqs >= pInst->shareConnLimit) {
