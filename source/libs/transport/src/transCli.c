@@ -1552,7 +1552,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
   if (conn->list != NULL) {
     conn->list->totalSize += 1;
-    tInfo("%s conn %p created, total conn size %d", CONN_GET_INST_LABEL(conn), conn, conn->list->totalSize);
+    tDebug("%s conn %p created, total conn size %d", CONN_GET_INST_LABEL(conn), conn, conn->list->totalSize);
   }
 
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
