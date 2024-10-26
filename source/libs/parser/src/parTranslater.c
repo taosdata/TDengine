@@ -7532,6 +7532,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
+  tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
+
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 

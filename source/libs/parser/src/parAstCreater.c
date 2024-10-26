@@ -1799,6 +1799,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1842,6 +1843,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3Compact = -1;
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1982,6 +1984,15 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
         pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
         break;
     }
+    case DB_OPTION_DNODES:
+      if (((SToken*)pVal)->n >= TSDB_DNODE_LIST_LEN) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "the dnode list is too long (should less than %d)",
+                 TSDB_DNODE_LIST_LEN);
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      } else {
+        COPY_STRING_FORM_STR_TOKEN(pDbOptions->dnodeListStr, (SToken*)pVal);
+      }
+      break;
     default:
       break;
   }

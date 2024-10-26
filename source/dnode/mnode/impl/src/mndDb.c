@@ -883,6 +883,13 @@ static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int6
   }
 }
 
+static int32_t mndCheckDbDnodeList(SMnode *pMnode, SCreateDbReq *pReq) {
+  if (pReq->dnodeListStr[0] == 0) return 0;
+
+  mInfo("db:%s, dnode list is %s", pReq->db, pReq->dnodeListStr);
+  return 0;
+}
+
 static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   int32_t    code = 0;
   SSdb      *pSdb = pMnode->pSdb;
@@ -974,6 +981,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
+
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, &createReq), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
