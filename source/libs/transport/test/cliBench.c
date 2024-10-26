@@ -115,6 +115,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.shareConnLimit = tsShareConnLimit;
   rpcInit.supportBatch = 1;
+  rpcInit.compressSize = -1;
   rpcDebugFlag = 143;
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {

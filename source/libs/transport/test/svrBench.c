@@ -155,6 +155,7 @@ int main(int argc, char *argv[]) {
 
   taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   rpcDebugFlag = 131;
+  rpcInit.compressSize = -1;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
