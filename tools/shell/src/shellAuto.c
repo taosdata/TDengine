@@ -232,7 +232,7 @@ char* keywords[] = {
     "interval(",    "order by ", "order by ", "offset ",  "or ",           "group by ", "now()",
     "session(",     "sliding ",  "slimit ",   "soffset ", "state_window(", "today() ",  "union all select ",
     "partition by ", "match",    "nmatch ",    "between ",  "like ",           "is null ",   "is not null ",
-    "state_window(",  "event_window ",  "count_window("
+    "event_window ",  "count_window("
 };
 
 char* functions[] = {
