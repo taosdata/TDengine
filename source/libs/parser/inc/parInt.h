@@ -43,6 +43,8 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 void    tfreeSParseQueryRes(void* p);
+int32_t translatePostDropCTbWithTsma(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock);
+
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);

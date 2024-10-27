@@ -9202,10 +9202,76 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
   return code;
 }
 
+static int32_t createFunctionForDropCtbWithTSMA(const char* pFuncName, SFunctionNode** ppFunc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pFunc = NULL;
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  SColumnNode* pCol = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    strcpy(pFunc->functionName, pFuncName);
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    strcpy(((SColumnNode*)pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME);
+    pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    pCol->isPrimTs = true;
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pCol);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppFunc = pFunc;
+  } else {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+  return code;
+}
+
+static int32_t translateDropCtbWithTsma(STranslateContext* pCxt, SDropTableStmt* pStmt) {
+  if (!pStmt->withTsma || LIST_LENGTH(pStmt->pTables) == 0) return TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNode*     pPrevQuery = NULL;
+  SNodeList* pProjectionList = NULL;
+  if (LIST_LENGTH(pStmt->pTables) > 1) return TSDB_CODE_FAILED;
+  SDropTableClause* pClause = (SDropTableClause*)nodesListGetNode(pStmt->pTables, 0);
+
+  // create select query stmt
+  code = nodesMakeList(&pProjectionList);
+  SFunctionNode* pFunc = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createFunctionForDropCtbWithTSMA("count", &pFunc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pProjectionList, (SNode*)pFunc);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createFunctionForDropCtbWithTSMA("first", (SFunctionNode**)&pFunc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pProjectionList, (SNode*)pFunc);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createFunctionForDropCtbWithTSMA("last", (SFunctionNode**)&pFunc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pProjectionList, (SNode*)pFunc);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSimpleSelectStmtFromProjList(pClause->dbName, pClause->tableName, pProjectionList,
+                                              (SSelectStmt**)&pPrevQuery);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pProjectionList);
+  } else {
+    TSWAP(pCxt->pPrevRoot, pPrevQuery);
+  }
+  return code;
+}
+
 static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt) {
+  if (pStmt->withTsma) return translateDropCtbWithTsma(pCxt, pStmt);
+
   SDropTableClause* pClause = (SDropTableClause*)nodesListGetNode(pStmt->pTables, 0);
   SName             tableName = {0};
-  if (pStmt->withTsma) return TSDB_CODE_SUCCESS;
   toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tableName);
   return doTranslateDropSuperTable(pCxt, &tableName, pClause->ignoreNotExists);
 }
@@ -12567,6 +12633,10 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
   taosMemoryFreeClear(pStmt->pReq);
 
   return code;
+}
+
+int32_t translatePostDropCTbWithTsma(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
+
 }
 
 static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) {
