@@ -2,6 +2,22 @@ aux_source_directory(src SHELL_SRC)
 
 add_executable(shell ${SHELL_SRC})
 
+# include
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
+
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellMain.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellAuto.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellTire.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellArguments.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellCommand.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellEngine.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellUtil.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellNettest.c)
+LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellWebsocket.c)
+
+# shell_ut library
+add_library(shell_ut STATIC ${SHELL_UT_SRC})
+
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
     SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
@@ -56,24 +72,6 @@ SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 #
 # generator library shell_ut for uint test
 #
-
-# include
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
-
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellMain.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellAuto.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellTire.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellArguments.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellCommand.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellEngine.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellUtil.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellNettest.c)
-LIST(APPEND SHELL_UT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/shellWebsocket.c)
-
-
-
-# shell_ut library
-add_library(shell_ut STATIC ${SHELL_UT_SRC})
 
 # link public
 if(TD_WINDOWS)
