@@ -1,5 +1,5 @@
 
-MESSAGE(STATUS "build catalog unit test")
+MESSAGE(STATUS "build taos-CLI unit test")
 
 IF(NOT TD_DARWIN)
         # GoogleTest requires at least C++11
