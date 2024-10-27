@@ -13,7 +13,7 @@ IF(NOT TD_DARWIN)
         )
 
         target_include_directories(
-            shell_ui
+            shell_ut
             PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
         )
         
