@@ -1,4 +1,4 @@
-name: taoskeeper CI
+name: TaosKeeper CI
 
 on:
   push:
