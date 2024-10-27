@@ -4363,6 +4363,12 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
   return code;
 }
 
+int32_t streamStateDeleteParName_rocksdb(SStreamState* pState, int64_t groupId) {
+  int    code = 0;
+  STREAM_STATE_DEL_ROCKSDB(pState, "parname", &groupId);
+  return code;
+}
+
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen) {
   int code = 0;
   STREAM_STATE_PUT_ROCKSDB(pState, "default", key, pVal, pVLen);
