@@ -4,10 +4,6 @@
       <el-tabs v-model="activeName" @tab-click="handleClick">
         <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
           <div class="upload-file">
-            <span
-              :class="['label required', language.includes('zh') ? 'zh' : 'en']"
-              >{{ $t("datasource.upfile") }}</span
-            >
             <el-tooltip
               placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
@@ -18,6 +14,7 @@
                 class="upload-demo"
                 ref="upload"
                 accept=".csv"
+                multiple
                 :on-remove="handleRemove"
                 :data="uploadData"
                 :action="uploadUrl"
@@ -33,10 +30,16 @@
               </el-upload>
             </el-tooltip>
             <span
-              style="color: red; font-size: 12px; margin-left: 10px"
+              style="color: red; font-size: 12px;"
               v-if="showfiletip"
               >{{ this.$t("datasource.uploadcsvtip") }}</span
             >
+          </div>
+          <div style="margin-bottom: 20px;">
+            <el-switch
+              v-model="fileForm.keep_processed_files"
+              active-text="保留已完成的文件">
+            </el-switch>
           </div>
         </el-tab-pane>
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
@@ -55,7 +58,7 @@
                     />
                   </template>
                   <span>
-                    <span>{{ $t('datasource.fileurl') }}</span>
+                    <span>{{ $t('datasource.watchingDir') }}</span>
                     <span style="margin-left: 4px">
                       <i class="el-icon-info"></i>
                     </span>
@@ -64,8 +67,46 @@
               </template>
               <el-input size="small" v-model="fileForm.fileurl"></el-input>
             </el-form-item>
+            <el-form-item prop="mpa">
+              <template slot="label">
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template slot="content">
+                    <DocsContent
+                      :content="$t('datasource.csvFileDesc')+$t('datasource.supportCharacter')"
+                    />
+                  </template>
+                  <span>
+                    <span>{{ $t('datasource.filenamePattern') }}</span>
+                    <span style="margin-left: 4px">
+                      <i class="el-icon-info"></i>
+                    </span>
+                  </span>
+                </el-tooltip>
+              </template>
+              <el-input size="small" v-model="fileForm.mpattern"></el-input>
+            </el-form-item>
+            <el-form-item prop="mpa1">
+              <template slot="label">
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template slot="content">
+                    <DocsContent
+                      :content="$t('datasource.csvFileDesc')+$t('datasource.supportCharacter')"
+                    />
+                  </template>
+                  <span>
+                    <span>{{ $t('datasource.keepWatching') }}</span>
+                    <span style="margin-left: 4px">
+                      <i class="el-icon-info"></i>
+                    </span>
+                  </span>
+                </el-tooltip>
+              </template>
+              <el-switch v-model="fileForm.keep_processed_files">
+              </el-switch>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
+        
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
             <el-tooltip
@@ -99,10 +140,10 @@
 import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
-import { getDsnData, getFieldClassMarkName } from "../utils";
+import { getDsnData } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
-import { Message } from "element-ui";
+import { Message, MessageBox } from "element-ui";
 import CommonTransformer from "./commonTransformer.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 export default {
@@ -159,6 +200,7 @@ export default {
       fileList: [],
       fileForm: {
         fileurl: "",
+        keep_processed_files: false,
       },
       fileRules: {
         fileurl: [
@@ -206,7 +248,7 @@ export default {
         .map((item) => {
           return item.response[0];
         })
-        .join("");
+        .join(",");
       let parseParam = this.getCsvParseParam()
       let result = await getCSVColumns(
         this.fileForm.fileurl,
@@ -312,11 +354,32 @@ export default {
 
     handleClick() {},
     handleSuccess(response, file, fileList) {
-      this.fileList = [].concat(file);
+      
+      // console.log("file:", file.name);
+      
+      // let i = 0;
+      // for (i = 0; i < this.fileList.length; i++) {
+      //   if (this.fileList[i].name === file.name) {
+      //     this.fileList[i] = file;
+      //     break;
+      //   }
+      // }
+    
+      // console.log("success i:", i);
+      // if (i >= this.fileList.length) {
+      //   console.log("push file:", file);
+      //   this.fileList.push(file);
+      // }
+      // console.log("fileList:", this.fileList);
+      if (fileList.length > 2) {
+        fileList.splice(fileList.length - 1, 1);
+      }
+
+      this.fileList = fileList;
       this.showfiletip = false;
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
 
-      this.getCsvColumnsData();
+      // this.getCsvColumnsData();
     },
     submitUpload() {
       let isbreak=true
@@ -562,6 +625,14 @@ export default {
         return false; // 不允许上传
       }
 
+      for (let i = 0; i < this.fileList.length; i++) {
+        if (this.fileList[i].name === fileName) {
+          if (!confirm("有重名文件，是否要覆盖文件？")) {
+            return false;
+          }
+        }
+      }
+
       return true; // 允许上传
     }
   },
@@ -591,8 +662,9 @@ export default {
   color: $color-description;
 }
 .upload-demo {
-  display: flex;
-  align-items: baseline;
+//  display: flex;
+//  align-items: baseline;
+   width: 300px;
 }
 .csv-data {
   // width: 600px;
@@ -602,8 +674,11 @@ export default {
   // margin-bottom: 20px;
   // border-radius: 12px;
   // padding: 15px;
+  .el-upload {
+    text-align: left;
+  }
+
   .upload-file {
-    display: flex;
     margin-bottom: 18px;
     align-items: baseline;
     .label {
