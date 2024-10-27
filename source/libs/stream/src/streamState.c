@@ -502,6 +502,14 @@ _end:
   return code;
 }
 
+int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
+  int32_t code = tSimpleHashRemove(pState->parNameMap, &groupId, sizeof(int64_t));
+  qTrace("%s at line %d res %d", __func__, __LINE__, code);
+  code = streamStateDeleteParName_rocksdb(pState, groupId);
+  qTrace("%s at line %d res %d", __func__, __LINE__, code);
+  return TSDB_CODE_SUCCESS;
+}
+
 void streamStateDestroy(SStreamState* pState, bool remove) {
   streamFileStateDestroy(pState->pFileState);
   // streamStateDestroy_rocksdb(pState, remove);

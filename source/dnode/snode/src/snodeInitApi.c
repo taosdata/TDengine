@@ -31,6 +31,7 @@ void initStateStoreAPI(SStateStore* pStore) {
 
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
+  pStore->streamStateDeleteParName = streamStateDeleteParName;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;

@@ -3218,6 +3218,23 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
   return isIntervalWindow(pInfo) || isSessionWindow(pInfo) || isStateWindow(pInfo) || isCountWindow(pInfo);
 }
 
+static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+    int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
+    code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   // NOTE: this operator does never check if current status is done or not
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -3442,6 +3459,15 @@ FETCH_NEXT_BLOCK:
             goto FETCH_NEXT_BLOCK;
           }
         }
+      } break;
+      case STREAM_DELETE_GROUP_DATA: {
+        printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "delete group recv",
+                           GET_TASKID(pTaskInfo));
+        code = setBlockGroupIdByUid(pInfo, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        deletePartName(pInfo, pBlock);
+        pBlock->info.type = STREAM_DELETE_DATA;
       } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
