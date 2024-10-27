@@ -100,16 +100,7 @@ void metaRefMgtCleanup() {
   void* pIter = taosHashIterate(gMetaRefMgt.pTable, NULL);
   while (pIter) {
     int64_t* p = *(int64_t**) pIter;
-    stInfo("---------------free refId:%"PRId64", %p", *p, p);
-
     taosMemoryFree(p);
-
-//    SArray* list = *(SArray**)pIter;
-//    for (int i = 0; i < taosArrayGetSize(list); i++) {
-//      void* rid = taosArrayGetP(list, i);
-//      taosMemoryFree(rid);
-//    }
-//    taosArrayDestroy(list);
     pIter = taosHashIterate(gMetaRefMgt.pTable, pIter);
   }
 
@@ -127,13 +118,14 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
   if (p == NULL) {
     code = taosHashPut(gMetaRefMgt.pTable, &rid, sizeof(rid), &rid, sizeof(void*));
     if (code) {
-      stError("vgId:%d failed to put into metaRef table, rid:%" PRId64, (int32_t)vgId, *rid);
+      stError("vgId:%d failed to put into refId mgt, refId:%" PRId64" %p, code:%s", (int32_t)vgId, *rid, rid,
+              tstrerror(code));
       return code;
-    } else {
-      stInfo("add refId:%"PRId64" vgId:%d, %p", *rid, (int32_t)vgId, rid);
+    } else { // not
+//      stInfo("add refId:%"PRId64" vgId:%d, %p", *rid, (int32_t)vgId, rid);
     }
   } else {
-    // todo
+    stFatal("try to add refId:%"PRId64" vgId:%d, %p that already added into mgt", *rid, (int32_t) vgId, rid);
   }
 
   streamMutexUnlock(&gMetaRefMgt.mutex);
@@ -144,7 +136,7 @@ void metaRefMgtRemove(int64_t* pRefId) {
   streamMutexLock(&gMetaRefMgt.mutex);
 
   taosHashRemove(gMetaRefMgt.pTable, &pRefId, sizeof(pRefId));
-  stInfo("remove refId from mgt, refId:%"PRId64", %p", *pRefId, pRefId);
+  taosMemoryFree(pRefId);
   streamMutexUnlock(&gMetaRefMgt.mutex);
 }
 
