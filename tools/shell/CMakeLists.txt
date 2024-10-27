@@ -2,7 +2,6 @@ aux_source_directory(src SHELL_SRC)
 
 add_executable(shell ${SHELL_SRC})
 
-
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
     SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
@@ -18,6 +17,7 @@ IF(TD_LINUX AND TD_WEBSOCKET)
 ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
     ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
     SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/libtaosws.dylib")
+    ADD_DEPENDENCIES(shell taosws-rs)
 ELSEIF(TD_WINDOWS AND TD_WEBSOCKET)
     ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
     SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
