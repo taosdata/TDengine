@@ -780,6 +780,9 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
 }
 
 int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type) {
+  if (pToken->type == TK_NK_QUESTION) {
+    return buildInvalidOperationMsg(pMsgBuf, "insert into super table syntax is not supported for stmt");
+  }
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
@@ -2422,9 +2425,6 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
 //   1. [(tag1_name, ...)] ...
 //   2. VALUES ... | FILE ...
 static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  if (pStmt->stbSyntax && TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
-    return buildInvalidOperationMsg(&pCxt->msg, "insert into super table syntax is not supported for stmt");
-  }
   if (!pStmt->stbSyntax) {
     STableDataCxt*   pTableCxt = NULL;
     int32_t          code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
@@ -3066,8 +3066,9 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .isStmtBind = pCxt->isStmtBind};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)((*pQuery)->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)(*pQuery)->pRoot);
+    code = parseInsertSqlImpl(&context, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setNextStageInfo(&context, *pQuery, pCatalogReq);
@@ -3076,8 +3077,24 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
       QUERY_EXEC_STAGE_SCHEDULE == (*pQuery)->execStage) {
     code = setRefreshMeta(*pQuery);
   }
-  insDestroyBoundColInfo(&context.tags);
 
+  if (pStmt->stbSyntax && TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT) &&
+      code == TSDB_CODE_TSC_INVALID_OPERATION) {
+    context.tags.numOfBound = pStmt->pStbRowsCxt->boundColsInfo.numOfBound;
+    context.tags.numOfCols = pStmt->pStbRowsCxt->boundColsInfo.numOfCols;
+    context.tags. hasBoundCols= pStmt->pStbRowsCxt->boundColsInfo.hasBoundCols;
+    context.tags.pColIndex = taosMemoryMalloc(sizeof(int16_t) * context.tags.numOfBound);
+    memcpy(context.tags.pColIndex, pStmt->pStbRowsCxt->boundColsInfo.pColIndex,
+           sizeof(int16_t) * pStmt->pStbRowsCxt->boundColsInfo.numOfBound);
+    code = setStmtInfo(&context, pStmt);
+    if (TSDB_CODE_SUCCESS == code) {
+      insDestroyBoundColInfo(&context.tags);
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+
+  insDestroyBoundColInfo(&context.tags);
+  
   // if no data to insert, set emptyMode to avoid request server
   if (!context.needRequest) {
     (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
