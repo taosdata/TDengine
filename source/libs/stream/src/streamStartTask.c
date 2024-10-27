@@ -196,19 +196,17 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   STaskId         id = {.streamId = streamId, .taskId = taskId};
   int32_t         vgId = pMeta->vgId;
   bool            allRsp = true;
+  SStreamTask*    p = NULL;
 
   streamMetaWLock(pMeta);
-  SStreamTask** p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (p == NULL) {  // task does not exists in current vnode, not record the complete info
+  int32_t code = streamMetaAcquireTaskUnsafe(pMeta, &id, &p);
+  if (code != 0) {  // task does not exist in current vnode, not record the complete info
     stError("vgId:%d s-task:0x%x not exists discard the check downstream info", vgId, taskId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
 
-  // clear the send consensus-checkpointId flag
-//  streamMutexLock(&(*p)->lock);
-//  (*p)->status.sendConsensusChkptId = false;
-//  streamMutexUnlock(&(*p)->lock);
+  streamMetaReleaseTask(pMeta, p);
 
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
@@ -222,7 +220,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
   STaskInitTs initTs = {.start = startTs, .end = endTs, .success = ready};
   SHashObj*   pDst = ready ? pStartInfo->pReadyTaskSet : pStartInfo->pFailedTaskSet;
-  int32_t     code = taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
+  code = taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
   if (code) {
     if (code == TSDB_CODE_DUP_KEY) {
       stError("vgId:%d record start task result failed, s-task:0x%" PRIx64
@@ -296,13 +294,14 @@ void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {
   while ((pIter = taosHashIterate(pTaskSet, pIter)) != NULL) {
     STaskInitTs* pInfo = pIter;
     void*        key = taosHashGetKey(pIter, &keyLen);
-
-    SStreamTask** pTask1 = taosHashGet(pMeta->pTasksMap, key, sizeof(STaskId));
-    if (pTask1 == NULL) {
-      stInfo("s-task:0x%x is dropped already, %s", (int32_t)((STaskId*)key)->taskId, succ ? "success" : "failed");
+    SStreamTask* pTask = NULL;
+    int32_t      code = streamMetaAcquireTaskUnsafe(pMeta, key, &pTask);
+    if (code == 0) {
+      stInfo("s-task:%s level:%d vgId:%d, init:%" PRId64 ", initEnd:%" PRId64 ", %s", pTask->id.idStr,
+             pTask->info.taskLevel, vgId, pInfo->start, pInfo->end, pInfo->success ? "success" : "failed");
+      streamMetaReleaseTask(pMeta, pTask);
     } else {
-      stInfo("s-task:%s level:%d vgId:%d, init:%" PRId64 ", initEnd:%" PRId64 ", %s", (*pTask1)->id.idStr,
-             (*pTask1)->info.taskLevel, vgId, pInfo->start, pInfo->end, pInfo->success ? "success" : "failed");
+      stInfo("s-task:0x%x is dropped already, %s", (int32_t)((STaskId*)key)->taskId, succ ? "success" : "failed");
     }
   }
 }
@@ -417,8 +416,10 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   streamMetaRLock(pMeta);
 
+  SArray* pTaskList = NULL;
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
   stDebug("vgId:%d stop all %d stream task(s)", pMeta->vgId, num);
+
   if (num == 0) {
     stDebug("vgId:%d stop all %d task(s) completed, elapsed time:0 Sec.", pMeta->vgId, num);
     streamMetaRUnLock(pMeta);
@@ -428,14 +429,12 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   int64_t st = taosGetTimestampMs();
 
   // send hb msg to mnode before closing all tasks.
-  SArray* pTaskList = NULL;
   int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   int32_t numOfTasks = taosArrayGetSize(pTaskList);
-
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
@@ -445,11 +444,17 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
+    int64_t refId = pTask->id.refId;
     int32_t ret = streamTaskStop(pTask);
     if (ret) {
       stError("s-task:0x%x failed to stop task, code:%s", pTaskId->taskId, tstrerror(ret));
     }
+
     streamMetaReleaseTask(pMeta, pTask);
+    ret = taosRemoveRef(streamTaskRefPool, refId);
+    if (ret) {
+      stError("vgId:%d failed to remove task:0x%x, refId:%"PRId64, pMeta->vgId, pTaskId->taskId, refId);
+    }
   }
 
   taosArrayDestroy(pTaskList);
@@ -466,6 +471,7 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
 
   int32_t vgId = pTask->pMeta->vgId;
   if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
+    // mark the sending of req consensus checkpoint request.
     pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
     pConChkptInfo->statusTs = ts;
     stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr,
@@ -473,6 +479,8 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
     return 1;
   } else {
     int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
+
+    // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode
     if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
       pConChkptInfo->statusTs = ts;
 
@@ -492,7 +500,7 @@ void streamTaskSetConsenChkptIdRecv(SStreamTask* pTask, int32_t transId, int64_t
   pInfo->status = TASK_CONSEN_CHKPT_RECV;
   pInfo->statusTs = ts;
 
-  stDebug("s-task:%s set recv consen-checkpointId, transId:%d", pTask->id.idStr, transId);
+  stInfo("s-task:%s set recv consen-checkpointId, transId:%d", pTask->id.idStr, transId);
 }
 
 void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
@@ -507,23 +515,24 @@ void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
 }
 
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int64_t now = taosGetTimestampMs();
-  int64_t startTs = 0;
-  bool    hasFillhistoryTask = false;
-  STaskId hId = {0};
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int64_t      now = taosGetTimestampMs();
+  int64_t      startTs = 0;
+  bool         hasFillhistoryTask = false;
+  STaskId      hId = {0};
+  STaskId      id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask* pTask = NULL;
 
   stDebug("vgId:%d add start failed task:0x%x", pMeta->vgId, taskId);
 
   streamMetaRLock(pMeta);
 
-  STaskId       id = {.streamId = streamId, .taskId = taskId};
-  SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-
-  if (ppTask != NULL) {
-    startTs = (*ppTask)->taskCheckInfo.startTs;
-    hasFillhistoryTask = HAS_RELATED_FILLHISTORY_TASK(*ppTask);
-    hId = (*ppTask)->hTaskInfo.id;
+  code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+  if (code == 0) {
+    startTs = pTask->taskCheckInfo.startTs;
+    hasFillhistoryTask = HAS_RELATED_FILLHISTORY_TASK(pTask);
+    hId = pTask->hTaskInfo.id;
+    streamMetaReleaseTask(pMeta, pTask);
 
     streamMetaRUnLock(pMeta);
 

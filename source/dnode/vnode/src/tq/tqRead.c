@@ -1115,13 +1115,18 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       break;
     }
 
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
-      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
-      if (code != 0) {
-        tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);
-        continue;
+    int64_t      refId = *(int64_t*)pIter;
+    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
+    if (pTask != NULL) {
+      int32_t taskId = pTask->id.taskId;
+
+      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
+        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
+        if (code != 0) {
+          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
+        }
       }
+      taosReleaseRef(streamTaskRefPool, refId);
     }
   }
 
