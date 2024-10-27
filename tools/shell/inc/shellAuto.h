@@ -47,4 +47,12 @@ void showAD(bool end);
 // show all commands help
 void showHelp();
 
+
+//
+//  for unit test 
+//
+bool fieldOptionsArea(char* p);
+bool isCreateFieldsArea(char* p);
+
+
 #endif
