@@ -135,7 +135,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
 void metaRefMgtRemove(int64_t* pRefId) {
   streamMutexLock(&gMetaRefMgt.mutex);
 
-  taosHashRemove(gMetaRefMgt.pTable, &pRefId, sizeof(pRefId));
+  int32_t code = taosHashRemove(gMetaRefMgt.pTable, &pRefId, sizeof(pRefId));
   taosMemoryFree(pRefId);
   streamMutexUnlock(&gMetaRefMgt.mutex);
 }
@@ -534,7 +534,10 @@ void streamMetaClear(SStreamMeta* pMeta) {
       p->info.delaySchedParam = 0;
     }
 
-    taosRemoveRef(streamTaskRefPool, refId);
+    int32_t code = taosRemoveRef(streamTaskRefPool, refId);
+    if (code) {
+      stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
+    }
   }
 
   if (pMeta->streamBackendRid != 0) {
@@ -722,12 +725,19 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   if ((code = streamMetaSaveTask(pMeta, pTask)) != 0) {
-    taosRemoveRef(streamTaskRefPool, refId);
+    int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
+    if (ret) {
+      stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
+    }
     return code;
   }
 
   if ((code = streamMetaCommit(pMeta)) != 0) {
-    taosRemoveRef(streamTaskRefPool, refId);
+    int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
+    if (ret) {
+      stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
+    }
+
     return code;
   }
 
@@ -1215,7 +1225,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     streamMetaReleaseTask(pMeta, pTask);
     ret = taosRemoveRef(streamTaskRefPool, refId);
     if (ret) {
-      stError("vgId:%d failed to remove task:0x%x, refId:%"PRId64, pMeta->vgId, pTaskId->taskId, refId);
+      stError("vgId:%d failed to remove task:0x%x, refId:%" PRId64, pMeta->vgId, pTaskId->taskId, refId);
     }
   }
 

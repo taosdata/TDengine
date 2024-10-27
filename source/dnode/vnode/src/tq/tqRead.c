@@ -1126,7 +1126,10 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
         }
       }
-      taosReleaseRef(streamTaskRefPool, refId);
+      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
+      if (ret) {
+        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
+      }
     }
   }
 

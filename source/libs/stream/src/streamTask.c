@@ -1285,8 +1285,12 @@ int32_t streamTaskAllocRefId(SStreamTask* pTask, int64_t** pRefId) {
   *pRefId = taosMemoryMalloc(sizeof(int64_t));
   if (*pRefId != NULL) {
     **pRefId = pTask->id.refId;
-    metaRefMgtAdd(pTask->pMeta->vgId, *pRefId);
-    return 0;
+    int32_t code = metaRefMgtAdd(pTask->pMeta->vgId, *pRefId);
+    if (code != 0) {
+      stError("s-task:%s failed to add refId:%" PRId64 " into refId-mgmt, code:%s", pTask->id.idStr, pTask->id.refId,
+              tstrerror(code));
+    }
+    return code;
   } else {
     stError("s-task:%s failed to alloc new ref id, code:%s", pTask->id.idStr, tstrerror(terrno));
     return terrno;
