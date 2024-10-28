@@ -1333,8 +1333,8 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     // append end ';'
     char* p = taosMemoryCalloc(strLen + 8, 1);
     if (p) {
-      tstrncpy(p, str, strLen);
-      tstrncpy(p + strLen, ";", 1);
+      tstrncpy(p, str, strLen + 1);
+      tstrncpy(p + strLen, ";", 1 + 1);
       shellInsertStr(cmd, (char*)p, strLen + 1);
       taosMemoryFree(p);
     } else {
