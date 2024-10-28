@@ -982,6 +982,7 @@ int32_t  taosGetErrSize();
 
 //scalar
 #define TSDB_CODE_SCALAR_CONVERT_ERROR           TAOS_DEF_ERROR_CODE(0, 0x3250)
+#define TSDB_CODE_SCALAR_WRONG_NODE_TYPE         TAOS_DEF_ERROR_CODE(0, 0x3251)
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

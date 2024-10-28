@@ -2349,11 +2349,10 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   SCL_CHECK_NULL(pOut->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SCL_CHECK_NULL(pOut->columnData->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SCL_CHECK_NULL(num, code, lino, _return, TSDB_CODE_INVALID_PARA)
-  SCL_CHECK_NULL(fp, code, lino, _return, TSDB_CODE_INVALID_PARA)
-
 
   bool   *pRes = (bool *)pOut->columnData->pData;
   if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
+    SCL_CHECK_NULL(fp, code, lino, _return, TSDB_CODE_INVALID_PARA)
     if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
       for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
         int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
