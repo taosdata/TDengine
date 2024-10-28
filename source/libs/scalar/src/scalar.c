@@ -22,12 +22,14 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 }
 
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SCL_CHECK_NULL(valueNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
-  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  SCL_ERR_RET(convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value));
   taosMemoryFreeClear(timeStr);
   valueNode->datum.i = value;
   valueNode->typeData = valueNode->datum.i;
@@ -35,21 +37,29 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
   valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarParam *pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SCL_CHECK_NULL(pType, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pParam, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-  if (pColumnData == NULL) {
-    return terrno;
-  }
+  SCL_CHECK_NULL(pColumnData, code, lino, _return, terrno)
 
   pColumnData->info.type = pType->type;
   pColumnData->info.bytes = pType->bytes;
   pColumnData->info.scale = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
+  code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     colDataDestroy(pColumnData);
@@ -61,45 +71,48 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   pParam->colAlloced = true;
   pParam->numOfRows = numOfRows;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int32_t *overflow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SCL_CHECK_NULL(pValueNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(out, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SScalarParam in = {.numOfRows = 1};
-  int32_t      code = sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in);
+  SCL_ERR_JRET(sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in));
+  SCL_ERR_JRET(colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false));
+  SCL_ERR_JRET(colInfoDataEnsureCapacity(out->columnData, 1, true));
+  SCL_ERR_JRET(vectorConvertSingleColImpl(&in, out, overflow, -1, -1));
+
+_return:
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-
-  code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  code = colInfoDataEnsureCapacity(out->columnData, 1, true);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
-
-_exit:
   sclFreeParam(&in);
 
   return code;
 }
 
 int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
-  SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
-  if (NULL == pb) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-  }
-  SScalarParam *pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
-  int32_t       code = TSDB_CODE_SUCCESS;
-  if (NULL == pLeft) {
-    sclError("calloc %d failed", (int32_t)sizeof(SScalarParam));
-    SCL_ERR_RET(terrno);
-  }
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SScalarParam   *pLeft = NULL;
+
+  SCL_CHECK_NULL(pDst, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pSrc, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pBlockList, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  SSDataBlock    *pb = taosArrayGetP(pBlockList, 0);
+  SCL_CHECK_NULL(pb, code, lino, _return, terrno)
+  pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
+  SCL_CHECK_NULL(pLeft, code, lino, _return, terrno)
 
   pLeft->numOfRows = pb->info.rows;
 
@@ -108,34 +121,42 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   }
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(OP_TYPE_ASSIGN);
+  SCL_CHECK_NULL(OperatorFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SCL_ERR_JRET(OperatorFn(pLeft, pSrc, pDst, TSDB_ORDER_ASC));
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(pLeft);
 
   SCL_RET(code);
 }
 
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
-  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
-  if (NULL == pObj) {
-    sclError("taosHashInit failed, size:%d", 256);
-    SCL_ERR_RET(terrno);
-  }
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SHashObj       *pObj = NULL;
+  SScalarParam    out;
+  SCL_CHECK_NULL(data, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_CONDITION((nodeType(pNode) == QUERY_NODE_NODE_LIST), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
+
+  pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  SCL_CHECK_NULL(pObj, code, lino, _return, terrno)
 
   taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
 
-  int32_t        code = 0;
   SNodeListNode *nodeList = (SNodeListNode *)pNode;
   SListCell     *cell = nodeList->pNodeList->pHead;
-  SScalarParam   out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-  if (out.columnData == NULL) {
-    SCL_ERR_JRET(terrno);
-  }
+  out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  SCL_CHECK_NULL(out.columnData, code, lino, _return, terrno)
+
   int32_t len = 0;
   void   *buf = NULL;
 
   for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
+    SCL_CHECK_CONDITION((nodeType(cell->pNode) == QUERY_NODE_VALUE), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
     SValueNode *valueNode = (SValueNode *)cell->pNode;
 
     if (valueNode->node.resType.type != type) {
@@ -151,11 +172,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       }
 
       int32_t overflow = 0;
-      code = sclConvertValueToSclParam(valueNode, &out, &overflow);
-      if (code != TSDB_CODE_SUCCESS) {
-        //        sclError("convert data from %d to %d failed", in.type, out.type);
-        SCL_ERR_JRET(code);
-      }
+      SCL_ERR_JRET(sclConvertValueToSclParam(valueNode, &out, &overflow));
 
       if (overflow) {
         cell = cell->pNext;
@@ -194,7 +211,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   return TSDB_CODE_SUCCESS;
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   colDataDestroy(out.columnData);
   taosMemoryFreeClear(out.columnData);
   taosHashCleanup(pObj);
@@ -232,21 +251,6 @@ void sclFreeParam(SScalarParam *param) {
   }
 }
 
-int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
-  if (TSDB_DATA_TYPE_NULL == pNode->node.resType.type) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  *res = taosMemoryMalloc(pNode->node.resType.bytes);
-  if (NULL == (*res)) {
-    sclError("malloc %d failed", pNode->node.resType.bytes);
-    SCL_ERR_RET(terrno);
-  }
-
-  (void)memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
-  return TSDB_CODE_SUCCESS;
-}
-
 void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
   if (NULL == param) {
     return;
@@ -261,6 +265,9 @@ void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
 }
 
 void sclDowngradeValueType(SValueNode *valueNode) {
+  if (!valueNode) {
+    return;
+  }
   switch (valueNode->node.resType.type) {
     case TSDB_DATA_TYPE_BIGINT: {
       int8_t i8 = valueNode->datum.i;
@@ -337,12 +344,18 @@ void sclDowngradeValueType(SValueNode *valueNode) {
 }
 
 int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(param, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(rowNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
       SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
-      if (NULL == pb) {
-        SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-      }
+      SCL_CHECK_NULL(pb, code, lino, _return, terrno)
       param->numOfRows = pb->info.rows;
       break;
     }
@@ -397,9 +410,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
-        if (NULL == pb) {
-          SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-        }
+        SCL_CHECK_NULL(pb, code, lino, _return, terrno)
         if (pb->info.id.blockId == ref->dataBlockId) {
           index = i;
           break;
@@ -413,9 +424,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
-      if (NULL == block) {
-        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
+      SCL_CHECK_NULL(block, code, lino, _return, terrno)
 
       if (ref->slotId >= taosArrayGetSize(block->pDataBlock)) {
         sclError("column slotId is too big, slodId:%d, dataBlockSize:%d", ref->slotId,
@@ -459,12 +468,23 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   }
 
   param->param = ctx->param;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarCtx *ctx, int32_t *paramNum,
                          int32_t *rowNum) {
-  int32_t code = 0;
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SScalarParam   *paramList = NULL;
+  SCL_CHECK_NULL(pParams, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(paramNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(rowNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
       SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
@@ -481,7 +501,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     *paramNum = pParamList->length;
   }
 
-  SScalarParam *paramList = taosMemoryCalloc(*paramNum, sizeof(SScalarParam));
+  paramList = taosMemoryCalloc(*paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)((*paramNum) * sizeof(SScalarParam)));
     SCL_ERR_RET(terrno);
@@ -519,16 +539,22 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   return TSDB_CODE_SUCCESS;
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(paramList);
   SCL_RET(code);
 }
 
 int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SCL_CHECK_NULL(type, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (NULL == pNode) {
     *type = -1;
     return TSDB_CODE_SUCCESS;
   }
-
   switch ((int)nodeType(pNode)) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)pNode;
@@ -559,29 +585,46 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type) {
   }
 
   *type = -1;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t sclSetOperatorValueType(SOperatorNode *node, SScalarCtx *ctx) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
   ctx->type.opResType = node->node.resType.type;
   SCL_ERR_RET(sclGetNodeType(node->pLeft, ctx, &(ctx->type.selfType)));
   SCL_ERR_RET(sclGetNodeType(node->pRight, ctx, &(ctx->type.peerType)));
-  SCL_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  SCL_RET(code);
 }
 
 int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScalarCtx *ctx, int32_t *rowNum) {
-  int32_t code = 0;
-  int32_t paramNum = scalarGetOperatorParamNum(node->opType);
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  int32_t         paramNum = 0;
+  SScalarParam   *paramList = NULL;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pParams, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(rowNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  paramNum = scalarGetOperatorParamNum(node->opType);
   if (NULL == node->pLeft || (paramNum == 2 && NULL == node->pRight)) {
     sclError("invalid operation node, left:%p, right:%p", node->pLeft, node->pRight);
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
-  if (NULL == paramList) {
-    sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
-    SCL_ERR_RET(terrno);
-  }
+  paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
+  SCL_CHECK_NULL(paramList, code, lino, _return, terrno)
 
   SCL_ERR_JRET(sclSetOperatorValueType(node, ctx));
 
@@ -595,37 +638,51 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   return TSDB_CODE_SUCCESS;
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParamList(paramList, paramNum);
   SCL_RET(code);
 }
 
 int32_t sclGetNodeRes(SNode *node, SScalarCtx *ctx, SScalarParam **res) {
-  if (NULL == node) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_SUCCESS)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int32_t rowNum = 0;
   *res = taosMemoryCalloc(1, sizeof(**res));
-  if (NULL == *res) {
-    SCL_ERR_RET(terrno);
-  }
-
+  SCL_CHECK_NULL(*res, code, lino, _return, terrno)
   SCL_ERR_RET(sclInitParam(node, *res, ctx, &rowNum));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCell, SScalarParam *pCase,
+int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *UNUSED_PARAM(pList), struct SListCell *pCell, SScalarParam *pCase,
                             SScalarParam *pElse, SScalarParam *pComp, SScalarParam *output, int32_t rowIdx,
                             int32_t totalRows, bool *complete) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
   SNode         *node = NULL;
   SWhenThenNode *pWhenThen = NULL;
   SScalarParam  *pWhen = NULL;
   SScalarParam  *pThen = NULL;
-  int32_t        code = 0;
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pCase, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pComp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(complete, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pComp->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   for (SListCell *cell = pCell; (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false));
        cell = cell->pNext) {
+    SCL_CHECK_CONDITION((nodeType(node) == QUERY_NODE_WHEN_THEN), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
     pWhenThen = (SWhenThenNode *)node;
 
     SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
@@ -673,7 +730,9 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
   }
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   taosMemoryFreeClear(pWhen);
@@ -682,16 +741,22 @@ _return:
   SCL_RET(code);
 }
 
-int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCell, SScalarParam *pElse,
+int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *UNUSED_PARAM(pList), struct SListCell *pCell, SScalarParam *pElse,
                         SScalarParam *output, int32_t rowIdx, int32_t totalRows, bool *complete, bool preSingle) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
   SNode         *node = NULL;
   SWhenThenNode *pWhenThen = NULL;
   SScalarParam  *pWhen = NULL;
   SScalarParam  *pThen = NULL;
-  int32_t        code = 0;
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(complete, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   for (SListCell *cell = pCell; (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false));
        cell = cell->pNext) {
+    SCL_CHECK_CONDITION((nodeType(node) == QUERY_NODE_WHEN_THEN), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
     pWhenThen = (SWhenThenNode *)node;
     pWhen = NULL;
     pThen = NULL;
@@ -741,7 +806,9 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
   }
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   taosMemoryFreeClear(pWhen);
@@ -755,6 +822,11 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
+  int32_t       lino = 0;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
 
   if (fmIsUserDefinedFunc(node->funcId)) {
@@ -771,10 +843,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
 
-    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
-    if (code != TSDB_CODE_SUCCESS) {
-      SCL_ERR_JRET(code);
-    }
+    SCL_ERR_JRET(sclCreateColumnInfoData(&node->node.resType, rowNum, output));
 
     if (rowNum == 0) {
       goto _return;
@@ -788,12 +857,23 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   }
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
 int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *output) {
+  SScalarParam *params = NULL;
+  int32_t       rowNum = 0;
+  int32_t       paramNum = 0;
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (NULL == node->pParameterList || node->pParameterList->length <= 0) {
     sclError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList,
              node->pParameterList ? node->pParameterList->length : 0);
@@ -810,10 +890,6 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SScalarParam *params = NULL;
-  int32_t       rowNum = 0;
-  int32_t       paramNum = 0;
-  int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
   if (NULL == params) {
     output->numOfRows = 0;
@@ -824,10 +900,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   output->numOfRows = rowNum;
 
   SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-  code = sclCreateColumnInfoData(&t, rowNum, output);
-  if (code != TSDB_CODE_SUCCESS) {
-    SCL_ERR_JRET(code);
-  }
+  SCL_ERR_JRET(sclCreateColumnInfoData(&t, rowNum, output));
 
   int32_t numOfQualified = 0;
 
@@ -874,6 +947,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   output->numOfQualified = numOfQualified;
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
@@ -883,6 +959,10 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       rowNum = 0;
   int32_t       code = 0;
   int32_t       paramNum = scalarGetOperatorParamNum(node->opType);
+  int32_t       lino = 0;
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   // json not support in in operator
   if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
@@ -895,13 +975,11 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SCL_ERR_JRET(sclInitOperatorParams(&params, node, ctx, &rowNum));
   if (output->columnData == NULL) {
-    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
-    if (code != TSDB_CODE_SUCCESS) {
-      SCL_ERR_JRET(code);
-    }
+    SCL_ERR_JRET(sclCreateColumnInfoData(&node->node.resType, rowNum, output));
   }
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
+  SCL_CHECK_NULL(OperatorFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
@@ -910,6 +988,9 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SCL_ERR_JRET(OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC));
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
@@ -923,6 +1004,11 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam  comp = {0};
   int32_t       rowNum = 1;
   bool          complete = false;
+  int32_t       lino = 0;
+
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   if (NULL == node->pWhenThenList || node->pWhenThenList->length <= 0) {
     sclError("invalid whenThen list");
@@ -931,9 +1017,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   if (ctx->pBlockList) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
-    if (NULL == pb) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    SCL_CHECK_NULL(pb, code, lino, _return, terrno)
     rowNum = pb->info.rows;
     output->numOfRows = pb->info.rows;
   }
@@ -950,6 +1034,10 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   SCL_ERR_JRET(sclCreateColumnInfoData(&compType, rowNum, &comp));
 
   SNode         *tnode = NULL;
+  SCL_CHECK_NULL(node->pWhenThenList->pHead, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(node->pWhenThenList->pHead->pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_CONDITION((nodeType(node->pWhenThenList->pHead->pNode) == QUERY_NODE_WHEN_THEN), code, lino, _return,
+                      TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
   SWhenThenNode *pWhenThen = (SWhenThenNode *)node->pWhenThenList->pHead->pNode;
 
   SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
@@ -1014,7 +1102,9 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   return TSDB_CODE_SUCCESS;
 
 _return:
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   sclFreeParam(pCase);
   sclFreeParam(pElse);
   sclFreeParam(&comp);
@@ -1030,6 +1120,11 @@ _return:
 }
 
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclRewriteNullInOptr get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   if (opType <= OP_TYPE_CALC_MAX) {
     SValueNode *res = NULL;
     ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&res);
@@ -1062,6 +1157,11 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
 }
 
 EDealRes sclAggFuncWalker(SNode *pNode, void *pContext) {
+  if (NULL == pNode || NULL == pContext) {
+    sclError("sclAggFuncWalker get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode *pFunc = (SFunctionNode *)pNode;
     *(bool *)pContext = fmIsAggFunc(pFunc->funcId);
@@ -1080,6 +1180,9 @@ bool sclContainsAggFuncNode(SNode *pNode) {
 }
 
 static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
+  if (NULL == pLeft || NULL == pRight) {
+    return 0;
+  }
   uint8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
   uint8_t rPrec = ((SExprNode *)pRight)->resType.precision;
 
@@ -1122,13 +1225,18 @@ int32_t sclConvertOpValueNodeTs(SOperatorNode *node) {
 }
 
 int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node) {
-  if (NULL == node->pCase) {
-    return TSDB_CODE_SUCCESS;
-  }
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
 
+  SCL_CHECK_NULL(node, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(node->pCase, code, lino, _return, TSDB_CODE_SUCCESS)
+
+  SCL_CHECK_CONDITION(nodesIsExprNode(node->pCase), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE)
   if (SCL_IS_VAR_VALUE_NODE(node->pCase)) {
     SNode *pNode;
     FOREACH(pNode, node->pWhenThenList) {
+      SCL_CHECK_CONDITION((nodeType(pNode) == QUERY_NODE_WHEN_THEN), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
+      SCL_CHECK_CONDITION(nodesIsExprNode(((SWhenThenNode *)pNode)->pWhen), code, lino, _return, TSDB_CODE_SCALAR_WRONG_NODE_TYPE);
       SExprNode *pExpr = (SExprNode *)((SWhenThenNode *)pNode)->pWhen;
       if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
         SCL_ERR_RET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode *)node->pCase));
@@ -1144,16 +1252,24 @@ int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node) {
       }
     }
   }
-
-  return TSDB_CODE_SUCCESS;
+_return:
+  return code;
 }
 
 EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == *pNode || NULL == ctx) {
+    sclError("sclRewriteNonConstOperator get null input param");
+    return DEAL_RES_ERROR;
+  }
   SOperatorNode *node = (SOperatorNode *)*pNode;
   int32_t        code = 0;
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
+    if (NULL == valueNode) {
+      sclError("sclRewriteNonConstOperator get null input param");
+      return DEAL_RES_ERROR;
+    }
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
         (!sclContainsAggFuncNode(node->pRight))) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
@@ -1166,6 +1282,10 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
+    if (NULL == valueNode) {
+      sclError("sclRewriteNonConstOperator get null input param");
+      return DEAL_RES_ERROR;
+    }
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
         (!sclContainsAggFuncNode(node->pLeft))) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
@@ -1180,6 +1300,11 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == *pNode || NULL == ctx) {
+    sclError("sclRewriteFunction get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
   if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
@@ -1261,6 +1386,10 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == *pNode || NULL == ctx) {
+    sclError("sclRewriteLogic get null input param");
+    return DEAL_RES_ERROR;
+  }
   SLogicConditionNode *node = (SLogicConditionNode *)*pNode;
 
   SScalarParam output = {0};
@@ -1307,6 +1436,11 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == *pNode || NULL == ctx) {
+    sclError("sclRewriteOperator get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
   ctx->code = sclConvertOpValueNodeTs(node);
@@ -1383,6 +1517,10 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == *pNode || NULL == ctx) {
+    sclError("sclRewriteCaseWhen get null input param");
+    return DEAL_RES_ERROR;
+  }
   SCaseWhenNode *node = (SCaseWhenNode *)*pNode;
 
   ctx->code = sclConvertCaseWhenValueNodeTs(node);
@@ -1455,6 +1593,11 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclConstantsRewriter(SNode **pNode, void *pContext) {
+  if (NULL == pNode || NULL == *pNode || NULL == pContext) {
+    sclError("sclConstantsRewriter get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SScalarCtx *ctx = (SScalarCtx *)pContext;
 
   if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
@@ -1477,6 +1620,11 @@ EDealRes sclConstantsRewriter(SNode **pNode, void *pContext) {
 }
 
 EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclWalkFunction get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SFunctionNode *node = (SFunctionNode *)pNode;
   SScalarParam   output = {0};
 
@@ -1496,6 +1644,11 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclWalkLogic get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
   SScalarParam         output = {0};
 
@@ -1515,6 +1668,11 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclWalkOperator get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SOperatorNode *node = (SOperatorNode *)pNode;
   SScalarParam   output = {0};
 
@@ -1534,6 +1692,11 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclWalkTarget get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   STargetNode *target = (STargetNode *)pNode;
 
   if (target->dataBlockId >= taosArrayGetSize(ctx->pBlockList)) {
@@ -1547,7 +1710,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
     if (NULL == pb) {
-      ctx->code = TSDB_CODE_OUT_OF_RANGE;
+      ctx->code = terrno;
       return DEAL_RES_ERROR;
     }
     if (pb->info.id.blockId == target->dataBlockId) {
@@ -1597,6 +1760,11 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode || NULL == ctx) {
+    sclError("sclWalkCaseWhen get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   SCaseWhenNode *node = (SCaseWhenNode *)pNode;
   SScalarParam   output = {0};
 
@@ -1606,7 +1774,7 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    ctx->code = terrno;
     return DEAL_RES_ERROR;
   }
 
@@ -1614,6 +1782,11 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
+  if (NULL == pNode || NULL == pContext) {
+    sclError("sclCalcWalker get null input param");
+    return DEAL_RES_ERROR;
+  }
+
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
       QUERY_NODE_WHEN_THEN == nodeType(pNode)) {
@@ -1647,7 +1820,7 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
 }
 
 int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
-  if (NULL == pNode) {
+  if (NULL == pNode || NULL == pRes) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -1671,12 +1844,18 @@ _return:
 }
 
 static int32_t sclGetMinusOperatorResType(SOperatorNode *pOp) {
-  if (!IS_MATHABLE_TYPE(((SExprNode *)(pOp->pLeft))->resType.type)) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SCL_CHECK_NULL(pOp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_CONDITION(IS_MATHABLE_TYPE(((SExprNode *)(pOp->pLeft))->resType.type), code, lino, _return,
+                      TSDB_CODE_TSC_INVALID_OPERATION)
   pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
@@ -1762,7 +1941,7 @@ static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
-  if (!pOp->pLeft || !pOp->pRight) {
+  if (!pOp || !pOp->pLeft || !pOp->pRight) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
@@ -1806,7 +1985,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
 
     SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
     if (NULL == pb) {
-      SCL_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
+      SCL_ERR_JRET(terrno);
     }
     if (1 == res->numOfRows && pb->info.rows > 0) {
       SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
@@ -1827,9 +2006,13 @@ _return:
 }
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SCL_CHECK_NULL(pOp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOp->pLeft, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (TSDB_DATA_TYPE_BLOB == ((SExprNode *)(pOp->pLeft))->resType.type ||
       (NULL != pOp->pRight && TSDB_DATA_TYPE_BLOB == ((SExprNode *)(pOp->pRight))->resType.type)) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+    SCL_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
   }
 
   switch (pOp->opType) {
@@ -1875,5 +2058,9 @@ int32_t scalarGetOperatorResultType(SOperatorNode *pOp) {
       break;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
