@@ -1606,7 +1606,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       break;
     case FUNCTION_TYPE_BLOCK_DIST:
     case FUNCTION_TYPE_BLOCK_DIST_INFO:
-      bytes = 128;
+      bytes = sizeof(STableBlockDistInfo);
       break;
     case FUNCTION_TYPE_TO_CHAR:
       bytes = 4096;

@@ -3569,11 +3569,18 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           } else {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] == nextPos);
           }
-          
-          colLen = varDataTLen(pCol->pData + pCol->varmeta.offset[r]);
+
+          char*   pColData = pCol->pData + pCol->varmeta.offset[r];
+          int32_t colSize = 0;
+          if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
+            colLen = getJsonValueLen(pColData);
+          } else {
+            colLen = varDataTLen(pColData);
+          }
+
           BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
           BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
-          
+
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
           } else {
