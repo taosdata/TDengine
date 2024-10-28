@@ -1315,8 +1315,9 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
       pkLen = colDataGetRowLength(pPkColDataInfo, startPos);
     }
 
-    if (pInfo->ignoreExpiredData && checkExpiredData(&pAggSup->stateStore, pAggSup->pUpdateInfo, &pInfo->twAggSup,
-                                                     pBlock->info.id.uid, tsCols[startPos], pPkVal, pkLen)) {
+    if (pInfo->twAggSup.calTrigger != STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pInfo->ignoreExpiredData &&
+        checkExpiredData(&pAggSup->stateStore, pAggSup->pUpdateInfo, &pInfo->twAggSup, pBlock->info.id.uid,
+                         tsCols[startPos], pPkVal, pkLen)) {
       qDebug("===stream===ignore expired data, window end ts:%" PRId64 ", maxts - wartermak:%" PRId64, tsCols[startPos],
              pInfo->twAggSup.maxTs - pInfo->twAggSup.waterMark);
       continue;

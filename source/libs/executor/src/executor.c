@@ -1099,6 +1099,7 @@ static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterM
   SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
   *pWaterMark = pScanOp->twAggSup.waterMark;
   *pInterval = pScanOp->interval;
+  *pLastWindow = pScanOp->lastScanRange;
   return TSDB_CODE_SUCCESS; 
 }
 
