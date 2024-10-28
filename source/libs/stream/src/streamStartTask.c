@@ -355,7 +355,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   // fill-history task can only be launched by related stream tasks.
   STaskExecStatisInfo* pInfo = &pTask->execInfo;
   if (pTask->info.fillHistory == 1) {
-    stError("s-task:0x%x vgId:%d fill-histroy task, not start here", taskId, vgId);
+    stError("s-task:0x%x vgId:%d fill-history task, not start here", taskId, vgId);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
@@ -363,6 +363,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   // the start all tasks procedure may happen to start the newly deployed stream task, and results in the
   // concurrently start this task by two threads.
   streamMutexLock(&pTask->lock);
+
   SStreamTaskState status = streamTaskGetStatus(pTask);
   if (status.state != TASK_STATUS__UNINIT) {
     stError("s-task:0x%x vgId:%d status:%s not uninit status, not start stream task", taskId, vgId, status.name);
@@ -379,6 +380,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
   if(pTask->status.downstreamReady != 0) {
     stFatal("s-task:0x%x downstream should be not ready, but it ready here, internal error happens", taskId);
+    streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
@@ -395,7 +397,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     streamMutexUnlock(&pTask->lock);
   }
 
-  // concurrently start task may cause the later started task be failed, and also failed to added into meta result.
+  // concurrently start task may cause the latter started task be failed, and also failed to added into meta result.
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {

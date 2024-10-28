@@ -1037,6 +1037,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   if (++pTmrInfo->activeCounter < 50) {
     streamTmrStart(checkpointTriggerMonitorFn, 200, param, streamTimer, &pTmrInfo->tmrHandle, vgId,
                    "trigger-recv-monitor");
+    doCleanup(pTask, pNotSendList);
     return;
   }
 
