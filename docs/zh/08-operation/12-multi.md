@@ -137,7 +137,7 @@ s3migrate database <db_name>;
 下载次数 = 查询需要的数据块数量 - 已缓存的数据块数量
 ```
 
-页缓存是内存缓存，节点重启后，再次查询需要重新下载数据。缓存采用 LRU (Least Recently Used) 策略，当缓存空间不足时，最近最少使用的数据将被淘汰。缓存的大小可以通过 `s3PageCacheSize` 参数进行调整，通常来说，缓存越>大，下载次数越少。
+页缓存是内存缓存，节点重启后，再次查询需要重新下载数据。缓存采用 LRU (Least Recently Used) 策略，当缓存空间不足时，最近最少使用的数据将被淘汰。缓存的大小可以通过 `s3PageCacheSize` 参数进行调整，通常来说，缓存越大，下载次数越少。
 
 ## Azure Blob 存储
 本节介绍在 TDengine Enterprise 如何使用微软 Azure Blob 对象存储。本功能是上一小节‘对象存储’功能的扩展，需额外依赖 Flexify 服务提供的 S3 网关。通过适当的参数配置，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
