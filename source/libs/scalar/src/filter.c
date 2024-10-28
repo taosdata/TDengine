@@ -4133,7 +4133,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
       }
       case TSDB_DATA_TYPE_BOOL: {
         datum->kind = FLT_SCL_DATUM_KIND_INT64;
-        datum->i = (valNode->datum.b) ? 0 : 1;
+        datum->i = (valNode->datum.b) ? 1 : 0;
         break;
       }
       case TSDB_DATA_TYPE_TINYINT:
