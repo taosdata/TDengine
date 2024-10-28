@@ -3544,7 +3544,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
     BLOCK_DATA_CHECK_TRESSA(pCol != NULL);
     isVarType = IS_VAR_DATA_TYPE(pCol->info.type);
     checkRows = pDataBlock->info.rows;
-    if (pCol->info.reserve == false) continue;
+    if (pCol->info.noData == true) continue;
 
     if (isVarType) {
       BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset);
@@ -3578,7 +3578,11 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
             colLen = varDataTLen(pColData);
           }
 
-          BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
+          if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
+            BLOCK_DATA_CHECK_TRESSA(colLen >= CHAR_BYTES);
+          } else {
+            BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
+          }
           BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
 
           if (pCol->reassigned) {

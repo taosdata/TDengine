@@ -1215,7 +1215,7 @@ typedef struct {
   int32_t bytes;
   int8_t  type;
   uint8_t pk;
-  bool    reserve;
+  bool    noData;
 } SColumnInfo;
 
 typedef struct STimeWindow {

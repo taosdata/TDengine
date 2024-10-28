@@ -233,7 +233,7 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
     int32_t len = 0;
     code = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, true));
+      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     }
     code = putSlotToHash(name, len, pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     if (TSDB_CODE_SUCCESS == code) {
@@ -341,7 +341,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
 }
 
 static int32_t addDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false, true);
 }
 
 static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlockDescNode* pDataBlockDesc) {
@@ -363,11 +363,11 @@ static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlo
 
 static int32_t addDataBlockSlotsForProject(SPhysiPlanContext* pCxt, const char* pStmtName, SNodeList* pList,
                                            SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, false, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, false, true);
 }
 
 static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, true, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, true, true);
 }
 
 typedef struct SSetSlotIdCxt {
