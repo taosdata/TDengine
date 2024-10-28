@@ -324,10 +324,6 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock
       code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
       break;
     }
-    case QUERY_NODE_DROP_TABLE_STMT: {
-      translatePostDropCTbWithTsma(pCxt, pQuery, pBlock);
-      break;
-                                     }
     default:
       break;
   }
