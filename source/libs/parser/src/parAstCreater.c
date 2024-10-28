@@ -887,7 +887,8 @@ _err:
 }
 
 static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
+      ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
     int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
     ((SLogicConditionNode*)pParam)->pParameterList = NULL;
     nodesDestroyNode(pParam);
@@ -1364,6 +1365,25 @@ SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken,
   return (SNode*)pCount;
 _err:
   nodesDestroyNode((SNode*)pCount);
+  return NULL;
+}
+
+SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt) {
+  SAnomalyWindowNode* pAnomaly = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ANOMALY_WINDOW, (SNode**)&pAnomaly);
+  CHECK_MAKE_NODE(pAnomaly);
+  pAnomaly->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pAnomaly->pCol);
+  pAnomaly->pExpr = pExpr;
+  if (pFuncOpt == NULL) {
+    tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANAL_ALGO_OPTION_LEN);
+  } else {
+    (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
+  }
+  return (SNode*)pAnomaly;
+_err:
+  nodesDestroyNode((SNode*)pAnomaly);
   return NULL;
 }
 
@@ -1954,14 +1974,13 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_S3_COMPACT:
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_KEEP_TIME_OFFSET: {
+    case DB_OPTION_KEEP_TIME_OFFSET: 
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-      case DB_OPTION_ENCRYPT_ALGORITHM:
-        COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
-        pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-        break;
-    }
+    case DB_OPTION_ENCRYPT_ALGORITHM:
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
+      pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+      break;
     default:
       break;
   }
@@ -2991,6 +3010,47 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   (void)trimString(pConfig->z, pConfig->n, pStmt->config, sizeof(pStmt->config));
   if (NULL != pValue) {
     (void)trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
   }
   return (SNode*)pStmt;
 _err:
