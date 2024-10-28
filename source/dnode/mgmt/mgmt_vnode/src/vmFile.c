@@ -204,6 +204,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
   int32_t     lino = 0;
+  int32_t     ret = -1;
 
   int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
@@ -269,7 +270,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
 _OVER1:
-  int32_t ret = taosThreadMutexUnlock(&pMgmt->fileLock);
+  ret = taosThreadMutexUnlock(&pMgmt->fileLock);
   if (ret != 0) {
     dError("failed to unlock since %s", tstrerror(ret));
   }
