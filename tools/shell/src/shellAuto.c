@@ -700,9 +700,9 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
 
   // check format
   if (pattern && len > 0) {
-    if (p[len-1] == ';') {
+    if (p[len - 1] == ';') {
       word->type = wordType(p, len - 1);
-      word->end  = true;
+      word->end = true;
     } else {
       word->type = wordType(p, len);
     }
@@ -1311,7 +1311,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   // first tab press
   const char* str = NULL;
   int         strLen = 0;
-  
+
   SWord* word = MATCH_WORD(match);
   if (firstMatchIndex == curMatchIndex && lastWordBytes == -1) {
     // first press tab
@@ -1331,14 +1331,18 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
 
   if (word->end && str[strLen - 1] != ';') {
     // append end ';'
-    char *p = taosMemoryMalloc(strLen + 8);
-    strcpy(p, str);
-    strcat(p, ";");
-    shellInsertStr(cmd, (char *)p, strLen + 1);
-    taosMemoryFree(p);
+    char* p = taosMemoryCalloc(strLen + 8, 1);
+    if (p) {
+      tstrncpy(p, str, strLen);
+      tstrncpy(p + strLen, ";", 1);
+      shellInsertStr(cmd, (char*)p, strLen + 1);
+      taosMemoryFree(p);
+    } else {
+      shellInsertStr(cmd, (char*)str, strLen);
+    }
   } else {
     // insert new
-    shellInsertStr(cmd, (char *)str, strLen);
+    shellInsertStr(cmd, (char*)str, strLen);
   }
 }
 
@@ -1722,27 +1726,27 @@ bool fieldOptionsArea(char* p) {
   }
 
   // find tags
-  if(strstr(p, " tags") != NULL) {
+  if (strstr(p, " tags") != NULL) {
     return false;
   }
 
-  if(p2 == NULL) {
+  if (p2 == NULL) {
     // first field area
     p2 = p1;
   }
 
   // find blank count
   int32_t cnt = 0;
-  while(p2) {
+  while (p2) {
     p2 = strchr(p2, ' ');
     if (p2) {
       // get prev char
       char prec = *(p2 - 1);
       if (prec != ',' && prec != '(') {
         // blank if before comma, not calc count.  like st(ts timestamp,  age int + BLANK + TAB only two blank
-        cnt ++;
+        cnt++;
       }
-      
+
       // continue blank is one blank
       while (p2[1] != 0 && p2[1] == ' ') {
         // move next if blank again
@@ -1758,18 +1762,18 @@ bool fieldOptionsArea(char* p) {
 
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
-  int32_t n = 0; // count
-  char *p1  = p;
+  int32_t n = 0;  // count
+  char*  p1 = p;
   while (*p1 != 0) {
     switch (*p1) {
-    case '(':
-      ++ n;
-      break;
-    case ')':
-      -- n;
-      break;
-    default:
-      break;
+      case '(':
+        ++n;
+        break;
+      case ')':
+        --n;
+        break;
+      default:
+        break;
     }
     // move next
     ++p1;
@@ -1813,7 +1817,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
   char* last = lastWord(ps);
 
   // check in create fields or tags input area
-  if (isCreateFieldsArea(ps)) {    
+  if (isCreateFieldsArea(ps)) {
     if (fieldOptionsArea(ps)) {
       // fill field options
       ret = fillWithType(con, cmd, last, WT_VAR_FIELD_OPTIONS);
