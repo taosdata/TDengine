@@ -40,6 +40,7 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
       return;
     }
 
+    pTask->status.latestForceWindow = lastTimeWindow;
     pTask->info.delaySchedParam = interval.sliding;
     pTask->info.watermark = waterMark;
     pTask->info.interval = interval;
@@ -156,27 +157,71 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   const char*  id = pTask->id.idStr;
   int32_t      nextTrigger = (int32_t)pTask->info.delaySchedParam;
   int32_t      vgId = pTask->pMeta->vgId;
+  int32_t      code = 0;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
   stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
 
-  if (streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+  if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, jump out of schedTimer", id);
     return;
+  }
+
+  if (streamTaskShouldPause(pTask)) {
+    stDebug("s-task:%s is paused, check in nextTrigger:%ds", id, nextTrigger/1000);
+    streamTmrStart(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId,
+                   "sched-run-tmr");
   }
 
   if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
-    if ((status == TASK_TRIGGER_STATUS__ACTIVE) ||
-        (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
-      SStreamTrigger* pTrigger;
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      SStreamTrigger* pTrigger = NULL;
 
-      int32_t code = streamCreateSinkResTrigger(&pTrigger, pTask->info.trigger, pTask->info.delaySchedParam);
+      while (1) {
+        code = streamCreateForcewindowTrigger(&pTrigger, pTask->info.delaySchedParam, &pTask->info.interval,
+                                              &pTask->status.latestForceWindow);
+        if (code != 0) {
+          stError("s-task:%s failed to prepare force window close trigger, code:%s, try again in %dms", id,
+                  tstrerror(code), nextTrigger);
+          goto _end;
+        }
+
+        // in the force window close model, status trigger does not matter. So we do not set the trigger model
+        code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+        if (code != TSDB_CODE_SUCCESS) {
+          stError("s-task:%s failed to put retrieve aggRes block into q, code:%s", pTask->id.idStr, tstrerror(code));
+          goto _end;
+        }
+
+        // check whether the time window gaps exist or not
+        int64_t now = taosGetTimestamp(pTask->info.interval.precision);
+        int64_t intervalEndTs = pTrigger->pBlock->info.window.skey + pTask->info.interval.interval;
+
+        // there are gaps, needs to be filled
+        STimeWindow w = pTrigger->pBlock->info.window;
+        w.ekey = w.skey + pTask->info.interval.interval;
+        if (w.skey <= pTask->status.latestForceWindow.skey) {
+          stFatal("s-task:%s invalid new time window in force_window_close model, skey:%" PRId64
+                  " should be greater than latestForceWindow skey:%" PRId64,
+                  pTask->id.idStr, w.skey, pTask->status.latestForceWindow.skey);
+        }
+
+        pTask->status.latestForceWindow = w;
+        if (intervalEndTs + pTask->info.watermark + pTask->info.interval.interval > now) {
+          break;
+        } else {
+          stDebug("s-task:%s gap exist for force_window_close, current force_window_skey:%" PRId64, id, w.skey);
+        }
+      }
+
+    } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
+      SStreamTrigger* pTrigger = NULL;
+      code = streamCreateSinkResTrigger(&pTrigger);
       if (code) {
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);
-        terrno = code;
         goto _end;
       }
 
@@ -187,11 +232,11 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
         stError("s-task:%s failed to put retrieve aggRes block into q, code:%s", pTask->id.idStr, tstrerror(code));
         goto _end;
       }
+    }
 
-      code = streamTrySchedExec(pTask);
-      if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
-      }
+    code = streamTrySchedExec(pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
     }
   }
 
