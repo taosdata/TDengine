@@ -204,6 +204,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
   int32_t     lino = 0;
+  int32_t     ret = -1;
 
   int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
@@ -233,34 +234,46 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER;
   }
 
+  code = taosThreadMutexLock(&pMgmt->fileLock);
+  if (code != 0) {
+    lino = __LINE__;
+    goto _OVER;
+  }
+
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
   if (taosFsyncFile(pFile) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER);
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER1);
 
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
+
+_OVER1:
+  ret = taosThreadMutexUnlock(&pMgmt->fileLock);
+  if (ret != 0) {
+    dError("failed to unlock since %s", tstrerror(ret));
+  }
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
