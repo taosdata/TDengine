@@ -100,7 +100,7 @@ sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', 
 if $rows != 4 then
   return -1
 endi
-if $data20 != @      Time Range: [0, 1657441980000]@ then
+if $data20 != @      Time Range: [1, 1657441980000]@ then
   return -1
 endi
 
@@ -108,7 +108,7 @@ sql explain verbose true select * from tb1 where fts in ('2022-07-10 16:31:00', 
 if $rows != 4 then
   return -1
 endi
-if $data20 != @      Time Range: [1, 1657441980000]@ then
+if $data20 != @      Time Range: [0, 1657441980000]@ then
   return -1
 endi
 
