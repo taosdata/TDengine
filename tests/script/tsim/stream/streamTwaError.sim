@@ -29,6 +29,8 @@ sql_error create stream streams9 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 
 sql_error create stream streams10 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt10 as select _wstart, sum(a) from st partition by tbname,ta interval(2s) SLIDING(1s);
 sql create stream streams11 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt11 as select _wstart, avg(a) from st partition by tbname,ta interval(2s) SLIDING(2s);
 
+sql_error create stream streams10 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt10 as select _wstart, sum(a) from st interval(2s);
+
 print end
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -307,8 +307,9 @@ void streamFreeQitem(SStreamQueueItem* data) {
   }
 }
 
-int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerType, int32_t trigger) {
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval, STimeWindow* pLatestWindow) {
   QRY_PARAM_CHECK(pTrigger);
+  int64_t         ts = INT64_MIN;
   SStreamTrigger* p = NULL;
 
   int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
@@ -324,22 +325,49 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger, int32_t triggerTyp
   }
 
   // let's calculate the previous time window
-  // todo get the time precision for ts
-  if (triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    SInterval interval = {.interval = trigger, .sliding = trigger, .intervalUnit = 'a', .slidingUnit = 'a'};
-    int64_t   now = taosGetTimestampMs();
+  SInterval interval = {.interval = trigger,
+                        .sliding = trigger,
+                        .intervalUnit = pInterval->intervalUnit,
+                        .slidingUnit = pInterval->slidingUnit};
 
-    STimeWindow window = getAlignQueryTimeWindow(&interval, now - trigger);
+  ts = taosGetTimestampMs();
+
+  if (pLatestWindow->skey == INT64_MIN) {
+    STimeWindow window = getAlignQueryTimeWindow(&interval, ts);
+
     p->pBlock->info.window.skey = window.skey;
-    p->pBlock->info.window.ekey = TMAX(now, window.ekey);
-    p->pBlock->info.type = STREAM_GET_RESULT;
-    stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64,
-            p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
+    p->pBlock->info.window.ekey = TMAX(ts, window.ekey);
   } else {
-    p->pBlock->info.type = STREAM_GET_ALL;
+    int64_t skey = pLatestWindow->skey + trigger;
+    p->pBlock->info.window.skey = skey;
+    p->pBlock->info.window.ekey = TMAX(ts, skey + trigger);
   }
 
-  *pTrigger = p;
+  p->pBlock->info.type = STREAM_GET_RESULT;
+  stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, p->pBlock->info.window.skey,
+          p->pBlock->info.window.ekey);
 
+  *pTrigger = p;
+  return code;
+}
+
+int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger) {
+  QRY_PARAM_CHECK(pTrigger);
+  SStreamTrigger* p = NULL;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
+  if (code) {
+    return code;
+  }
+
+  p->type = STREAM_INPUT__GET_RES;
+  p->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (p->pBlock == NULL) {
+    taosFreeQitem(p);
+    return terrno;
+  }
+
+  p->pBlock->info.type = STREAM_GET_ALL;
+  *pTrigger = p;
   return code;
 }

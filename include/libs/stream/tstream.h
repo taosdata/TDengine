@@ -113,7 +113,7 @@ enum {
 
 enum {
   TASK_TRIGGER_STATUS__INACTIVE = 1,
-  TASK_TRIGGER_STATUS__ACTIVE,
+  TASK_TRIGGER_STATUS__MAY_ACTIVE,
 };
 
 typedef enum {
@@ -294,9 +294,10 @@ typedef struct SStreamStatus {
   int32_t          timerActive;    // timer is active
   int64_t          lastExecTs;     // last exec time stamp
   int32_t          inScanHistorySentinel;
-  bool             appendTranstateBlock;  // has append the transfer state data block already
+  bool             appendTranstateBlock;  // has appended the transfer state data block already
   bool             removeBackendFiles;    // remove backend files on disk when free stream tasks
   SConsenChkptInfo consenChkptInfo;
+  STimeWindow      latestForceWindow;     // latest generated time window, only valid in
 } SStreamStatus;
 
 typedef struct SDataRange {
