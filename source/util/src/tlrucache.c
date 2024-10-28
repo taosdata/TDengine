@@ -878,7 +878,10 @@ void taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseI
       shard->usage -= e->totalCharge;
     }
 
-    taosArrayPush(freeArray, &lastReference);
+    if (NULL == taosArrayPush(freeArray, &lastReference)) {
+      // TODO: handle this
+      continue;
+    }
   }
 
   if (shard != NULL) {
