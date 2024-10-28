@@ -127,6 +127,7 @@ class WalRetentionEnv : public ::testing::Test {
     SWalCfg cfg;
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
+    cfg.committed =-1;
     cfg.retentionPeriod = -1;
     cfg.retentionSize = 0;
     cfg.rollPeriod = 0;

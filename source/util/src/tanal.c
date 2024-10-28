@@ -137,7 +137,7 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
     if (optMaxLen > 0) {
       int32_t copyLen = optMaxLen;
       if (pos2 != NULL) {
-        copyLen = (int32_t)(pos2 - pos1 - strlen(optName) + 1);
+        copyLen = (int32_t)(pos2 - pos1 - strlen(optName));
         copyLen = MIN(copyLen, optMaxLen);
       }
       tstrncpy(optValue, pos1 + bufLen, copyLen);
@@ -148,14 +148,14 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
   }
 }
 
-bool taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) {
+bool taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue) {
   char    buf[TSDB_ANAL_ALGO_OPTION_LEN] = {0};
   int32_t bufLen = tsnprintf(buf, sizeof(buf), "%s=", optName);
 
   char *pos1 = strstr(option, buf);
   char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
   if (pos1 != NULL) {
-    *optValue = taosStr2Int32(pos1 + bufLen + 1, NULL, 10);
+    *optValue = taosStr2Int64(pos1 + bufLen, NULL, 10);
     return true;
   } else {
     return false;
@@ -204,7 +204,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   if (pRsp->data != NULL) {
     (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
     pRsp->data[pRsp->dataLen] = 0;
-    uDebug("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
+    uDebugL("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
     return pRsp->dataLen;
   } else {
     pRsp->dataLen = 0;
@@ -260,7 +260,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
 
-  uDebug("curl post request will sent, url:%s len:%d", url, bufLen);
+  uDebugL("curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);
@@ -305,7 +305,11 @@ SJson *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBu
 
   pJson = tjsonParse(curlRsp.data);
   if (pJson == NULL) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    if (curlRsp.data[0] == '<') {
+      terrno = TSDB_CODE_ANAL_ANODE_RETURN_ERROR;
+    } else {
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    }
     goto _OVER;
   }
 
@@ -728,7 +732,7 @@ SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pB
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
 bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return true; }
-bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue) { return true; }
+bool    taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue) { return true; }
 int64_t taosAnalGetVersion() { return 0; }
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) {}
 

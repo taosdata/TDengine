@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
-#include "tversion.h"
 #include "tanal.h"
+#include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -267,7 +267,7 @@ _OVER:
     }
 
     if (IsReq(pRpc)) {
-      SRpcMsg rsp = {.code = code, .info = pRpc->info};
+      SRpcMsg rsp = {.code = code, .info = pRpc->info, .msgType = pRpc->msgType + 1};
       if (code == TSDB_CODE_MNODE_NOT_FOUND) {
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
@@ -411,16 +411,19 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   rpcInit.noDelayFp = rpcNoDelayMsg;
 
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3) / 2;
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 2;
+  rpcInit.shareConn = 1;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);
@@ -466,8 +469,10 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 0;
+  rpcInit.readTimeout = 0;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);
@@ -514,8 +519,11 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 8;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
+
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);
   }
@@ -569,6 +577,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.shareConnLimit = tsShareConnLimit * 16;
 
   if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
     dError("failed to convert version string:%s to int", version);

@@ -25,11 +25,11 @@
 extern "C" {
 #endif
 
-#define ANAL_FORECAST_DEFAULT_PERIOD 10
-#define ANAL_FORECAST_DEFAULT_ROWS   10
-#define ANAL_FORECAST_DEFAULT_CONF   95
-#define ANAL_FORECAST_DEFAULT_ALPHA  0.05
-#define ANAL_FORECAST_DEFAULT_PARAM  "diff"
+#define ANAL_FORECAST_DEFAULT_ROWS    10
+#define ANAL_FORECAST_DEFAULT_CONF    95
+#define ANAL_FORECAST_DEFAULT_WNCHECK 1
+#define ANAL_FORECAST_MAX_ROWS        10000
+#define ANAL_ANOMALY_WINDOW_MAX_ROWS  10000
 
 typedef struct {
   EAnalAlgoType type;
@@ -69,7 +69,7 @@ SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pB
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
 bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
-bool    taosAnalGetOptInt(const char *option, const char *optName, int32_t *optValue);
+bool    taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue);
 int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 

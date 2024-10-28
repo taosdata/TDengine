@@ -1446,6 +1446,9 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
           return ret;
         }
         ofpCell = tdbPageGetCell(ofp, 0);
+        if (ofpCell == NULL) {
+          return TSDB_CODE_INVALID_DATA_FMT;
+        }
 
         if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
           bytes = nLeft;

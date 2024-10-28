@@ -299,7 +299,7 @@ void streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
     return;
   }
 
-  /*SStreamTask* p = */ streamMetaAcquireOneTask(pTask);  // add task ref here
+  int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);  // add task ref here
   streamTaskInitTaskCheckInfo(pInfo, &pTask->outputInfo, taosGetTimestampMs());
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);

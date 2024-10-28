@@ -887,7 +887,8 @@ _err:
 }
 
 static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
+      ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
     int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
     ((SLogicConditionNode*)pParam)->pParameterList = NULL;
     nodesDestroyNode(pParam);
@@ -3711,6 +3712,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair*
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
   CHECK_NAME(checkUserName(pCxt, pUserName));
+  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);

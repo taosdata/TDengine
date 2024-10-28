@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "cos.h"
 #include "functionMgt.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbIter.h"
@@ -221,6 +221,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   rocksdb_writebatch_t *writebatch = rocksdb_writebatch_create();
 
+  TAOS_CHECK_GOTO(taosThreadMutexInit(&pTsdb->rCache.writeBatchMutex, NULL), &lino, _err6) ;
+
   pTsdb->rCache.writebatch = writebatch;
   pTsdb->rCache.my_comparator = cmp;
   pTsdb->rCache.options = options;
@@ -232,6 +234,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   TAOS_RETURN(code);
 
+_err6:
+  rocksdb_writebatch_destroy(writebatch);
 _err5:
   rocksdb_close(pTsdb->rCache.db);
 _err4:
@@ -250,6 +254,7 @@ _err:
 
 static void tsdbCloseRocksCache(STsdb *pTsdb) {
   rocksdb_close(pTsdb->rCache.db);
+  (void)taosThreadMutexDestroy(&pTsdb->rCache.writeBatchMutex);
   rocksdb_flushoptions_destroy(pTsdb->rCache.flushoptions);
   rocksdb_writebatch_destroy(pTsdb->rCache.writebatch);
   rocksdb_readoptions_destroy(pTsdb->rCache.readoptions);
@@ -1077,7 +1082,9 @@ static int32_t tsdbCachePutToRocksdb(STsdb *pTsdb, SLastKey *pLastKey, SLastCol 
   }
 
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
+  (void)taosThreadMutexLock(&pTsdb->rCache.writeBatchMutex);
   rocksdb_writebatch_put(wb, (char *)pLastKey, ROCKS_KEY_LEN, rocks_value, vlen);
+  (void)taosThreadMutexUnlock(&pTsdb->rCache.writeBatchMutex);
 
   taosMemoryFree(rocks_value);
 
@@ -1251,7 +1258,8 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
       }
 
       if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
-        SLastCol lastColTmp = {.rowKey = *pRowKey, .colVal = *pColVal, .dirty = 0, .cacheStatus = TSDB_LAST_CACHE_VALID};
+        SLastCol lastColTmp = {
+            .rowKey = *pRowKey, .colVal = *pColVal, .dirty = 0, .cacheStatus = TSDB_LAST_CACHE_VALID};
         if ((code = tsdbCachePutToRocksdb(pTsdb, &idxKey->key, &lastColTmp)) != TSDB_CODE_SUCCESS) {
           tsdbError("tsdb/cache: vgId:%d, put rocks failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
                     tstrerror(code));
@@ -1698,8 +1706,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
     if (pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       code = tsdbCachePutToLRU(pTsdb, &idxKey->key, pLastCol, 0);
       if (code) {
-        tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+        tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
         taosMemoryFreeClear(pToFree);
         TAOS_CHECK_EXIT(code);
       }
@@ -3057,9 +3064,8 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
           iMax[nMax] = i;
           max[nMax++] = pIter->input[i].pRow;
-        } else {
-          pIter->input[i].next = false;
         }
+        pIter->input[i].next = false;
       }
     }
 
@@ -3513,7 +3519,7 @@ static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
 
   int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
 
-  TAOS_CHECK_RETURN(s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock));
+  TAOS_CHECK_RETURN(tcsGetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock));
 
   tsdbTrace("block:%p load from s3", *ppBlock);
 

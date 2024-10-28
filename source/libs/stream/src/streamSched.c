@@ -22,7 +22,7 @@ static void streamTaskSchedHelper(void* param, void* tmrId);
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
   int64_t delaySchema = pTask->info.delaySchedParam;
   if (delaySchema != 0 && pTask->info.fillHistory == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    int32_t ref = streamMetaAcquireOneTask(pTask);
     stDebug("s-task:%s setup scheduler trigger, ref:%d delay:%" PRId64 " ms", pTask->id.idStr, ref,
             pTask->info.delaySchedParam);
 
@@ -63,7 +63,11 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   pRunReq->reqType = execType;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  return tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  int32_t code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  if (code) {
+    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  }
+  return code;
 }
 
 void streamTaskClearSchedIdleInfo(SStreamTask* pTask) { pTask->status.schedIdleTime = 0; }
@@ -76,7 +80,7 @@ void streamTaskResumeInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  streamMetaAcquireOneTask(pTask);
+  int32_t unusedRetRef = streamMetaAcquireOneTask(pTask);
   streamTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer, &pTask->schedInfo.pIdleTimer,
                  pTask->pMeta->vgId, "resume-task-tmr");
 }

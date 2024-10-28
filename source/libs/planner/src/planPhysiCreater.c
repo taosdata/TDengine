@@ -1991,7 +1991,7 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 }
 
 static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
-                                         SForecastFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
+                                           SForecastFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
   SForecastFuncPhysiNode* pForecastFunc =
       (SForecastFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC);
   if (NULL == pForecastFunc) {
@@ -2604,6 +2604,12 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pFill->pNotFillExprs, pFill->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pFillNode->pFillNullExprs) > 0) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillNullExprs, &pFill->pFillNullExprs);
+    if (TSDB_CODE_SUCCESS == code ) {
+      code = addDataBlockSlots(pCxt, pFill->pFillNullExprs, pFill->node.pOutputDataBlockDesc);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {

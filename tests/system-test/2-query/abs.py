@@ -127,7 +127,7 @@ class TDTestCase:
     def prepare_tag_datas(self, dbname="testdb"):
         # prepare datas
         tdSql.execute(
-            f"create database if not exists {dbname} keep 3650 duration 1000  replica {self.replicaVar} ")
+            f"create database if not exists {dbname} keep 3650 duration 100 replica {self.replicaVar} ")
         tdSql.execute(" use testdb ")
         tdSql.execute(
             f'''create table {dbname}.stb1

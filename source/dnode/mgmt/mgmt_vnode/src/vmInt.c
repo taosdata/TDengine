@@ -213,12 +213,12 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
         taosQueueGetThreadId(pVnode->pApplyW.queue));
   tMultiWorkerCleanup(&pVnode->pApplyW);
 
-  dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
-  while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
-
   dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
+  while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   tqNotifyClose(pVnode->pImpl->pTq);
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);

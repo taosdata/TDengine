@@ -50,6 +50,7 @@ typedef struct {
   int32_t  rollPeriod;       // secs
   int64_t  retentionSize;
   int64_t  segSize;
+  int64_t  committed;
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];

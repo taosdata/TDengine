@@ -3293,8 +3293,44 @@ static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
   return TSDB_CODE_SUCCESS;
 }
 
+extern int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
+static int32_t selectCommonType(SDataType* commonType, const SDataType* newType) {
+  if (commonType->type < TSDB_DATA_TYPE_NULL || commonType->type >= TSDB_DATA_TYPE_MAX || 
+      newType->type < TSDB_DATA_TYPE_NULL || newType->type >= TSDB_DATA_TYPE_MAX) {
+        return TSDB_CODE_INVALID_PARA;
+  }
+  int8_t type1 = commonType->type;
+  int8_t type2 = newType->type;
+  int8_t resultType;
+  if (type1 < type2) {
+    resultType = gDisplyTypes[type1][type2];
+  } else {
+    resultType = gDisplyTypes[type2][type1];
+  }
+  if (resultType == -1) {
+      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+  }
+  if (commonType->type == newType->type) {
+    commonType->bytes = TMAX(commonType->bytes, newType->bytes);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (resultType == commonType->type){
+    return TSDB_CODE_SUCCESS;
+  }
+  if(resultType == newType->type) {
+    *commonType = *newType;
+    return TSDB_CODE_SUCCESS;
+  }
+  commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
+  if(resultType == TSDB_DATA_TYPE_VARCHAR && (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type))) {
+    commonType->bytes += TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE];
+  }
+  commonType->type = resultType;
+  return TSDB_CODE_SUCCESS;
+
+}
+
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
-  bool   first = true;
   bool   allNullThen = true;
   SNode* pNode = NULL;
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
@@ -3313,10 +3349,18 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       continue;
     }
     allNullThen = false;
-    if (first || dataTypeComp(&pCaseWhen->node.resType, &pThenExpr->resType) < 0) {
-      pCaseWhen->node.resType = pThenExpr->resType;
+    pCxt->errCode = selectCommonType(&pCaseWhen->node.resType, &pThenExpr->resType);
+    if(TSDB_CODE_SUCCESS != pCxt->errCode){
+      return DEAL_RES_ERROR;
     }
-    first = false;
+  }
+
+  SExprNode* pElseExpr = (SExprNode*)pCaseWhen->pElse;
+  if (NULL != pElseExpr) {
+    pCxt->errCode = selectCommonType(&pCaseWhen->node.resType, &pElseExpr->resType);
+    if(TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
   }
 
   if (allNullThen) {
@@ -10824,6 +10868,19 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   if (NULL == pSelect->pWindow && pSelect->hasAggFuncs) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Non window query only support scalar function, aggregate function is not allowed");
+  }
+
+  if (NULL != pStmt->pOptions->pDelay) {
+    SValueNode* pVal = (SValueNode*)pStmt->pOptions->pDelay;
+    int64_t minDelay = 0;
+    char* str = "5s";
+    if (DEAL_RES_ERROR != translateValue(pCxt, pVal) && TSDB_CODE_SUCCESS ==
+        parseNatualDuration(str, strlen(str), &minDelay, &pVal->unit, pVal->node.resType.precision, false)) {
+      if (pVal->datum.i < minDelay) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "stream max delay must be bigger than 5 session");
+      }
+    }
   }
 
   return TSDB_CODE_SUCCESS;

@@ -395,10 +395,11 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
     SetFilePointer(h, 0, NULL, FILE_END);
   }
   if (h == INVALID_HANDLE_VALUE) {
-    DWORD  dwError = GetLastError();
+    DWORD dwError = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
     // LPVOID lpMsgBuf;
-    // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf, 0,
+    // FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError, 0, (LPTSTR)&lpMsgBuf,
+    // 0,
     //               NULL);
     // printf("CreateFile failed with error %d: %s", dwError, (char *)lpMsgBuf);
     // LocalFree(lpMsgBuf);
@@ -915,7 +916,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   }
 
   struct stat fileStat;
-  int32_t code = fstat(pFile->fd, &fileStat);
+  int32_t     code = fstat(pFile->fd, &fileStat);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
@@ -983,7 +984,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
 
 #ifdef _TD_DARWIN_64
-  if(lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
+  if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -1015,7 +1016,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
   return writeLen;
 
-#else // for linux
+#else  // for linux
 
   int64_t leftbytes = size;
   int64_t sentbytes;
@@ -1126,7 +1127,7 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   if ((*ppFile)->hFile != NULL) {
     // FlushFileBuffers((*ppFile)->hFile);
     if (!CloseHandle((*ppFile)->hFile)) {
-      terrno  = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
       code = -1;
     }
     (*ppFile)->hFile = NULL;
@@ -1469,7 +1470,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   while (!feof(pSrcFile->fp)) {
     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
     if (len > 0) {
-      if(gzwrite(dstFp, data, len) == 0) {
+      if (gzwrite(dstFp, data, len) == 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         ret = terrno;
         goto cmp_end;
