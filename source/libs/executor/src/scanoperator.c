@@ -3467,7 +3467,7 @@ FETCH_NEXT_BLOCK:
         QUERY_CHECK_CODE(code, lino, _end);
 
         deletePartName(pInfo, pBlock);
-        pBlock->info.type = STREAM_DELETE_DATA;
+        goto FETCH_NEXT_BLOCK;
       } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
