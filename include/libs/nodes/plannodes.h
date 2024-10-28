@@ -333,6 +333,7 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
+  SNodeList*  pFillNullExprs;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -677,6 +678,7 @@ typedef struct SFillPhysiNode {
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
   STimeWindow timeRange;
+  SNodeList* pFillNullExprs;
 } SFillPhysiNode;
 
 typedef SFillPhysiNode SStreamFillPhysiNode;

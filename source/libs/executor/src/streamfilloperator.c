@@ -1201,7 +1201,7 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   QUERY_CHECK_CODE(code, lino, _end);
 
   pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
-                                            (const SNodeListNode*)(pPhyFillNode->pValues));
+                                            NULL, 0, (const SNodeListNode*)(pPhyFillNode->pValues));
   if (pFillSup->pAllColInfo == NULL) {
     code = terrno;
     lino = __LINE__;
