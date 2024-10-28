@@ -76,23 +76,6 @@ void *processShellMsg(void *arg) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-
-      if (pDataFile != NULL) {
-        if (taosWriteFile(pDataFile, pRpcMsg->pCont, pRpcMsg->contLen) < 0) {
-          tInfo("failed to write data file, reason:%s", strerror(errno));
-        }
-      }
-    }
-
-    if (commit >= 2) {
-      num += numOfMsgs;
-      // if (taosFsync(pDataFile) < 0) {
-      //  tInfo("failed to flush data to file, reason:%s", strerror(errno));
-      //}
-
-      if (num % 10000 == 0) {
-        tInfo("%d request have been written into disk", num);
-      }
     }
 
     taosResetQitems(qall);
@@ -108,15 +91,6 @@ void *processShellMsg(void *arg) {
       rpcSendResponse(&rpcMsg);
 
       taosFreeQitem(pRpcMsg);
-      // void *handle = pRpcMsg->info.handle;
-      //{
-      //  SRpcMsg nRpcMsg = {0};
-      //  nRpcMsg.pCont = rpcMallocCont(msgSize);
-      //  nRpcMsg.contLen = msgSize;
-      //  nRpcMsg.info.handle = handle;
-      //  nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
-      //  rpcSendResponse(&nRpcMsg);
-      //}
     }
 
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
@@ -206,7 +180,7 @@ int main(int argc, char *argv[]) {
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
 
-  int32_t numOfAthread = 20;
+  int32_t numOfAthread = 1;
   multiQ = taosMemoryMalloc(sizeof(MultiThreadQhandle));
   multiQ->numOfThread = numOfAthread;
   multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
@@ -222,11 +196,6 @@ int main(int argc, char *argv[]) {
     threads[i].idx = i;
     taosThreadCreate(&(threads[i].thread), NULL, processShellMsg, (void *)&threads[i]);
   }
-  // qhandle = taosOpenQueue();
-  // qset = taosOpenQset();
-  // taosAddIntoQset(qset, qhandle, NULL);
-
-  // processShellMsg();
 
   if (pDataFile != NULL) {
     taosCloseFile(&pDataFile);

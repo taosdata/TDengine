@@ -200,8 +200,8 @@ int main(int argc, char *argv[]) {
   }
   taosMemoryFree(pInfo);
 
-  int ch = getchar();
-  UNUSED(ch);
+  // int ch = getchar();
+  // UNUSED(ch);
 
   taosCloseLog();
 
