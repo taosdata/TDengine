@@ -4583,6 +4583,8 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.skey);
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.ekey);
   // for stream
   if (pTaskInfo->streamInfo.pState) {
     void*   buff = NULL;
