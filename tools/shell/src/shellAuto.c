@@ -1335,6 +1335,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     if (p) {
       tstrncpy(p, str, strLen + 1);
       tstrncpy(p + strLen, ";", 1 + 1);
+      lastWordBytes += 1;
       shellInsertStr(cmd, (char*)p, strLen + 1);
       taosMemoryFree(p);
     } else {
