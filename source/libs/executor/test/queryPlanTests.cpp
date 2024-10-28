@@ -371,6 +371,8 @@ int32_t qptGetColumnRandLen(int32_t colType) {
       assert(0);
       break;
   }
+
+  return 0;
 }
 
 

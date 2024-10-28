@@ -334,7 +334,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       HASH_NO_LOCK);
   if (NULL == planToTask) {
     SCH_JOB_ELOG("taosHashInit %d failed", SCHEDULE_DEFAULT_MAX_TASK_NUM);
-    SCH_ERR_RET(terrno);
+    SCH_ERR_JRET(terrno);
   }
 
   pJob->levels = taosArrayInit(levelNum, sizeof(SSchLevel));
@@ -363,7 +363,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum: %d", i, levelNum);
-      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
     pLevel->level = i;
