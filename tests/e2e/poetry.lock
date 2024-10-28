@@ -1918,7 +1918,7 @@ description = ""
 optional = false
 python-versions = "^3.9"
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
 kafka-python = "^2.0.2"

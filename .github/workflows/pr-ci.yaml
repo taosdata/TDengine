@@ -1,7 +1,7 @@
 name: PR-CI-workflow
 
 on:
-  workflow_dispatch:
+  # workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/pr-ci.yaml'
@@ -15,6 +15,7 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
+      - '.github/workflows/**'
 
 env:
   RELEASE_HOST: 192.168.1.45
@@ -27,6 +28,8 @@ env:
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
   ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
+  CFLAGS: -fno-builtin
+  CARGO_OPTS: --locked
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -80,63 +83,61 @@ jobs:
           mkdir -p explorer/dist/ || true
           docker run -v ${{ github.workspace }}:/app -v /root/.cargo/registry:/usr/local/cargo/registry -v /root/.cargo/git:/usr/local/cargo/git -w /app --rm $ARM_BUILDER_IMAGE sh -c "cargo check --workspace --target aarch64-unknown-linux-gnu"
 
-  build_rust:
+  build_taosx:
     needs: [check, check-arm]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
-      - name: Print Env
-        run: |
-          pwd
-          # rustup component add llvm-tools-preview
-          command -v cargo-llvm-cov || cargo install cargo-llvm-cov
-          command -v cargo-nextest || cargo install cargo-nextest
-          rustc --version
-          echo $DIR_PATH
 
       - name: Build taosx
         run: |
-          cargo build --locked
-      - name: taosx unit test
-        # continue-on-error: true
-        run: |
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-              echo "run taosx unit test"
-              cargo llvm-cov nextest --workspace
-              ls $ARTIFACT_BASE_DIR/$DIR_PATH/
-          fi
-      - name: Build agent
-        run: |
-          cargo build --package taosx-agent --locked
+          cargo make taosx
 
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp ./target/debug/taosx ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/release/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cd ..
+          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm taosx.tar.gz
+          tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
+
+  build_agent:
+    needs: [check, check-arm]
+    if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Build agent
+        run: |
+          cargo make taosx-agent
+
+      - name: Copy files
+        run: |
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/release/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_explorer:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
-      # - name: Check out repository code
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: taosdata/explorer
-      #     ref: '3.0'
-      #     token: ${{ secrets.GH_PAT }}
+      - name: Check out repository code
+        uses: actions/checkout@v4
 
       - name: Build explorer
         run: |
-          ssh root@$RELEASE_HOST "cd /data/github/explorer && git pull --prune && yarn install && yarn build:bin"
-          # yarn install && yarn build:bin
+          cargo make explorer
 
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
-          cp /data/github/explorer/target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
-          # cp ./target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp ./target/release/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_go:
     needs: remove_artifacts
@@ -243,8 +244,8 @@ jobs:
 
   deploy_with_docker:
     runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [build_rust, build_go, build_java, build_explorer]
-    if: ${{ always() && needs.build_rust.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success' }}
+    needs: [build_taosx, build_agent, build_go, build_java, build_explorer]
+    if: ${{ always() && needs.build_taosx.result == 'success' && needs.build_agent.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success'  }}
     outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
       RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
@@ -266,12 +267,10 @@ jobs:
         run: |
           for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
 
-          run_container_id=$(docker run --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          PWD=$(pwd)
+          echo "PWD: $PWD"
+          run_container_id=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
-          # 复制 TestNG_taosX 并删除 .pytest_cache
-          docker exec $run_container_id bash -c "ls /data/github/ || mkdir -p /data/github/"
-          docker cp /data/github/TestNG_taosX $run_container_id:/data/github
-          docker exec $run_container_id bash -c "rm -rf /data/github/TestNG_taosX/.pytest_cache"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
@@ -310,10 +309,20 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest  --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
+          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && poetry config virtualenvs.in-project true && source ./setenv.sh && poetry run pytest --cache-show"
+          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest  --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
-          # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \" && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity "
+          echo "date: $(date)"
+
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry lock --no-update && poetry install --no-root"
+
+          echo "date: $(date)"
+
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_setup"
+
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile\" && poetry add pytest-xdist && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/"
+
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -354,8 +363,7 @@ jobs:
 
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, test]
-    needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, generate_report, clean_up]
-    # needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, clean_up]
+    needs: [deploy_with_docker, run_test, generate_report, clean_up]
     if: failure()
     steps:
       - name: Send Feishu Message

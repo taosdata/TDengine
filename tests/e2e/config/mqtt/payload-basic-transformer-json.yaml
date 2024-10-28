@@ -1,7 +1,7 @@
 "parser": {
     "input": [
         {
-            "payload": "{\"id\": 500,\"current\": \"10.77\",\"phase\": \"0.77\",\"voltage\": \"220\",\"groupid\": 1,\"location\": \"California.SanDiego\",\"column1\": 9223372036854775807,\"column2\": 18446744073709551615,\"column3\": 32767,\"column4\": 65535,\"column5\": 127,\"data\": {\"column6\": 255,\"column7\": \"true\",\"column8\": \"MqttTest\"},\"column9\": \"true\",\"events\": [{\"price\": \"28405.2\",\"delta\": \"6\",\"boolValue\": \"true\"},{\"price\": \"38405.2\",\"delta\": \"7\", \"boolValue\": \"false\"}]}",
+            "payload": "{\"id\": 500,\"current\": \"10.77\",\"phase\": \"0.77\",\"voltage\": \"220\",\"groupid\": 1,\"location\": \"California.SanDiego\",\"column1\": 9223372036854775807,\"column2\": 18446744073709551615,\"column3\": 32767,\"column4\": 65535,\"column5\": 127,\"data\": {\"column6\": 255,\"column7\": \"true\",\"column8\": \"MqttTest\"},\"column9\": \"true\",\"events\": [{\"price\": \"28405.2\",\"delta\": \"6\",\"boolValue\": \"true\"},{\"price\": \"38405.2\",\"delta\": \"7\", \"boolValue\": \"false\"}], \"ts\": 1728715628548508873}",
             "qos": "qos",
             "topic": "topic",
             "ts": "2023-12-05T09:10:56+08:00"
@@ -22,9 +22,6 @@
             "using": "mqttstb"
         },
         "mutate": [
-            {
-                "filter": "id>=200"
-            },
             {
                 "map": {
                     "ts": {"cast": "ts", "as": "TIMESTAMP"},
@@ -53,7 +50,7 @@
         "parse": {
             "payload": {
                 "json": [
-                    "$.id","$.current","$.phase","$.voltage","$.groupid","$.location","$.column1",
+                    "$.ts","$.id","$.current","$.phase","$.voltage","$.groupid","$.location","$.column1",
                     "$.column2=column2::BIGINT UNSIGNED",
                     "$.column3","$.column4","$.column5",
                     "$.data.column6=column6",
