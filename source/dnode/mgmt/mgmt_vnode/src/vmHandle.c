@@ -538,7 +538,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
 
   bool commitAndRemoveWal = vnodeShouldRemoveWal(pVnode->pImpl);
-  vmCloseVnode(pMgmt, pVnode, commitAndRemoveWal);
+  vmCloseVnode(pMgmt, pVnode, commitAndRemoveWal, true);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
   char    path[TSDB_FILENAME_LEN] = {0};
@@ -686,7 +686,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, close vnode", srcVgId);
-  vmCloseVnode(pMgmt, pVnode, true);
+  vmCloseVnode(pMgmt, pVnode, true, false);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
   char    srcPath[TSDB_FILENAME_LEN] = {0};
@@ -795,7 +795,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
 
   bool commitAndRemoveWal = vnodeShouldRemoveWal(pVnode->pImpl);
-  vmCloseVnode(pMgmt, pVnode, commitAndRemoveWal);
+  vmCloseVnode(pMgmt, pVnode, commitAndRemoveWal, true);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
   char    path[TSDB_FILENAME_LEN] = {0};
@@ -863,7 +863,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 
-  vmCloseVnode(pMgmt, pVnode, false);
+  vmCloseVnode(pMgmt, pVnode, false, false);
   if (vmWriteVnodeListToFile(pMgmt) != 0) {
     dError("vgId:%d, failed to write vnode list since %s", vgId, terrstr());
   }
