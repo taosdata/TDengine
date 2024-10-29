@@ -221,7 +221,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   rocksdb_writebatch_t *writebatch = rocksdb_writebatch_create();
 
-  TAOS_CHECK_GOTO(taosThreadMutexInit(&pTsdb->rCache.writeBatchMutex, NULL), &lino, _err6) ;
+  TAOS_CHECK_GOTO(taosThreadMutexInit(&pTsdb->rCache.writeBatchMutex, NULL), &lino, _err6);
 
   pTsdb->rCache.writebatch = writebatch;
   pTsdb->rCache.my_comparator = cmp;
@@ -230,6 +230,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   pTsdb->rCache.readoptions = readoptions;
   pTsdb->rCache.flushoptions = flushoptions;
   pTsdb->rCache.db = db;
+  pTsdb->rCache.suid = -1;
+  pTsdb->rCache.uid = -1;
   pTsdb->rCache.pTSchema = NULL;
 
   TAOS_RETURN(code);
@@ -1302,6 +1304,22 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid) {
+  if (suid) {
+    if (pTsdb->rCache.suid == suid) {
+      pTsdb->rCache.uid = uid;
+      return 0;
+    }
+  } else if (pTsdb->rCache.uid == uid) {
+    return 0;
+  }
+
+  pTsdb->rCache.suid = suid;
+  pTsdb->rCache.uid = uid;
+  tDestroyTSchema(pTsdb->rCache.pTSchema);
+  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTsdb->rCache.pTSchema);
+}
+
 int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,
                                  SRow **aRow) {
   int32_t code = 0, lino = 0;
@@ -1314,7 +1332,11 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   SArray    *ctxArray = NULL;
   SSHashObj *iColHash = NULL;
 
+  TAOS_CHECK_GOTO(tsdbUpdateSkm(pTsdb, suid, uid), &lino, _exit);
+  pTSchema = pTsdb->rCache.pTSchema;
+  /*
   TAOS_CHECK_GOTO(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema), &lino, _exit);
+  */
 
   TSDBROW tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t nCol = pTSchema->numOfCols;
@@ -1393,7 +1415,7 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   }
 
 _exit:
-  taosMemoryFreeClear(pTSchema);
+  // taosMemoryFreeClear(pTSchema);
   taosArrayDestroy(ctxArray);
   tSimpleHashCleanup(iColHash);
 

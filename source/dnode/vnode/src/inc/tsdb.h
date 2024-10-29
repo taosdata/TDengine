@@ -342,7 +342,9 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
-  TdThreadMutex                       writeBatchMutex;
+  TdThreadMutex                        writeBatchMutex;
+  tb_uid_t                             suid;
+  tb_uid_t                             uid;
   STSchema                            *pTSchema;
 } SRocksCache;
 
