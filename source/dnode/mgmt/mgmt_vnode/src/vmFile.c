@@ -19,6 +19,54 @@
 
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
+int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
+  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+
+  int32_t num = 0;
+  int32_t size = taosHashGetSize(pMgmt->hash);
+  int32_t closedSize = taosHashGetSize(pMgmt->closedHash);
+  size += closedSize;
+  SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
+  if (pVnodes == NULL) {
+    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    return terrno;
+  }
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    SVnodeObj  *pVnode = *ppVnode;
+    if (pVnode && num < size) {
+      int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      pVnodes[num++] = (*ppVnode);
+      pIter = taosHashIterate(pMgmt->hash, pIter);
+    } else {
+      taosHashCancelIterate(pMgmt->hash, pIter);
+    }
+  }
+
+  pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    SVnodeObj  *pVnode = *ppVnode;
+    if (pVnode && num < size) {
+      int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      pVnodes[num++] = (*ppVnode);
+      pIter = taosHashIterate(pMgmt->closedHash, pIter);
+    } else {
+      taosHashCancelIterate(pMgmt->closedHash, pIter);
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  *numOfVnodes = num;
+  *ppVnodes = pVnodes;
+
+  return 0;
+}
+
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
   (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
@@ -204,6 +252,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
   int32_t     lino = 0;
+  int32_t     ret = -1;
 
   int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(file)) {
@@ -216,7 +265,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
 
   int32_t numOfVnodes = 0;
-  TAOS_CHECK_GOTO(vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes), &lino, _OVER);
+  TAOS_CHECK_GOTO(vmGetAllVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes), &lino, _OVER);
 
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
@@ -233,34 +282,46 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER;
   }
 
+  code = taosThreadMutexLock(&pMgmt->fileLock);
+  if (code != 0) {
+    lino = __LINE__;
+    goto _OVER;
+  }
+
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
   if (taosFsyncFile(pFile) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     lino = __LINE__;
-    goto _OVER;
+    goto _OVER1;
   }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER);
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER1);
 
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
+
+_OVER1:
+  ret = taosThreadMutexUnlock(&pMgmt->fileLock);
+  if (ret != 0) {
+    dError("failed to unlock since %s", tstrerror(ret));
+  }
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
