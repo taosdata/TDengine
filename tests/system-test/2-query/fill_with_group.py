@@ -344,9 +344,35 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(55)
 
-        # TODO Fix Me!
-        sql = "explain SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like '%asd');"
-        tdSql.error(sql, -2147473664) # Error: Planner internal error
+        sql = "SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like '%asd');"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like 'asd%');"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(0)
+        
+        sql = "SELECT c1 FROM meters PARTITION BY c1 HAVING c1 > 0 slimit 2 limit 10"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(20)
+
+        sql = "SELECT t1 FROM meters PARTITION BY t1 HAVING(t1 = 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(20000)
+
+        sql = "SELECT concat(t2, 'asd') FROM meters PARTITION BY t2 HAVING(t2 like '%5')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 'tb5asd')
+
+        sql = "SELECT concat(t2, 'asd') FROM meters PARTITION BY concat(t2, 'asd') HAVING(concat(t2, 'asd')like '%5%')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 'tb5asd')
+
+        sql = "SELECT avg(c1) FROM meters PARTITION BY tbname, t1 HAVING(t1 = 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
 
     def run(self):
         self.prepareTestEnv()
