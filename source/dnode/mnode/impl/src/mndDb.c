@@ -883,12 +883,20 @@ static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int6
   }
 }
 
-static int32_t mndCheckDbDnodeList(SMnode *pMnode, SCreateDbReq *pReq, SArray *dnodeList) {
-  if (pReq->dnodeListStr[0] == 0) return 0;
+static int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
+  if (dnodeListStr[0] == 0) return 0;
 
-  mInfo("db:%s, dnode list is %s", pReq->db, pReq->dnodeListStr);
+  mInfo("db:%s, dnode list is %s", db, dnodeListStr);
 
-  char *pos = pReq->dnodeListStr;
+  int32_t len = strlen(dnodeListStr);
+  for (int32_t i = 0; i < len; ++i) {
+    if ((dnodeListStr[i] < '0' || dnodeListStr[i] > '9') && dnodeListStr[i] != ',') {
+      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
+      return terrno;
+    }
+  }
+
+  char *pos = dnodeListStr;
   while (pos != NULL) {
     if (pos[0] < '0' || pos[0] > '9') {
       terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
@@ -904,7 +912,7 @@ static int32_t mndCheckDbDnodeList(SMnode *pMnode, SCreateDbReq *pReq, SArray *d
         return terrno;
       }
     } else {
-      mError("db:%s, invalid dnode:%d from pos:%s", pReq->db, dnodeId, pos);
+      mError("db:%s, invalid dnode:%d from pos:%s", db, dnodeId, pos);
       terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
       return terrno;
     }
@@ -1027,7 +1035,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, &createReq, dnodeList), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
@@ -1218,12 +1226,13 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
+static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb,
+                                        SArray *dnodeList) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, dnodeList);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -1262,7 +1271,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew, SArray *dnodeList) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) {
@@ -1277,7 +1286,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   TAOS_CHECK_GOTO(mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew, dnodeList), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
@@ -1292,6 +1301,13 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SDbObj     *pDb = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
+  SArray     *dnodeList = NULL;
+
+  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
+  if (dnodeList == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   TAOS_CHECK_GOTO(tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq), NULL, _OVER);
 
@@ -1334,9 +1350,11 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckInChangeDbCfg(pMnode, &pDb->cfg, &dbObj.cfg), NULL, _OVER);
 
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, alterReq.db, alterReq.dnodeListStr, dnodeList), NULL, _OVER);
+
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj, dnodeList);
 
   if (dbObj.cfg.replications != pDb->cfg.replications) {
     // return quickly, operation executed asynchronously
@@ -1360,6 +1378,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   taosArrayDestroy(dbObj.cfg.pRetensions);
   tFreeSAlterDbReq(&alterReq);
+  taosArrayDestroy(dnodeList);
 
   TAOS_RETURN(code);
 }
