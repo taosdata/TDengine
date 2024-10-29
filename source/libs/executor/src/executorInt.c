@@ -1082,18 +1082,13 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 
 bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
-  if (LIST_LENGTH(pGroupList) == 1) {
-    SNode* p = nodesListGetNode(pGroupList, 0);
-    if (!p) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return false;
-    }
-    if (p->type == QUERY_NODE_FUNCTION) {
-      // partition by tbname/group by tbname
-      bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
+  SNode*pNode = NULL;
+  FOREACH(pNode, pGroupList) {
+    if (pNode->type == QUERY_NODE_FUNCTION) {
+      bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
+      break;
     }
   }
-
   return bytbname;
 }
 
