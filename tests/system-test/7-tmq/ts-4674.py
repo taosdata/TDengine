@@ -39,7 +39,7 @@ class TDTestCase:
         while True:
             leader_after = -1
             tdLog.debug("balancing vgroup leader")
-            tdSql.query("balance vgroup leader")
+            tdSql.execute("balance vgroup leader")
             while True:
                 tdLog.debug("get new vgroup leader")
                 leader_after = self.get_leader()
