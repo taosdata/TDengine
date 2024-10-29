@@ -109,6 +109,14 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
       dataLen = varDataTLen(pData);
     }
 
+    if(rowIndex == 0 && pColumnInfoData->varmeta.length > 0) {
+      return 0;
+    }
+    if (pColumnInfoData->varmeta.offset[rowIndex] > 0 &&
+        pColumnInfoData->varmeta.offset[rowIndex] < pColumnInfoData->varmeta.length) {
+      return 0;
+    }
+
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
     if (pAttr->allocLen < pAttr->length + dataLen) {
       uint32_t newSize = pAttr->allocLen;
@@ -3552,7 +3560,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
       BLOCK_DATA_CHECK_TRESSA(pCol->nullbitmap);
     }
 
-    nextPos = 0;
+    nextPos = -1;
     for (int64_t r = 0; r < checkRows; ++r) {
       if (tsSafetyCheckLevel <= TSDB_SAFETY_CHECK_LEVELL_NORMAL) break;
       if (!colDataIsNull_s(pCol, r)) {
@@ -3564,7 +3572,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] <= pCol->varmeta.length);
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] >= 0);
-          } else if (0 == r) {
+          } else if (0 == r || nextPos == -1) {
             nextPos = pCol->varmeta.offset[r];
           } else {
             BLOCK_DATA_CHECK_TRESSA(pCol->varmeta.offset[r] == nextPos);
