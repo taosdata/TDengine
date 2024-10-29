@@ -847,6 +847,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           }
         }
       } else {
+        tsdbError("invalid version key version: %"PRId64 " merge version: %"PRId64, key.version, pMerger->version);
         return TSDB_CODE_INVALID_PARA;
       }
     }

@@ -1570,10 +1570,10 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   tstrncpy(pCxt->pCreateStreamReq->sourceDB, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(pCxt->pCreateStreamReq->targetStbFullName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
   pCxt->pCreateStreamReq->igExists = false;
-  pCxt->pCreateStreamReq->triggerType = STREAM_TRIGGER_MAX_DELAY;
+  pCxt->pCreateStreamReq->triggerType = STREAM_TRIGGER_WINDOW_CLOSE;
   pCxt->pCreateStreamReq->igExpired = false;
   pCxt->pCreateStreamReq->fillHistory = STREAM_FILL_HISTORY_ON;
-  pCxt->pCreateStreamReq->maxDelay = 10000;
+  //pCxt->pCreateStreamReq->maxDelay = 10000;
   pCxt->pCreateStreamReq->watermark = 0;
   pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags + 1 : 1;
   pCxt->pCreateStreamReq->checkpointFreq = 0;

@@ -1032,7 +1032,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   }
 
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
-  if (!onlySubmitData || pTask->subtableWithoutMd5 == 1) {
+  if (!onlySubmitData) {
     tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has delete block, submit one-by-one", vgId, id,
             numOfBlocks);
 

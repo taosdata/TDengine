@@ -1822,5 +1822,14 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
-  return streamTrySchedExec(pTask);
+  int32_t cnt = streamQueueGetNumOfItems(pTask->inputq.queue);
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    if (cnt > 2) {
+      return streamTrySchedExec(pTask);
+    } else {
+      return 0;
+    }
+  } else {
+    return streamTrySchedExec(pTask);
+  }
 }

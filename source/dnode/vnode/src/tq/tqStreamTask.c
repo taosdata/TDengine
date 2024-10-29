@@ -432,7 +432,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     streamMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {
-      noDataInWal = false;
+      noDataInWal = false ;
       code = streamTrySchedExec(pTask);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);
