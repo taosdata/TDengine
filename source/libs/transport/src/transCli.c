@@ -1307,8 +1307,6 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, q);
     transQueuePush(&conn->reqsSentOut, &pReq->q);
   }
-  QUEUE_INIT(&wrapper->node);
-
   freeWReqToWQ(&conn->wq, wrapper);
 
   int32_t ref = transUnrefCliHandle(conn);
@@ -1501,8 +1499,6 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       SCliReq* pReq = QUEUE_DATA(h, SCliReq, q);
       transQueuePush(&pConn->reqsToSend, &pReq->q);
     }
-    QUEUE_INIT(&pWreq->node);
-
     freeWReqToWQ(&pConn->wq, req->data);
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_UNUSED(transUnrefCliHandle(pConn));
