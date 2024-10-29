@@ -4017,7 +4017,6 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withArbitrator));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dnodeListStr));
 
   tEndEncode(&encoder);
 
@@ -4085,10 +4084,6 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->withArbitrator));
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dnodeListStr));
   }
 
   tEndDecode(&decoder);

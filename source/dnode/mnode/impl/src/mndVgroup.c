@@ -727,7 +727,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
     bool inDnodeList = false;
     for (int32_t index = 0; index < taosArrayGetSize(dnodeList); ++index) {
       int32_t dnodeId = *(int32_t *)taosArrayGet(dnodeList, index);
-      if (pDnode->id) {
+      if (pDnode->id == dnodeId) {
         inDnodeList = true;
       }
     }

@@ -462,8 +462,8 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
   if (pCfg->hashMethod != 1) return code;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
-    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-    return code;
+    code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    TAOS_RETURN(code);
   }
   if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return code;
   if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return code;
@@ -1226,13 +1226,12 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb,
-                                        SArray *dnodeList) {
+static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0, dnodeList);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -1271,7 +1270,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew, SArray *dnodeList) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) {
@@ -1286,7 +1285,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   TAOS_CHECK_GOTO(mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew, dnodeList), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
@@ -1301,13 +1300,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SDbObj     *pDb = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
-  SArray     *dnodeList = NULL;
-
-  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
-  if (dnodeList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
 
   TAOS_CHECK_GOTO(tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq), NULL, _OVER);
 
@@ -1350,11 +1342,9 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckInChangeDbCfg(pMnode, &pDb->cfg, &dbObj.cfg), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, alterReq.db, alterReq.dnodeListStr, dnodeList), NULL, _OVER);
-
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndAlterDb(pMnode, pReq, pDb, &dbObj, dnodeList);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
 
   if (dbObj.cfg.replications != pDb->cfg.replications) {
     // return quickly, operation executed asynchronously
@@ -1378,7 +1368,6 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   taosArrayDestroy(dbObj.cfg.pRetensions);
   tFreeSAlterDbReq(&alterReq);
-  taosArrayDestroy(dnodeList);
 
   TAOS_RETURN(code);
 }
