@@ -280,7 +280,7 @@ db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                 
 db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STT_TRIGGER, &C); }
 db_options(A) ::= db_options(B) TABLE_PREFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, C); }
 db_options(A) ::= db_options(B) TABLE_SUFFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, C); }
-db_options(A) ::= db_options(B) S3_CHUNKSIZE NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_CHUNKSIZE, &C); }
+db_options(A) ::= db_options(B) S3_CHUNKPAGES NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_CHUNKPAGES, &C); }
 db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
 db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_VARIABLE(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
 db_options(A) ::= db_options(B) S3_COMPACT NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_COMPACT, &C); }

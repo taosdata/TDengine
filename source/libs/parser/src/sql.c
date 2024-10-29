@@ -150,7 +150,7 @@
 #define TK_STT_TRIGGER                    104
 #define TK_TABLE_PREFIX                   105
 #define TK_TABLE_SUFFIX                   106
-#define TK_S3_CHUNKSIZE                   107
+#define TK_S3_CHUNKPAGES                  107
 #define TK_S3_KEEPLOCAL                   108
 #define TK_S3_COMPACT                     109
 #define TK_KEEP_TIME_OFFSET               110
@@ -1982,7 +1982,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /* STT_TRIGGER => nothing */
     0,  /* TABLE_PREFIX => nothing */
     0,  /* TABLE_SUFFIX => nothing */
-    0,  /* S3_CHUNKSIZE => nothing */
+    0,  /* S3_CHUNKPAGES => nothing */
     0,  /* S3_KEEPLOCAL => nothing */
     0,  /* S3_COMPACT => nothing */
     0,  /* KEEP_TIME_OFFSET => nothing */
@@ -2460,7 +2460,7 @@ static const char *const yyTokenName[] = {
   /*  104 */ "STT_TRIGGER",
   /*  105 */ "TABLE_PREFIX",
   /*  106 */ "TABLE_SUFFIX",
-  /*  107 */ "S3_CHUNKSIZE",
+  /*  107 */ "S3_CHUNKPAGES",
   /*  108 */ "S3_KEEPLOCAL",
   /*  109 */ "S3_COMPACT",
   /*  110 */ "KEEP_TIME_OFFSET",
@@ -3073,7 +3073,7 @@ static const char *const yyRuleName[] = {
  /* 136 */ "db_options ::= db_options STT_TRIGGER NK_INTEGER",
  /* 137 */ "db_options ::= db_options TABLE_PREFIX signed",
  /* 138 */ "db_options ::= db_options TABLE_SUFFIX signed",
- /* 139 */ "db_options ::= db_options S3_CHUNKSIZE NK_INTEGER",
+ /* 139 */ "db_options ::= db_options S3_CHUNKPAGES NK_INTEGER",
  /* 140 */ "db_options ::= db_options S3_KEEPLOCAL NK_INTEGER",
  /* 141 */ "db_options ::= db_options S3_KEEPLOCAL NK_VARIABLE",
  /* 142 */ "db_options ::= db_options S3_COMPACT NK_INTEGER",
@@ -4534,7 +4534,7 @@ static const YYCODETYPE yyRuleInfoLhs[] = {
    415,  /* (136) db_options ::= db_options STT_TRIGGER NK_INTEGER */
    415,  /* (137) db_options ::= db_options TABLE_PREFIX signed */
    415,  /* (138) db_options ::= db_options TABLE_SUFFIX signed */
-   415,  /* (139) db_options ::= db_options S3_CHUNKSIZE NK_INTEGER */
+   415,  /* (139) db_options ::= db_options S3_CHUNKPAGES NK_INTEGER */
    415,  /* (140) db_options ::= db_options S3_KEEPLOCAL NK_INTEGER */
    415,  /* (141) db_options ::= db_options S3_KEEPLOCAL NK_VARIABLE */
    415,  /* (142) db_options ::= db_options S3_COMPACT NK_INTEGER */
@@ -5324,7 +5324,7 @@ static const signed char yyRuleInfoNRhs[] = {
    -3,  /* (136) db_options ::= db_options STT_TRIGGER NK_INTEGER */
    -3,  /* (137) db_options ::= db_options TABLE_PREFIX signed */
    -3,  /* (138) db_options ::= db_options TABLE_SUFFIX signed */
-   -3,  /* (139) db_options ::= db_options S3_CHUNKSIZE NK_INTEGER */
+   -3,  /* (139) db_options ::= db_options S3_CHUNKPAGES NK_INTEGER */
    -3,  /* (140) db_options ::= db_options S3_KEEPLOCAL NK_INTEGER */
    -3,  /* (141) db_options ::= db_options S3_KEEPLOCAL NK_VARIABLE */
    -3,  /* (142) db_options ::= db_options S3_COMPACT NK_INTEGER */
@@ -6513,8 +6513,8 @@ static YYACTIONTYPE yy_reduce(
 { yylhsminor.yy980 = setDatabaseOption(pCxt, yymsp[-2].minor.yy980, DB_OPTION_TABLE_SUFFIX, yymsp[0].minor.yy980); }
   yymsp[-2].minor.yy980 = yylhsminor.yy980;
         break;
-      case 139: /* db_options ::= db_options S3_CHUNKSIZE NK_INTEGER */
-{ yylhsminor.yy980 = setDatabaseOption(pCxt, yymsp[-2].minor.yy980, DB_OPTION_S3_CHUNKSIZE, &yymsp[0].minor.yy0); }
+      case 139: /* db_options ::= db_options S3_CHUNKPAGES NK_INTEGER */
+{ yylhsminor.yy980 = setDatabaseOption(pCxt, yymsp[-2].minor.yy980, DB_OPTION_S3_CHUNKPAGES, &yymsp[0].minor.yy0); }
   yymsp[-2].minor.yy980 = yylhsminor.yy980;
         break;
       case 140: /* db_options ::= db_options S3_KEEPLOCAL NK_INTEGER */

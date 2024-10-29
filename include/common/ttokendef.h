@@ -122,7 +122,7 @@
 #define TK_STT_TRIGGER                    104
 #define TK_TABLE_PREFIX                   105
 #define TK_TABLE_SUFFIX                   106
-#define TK_S3_CHUNKSIZE                   107
+#define TK_S3_CHUNKPAGES                  107
 #define TK_S3_KEEPLOCAL                   108
 #define TK_S3_COMPACT                     109
 #define TK_KEEP_TIME_OFFSET               110
@@ -405,7 +405,6 @@
 #define TK_VALUES                         387
 #define TK_VARIABLE                       388
 #define TK_WAL                            389
-
 
 
 #define TK_NK_SPACE   600
