@@ -493,7 +493,7 @@ int tsdbCacheFlushDirty(const void *key, size_t klen, void *value, void *ud) {
 int32_t tsdbCacheCommit(STsdb *pTsdb) {
   int32_t code = 0;
   char   *err = NULL;
-  /*
+
   SLRUCache            *pCache = pTsdb->lruCache;
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
 
@@ -511,7 +511,7 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
     rocksdb_free(err);
     code = TSDB_CODE_FAILED;
   }
-  */
+
   TAOS_RETURN(code);
 }
 
