@@ -17,8 +17,7 @@
 #include "shellInt.h"
 #include "shellAuto.h"
 
-SShellObj shell = {0};
-
+extern SShellObj shell;
 
 void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGTERM);

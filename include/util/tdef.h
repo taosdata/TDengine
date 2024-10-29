@@ -451,7 +451,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MIN_S3_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_S3_CHUNK_SIZE     (1024 * 1024)
-#define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
+#define TSDB_DEFAULT_S3_CHUNK_SIZE (128 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
 #define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
