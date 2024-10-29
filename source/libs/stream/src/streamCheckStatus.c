@@ -749,7 +749,7 @@ void rspMonitorFn(void* param, void* tmrId) {
 
     streamTaskCompleteCheckRsp(pInfo, true, id);
 
-    // not record the failed of the current task if try to close current vnode
+    // not record the failure of the current task if try to close current vnode
     // otherwise, the put of message operation may incur invalid read of message queue.
     if (!pMeta->closeFlag) {
       int32_t code = addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);

@@ -352,7 +352,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && type != STREAM_INPUT__CHECKPOINT_TRIGGER &&
       (pTask->info.delaySchedParam != 0)) {
     (void)atomic_val_compare_exchange_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE,
-                                        TASK_TRIGGER_STATUS__ACTIVE);
+                                        TASK_TRIGGER_STATUS__MAY_ACTIVE);
     stDebug("s-task:%s new data arrived, active the sched-trigger, triggerStatus:%d", pTask->id.idStr,
             pTask->schedInfo.status);
   }
