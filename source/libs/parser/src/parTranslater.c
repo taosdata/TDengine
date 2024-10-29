@@ -1607,26 +1607,6 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     }
   }
   if (*pFound) {
-    if (QUERY_NODE_FUNCTION == nodeType(pFoundNode) &&
-        (SQL_CLAUSE_GROUP_BY == pCxt->currClause || SQL_CLAUSE_PARTITION_BY == pCxt->currClause)) {
-      pCxt->errCode = getFuncInfo(pCxt, (SFunctionNode*)pFoundNode);
-      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-        if (fmIsVectorFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, (*pCol)->colName);
-          return DEAL_RES_ERROR;
-        } else if (fmIsPseudoColumnFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-          if ('\0' != (*pCol)->tableAlias[0]) {
-            return translateColumnWithPrefix(pCxt, pCol);
-          } else {
-            return translateColumnWithoutPrefix(pCxt, pCol);
-          }
-        } else {
-          /* Do nothing and replace old node with found node. */
-        }
-      } else {
-        return DEAL_RES_ERROR;
-      }
-    }
     SNode*  pNew = NULL;
     int32_t code = nodesCloneNode(pFoundNode, &pNew);
     if (NULL == pNew) {
@@ -5496,8 +5476,7 @@ static EDealRes translateGroupPartitionByImpl(SNode** pNode, void* pContext) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   STranslateContext*       pTransCxt = pCxt->pTranslateCxt;
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
-    STranslateContext* pTransCxt = pCxt->pTranslateCxt;
-    SValueNode*        pVal = (SValueNode*)*pNode;
+    SValueNode* pVal = (SValueNode*) *pNode;
     if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
       return DEAL_RES_CONTINUE;
     }
@@ -5506,7 +5485,7 @@ static EDealRes translateGroupPartitionByImpl(SNode** pNode, void* pContext) {
     }
     int32_t pos = getPositionValue(pVal);
     if (0 < pos && pos <= LIST_LENGTH(pProjectionList)) {
-      SNode*  pNew = NULL;
+      SNode* pNew = NULL;
       code = nodesCloneNode(nodesListGetNode(pProjectionList, pos - 1), (SNode**)&pNew);
       if (TSDB_CODE_SUCCESS != code) {
         pCxt->pTranslateCxt->errCode = code;
