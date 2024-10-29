@@ -451,13 +451,6 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   code = taosThreadRwlockAttrDestroy(&attr);
   TSDB_CHECK_CODE(code, lino, _err);
 
-  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
-  TSDB_CHECK_NULL(pRid, code, lino, _err, terrno);
-
-  memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
-  code = metaRefMgtAdd(pMeta->vgId, pRid);
-  TSDB_CHECK_CODE(code, lino, _err);
-
   code = bkdMgtCreate(tpath, (SBkdMgt**)&pMeta->bkdChkptMgt);
   TSDB_CHECK_CODE(code, lino, _err);
 
@@ -466,6 +459,15 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
 
   // add refId at the end of initialization function
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
+
+  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  TSDB_CHECK_NULL(pRid, code, lino, _err, terrno);
+
+  memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
+
+  code = metaRefMgtAdd(pMeta->vgId, pRid);
+  TSDB_CHECK_CODE(code, lino, _err);
+
   code = createMetaHbInfo(pRid, &pMeta->pHbInfo);
 
   TSDB_CHECK_CODE(code, lino, _err);
