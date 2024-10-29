@@ -348,6 +348,18 @@ class TDTestCase(TBase):
         # tdSql.query("select case c_float when 2.2 then 9.2233720e+18 when 3.3 then -9.2233720e+18 else 'aa' end from st1;")
         # tdSql.query("select case t1.c_int when 2 then 'run' when t1.c_int is null then 'other' else t2.c_varchar end from st1 t1, st2 t2 where t1.ts=t2.ts;")
 
+        tdSql.query("select avg(case when c_tinyint>=2 then c_tinyint else c_null end) from st1;")
+        assert(tdSql.checkRows(1) and tdSql.res == [(6.0,)])
+        
+        tdSql.query("select sum(case when c_tinyint>=2 then c_tinyint else c_null end) from st1;")
+        assert(tdSql.checkRows(1) and tdSql.res == [(54,)])
+        
+        tdSql.query("select first(case when c_int >=2 then 'abc' else 0 end) from st1;")
+        assert(tdSql.checkRows(1) and tdSql.res == [('abc',)])
+        
+        tdSql.query("select last(case when c_int >=2 then c_int else 0 end) from st1;")
+        assert(tdSql.checkRows(1) and tdSql.res == [(0,)])
+
     def run(self):
         self.prepare_data()
         self.test_case_when_statements()
