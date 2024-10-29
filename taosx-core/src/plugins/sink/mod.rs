@@ -3533,7 +3533,7 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
                 ))?
                 .code
                 .clone();
-            let drop_sql = format!("DROP TABLE IF EXISTS {}", tbname);
+            let drop_sql = format!("DROP TABLE IF EXISTS `{}`", tbname);
             qid.add_sub_batch_id();
             tracing::info!("drop table sql: {drop_sql}");
             taos.exec_with_req_id(&drop_sql, qid.get())
