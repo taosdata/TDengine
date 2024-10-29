@@ -434,7 +434,6 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->closeFlag = false;
 
   stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
-  pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
   // set the attribute when running on Linux OS
   TdThreadRwlockAttr attr;
@@ -467,6 +466,9 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
 
   code = taosThreadMutexInit(&pMeta->backendMutex, NULL);
   TSDB_CHECK_CODE(code, lino, _err);
+
+  // add refId at the end of initialization function
+  pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
   *p = pMeta;
   return code;
