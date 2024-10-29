@@ -1,8 +1,9 @@
 import os
 import taos
-import time
+import sys
 from datetime import datetime
-from frame.log import *
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from frame.log import tdLog
 import subprocess
 from multiprocessing import Process
 import threading
@@ -40,28 +41,35 @@ except Exception as e:
     default=180000,
     help="max poll interval timeout:ms",
 )
-def test_timeout_sub(consumer_group_num, session_timeout_ms, max_poll_interval_ms):
+@click.option(
+    "-t",
+    "--topic-name",
+    "topic_name",
+    default="select_d1",
+    help="topic name",
+)
+def test_timeout_sub(consumer_group_num, session_timeout_ms, max_poll_interval_ms, topic_name):
     threads = []
-    tdLog.info(consumer_group_num, session_timeout_ms, max_poll_interval_ms)
+    tdLog.info(f"consumer_group_num:{consumer_group_num}, session_timeout_ms:{session_timeout_ms}, max_poll_interval_ms:{max_poll_interval_ms}")
     for id in range(consumer_group_num):
         conf = set_conf(
             group_id=id,
             session_timeout_ms=session_timeout_ms,
             max_poll_interval_ms=max_poll_interval_ms,
         )
-        tdLog.info(conf)
-        threads.append(threading.Thread(target=taosc_consumer, args=(conf,)))
+        tdLog.info(f"conf:{conf}")
+        threads.append(threading.Thread(target=taosc_consumer, args=(conf,topic_name)))
     for tr in threads:
         tr.start()
     for tr in threads:
         tr.join()
 
 
-def sub_consumer(consumer, group_id):
+def sub_consumer(consumer, group_id, topic_name):
     group_id = int(group_id)
     if group_id < 100:
         try:
-            consumer.subscribe(["select_d1"])
+            consumer.subscribe([topic_name])
         except Exception as e:
             tdLog.info(f"subscribe error")
             exit(1)
@@ -93,10 +101,10 @@ def sub_consumer(consumer, group_id):
         # consumer.close()
 
 
-def sub_consumer_once(consumer, group_id):
+def sub_consumer_once(consumer, group_id, topic_name):
     group_id = int(group_id)
     if group_id < 100:
-        consumer.subscribe(["select_d1"])
+        consumer.subscribe([topic_name])
     nrows = 0
     consumer_nrows = 0
     while True:
@@ -160,12 +168,12 @@ def set_conf(
     return conf
 
 
-def taosc_consumer(conf):
+def taosc_consumer(conf,topic_name):
     consumer = Consumer(conf)
     group_id = int(conf["group.id"])
     tdLog.info(f"{consumer},{group_id}")
     try:
-        sub_consumer_once(consumer, group_id)
+        sub_consumer_once(consumer, group_id, topic_name)
     except Exception as e:
         tdLog.info(str(e))
 
