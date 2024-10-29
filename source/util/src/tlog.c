@@ -675,8 +675,8 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   use taosPrintLogImpl_useStackBuffer to avoid stack overflow
 
 */
-int8_t taosPrintLogImpl_useStackBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
-                                       va_list args) {
+static int8_t taosPrintLogImplUseStackBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
+                                             va_list args) {
   char    buffer[LOG_MAX_STACK_LINE_BUFFER_SIZE];
   int32_t len = taosBuildLogHead(buffer, flags);
 
@@ -696,8 +696,8 @@ int8_t taosPrintLogImpl_useStackBuffer(const char *flags, int32_t level, int32_t
   }
   return 0;
 }
-int8_t taosPrintLogImpl_useHeapBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
-                                      va_list args) {
+static int8_t taosPrintLogImplUseHeapBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
+                                            va_list args) {
   char *buffer = taosMemoryCalloc(1, LOG_MAX_LINE_BUFFER_SIZE + 1);
   if (buffer == NULL) {
     return 1;
@@ -726,9 +726,9 @@ void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *f
   va_start(argpointer, format);
   va_copy(argpointer_copy, argpointer);
 
-  if (taosPrintLogImpl_useStackBuffer(flags, level, dflag, format, argpointer) == 0) {
+  if (taosPrintLogImplUseStackBuffer(flags, level, dflag, format, argpointer) == 0) {
   } else {
-    TAOS_UNUSED(taosPrintLogImpl_useHeapBuffer(flags, level, dflag, format, argpointer_copy));
+    TAOS_UNUSED(taosPrintLogImplUseHeapBuffer(flags, level, dflag, format, argpointer_copy));
   }
   va_end(argpointer_copy);
   va_end(argpointer);
