@@ -746,7 +746,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
   int32_t  code = 0;
   SUserObj newUserObj = {0};
   SDbObj   dbObj = {0};
@@ -823,7 +823,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   SVgObj *pVgroups = NULL;
-  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups)) != 0) {
+  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
     mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
@@ -883,10 +883,48 @@ static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int6
   }
 }
 
-static int32_t mndCheckDbDnodeList(SMnode *pMnode, SCreateDbReq *pReq) {
+static int32_t mndCheckDbDnodeList(SMnode *pMnode, SCreateDbReq *pReq, SArray *dnodeList) {
   if (pReq->dnodeListStr[0] == 0) return 0;
 
   mInfo("db:%s, dnode list is %s", pReq->db, pReq->dnodeListStr);
+
+  char *pos = pReq->dnodeListStr;
+  while (pos != NULL) {
+    if (pos[0] < '0' || pos[0] > '9') {
+      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
+      return terrno;
+    }
+
+    int32_t    dnodeId = taosStr2Int32(pos, NULL, 10);
+    SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+    if (pDnode != NULL) {
+      mndReleaseDnode(pMnode, pDnode);
+      if (taosArrayPush(dnodeList, &dnodeId) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
+    } else {
+      mError("db:%s, invalid dnode:%d from pos:%s", pReq->db, dnodeId, pos);
+      terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      return terrno;
+    }
+
+    pos = strstr(pos, ",");
+    if (pos != NULL) {
+      pos++;
+    }
+  }
+
+  int32_t dnodeSize = (int32_t)taosArrayGetSize(dnodeList);
+  for (int32_t i = 0; i < dnodeSize; ++i) {
+    for (int32_t j = i + 1; j < dnodeSize; ++j) {
+      if (((int32_t *)TARRAY_DATA(dnodeList))[i] == ((int32_t *)TARRAY_DATA(dnodeList))[j]) {
+        terrno = TSDB_CODE_MND_DNODE_LIST_REPEAT;
+        return terrno;
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -939,6 +977,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
+  SArray      *dnodeList = NULL;
+
+  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
+  if (dnodeList == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 #ifdef WINDOWS
@@ -982,11 +1027,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, &createReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, &createReq, dnodeList), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -1003,6 +1048,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateDbReq(&createReq);
+  taosArrayDestroy(dnodeList);
 
   TAOS_RETURN(code);
 }
