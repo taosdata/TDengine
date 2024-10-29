@@ -1396,7 +1396,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamTwaError.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
 ,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKeyl.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
