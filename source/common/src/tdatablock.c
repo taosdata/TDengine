@@ -87,6 +87,16 @@ int32_t getJsonValueLen(const char* data) {
   return dataLen;
 }
 
+static int32_t getDataLen(int32_t type, const char* pData) {
+  int32_t dataLen = 0;
+  if (type == TSDB_DATA_TYPE_JSON) {
+    dataLen = getJsonValueLen(pData);
+  } else {
+    dataLen = varDataTLen(pData);
+  }
+  return dataLen;
+}
+
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
   if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
@@ -102,19 +112,18 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
 
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
-    int32_t dataLen = 0;
-    if (type == TSDB_DATA_TYPE_JSON) {
-      dataLen = getJsonValueLen(pData);
-    } else {
-      dataLen = varDataTLen(pData);
-    }
-
-    if(rowIndex == 0 && pColumnInfoData->varmeta.length > 0) {
-      return 0;
-    }
-    if (pColumnInfoData->varmeta.offset[rowIndex] > 0 &&
-        pColumnInfoData->varmeta.offset[rowIndex] < pColumnInfoData->varmeta.length) {
-      return 0;
+    int32_t dataLen = getDataLen(type, pData);
+    if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
+      if (rowIndex == 0) {
+        pColumnInfoData->varmeta.length = 0;
+      } else {
+        int32_t start = pColumnInfoData->varmeta.offset[rowIndex - 1];
+        int32_t lastDataLen = getDataLen(type, pColumnInfoData->pData + start);
+        if (start + lastDataLen < pColumnInfoData->varmeta.length) {
+          uInfo("column data is reassigned, row:%d, offset:%d, length:%d", rowIndex, start, lastDataLen);
+          pColumnInfoData->varmeta.length = start + lastDataLen;
+        }
+      }
     }
 
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
