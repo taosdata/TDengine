@@ -5,9 +5,9 @@ on:
     - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
   workflow_dispatch:
   # pull_request:
-  # push:
-    # branches:
-      # - ref/ci-support-rerun-failed
+  push:
+    branches:
+      - 'test/cyjia-coverage'
 
 env:
   RELEASE_HOST: 192.168.1.45
