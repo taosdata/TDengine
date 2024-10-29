@@ -16,6 +16,7 @@ on:
       - 'Cargo.lock'
       - 'build.rs'
       - '.github/workflows/**'
+      - 'tests/e2e/**'
 
 env:
   RELEASE_HOST: 192.168.1.45
