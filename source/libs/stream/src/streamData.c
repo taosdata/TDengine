@@ -307,7 +307,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
   }
 }
 
-int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval, STimeWindow* pLatestWindow) {
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval, STimeWindow* pLatestWindow, const char* id) {
   QRY_PARAM_CHECK(pTrigger);
   int64_t         ts = INT64_MIN;
   SStreamTrigger* p = NULL;
@@ -333,7 +333,7 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
   ts = taosGetTimestampMs();
 
   if (pLatestWindow->skey == INT64_MIN) {
-    STimeWindow window = getAlignQueryTimeWindow(&interval, ts);
+    STimeWindow window = getAlignQueryTimeWindow(&interval, ts - trigger);
 
     p->pBlock->info.window.skey = window.skey;
     p->pBlock->info.window.ekey = TMAX(ts, window.ekey);
@@ -344,8 +344,8 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
   }
 
   p->pBlock->info.type = STREAM_GET_RESULT;
-  stDebug("force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, p->pBlock->info.window.skey,
-          p->pBlock->info.window.ekey);
+  stDebug("s-task:%s force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, id,
+          p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
 
   *pTrigger = p;
   return code;

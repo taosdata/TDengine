@@ -181,7 +181,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
 
       while (1) {
         code = streamCreateForcewindowTrigger(&pTrigger, pTask->info.delaySchedParam, &pTask->info.interval,
-                                              &pTask->status.latestForceWindow);
+                                              &pTask->status.latestForceWindow, id);
         if (code != 0) {
           stError("s-task:%s failed to prepare force window close trigger, code:%s, try again in %dms", id,
                   tstrerror(code), nextTrigger);
