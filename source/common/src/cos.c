@@ -89,20 +89,8 @@ static void s3DumpCfgByEp(int8_t epIndex) {
 
 int32_t s3CheckCfg() {
   int32_t code = 0, lino = 0;
-  int8_t  i = 0;
 
-  if (!tsS3Enabled) {
-    (void)fprintf(stderr, "s3 not configured.\n");
-    TAOS_RETURN(code);
-  }
-
-  code = s3Begin();
-  if (code != 0) {
-    (void)fprintf(stderr, "failed to initialize s3.\n");
-    TAOS_RETURN(code);
-  }
-
-  for (; i < tsS3EpNum; i++) {
+  for (int8_t i = 0; i < tsS3EpNum; i++) {
     (void)fprintf(stdout, "test s3 ep (%d/%d):\n", i + 1, tsS3EpNum);
     s3DumpCfgByEp(i);
 
@@ -192,7 +180,7 @@ int32_t s3CheckCfg() {
     (void)fprintf(stdout, "=================================================================\n");
   }
 
-  s3End();
+  // s3End();
 
   TAOS_RETURN(code);
 }
@@ -260,19 +248,19 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
   const int elen = sizeof(cbd->err_msg);
   if (error) {
     if (error->message && elen - len > 0) {
-      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
+      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
     }
     if (error->resource && elen - len > 0) {
-      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
+      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
     }
     if (error->furtherDetails && elen - len > 0) {
-      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
+      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
     if (error->extraDetailsCount && elen - len > 0) {
-      len += snprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
+      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
       for (int i = 0; i < error->extraDetailsCount; i++) {
         if (elen - len > 0) {
-          len += snprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
+          len += tsnprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
                           error->extraDetails[i].value);
         }
       }
@@ -753,7 +741,7 @@ upload:
     if (!manager.etags[i]) {
       TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
     }
-    n = snprintf(buf, sizeof(buf),
+    n = tsnprintf(buf, sizeof(buf),
                  "<Part><PartNumber>%d</PartNumber>"
                  "<ETag>%s</ETag></Part>",
                  i + 1, manager.etags[i]);
@@ -919,7 +907,7 @@ upload:
   char buf[256];
   int  n;
   for (int i = 0; i < cp.part_num; ++i) {
-    n = snprintf(buf, sizeof(buf),
+    n = tsnprintf(buf, sizeof(buf),
                  "<Part><PartNumber>%d</PartNumber>"
                  "<ETag>%s</ETag></Part>",
                  // i + 1, manager.etags[i]);
@@ -1529,6 +1517,8 @@ void s3EvictCache(const char *path, long object_size) {}
 #include "cos_http_io.h"
 #include "cos_log.h"
 
+int32_t s3Begin() { TAOS_RETURN(TSDB_CODE_SUCCESS); }
+
 int32_t s3Init() {
   if (cos_http_io_initialize(NULL, 0) != COSE_OK) {
     return -1;
@@ -1749,20 +1739,20 @@ bool s3Get(const char *object_name, const char *path) {
   cos_table_t           *headers = NULL;
   int                    traffic_limit = 0;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
   if (traffic_limit) {
-    //限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
+    // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
 
-  //下载对象
+  // 下载对象
   cos_str_set(&file, path);
   cos_str_set(&object, object_name);
   s = cos_get_object_to_file(options, &bucket, &object, headers, NULL, &file, &resp_headers);
@@ -1773,7 +1763,7 @@ bool s3Get(const char *object_name, const char *path) {
     cos_warn_log("get object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return ret;
@@ -1795,10 +1785,10 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // int  traffic_limit = 0;
   char range_buf[64];
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   // init_test_request_options(options, is_cname);
   s3InitRequestOptions(options, is_cname);
@@ -1847,7 +1837,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // cos_warn_log("Download data=%s", buf);
 
 _exit:
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   *ppBlock = buf;
@@ -1936,15 +1926,15 @@ long s3Size(const char *object_name) {
   cos_string_t           object;
   cos_table_t           *resp_headers = NULL;
 
-  //创建内存池
+  // 创建内存池
   cos_pool_create(&p, NULL);
 
-  //初始化请求选项
+  // 初始化请求选项
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
 
-  //获取对象元数据
+  // 获取对象元数据
   cos_str_set(&object, object_name);
   s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
   // print_headers(resp_headers);
@@ -1958,7 +1948,7 @@ long s3Size(const char *object_name) {
     cos_warn_log("head object failed\n");
   }
 
-  //销毁内存池
+  // 销毁内存池
   cos_pool_destroy(p);
 
   return size;
@@ -1967,6 +1957,10 @@ long s3Size(const char *object_name) {
 #else
 
 int32_t s3Init() { return 0; }
+int32_t s3Begin() { TAOS_RETURN(TSDB_CODE_SUCCESS); }
+
+void    s3End() {}
+int32_t s3CheckCfg() { return 0; }
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) { return 0; }

@@ -184,6 +184,7 @@ static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
 }
 
 static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
+  int32_t code = 0;
   mTrace("func:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
@@ -205,6 +206,11 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->commentSize > 0 && pNew->pComment != NULL) {
     pOld->commentSize = pNew->commentSize;
     pOld->pComment = taosMemoryMalloc(pOld->commentSize);
+    if (pOld->pComment == NULL) {
+      code = terrno;
+      taosWUnLockLatch(&pOld->lock);
+      return code;
+    }
     (void)memcpy(pOld->pComment, pNew->pComment, pOld->commentSize);
   }
 
@@ -215,6 +221,11 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   if (pNew->codeSize > 0 && pNew->pCode != NULL) {
     pOld->codeSize = pNew->codeSize;
     pOld->pCode = taosMemoryMalloc(pOld->codeSize);
+    if (pOld->pCode == NULL) {
+      code = terrno;
+      taosWUnLockLatch(&pOld->lock);
+      return code;
+    }
     (void)memcpy(pOld->pCode, pNew->pCode, pOld->codeSize);
   }
 
@@ -261,6 +272,10 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   if (NULL != pCreate->pComment) {
     func.commentSize = strlen(pCreate->pComment) + 1;
     func.pComment = taosMemoryMalloc(func.commentSize);
+    if (func.pComment == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
   }
   func.codeSize = pCreate->codeLen;
   func.pCode = taosMemoryMalloc(func.codeSize);
@@ -716,6 +731,11 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
                              ? TSDB_MAX_BINARY_LEN
                              : pFunc->codeSize + VARSTR_HEADER_SIZE;
     char   *b4 = taosMemoryMalloc(varCodeLen);
+    if (b4 == NULL) {
+      code = terrno;
+      sdbRelease(pSdb, pFunc);
+      TAOS_RETURN(code);
+    }
     (void)memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);

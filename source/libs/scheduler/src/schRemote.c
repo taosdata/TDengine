@@ -500,10 +500,14 @@ _return:
 
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT); // ignore error
+
+  if (pMsg->handle == NULL) {
+    qError("sch handle is NULL, may be already released and mem lea");
+  }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -513,7 +517,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId, pParam->taskId,
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
@@ -729,7 +733,7 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
   param->nodeEpId.nodeId = addr->nodeId;
   SEp* pEp = SCH_GET_CUR_EP(addr);
-  strcpy(param->nodeEpId.ep.fqdn, pEp->fqdn);
+  tstrncpy(param->nodeEpId.ep.fqdn, pEp->fqdn, sizeof(param->nodeEpId.ep.fqdn));
   param->nodeEpId.ep.port = pEp->port;
   param->pTrans = pJob->pTrans;
 

@@ -1,16 +1,21 @@
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 aux_source_directory(src UTIL_SRC)
 add_library(util STATIC ${UTIL_SRC})
-if (DEFINED GRANT_CFG_INCLUDE_DIR)
-  add_definitions(-DGRANTS_CFG)
+
+if(DEFINED GRANT_CFG_INCLUDE_DIR)
+    add_definitions(-DGRANTS_CFG)
 endif()
 
-IF (${ASSERT_NOT_CORE})
+if(${ASSERT_NOT_CORE})
     ADD_DEFINITIONS(-DASSERT_NOT_CORE)
     MESSAGE(STATUS "disable assert core")
-ELSE ()
+else()
     MESSAGE(STATUS "enable assert core")
-ENDIF (${ASSERT_NOT_CORE})
+endif(${ASSERT_NOT_CORE})
+
+if(${BUILD_WITH_ANALYSIS})
+    add_definitions(-DUSE_ANAL)
+endif()
 
 target_include_directories(
     util
@@ -30,7 +35,7 @@ target_link_directories(
     PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
 
-if (TD_LINUX)
+if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
@@ -39,10 +44,10 @@ if (TD_LINUX)
     )
 else()
     target_link_libraries(
-    util
-    PUBLIC os common
-    PUBLIC lz4_static pcre2-8
-    PUBLIC api cjson geos_c TSZ
+        util
+        PUBLIC os common
+        PUBLIC lz4_static pcre2-8
+        PUBLIC api cjson geos_c TSZ
     )
 endif()
 

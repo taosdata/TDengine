@@ -331,7 +331,9 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   TAOS_CHECK_GOTO(tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did), &lino,
                   _exit);
 
-  TAOS_UNUSED(tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did));
+  if (tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did) != 0) {
+    tsdbError("vgId:%d failed to create directory %s", TD_VID(committer->tsdb->pVnode), committer->tsdb->path);
+  }
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 

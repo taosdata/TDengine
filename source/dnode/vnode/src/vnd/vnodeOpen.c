@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cos.h"
 #include "sync.h"
+#include "tcs.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -327,7 +327,7 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
     char vnode_prefix[TSDB_FILENAME_LEN];
     snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
-    s3DeleteObjectsByPrefix(vnode_prefix);
+    tcsDeleteObjectsByPrefix(vnode_prefix);
   }
 }
 
@@ -452,7 +452,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
-  (void)taosRealPath(tdir, NULL, sizeof(tdir));
+  ret = taosRealPath(tdir, NULL, sizeof(tdir));
+  TAOS_UNUSED(ret);
 
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
@@ -462,7 +463,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
-  (void)taosRealPath(tdir, NULL, sizeof(tdir));
+  ret = taosRealPath(tdir, NULL, sizeof(tdir));
+  TAOS_UNUSED(ret);
 
   // open query
   if (vnodeQueryOpen(pVnode)) {
@@ -544,7 +546,9 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
 
     // destroy handle
-    (void)tsem_destroy(&pVnode->syncSem);
+    if (tsem_destroy(&pVnode->syncSem) != 0) {
+      vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
+    }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);

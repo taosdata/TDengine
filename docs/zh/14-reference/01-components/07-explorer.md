@@ -4,47 +4,122 @@ sidebar_label: taosExplorer
 toc_max_heading_level: 4
 ---
 
-taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
+taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
 
 ## 安装
 
-taosEexplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine Enterprise Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
+taosEexplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine 源代码生成的安装包不包含 taosExplorer。
 
 ## 配置
 
 在启动 taosExplorer 之前，请确保配置文件中的内容正确。
 
 ```TOML
-# listen port
+# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+#
+# Here is a full list of available options.
+
+# Explorer server port to listen on.
+# Default is 6060.
+#
 port = 6060
 
-# listen address for IPv4
+# IPv4 listen address.
+# Default is 0.0.0.0
 addr = "0.0.0.0"
 
-# listen address for IPv4
-#ipv6 = "::1"
+# IPv6 listen address.
 
-# log level. Possible: error,warn,info,debug,trace
+# ipv6 = "::1"
+
+# explorer server instance id
+# 
+# The instanceId of each instance is unique on the host
+# instanceId = 1
+
+# Explorer server log level.
+# Default is "info"
+# 
+# Deprecated: use log.level instead
 log_level = "info"
 
-# taosAdapter address.
+# All data files are stored in this directory
+# data_dir = "/var/lib/taos/explorer" # Default for Linux
+# data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
+
+# REST API endpoint to connect to the cluster.
+# This configuration is also the target for data migration tasks.
+# 
+# Default is "http://localhost:6041" - the default endpoint for REST API.
+#
 cluster = "http://localhost:6041"
 
-# taosX gRPC address
+# native endpoint to connect to the cluster.
+# Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
+# If you enable it, you will get more performance for data migration tasks.
+#
+# cluster_native = "taos://localhost:6030"
+
+# API endpoint for data replication/backup/data sources. No default option.
+#   Set it to API URL like "http://localhost:6050".
+#
 x_api = "http://localhost:6050"
 
 # GRPC endpoint for "Agent"s.
+#   Default is "http://localhost:6055" - the default endpoint for taosX grpc API.
+#   You should set it to public IP or FQDN name like:
+#   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
+#   ensure to add the port to the exception list of the firewall if it enabled.
 grpc = "http://localhost:6055"
 
 # CORS configuration switch, it allows cross-origin access
-cors = false
+cors = true
 
-# Enable ssl: if the following two files exist, enable ssl protocol
+# Enable ssl
+# If the following two files exist, enable ssl protocol
+#
 [ssl]
+
 # SSL certificate
-#certificate = "/path/to/ca.file"
+#
+# certificate = "/path/to/ca.file" # on linux/macOS
+# certificate = "C:\\path\\to\\ca.file" # on windows
+
 # SSL certificate key
-#certificate_key = "/path/to/key.file"
+#
+# certificate_key = "/path/to/key.file" # on linux/macOS
+# certificate_key = "C:\\path\\to\\key.file" # on windows
+
+# log configuration
+[log]
+# All log files are stored in this directory
+# 
+# path = "/var/log/taos" # on linux/macOS
+# path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+# level = "info"
+
+# Compress archived log files or not
+# 
+# compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+# 
+# rotationCount = 30
+
+# Rotate when the log file reaches this size
+# 
+# rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+# 
+# reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+# keepDays = 30
 ```
 
 说明：
@@ -52,13 +127,23 @@ cors = false
 - `port`：taosExplorer 服务绑定的端口。
 - `addr`：taosExplorer 服务绑定的 IPv4 地址，默认为 `0.0.0.0`。如需修改，请配置为 `localhost` 之外的地址以对外提供服务。
 - `ipv6`：taosExplorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
-- `log_level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
+- `instanceId`：当前 explorer 服务的实例 ID，如果同一台机器上启动了多个 explorer 实例，必须保证各个实例的实例 ID 互不相同。
+- `log_level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。此参数已弃用，请使用 `log.level` 代替。
 - `cluster`：TDengine 集群的 taosAdapter 地址。
+- `cluster_native`：TDengine 集群的原生连接地址，默认关闭。
 - `x_api`：taosX 的 gRPC 地址。
-- `grpc`: taosX 代理向 taosX 建立连接的 gRPC 地址.
+- `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址。
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
-- `ssl.certificate`: SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
-- `ssl.certificate_key`: SSL 证书密钥。
+- `ssl.certificate`：SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
+- `ssl.certificate_key`：SSL 证书密钥。
+- `log.path`：日志文件存放的目录。
+- `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
+- `log.compress`：日志文件滚动后的文件是否进行压缩。
+- `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
+- `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
+- `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
+- `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
+
 
 ## 启动停止
 

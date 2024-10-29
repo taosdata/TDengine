@@ -191,7 +191,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 
 :::
 
-### Websocket 连接
+### WebSocket 连接
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -237,7 +237,10 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+
+```c
+{{#include docs/examples/c-ws/sml_insert_demo.c:schemaless}}
+```
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

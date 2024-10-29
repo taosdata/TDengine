@@ -284,7 +284,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
-#define TSDB_FQDN_LEN             128
+#define TSDB_FQDN_LEN             TD_FQDN_LEN
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
@@ -293,6 +293,12 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+#define TSDB_ANAL_ANODE_URL_LEN   128
+#define TSDB_ANAL_ALGO_NAME_LEN   64
+#define TSDB_ANAL_ALGO_TYPE_LEN   24
+#define TSDB_ANAL_ALGO_KEY_LEN    (TSDB_ANAL_ALGO_NAME_LEN + 9)
+#define TSDB_ANAL_ALGO_URL_LEN    (TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1)
+#define TSDB_ANAL_ALGO_OPTION_LEN 256
 
 #define TSDB_MAX_EP_NUM 10
 
@@ -447,10 +453,10 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
-#define TSDB_DEFAULT_S3_COMPACT    0
+#define TSDB_DEFAULT_S3_COMPACT    1
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -603,6 +609,13 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+typedef enum {
+  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANAL_ALGO_TYPE_FORECAST = 1,
+  ANAL_ALGO_TYPE_END,
+} EAnalAlgoType;
+
 #ifdef __cplusplus
 }
 #endif

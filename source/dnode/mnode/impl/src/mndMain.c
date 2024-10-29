@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
 #include "mndArbGroup.h"
+#include "mndAnode.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
@@ -236,7 +237,7 @@ static void mndPullupGrant(SMnode *pMnode) {
                       .pCont = pReq,
                       .contLen = contLen,
                       .info.notFreeAhandle = 1,
-                      .info.ahandle = (void *)0x9527};
+                      .info.ahandle = 0};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -495,7 +496,7 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   int32_t code = 0;
   pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -515,6 +516,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .fsyncPeriod = 0,
                  .rollPeriod = -1,
                  .segSize = -1,
+                 .committed = -1,
                  .retentionPeriod = 0,
                  .retentionSize = 0,
                  .level = TAOS_WAL_FSYNC,
@@ -574,6 +576,8 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
     code = sdbReadFile(pMnode->pSdb);
   }
 
+  mInfo("vgId:1, mnode sdb is opened, with applied index:%" PRId64, pMnode->pSdb->commitIndex);
+
   atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
   return code;
 }
@@ -605,6 +609,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));

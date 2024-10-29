@@ -415,14 +415,24 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  // taosThreadMutexLock(&pMgmt->createLock);
+  code = taosThreadMutexLock(&pMgmt->createLock);
+  if (code != 0) {
+    dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(code));
+    goto _OVER;
+  }
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
-    // taosThreadMutexUnlock(&pMgmt->createLock);
+    int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
+    if (ret != 0) {
+      dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
+    }
     goto _OVER;
   }
-  // taosThreadMutexUnlock(&pMgmt->createLock);
+  int32_t ret = taosThreadMutexUnlock(&pMgmt->createLock);
+  if (ret != 0) {
+    dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(ret));
+  }
 
 _OVER:
   if (code != 0) {
@@ -1037,7 +1047,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TRIM, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_S3MIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;

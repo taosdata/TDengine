@@ -37,6 +37,7 @@ void taos_monitor_split_str(char** arr, char* str, const char* del) {
 void taos_monitor_split_str_metric(char** arr, taos_metric_t* metric, const char* del, char** buf) {
   int32_t size = strlen(metric->name);
   char* name = taosMemoryMalloc(size + 1);
+  if (name == NULL) return;
   memset(name, 0, size + 1);
   memcpy(name, metric->name, size);
 

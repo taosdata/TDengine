@@ -419,6 +419,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SEventWindowNode), &pNode); break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode); break;
+    case QUERY_NODE_ANOMALY_WINDOW:
+      code = makeNode(type, sizeof(SAnomalyWindowNode), &pNode); break;
     case QUERY_NODE_HINT:
       code = makeNode(type, sizeof(SHintNode), &pNode); break;
     case QUERY_NODE_VIEW:
@@ -474,6 +476,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SDropDnodeStmt), &pNode); break;
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode); break;
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SCreateAnodeStmt), &pNode); break;
+    case QUERY_NODE_DROP_ANODE_STMT:
+      code = makeNode(type, sizeof(SDropAnodeStmt), &pNode); break;
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SUpdateAnodeStmt), &pNode); break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode); break;
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -540,6 +548,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -647,6 +657,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SIndefRowsFuncLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = makeNode(type, sizeof(SInterpFuncLogicNode), &pNode); break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -722,6 +734,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -732,6 +746,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SIndefRowsFuncPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = makeNode(type, sizeof(SInterpFuncLogicNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = makeNode(type, sizeof(SDataDispatcherNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -1019,6 +1035,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       break;
     }
+    case QUERY_NODE_ANOMALY_WINDOW: {
+      SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
+      nodesDestroyNode(pAnomaly->pCol);
+      break;
+    }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
       destroyHintValue(pHint->option, pHint->value);
@@ -1167,6 +1188,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
@@ -1252,6 +1276,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -1469,6 +1495,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
+      nodesDestroyList(pLogicNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -1498,6 +1525,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC: {
+      SForecastFuncLogicNode* pLogicNode = (SForecastFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE: {
@@ -1634,6 +1667,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pNotFillExprs);
       nodesDestroyNode(pPhyNode->pWStartTs);
       nodesDestroyNode(pPhyNode->pValues);
+      nodesDestroyList(pPhyNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -1663,6 +1697,11 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
+      SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
       destroyPartitionPhysiNode((SPartitionPhysiNode*)pNode);
       break;
@@ -1688,6 +1727,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pFuncs);
       nodesDestroyNode(pPhyNode->pFillValues);
       nodesDestroyNode(pPhyNode->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
+      SForecastFuncPhysiNode* pPhyNode = (SForecastFuncPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -2265,9 +2311,9 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = snprintf(name, sizeof(name), "%s", pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
   } else {
-    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
   if (pCol->projRefIdx > 0) {
     len = taosHashBinary(name, strlen(name));

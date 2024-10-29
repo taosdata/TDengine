@@ -19,6 +19,7 @@ try:
 
 except Exception as err:
     print(f"Failed to execute sql with reqId:{reqId}, ErrMessage:{err}")
+    raise err
 finally:
     if conn:
         conn.close()

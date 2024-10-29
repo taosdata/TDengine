@@ -55,10 +55,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many session")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_ERROR,            "rpc network error")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,          "rpc network busy")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,         "http-report already quit")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MODULE_QUIT,              "rpc module already quit")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,              "rpc async module already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,             "rpc network busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,             "http-report already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MODULE_QUIT,              "rpc module already quit")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module already quit")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")               
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -314,7 +317,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CLOG_IS_NULL,       "Transaction commitlog
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not finished")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Transaction context switch")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Wrong transaction execution context")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 
@@ -344,6 +347,24 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be droppe
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_ALREADY_EXIST,      "Anode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Anode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_URL,       "Anode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_PROTOCOL,   "Anode invalid protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE,  "Anode invalid algorithm type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_INVALID_VERSION,    "Anode invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algorithm")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis url response is NULL")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_FOUND,          "Analysis algorithm not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -708,6 +729,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC,  "Some functions cannot appear in the select list at the same time")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,   "Syntax error in regular expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,   "ANOMALY_WINDOW only support mathable column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,    "ANOMALY_WINDOW not support on tag column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,    "ANOMALY_WINDOW option should include algo field")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE,    "Invalid forecast clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,  "Syntax error in regular expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
@@ -735,6 +761,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up fail
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_RANGE,       "Invalid function para range")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS,      "Function parameter should be primary timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PK,          "Function parameter should be primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL,     "Function parameter should have column")
+
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")

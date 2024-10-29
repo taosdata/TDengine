@@ -23,7 +23,7 @@ import TabItem from "@theme/TabItem";
     - 执行批量插入操作，将这些数据行插入到对应的子表中。
 3. 最后打印实际插入表中的行数。 
 
-## Websocket 连接
+## WebSocket 连接
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 ```java
@@ -64,7 +64,9 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/stmt_insert_demo.c}}
+```
 </TabItem>
 <TabItem label="REST API" value="rest">
 不支持

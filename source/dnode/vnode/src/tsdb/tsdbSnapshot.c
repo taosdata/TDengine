@@ -623,6 +623,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
   int32_t lino = 0;
 
   if (writer->ctx->fset) {
+#if 0
     // open data reader
     SDataFileReaderConfig dataFileReaderConfig = {
         .tsdb = writer->tsdb,
@@ -650,6 +651,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
 
     code = tsdbDataFileReaderOpen(NULL, &dataFileReaderConfig, &writer->ctx->dataReader);
     TSDB_CHECK_CODE(code, lino, _exit);
+#endif
 
     // open stt reader array
     SSttLvl* lvl;
@@ -791,6 +793,15 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .did = writer->ctx->did,
       .level = 0,
   };
+  // merge stt files to either data or a new stt file
+  if (writer->ctx->fset) {
+    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (writer->ctx->fset->farr[ftype] != NULL) {
+        config.files[ftype].exist = true;
+        config.files[ftype].file = writer->ctx->fset->farr[ftype]->f[0];
+      }
+    }
+  }
 
   code = tsdbFSetWriterOpen(&config, &writer->ctx->fsetWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -821,7 +832,9 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
     code = TSDB_CODE_NO_AVAIL_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  TAOS_UNUSED(tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did));
+  if (tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did) != 0) {
+    tsdbError("vgId:%d failed to create directory %s", TD_VID(writer->tsdb->pVnode), writer->tsdb->path);
+  }
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;
@@ -840,6 +853,8 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbInfo("vgId:%d %s succeeded, fid:%d", TD_VID(writer->tsdb->pVnode), __func__, fid);
   }
   return code;
 }
@@ -920,6 +935,8 @@ static int32_t tsdbSnapWriteFileSetEnd(STsdbSnapWriter* writer) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbInfo("vgId:%d %s succeeded, fid:%d", TD_VID(writer->tsdb->pVnode), __func__, writer->ctx->fid);
   }
   return code;
 }
@@ -1173,7 +1190,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
+    tsdbInfo("vgId:%d %s done, rollback:%d", TD_VID(tsdb->pVnode), __func__, rollback);
   }
   return code;
 }

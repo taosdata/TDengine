@@ -28,12 +28,12 @@
     }                      \
   } while (0)
 
-#define CHECK_OUT_OF_MEM(p)                    \
-  do {                                         \
-    if (NULL == (p)) {                         \
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
-      goto _err;                               \
-    }                                          \
+#define CHECK_OUT_OF_MEM(p)   \
+  do {                        \
+    if (NULL == (p)) {        \
+      pCxt->errCode = terrno; \
+      goto _err;              \
+    }                         \
   } while (0)
 
 #define CHECK_PARSER_STATUS(pCxt)             \
@@ -404,9 +404,9 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
+  val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   if(!val->literal) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }
@@ -434,14 +434,22 @@ SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToke
     goto _exit;
   }
   if (pLiteral) {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
+    if (!val->literal) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
+      goto _exit;
+    }
   } else if (pNode) {
     SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
     if (!nodesIsExprNode(pRawExpr->pNode)) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pRawExpr->p);
       goto _exit;
     }
-    val->literal = strndup(pRawExpr->p, pRawExpr->n);
+    val->literal = taosStrndup(pRawExpr->p, pRawExpr->n);
+    if (!val->literal) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
+      goto _exit;
+    }
   } else {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
     goto _exit;
@@ -479,8 +487,8 @@ SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const ST
     goto _exit;
   }
   if (pLiteral) {
-    if (!(val->literal = strndup(pLiteral->z, pLiteral->n))) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    if (!(val->literal = taosStrndup(pLiteral->z, pLiteral->n))) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, terrno, "Out of memory");
       goto _exit;
     }
   } else {
@@ -579,7 +587,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
     return NULL;
   }
   SNodeList*  pHintList = NULL;
-  char*       hint = strndup(pLiteral->z + 3, pLiteral->n - 5);
+  char*       hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
   if (!hint) return NULL;
   int32_t     i = 0;
   bool        quit = false;
@@ -749,13 +757,13 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
         return NULL;
       }
     }
-    val->literal = strndup(pLiteral->z + 1, pLiteral->n - 2);
+    val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
   } else {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   }
   if (!val->literal) {
     nodesDestroyNode((SNode*)val);
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     return NULL;
   }
   val->flag |= VALUE_FLAG_IS_DURATION;
@@ -801,13 +809,13 @@ SNode* createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral
         return NULL;
       }
     }
-    val->literal = strndup(pLiteral->z + 1, pLiteral->n - 2);
+    val->literal = taosStrndup(pLiteral->z + 1, pLiteral->n - 2);
   } else {
-    val->literal = strndup(pLiteral->z, pLiteral->n);
+    val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   }
   if (!val->literal) {
     nodesDestroyNode((SNode*)val);
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     return NULL;
   }
   val->flag |= VALUE_FLAG_IS_TIME_OFFSET;
@@ -853,9 +861,9 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
+  val->literal = taosStrndup(pLiteral->z, pLiteral->n);
   if (!val->literal) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
   }
@@ -879,7 +887,8 @@ _err:
 }
 
 static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
+      ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
     int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
     ((SLogicConditionNode*)pParam)->pParameterList = NULL;
     nodesDestroyNode(pParam);
@@ -1356,6 +1365,25 @@ SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken,
   return (SNode*)pCount;
 _err:
   nodesDestroyNode((SNode*)pCount);
+  return NULL;
+}
+
+SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt) {
+  SAnomalyWindowNode* pAnomaly = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ANOMALY_WINDOW, (SNode**)&pAnomaly);
+  CHECK_MAKE_NODE(pAnomaly);
+  pAnomaly->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pAnomaly->pCol);
+  pAnomaly->pExpr = pExpr;
+  if (pFuncOpt == NULL) {
+    tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANAL_ALGO_OPTION_LEN);
+  } else {
+    (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
+  }
+  return (SNode*)pAnomaly;
+_err:
+  nodesDestroyNode((SNode*)pAnomaly);
   return NULL;
 }
 
@@ -2989,6 +3017,47 @@ _err:
   return NULL;
 }
 
+SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateAnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_ANODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pAnode) {
+    pStmt->anodeId = taosStr2Int32(pAnode->z, NULL, 10);
+  } else {
+    pStmt->anodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;
   config.type = TK_NK_STRING;
@@ -3643,6 +3712,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair*
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
   CHECK_NAME(checkUserName(pCxt, pUserName));
+  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);

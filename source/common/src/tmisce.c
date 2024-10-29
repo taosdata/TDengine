@@ -284,7 +284,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
@@ -297,7 +297,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
@@ -309,7 +309,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);

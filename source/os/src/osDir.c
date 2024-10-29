@@ -151,7 +151,7 @@ int32_t taosMulMkDir(const char *dirname) {
   }
   if (temp[1] == ':') pos += 3;
 #else
-  (void)strcpy(temp, dirname);
+  tstrncpy(temp, dirname, sizeof(temp));
 #endif
 
   if (taosDirExist(temp)) return code;
@@ -216,7 +216,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   }
   if (temp[1] == ':') pos += 3;
 #else
-  (void)strcpy(temp, dirname);
+  tstrncpy(temp, dirname, sizeof(temp));
 #endif
 
   if (taosDirExist(temp)) {
@@ -341,7 +341,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   }
 
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
-    (void)strncpy(outname, full_path.we_wordv[0], maxlen);
+    tstrncpy(outname, full_path.we_wordv[0], maxlen);
   }
 
   wordfree(&full_path);
@@ -358,9 +358,9 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 #endif
     if (strlen(tmp) < maxlen) {
       if (realPath == NULL) {
-        (void)strncpy(dirname, tmp, maxlen);
+        tstrncpy(dirname, tmp, maxlen);
       } else {
-        (void)strncpy(realPath, tmp, maxlen);
+        tstrncpy(realPath, tmp, maxlen);
       }
       return 0;
     }
@@ -440,8 +440,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
     return NULL;
   }
 
-  strcpy(szFind, dirname);
-  strcat(szFind, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
+  snprintf(szFind, sizeof(szFind), "%s%s", dirname, "\\*.*");  //利用通配符找这个目录下的所以文件，包括目录
 
   pDir->hFind = FindFirstFile(szFind, &(pDir->dirEntry.findFileData));
   if (INVALID_HANDLE_VALUE == pDir->hFind) {
@@ -560,6 +559,6 @@ void taosGetCwd(char *buf, int32_t len) {
   char *unused __attribute__((unused));
   unused = getcwd(buf, len - 1);
 #else
-  strncpy(buf, "not implemented on windows", len - 1);
+  tstrncpy(buf, "not implemented on windows", len);
 #endif
 }

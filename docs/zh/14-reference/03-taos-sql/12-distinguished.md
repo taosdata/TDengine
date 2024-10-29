@@ -76,7 +76,7 @@ window_clause: {
 FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
 
 1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要FILL, 则需要给每一个FILL列指定VALUE, 如`SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要 FILL, 则需要给每一个 FILL 列指定 VALUE, 如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`, 注意, SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE, 如 `_wstart`, `_wstart+1a`, `now`, `1+1` 以及使用 partition by 时的 partition key (如 tbname)都不需要指定 VALUE, 如 `timediff(last(ts), _wstart)` 则需要指定VALUE。
 3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。

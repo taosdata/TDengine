@@ -477,7 +477,9 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 | 13  |  BOOL              |    bool
 | 14  |  NCHAR             |    nchar
 | 15  |  VARCHAR           |    varchar
-| 15  |  JSON              |    json
+| 16  |  VARBINARY         |    varbinary
+| 17  |  GEOMETRY          |    geometry
+| 18  |  JSON              |    json
 
 注意：taosBenchmark 配置文件中数据类型必须小写方可识别
 

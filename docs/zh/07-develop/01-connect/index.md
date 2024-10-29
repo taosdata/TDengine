@@ -28,7 +28,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 1. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称 “原生连接”。
 2. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称 “REST 连接”
-3. 通过 taosAdapter 组件提供的 Websocket API 建立与 taosd 的连接，这种连接方式下文中简称 “Websocket 连接”
+3. 通过 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称 “WebSocket 连接”
 
 ![TDengine connection type](connection-type-zh.webp)
 
@@ -38,9 +38,9 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 关键不同点在于：
 
 1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine 版本配套。
-2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 Websocket 连接相比，REST连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
-3. 使用 Websocket 连接，用户也无需安装客户端驱动程序 taosc。
-4. 连接云服务实例，必须使用 REST 连接 或 Websocket 连接。
+2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
+3. 使用 WebSocket 连接，用户也无需安装客户端驱动程序 taosc。
+4. 连接云服务实例，必须使用 REST 连接 或 WebSocket 连接。
 
 **推荐使用 WebSocket 连接**
 
@@ -126,7 +126,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
         ```bash
         pip3 install taos-ws-py
         ```
-        :::note 此安装包为 Websocket 连接器
+        :::note 此安装包为 WebSocket 连接器
     - 同时安装 `taospy` 和 `taos-ws-py`
         ```bash
         pip3 install taospy[ws]
@@ -182,7 +182,7 @@ taos = { version = "*"}
 ```
 
 :::info
-Rust 连接器通过不同的特性区分不同的连接方式。默认同时支持原生连接和 Websocket 连接，如果仅需要建立 Websocket 连接，可设置 `ws` 特性：
+Rust 连接器通过不同的特性区分不同的连接方式。默认同时支持原生连接和 WebSocket 连接，如果仅需要建立 WebSocket 连接，可设置 `ws` 特性：
 
 ```toml
 taos = { version = "*", default-features = false, features = ["ws"] }
@@ -201,7 +201,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
         ```
         npm install @tdengine/websocket
         ```
-    :::note Node.js 目前只支持 Websocket 连接
+    :::note Node.js 目前只支持 WebSocket 连接
 - **安装验证**
     - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
     - 在命令行中执行以下命令。
@@ -271,11 +271,9 @@ dotnet add package TDengine.Connector
     <TabItem label="Java" value="java">
     Java 连接器建立连接的参数有 URL 和 Properties。  
     TDengine 的 JDBC URL 规范格式为：
-    `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
+    `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
 
     URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
-
-    **注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。
 
     </TabItem>
     <TabItem label="Python" value="python">
@@ -387,7 +385,19 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
     <TabItem label="C" value="c">
-C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
+**WebSocket 连接**  
+C/C++ 语言连接器 WebSocket 连接方式使用 `ws_connect()` 函数用于建立与 TDengine 数据库的连接。其参数为 DSN 描述字符串，其基本结构如下：
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+DSN 的详细说明和如何使用详见 [连接功能](../../reference/connector/cpp/#dsn)
+
+**原生连接**  
+C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
 
 - `host`：要连接的数据库服务器的主机名或IP地址。如果是本地数据库，可以使用 `"localhost"`。
 - `user`：用于登录数据库的用户名。
@@ -405,8 +415,8 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 </TabItem>
 </Tabs>
 
-### Websocket 连接
-下面是各语言连接器建立 Websocket 连接代码样例。演示了如何使用 Websocket 连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
+### WebSocket 连接
+下面是各语言连接器建立 WebSocket 连接代码样例。演示了如何使用 WebSocket 连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
@@ -440,7 +450,10 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 ```
     </TabItem>
 <TabItem label="C" value="c">
-不支持
+```c
+{{#include docs/examples/c-ws/connect_example.c}}
+```
+
 </TabItem>    
 <TabItem label="REST API" value="rest">
 不支持

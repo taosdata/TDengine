@@ -152,12 +152,15 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 // for internal usage
 int32_t getWordLength(char type);
 
+#ifdef __AVX2__
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
-int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool bigEndian);
-int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
+int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output);
+int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
+#endif
+#ifdef __AVX512VL__
+void tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
+void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
+#endif
 
 /*************************************************************************
  *                  REGULAR COMPRESSION 2
@@ -214,8 +217,8 @@ typedef int32_t (*__data_compress_init)(char *lossyColumns, float fPrecision, do
                                         uint32_t intervals, int32_t ifAdtFse, const char *compressor);
 typedef int32_t (*__data_compress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                            const char type);
-typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
-                                             const char type);
+typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, int32_t ninput, const int32_t nelements,
+                                             char *const output, const char type);
 
 typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                            int32_t outputSize, const char type, int8_t level);

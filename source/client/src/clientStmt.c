@@ -184,10 +184,16 @@ int32_t stmtBackupQueryFields(STscStmt* pStmt) {
 
   int32_t size = pRes->numOfCols * sizeof(TAOS_FIELD);
   pRes->fields = taosMemoryMalloc(size);
-  pRes->userFields = taosMemoryMalloc(size);
-  if (NULL == pRes->fields || NULL == pRes->userFields) {
+  if (pRes->fields == NULL) {
     STMT_ERR_RET(terrno);
   }
+
+  pRes->userFields = taosMemoryMalloc(size);
+  if (pRes->userFields == NULL) {
+    taosMemoryFreeClear(pRes->fields);
+    STMT_ERR_RET(terrno);
+  }
+
   (void)memcpy(pRes->fields, pStmt->exec.pRequest->body.resInfo.fields, size);
   (void)memcpy(pRes->userFields, pStmt->exec.pRequest->body.resInfo.userFields, size);
 
@@ -230,7 +236,7 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   }
 
   (void)memcpy(&pStmt->bInfo.sname, tbName, sizeof(*tbName));
-  (void)strncpy(pStmt->bInfo.tbFName, tbFName, sizeof(pStmt->bInfo.tbFName) - 1);
+  tstrncpy(pStmt->bInfo.tbFName, tbFName, TSDB_TABLE_FNAME_LEN);
   pStmt->bInfo.tbFName[sizeof(pStmt->bInfo.tbFName) - 1] = 0;
 
   pStmt->bInfo.tbUid = autoCreateTbl ? 0 : pTableMeta->uid;
@@ -923,9 +929,9 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     length = strlen(sql);
   }
 
-  pStmt->sql.sqlStr = strndup(sql, length);
+  pStmt->sql.sqlStr = taosStrndup(sql, length);
   if (!pStmt->sql.sqlStr) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
@@ -977,7 +983,7 @@ int stmtSetDbName(TAOS_STMT* stmt, const char* dbName) {
   taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
   pStmt->exec.pRequest->pDb = taosStrdup(dbName);
   if (pStmt->exec.pRequest->pDb == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1012,13 +1018,13 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
     STMT_ERR_RET(stmtGetFromCache(pStmt));
 
     if (pStmt->bInfo.needParse) {
-      (void)strncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName) - 1);
+      tstrncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName));
       pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
 
       STMT_ERR_RET(stmtParseSql(pStmt));
     }
   } else {
-    (void)strncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName) - 1);
+    tstrncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName));
     pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
     pStmt->exec.pRequest->requestId++;
     pStmt->bInfo.needParse = false;
@@ -1166,7 +1172,7 @@ int32_t stmtAppendTablePostHandle(STscStmt* pStmt, SStmtQNode* param) {
   }
 
   if (0 == pStmt->sql.siInfo.firstName[0]) {
-    (void)strcpy(pStmt->sql.siInfo.firstName, pStmt->bInfo.tbName);
+    tstrncpy(pStmt->sql.siInfo.firstName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
   }
 
   param->tblData.getFromHash = pStmt->sql.siInfo.tbFromHash;
@@ -1307,7 +1313,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
 
     param->restoreTbCols = false;
-    (void)strcpy(param->tblData.tbName, pStmt->bInfo.tbName);
+    tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
   }
 
   int64_t startUs3 = taosGetTimestampUs();

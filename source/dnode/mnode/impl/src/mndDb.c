@@ -583,7 +583,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
   if (pCfg->s3ChunkSize <= 0) pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   if (pCfg->s3KeepLocal <= 0) pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  if (pCfg->s3Compact <= 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  if (pCfg->s3Compact < 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
@@ -2281,6 +2281,10 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
+  if (buf == NULL) {
+    mError("db:%s, failed to malloc buffer", pDb->name);
+    return;
+  }
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -2362,7 +2366,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)strictVstr, false), &lino, _OVER);
 
     char    durationVstr[128] = {0};
-    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], pDb->cfg.daysPerFile);
+    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], sizeof(durationVstr) - VARSTR_HEADER_SIZE, pDb->cfg.daysPerFile);
 
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2373,9 +2377,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     char keep1Str[128] = {0};
     char keep2Str[128] = {0};
 
-    int32_t lenKeep0 = formatDurationOrKeep(keep0Str, pDb->cfg.daysToKeep0);
-    int32_t lenKeep1 = formatDurationOrKeep(keep1Str, pDb->cfg.daysToKeep1);
-    int32_t lenKeep2 = formatDurationOrKeep(keep2Str, pDb->cfg.daysToKeep2);
+    int32_t lenKeep0 = formatDurationOrKeep(keep0Str, sizeof(keep0Str), pDb->cfg.daysToKeep0);
+    int32_t lenKeep1 = formatDurationOrKeep(keep1Str, sizeof(keep1Str), pDb->cfg.daysToKeep1);
+    int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
         len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);

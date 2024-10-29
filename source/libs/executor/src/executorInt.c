@@ -687,10 +687,10 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      int32_t winCode = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-      if (TAOS_FAILED(winCode)) {
-        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(winCode));
-        QUERY_CHECK_CODE(winCode, lino, _end);
+      code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
       // do nothing

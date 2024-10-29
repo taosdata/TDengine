@@ -20,6 +20,7 @@ try:
 
 except Exception as err:
     print(f"Failed to create database power or stable meters, ErrMessage:{err}") 
+    raise err
 finally:
     if conn:
         conn.close()

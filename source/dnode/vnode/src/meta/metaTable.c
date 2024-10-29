@@ -2985,9 +2985,6 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     }
   }
 end:
-  if (terrno != 0) {
-    ret = terrno;
-  }
   tDecoderClear(&dc);
   tdbFree(pData);
   return ret;
@@ -3133,7 +3130,12 @@ static void colCompressDebug(SHashObj *pColCmprObj) {
 int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   int rc = 0;
 
-  SHashObj  *pColCmprObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+  SHashObj *pColCmprObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+  if (pColCmprObj == NULL) {
+    pColCmprObj = NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   void      *pData = NULL;
   int        nData = 0;
   SMetaEntry e = {0};
