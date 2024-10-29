@@ -294,7 +294,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_others]
     env: 
-      REPORT_BASE_URL: http://${{env.RELEASE_HOST}}:8787
+      REPORT_BASE_URL: http://192.168.1.45:8787
     steps:
       - name: allure report
         run: |
