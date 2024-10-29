@@ -35,10 +35,11 @@ class TDTestCase:
 
     def balance_vnode(self):
         leader_before = self.get_leader()
-        tdSql.query("balance vgroup leader")
+        
         while True:
             leader_after = -1
             tdLog.debug("balancing vgroup leader")
+            tdSql.query("balance vgroup leader")
             while True:
                 tdLog.debug("get new vgroup leader")
                 leader_after = self.get_leader()
@@ -51,6 +52,7 @@ class TDTestCase:
                 break
             else :
                 time.sleep(1)
+                tdLog.debug("leader not changed")
 
 
     def consume_TS_4674_Test(self):
