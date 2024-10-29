@@ -4272,6 +4272,10 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
   code = pInfo->stateStore.updateInfoSerialize(pScanEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  tEndEncode(pScanEnCoder);
+  tEncoderClear(pScanEnCoder);
+  pScanEnCoder = NULL;
+
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME),
                                         pBuff, len);
 _end:
