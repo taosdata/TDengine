@@ -16,7 +16,7 @@ env:
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
-
+  REPORT_BASE_URL: http://192.168.1.45:8787
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -200,7 +200,7 @@ jobs:
 
           PWD=$(pwd)
           echo "PWD: $PWD"
-          run_container_id=$(docker run --add-host u1-40:192.168.1.40 --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/$DIR_PATH_3_0:$COVERAGE_BASE_DIR/$DIR_PATH_3_0 -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          run_container_id=$(docker run  --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/$DIR_PATH_3_0:$COVERAGE_BASE_DIR/$DIR_PATH_3_0 -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
@@ -293,8 +293,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_others]
-    env: 
-      REPORT_BASE_URL: http://192.168.1.45:8787
+      
     steps:
       - name: allure report
         run: |
