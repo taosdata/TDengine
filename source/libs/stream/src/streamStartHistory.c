@@ -583,7 +583,7 @@ void doExecScanhistoryInFuture(void* param, void* tmrId) {
 
   SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, taskRefId);
   if (pTask == NULL) {
-    stError("invalid task rid:%" PRId64 " failed to acquired stream-task", taskRefId);
+    stError("invalid task rid:%" PRId64 " failed to acquired stream-task at %s", taskRefId, __func__);
     streamTaskFreeRefId(param);
     return;
   }

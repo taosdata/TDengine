@@ -745,6 +745,9 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     int32_t val = atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
   }
 
+  // enable the scheduler for stream tasks
+  streamSetupScheduleTrigger(pTask);
+
   *pAdded = true;
   return code;
 }
@@ -1146,6 +1149,9 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       }
       continue;
     }
+
+    // enable the scheduler for stream tasks after acquire the task RefId.
+    streamSetupScheduleTrigger(pTask);
 
     stInfo("s-task:0x%x vgId:%d set refId:%"PRId64, (int32_t) id.taskId, vgId, pTask->id.refId);
     if (pTask->info.fillHistory == 0) {

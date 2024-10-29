@@ -20,12 +20,15 @@ static void streamTaskResumeHelper(void* param, void* tmrId);
 static void streamTaskSchedHelper(void* param, void* tmrId);
 
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
-  int64_t delaySchema = pTask->info.delaySchedParam;
-  if (delaySchema != 0 && pTask->info.fillHistory == 0) {
+  int64_t delayParam = pTask->info.delaySchedParam;
+  if (delayParam != 0 && pTask->info.fillHistory == 0) {
     int64_t* pTaskRefId = NULL;
     int32_t  code = streamTaskAllocRefId(pTask, &pTaskRefId);
     if (code == 0) {
-      streamTmrStart(streamTaskSchedHelper, (int32_t)delaySchema, pTaskRefId, streamTimer,
+      stDebug("s-task:%s refId:%" PRId64 " enable the scheduler trigger, delay:%" PRId64, pTask->id.idStr,
+              pTask->id.refId, delayParam);
+
+      streamTmrStart(streamTaskSchedHelper, (int32_t)delayParam, pTaskRefId, streamTimer,
                      &pTask->schedInfo.pDelayTimer, pTask->pMeta->vgId, "sched-tmr");
       pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
     }
@@ -93,7 +96,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   int64_t      taskRefId = *(int64_t*)param;
   SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, taskRefId);
   if (pTask == NULL) {
-    stError("invalid task rid:%" PRId64 " failed to acquired stream-task", taskRefId);
+    stError("invalid task rid:%" PRId64 " failed to acquired stream-task at %s", taskRefId, __func__);
     streamTaskFreeRefId(param);
     return;
   }
@@ -129,7 +132,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   int64_t      taskRefId = *(int64_t*)param;
   SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, taskRefId);
   if (pTask == NULL) {
-    stError("invalid task rid:%" PRId64 " failed to acquired stream-task", taskRefId);
+    stError("invalid task rid:%" PRId64 " failed to acquired stream-task at %s", taskRefId, __func__);
     streamTaskFreeRefId(param);
     return;
   }
@@ -141,10 +144,18 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
   stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
 
-  if (streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+  if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, jump out of schedTimer", id);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     streamTaskFreeRefId(param);
+    return;
+  }
+
+  if (streamTaskShouldPause(pTask)) {
+    stDebug("s-task:%s is paused, recheck in %.2fs", id, nextTrigger/1000.0);
+    streamTmrStart(streamTaskSchedHelper, nextTrigger, param, streamTimer, &pTask->schedInfo.pDelayTimer, vgId,
+                   "sched-run-tmr");
+    streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
 

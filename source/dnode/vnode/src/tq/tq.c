@@ -765,7 +765,6 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
   }
 
   streamTaskResetUpstreamStageInfo(pTask);
-  streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
