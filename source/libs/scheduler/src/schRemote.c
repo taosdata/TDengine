@@ -504,6 +504,10 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
          code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT); // ignore error
+
+  if (pMsg->handle == NULL) {
+    qError("sch handle is NULL, may be already released and mem lea");
+  }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -729,7 +733,7 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
   param->nodeEpId.nodeId = addr->nodeId;
   SEp* pEp = SCH_GET_CUR_EP(addr);
-  strcpy(param->nodeEpId.ep.fqdn, pEp->fqdn);
+  tstrncpy(param->nodeEpId.ep.fqdn, pEp->fqdn, sizeof(param->nodeEpId.ep.fqdn));
   param->nodeEpId.ep.port = pEp->port;
   param->pTrans = pJob->pTrans;
 

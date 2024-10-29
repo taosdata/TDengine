@@ -166,16 +166,34 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
   SVnodeObj *pOld = NULL;
   int32_t    r = taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+  if (r != 0) {
+    dError("vgId:%d, failed to get vnode from hash", pVnode->vgId);
+  }
   if (pOld) {
     vmFreeVnodeObj(&pOld);
   }
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
+
+  pOld = NULL;
+  r = taosHashGetDup(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+  if (r != 0) {
+    dError("vgId:%d, failed to get vnode from closedHash", pVnode->vgId);
+  }
+  if (pOld) {
+    vmFreeVnodeObj(&pOld);
+  }
+
+  dInfo("vgId:%d, remove from closedHash", pVnode->vgId);
+  r = taosHashRemove(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t));
+  if (r != 0) {
+    dError("vgId:%d, failed to remove vnode from hash", pVnode->vgId);
+  }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
   return code;
 }
 
-void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
+void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed) {
   char path[TSDB_FILENAME_LEN] = {0};
   bool atExit = true;
 
@@ -185,7 +203,40 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
   int32_t r = taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
+  if (r != 0) {
+    dError("vgId:%d, failed to remove vnode from hash", pVnode->vgId);
+  }
+  if (keepClosed) {
+    SVnodeObj *pClosedVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
+    (void)memset(pClosedVnode, 0, sizeof(SVnodeObj));
+    if (pVnode == NULL) {
+      dError("vgId:%d, failed to alloc vnode since %s", pVnode->vgId, terrstr());
+      (void)taosThreadRwlockUnlock(&pMgmt->lock);
+      return;
+    }
+
+    pClosedVnode->vgId = pVnode->vgId;
+    pClosedVnode->dropped = pVnode->dropped;
+    pClosedVnode->vgVersion = pVnode->vgVersion;
+    pClosedVnode->diskPrimary = pVnode->diskPrimary;
+    pClosedVnode->toVgId = pVnode->toVgId;
+
+    SVnodeObj *pOld = NULL;
+    r = taosHashGetDup(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+    if (r != 0) {
+      dError("vgId:%d, failed to get vnode from closedHash", pVnode->vgId);
+    }
+    if (pOld) {
+      vmFreeVnodeObj(&pOld);
+    }
+    dInfo("vgId:%d, put vnode to closedHash", pVnode->vgId);
+    r = taosHashPut(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t), &pClosedVnode, sizeof(SVnodeObj *));
+    if (r != 0) {
+      dError("vgId:%d, failed to put vnode to closedHash", pVnode->vgId);
+    }
+  }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
+
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {
@@ -213,12 +264,12 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
         taosQueueGetThreadId(pVnode->pApplyW.queue));
   tMultiWorkerCleanup(&pVnode->pApplyW);
 
-  dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
-  while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
-
   dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
+  while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   tqNotifyClose(pVnode->pImpl->pTq);
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
@@ -311,6 +362,8 @@ static void *vmOpenVnodeInThread(void *param) {
       snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
       vnodeDestroy(pCfg->vgId, path, pMgmt->pTfs, 0);
       pThread->updateVnodesList = true;
+      pThread->dropped++;
+      (void)atomic_add_fetch_32(&pMgmt->state.dropVnodes, 1);
       continue;
     }
 
@@ -352,17 +405,23 @@ static void *vmOpenVnodeInThread(void *param) {
     (void)atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
   }
 
-  dInfo("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
-        pThread->failed);
+  dInfo("thread:%d, numOfVnodes:%d, opened:%d dropped:%d failed:%d", pThread->threadIndex, pThread->vnodeNum,
+        pThread->opened, pThread->dropped, pThread->failed);
   return NULL;
 }
 
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->hash == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     dError("failed to init vnode hash since %s", terrstr());
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pMgmt->closedHash =
+      taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (pMgmt->hash == NULL) {
+    dError("failed to init vnode closed hash since %s", terrstr());
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SWrapperCfg *pCfgs = NULL;
@@ -427,7 +486,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   taosMemoryFree(threads);
   taosMemoryFree(pCfgs);
 
-  if (pMgmt->state.openVnodes != pMgmt->state.totalVnodes) {
+  if ((pMgmt->state.openVnodes + pMgmt->state.dropVnodes) != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
     terrno = TSDB_CODE_VND_INIT_FAILED;
     return -1;
@@ -457,7 +516,7 @@ static void *vmCloseVnodeInThread(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     tmsgReportStartup("vnode-close", stepDesc);
 
-    vmCloseVnode(pMgmt, pVnode, false);
+    vmCloseVnode(pMgmt, pVnode, false, false);
   }
 
   dInfo("thread:%d, numOfVnodes:%d is closed", pThread->threadIndex, pThread->vnodeNum);
@@ -535,6 +594,18 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     pMgmt->hash = NULL;
   }
 
+  void *pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    vmFreeVnodeObj(ppVnode);
+    pIter = taosHashIterate(pMgmt->closedHash, pIter);
+  }
+
+  if (pMgmt->closedHash != NULL) {
+    taosHashCleanup(pMgmt->closedHash);
+    pMgmt->closedHash = NULL;
+  }
+
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
@@ -543,7 +614,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   (void)taosThreadRwlockDestroy(&pMgmt->lock);
-  (void)taosThreadMutexDestroy(&pMgmt->createLock);
+  (void)taosThreadMutexDestroy(&pMgmt->fileLock);
   taosMemoryFree(pMgmt);
 }
 
@@ -635,7 +706,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     goto _OVER;
   }
 
-  code = taosThreadMutexInit(&pMgmt->createLock, NULL);
+  code = taosThreadMutexInit(&pMgmt->fileLock, NULL);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _OVER;
@@ -774,6 +845,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   }
 
   pMgmt->state.openVnodes = 0;
+  pMgmt->state.dropVnodes = 0;
   dInfo("restore %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {

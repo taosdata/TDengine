@@ -533,13 +533,13 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 
   while (true) {
     tbGet = false;
-    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }
 
     if (dbFName[0] && tbName[0]) {
-      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)snprintf(tbInfo.tbFName, sizeof(tbInfo.tbFName), "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }

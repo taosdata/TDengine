@@ -294,9 +294,6 @@ static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*ty
   return true;
 }
 
-static bool isMinMaxFunction(int32_t funcType) {
-  return funcType == FUNCTION_TYPE_MIN || funcType == FUNCTION_TYPE_MAX;
-}
 static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
@@ -306,8 +303,7 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if ((!isMinMaxFunction(pFunc->funcType) && scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) ||
-        (isMinMaxFunction(pFunc->funcType) && pFunc->hasSMA)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
       SNode* pNew = NULL;
       code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -1170,9 +1166,9 @@ static EDealRes pdcJoinCollectCondCol(SNode* pNode, void* pContext) {
       char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
       int32_t len = 0;
       if ('\0' == pCol->tableAlias[0]) {
-        len = snprintf(name, sizeof(name), "%s", pCol->colName);
+        len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
       } else {
-        len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+        len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
       }
       if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
         pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
@@ -2384,6 +2380,8 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       pFuncList = ((SInterpFuncLogicNode*)pLogicNode)->pFuncs;
       break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      pFuncList = ((SForecastFuncLogicNode*)pLogicNode)->pFuncs;
     default:
       break;
   }
@@ -3166,7 +3164,7 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 // todo refact: just to mask compilation warnings
 static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
-  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+  int32_t len = tsnprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
   (void)taosHashBinary(name, len);
   strncpy(pAlias, name, TSDB_COL_NAME_LEN - 1);
@@ -3845,7 +3843,7 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
+    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
     (void)taosHashBinary(name, len);
     strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
@@ -4355,7 +4353,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     }
     FOREACH(pParamNode, pFunc->pParameterList) {
       if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-        int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+        int32_t len = tsnprintf(pFunc->functionName, sizeof(pFunc->functionName),
                               FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
         pFunc->functionName[len] = '\0';
         code = fmGetFuncInfo(pFunc, NULL, 0);
@@ -7238,7 +7236,7 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   strcpy(pWStart->functionName, "_wstart");
   int64_t pointer = (int64_t)pWStart;
   char    name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
   (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;

@@ -410,7 +410,6 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  // int64_t transporterId = 0;
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
   if (code) {
     doRequestCallback(pRequest, code);
@@ -949,7 +948,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
   for (int32_t i = 0; i < tbNum; ++i) {
     STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
     if (NULL == tbInfo) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       goto _return;
     }
     STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
@@ -1921,19 +1920,19 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
   return NULL;
 }
 
-TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
-                     const char* db, int dbLen, uint16_t port) {
-  char ipStr[TSDB_EP_LEN] = {0};
-  char dbStr[TSDB_DB_NAME_LEN] = {0};
-  char userStr[TSDB_USER_LEN] = {0};
-  char passStr[TSDB_PASSWORD_LEN] = {0};
-
-  (void)strncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
-  (void)strncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
-  (void)strncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
-  (void)strncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
-  return taos_connect(ipStr, userStr, passStr, dbStr, port);
-}
+// TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
+//                      const char* db, int dbLen, uint16_t port) {
+//   char ipStr[TSDB_EP_LEN] = {0};
+//   char dbStr[TSDB_DB_NAME_LEN] = {0};
+//   char userStr[TSDB_USER_LEN] = {0};
+//   char passStr[TSDB_PASSWORD_LEN] = {0};
+//
+//   tstrncpy(ipStr, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
+//   tstrncpy(userStr, user, TMIN(TSDB_USER_LEN - 1, userLen));
+//   tstrncpy(passStr, pass, TMIN(TSDB_PASSWORD_LEN - 1, passLen));
+//   tstrncpy(dbStr, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
+//   return taos_connect(ipStr, userStr, passStr, dbStr, port);
+// }
 
 void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
@@ -2275,7 +2274,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         char*   jsonInnerData = data + CHAR_BYTES;
         char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-          (void)sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
           char* jsonString = NULL;
@@ -2298,10 +2297,11 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
-          (void)sprintf(varDataVal(dst), "%.9lf", jsonVd);
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-          (void)sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
+          (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s",
+                         (*((char*)jsonInnerData) == 1) ? "true" : "false");
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
           tscError("doConvertJson error: invalid type:%d", jsonInnerType);
@@ -2570,6 +2570,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.readTimeout = tsReadTimeout;
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(version, &(rpcInit.compatibilityVer))) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
@@ -2658,8 +2659,8 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
     return -1;
   }
 
-  char dbFName[TSDB_DB_FNAME_LEN];
-  (void)sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  (void)snprintf(dbFName, TSDB_DB_FNAME_LEN, "%d.%.*s", acctId, dbLen, dbName);
 
   STablesReq* pDb = taosHashGet(pHash, dbFName, strlen(dbFName));
   if (pDb) {
@@ -2672,7 +2673,7 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
     if (NULL == db.pTables) {
       return terrno;
     }
-    (void)strcpy(db.dbFName, dbFName);
+    tstrncpy(db.dbFName, dbFName, TSDB_DB_FNAME_LEN);
     if (NULL == taosArrayPush(db.pTables, &name)) {
       return terrno;
     }

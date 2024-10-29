@@ -231,6 +231,7 @@ static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask
   code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS || !hasEpset) {
     mError("failed to extract epset during create update epset, code:%s", tstrerror(code));
+    taosMemoryFree(pBuf);
     return code;
   }
 

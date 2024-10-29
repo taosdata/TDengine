@@ -166,14 +166,14 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  code = tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  code = tqInitDataRsp(&dataRsp, req.reqOffset);
   if (code != 0) {
     tqError("tqInitDataRsp failed, code:%d", code);
     return;
   }
-  dataRsp.common.blockNum = 0;
+  dataRsp.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.reqOffset);
+  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s,QID:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
@@ -184,18 +184,18 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   tDeleteMqDataRsp(&dataRsp);
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp, int32_t type,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type,
                       int32_t vgId) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
   char buf1[TSDB_OFFSET_LEN] = {0};
   char buf2[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->reqOffset);
-  (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->rspOffset);
+  (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &(pRsp->reqOffset));
+  (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &(pRsp->rspOffset));
 
   tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
-          vgId, pReq->consumerId, pReq->epoch, ((SMqDataRspCommon*)pRsp)->blockNum, buf1, buf2, pReq->reqId);
+          vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
 }
@@ -518,7 +518,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRUnLockLatch(&pTq->lock);
 
   SMqDataRsp dataRsp = {0};
-  code = tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  code = tqInitDataRsp(&dataRsp, req.reqOffset);
   if (code != 0) {
     return code;
   }
@@ -529,10 +529,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     goto END;
   }
 
-  dataRsp.common.rspOffset.type = TMQ_OFFSET__LOG;
+  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
   if (reqOffset.type == TMQ_OFFSET__LOG) {
-    dataRsp.common.rspOffset.version = reqOffset.version;
+    dataRsp.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
     STqOffset* pOffset = NULL;
     code = tqMetaGetOffset(pTq, req.subKey, &pOffset);
@@ -543,17 +543,17 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
         goto END;
       }
 
-      dataRsp.common.rspOffset.version = pOffset->val.version;
+      dataRsp.rspOffset.version = pOffset->val.version;
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%" PRId64, consumerId, vgId,
-             req.subKey, dataRsp.common.rspOffset.version);
+             req.subKey, dataRsp.rspOffset.version);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-        dataRsp.common.rspOffset.version = sver;  // not consume yet, set the earliest position
+        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        dataRsp.common.rspOffset.version = ever;
+        dataRsp.rspOffset.version = ever;
       }
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%" PRId64, consumerId, vgId, req.subKey,
-             dataRsp.common.rspOffset.version);
+             dataRsp.rspOffset.version);
     }
   } else {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
@@ -746,13 +746,13 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
       return terrno;
     }
 
-    pOutputInfo->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    if (pOutputInfo->tbSink.pTblInfo == NULL) {
+    pOutputInfo->tbSink.pTbInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pOutputInfo->tbSink.pTbInfo == NULL) {
       tqError("vgId:%d failed init sink tableInfo, code:%s", vgId, tstrerror(terrno));
       return terrno;
     }
 
-    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTblInfo, freePtr);
+    tSimpleHashSetFreeFp(pOutputInfo->tbSink.pTbInfo, freePtr);
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {

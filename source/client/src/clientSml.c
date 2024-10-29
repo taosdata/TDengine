@@ -137,7 +137,7 @@ void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2
   }
   (void)memset(pBuf->buf, 0, pBuf->len);
   if (msg1) {
-    (void)strncat(pBuf->buf, msg1, pBuf->len);
+    (void)strncat(pBuf->buf, msg1, pBuf->len - 1);
   }
   int32_t left = pBuf->len - strlen(pBuf->buf);
   if (left > 2 && msg2) {
@@ -393,7 +393,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
     tinfo->tags = taosArrayDup(info->preLineTagKV, NULL);
     if (tinfo->tags == NULL) {
       smlDestroyTableInfo(&tinfo);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (size_t i = 0; i < taosArrayGetSize(info->preLineTagKV); i++) {
       SSmlKv *kv = (SSmlKv *)taosArrayGet(info->preLineTagKV, i);
@@ -516,9 +516,9 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       if (tag == NULL) {
         return TSDB_CODE_SML_INVALID_DATA;
       }
-      (void)strncat(childTableName, tag->value, tag->length);
+      (void)strncat(childTableName, tag->value, TMIN(tag->length, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName)));
       if (i != taosArrayGetSize(tags) - 1) {
-        (void)strcat(childTableName, tsSmlAutoChildTableNameDelimiter);
+        (void)strncat(childTableName, tsSmlAutoChildTableNameDelimiter, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName));
       }
     }
     if (tsSmlDot2Underline) {
@@ -539,8 +539,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         (void)memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-        (void)strncpy(childTableName, tag->value,
-                      (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+        tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length + 1));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
         }
@@ -562,7 +561,7 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
   if (strlen(oneTable->childTableName) == 0) {
     SArray *dst = taosArrayDup(oneTable->tags, NULL);
     if (dst == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     if (oneTable->sTableNameLen >= TSDB_TABLE_NAME_LEN) {
       uError("SML:smlSetCTableName super table name is too long");
@@ -958,7 +957,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
   for (; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     if (kv == NULL) {
-      code = TSDB_CODE_SML_INVALID_DATA;
+      code = terrno;
       goto END;
     }
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
@@ -1054,7 +1053,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
     SField *pField = taosArrayGet(pColumns, i);
     if (pField == NULL) {
-      code = TSDB_CODE_SML_INVALID_DATA;
+      code = terrno;
       goto end;
     }
     SFieldWithOptions fieldWithOption = {0};

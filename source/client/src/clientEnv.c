@@ -114,10 +114,10 @@ static void concatStrings(SArray *list, char *buf, int size) {
       db = dot + 1;
     }
     if (i != 0) {
-      (void)strcat(buf, ",");
+      (void)strncat(buf, ",", size - 1 - len);
       len += 1;
     }
-    int ret = snprintf(buf + len, size - len, "%s", db);
+    int ret = tsnprintf(buf + len, size - len, "%s", db);
     if (ret < 0) {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
@@ -370,7 +370,10 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 1000);
   rpcInit.connLimitNum = connLimitNum;
+  rpcInit.shareConnLimit = tsShareConnLimit;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
   int32_t code = taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   if (TSDB_CODE_SUCCESS != code) {
@@ -1094,18 +1097,14 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  * @return
  */
 uint64_t generateRequestId() {
-  static uint64_t hashId = 0;
-  static uint32_t requestSerialId = 0;
+  static uint32_t hashId = 0;
+  static int32_t requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    int32_t code = taosGetSystemUUIDU32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
-               tstrerror(TAOS_SYSTEM_ERROR(errno)));
-
-    } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
+               tstrerror(code));
     }
   }
 
@@ -1117,7 +1116,7 @@ uint64_t generateRequestId() {
     uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
     if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
-    id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+    id = (((uint64_t)(hashId & 0x0FFF)) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {
       break;
     }
@@ -1132,27 +1131,27 @@ static setConfRet taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
     ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
-    strcpy(ret.retMsg, "configuration can only set once");
+    tstrncpy(ret.retMsg, "configuration can only set once", RET_MSG_LENGTH);
     return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL){
     ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
-    strcpy(ret.retMsg, "parse json error");
+    tstrncpy(ret.retMsg, "parse json error", RET_MSG_LENGTH);
     return ret;
   }
 
   int size = cJSON_GetArraySize(root);
   if(!cJSON_IsObject(root) || size == 0) {
     ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
-    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    tstrncpy(ret.retMsg, "json content is invalid, must be not empty object", RET_MSG_LENGTH);
     return ret;
   }
 
   if(size >= 1000) {
     ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
-    strcpy(ret.retMsg, "json object size is too long");
+    tstrncpy(ret.retMsg, "json object size is too long", RET_MSG_LENGTH);
     return ret;
   }
 
@@ -1160,7 +1159,7 @@ static setConfRet taos_set_config_imp(const char *config){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if(!item) {
       ret.retCode = SET_CONF_RET_ERR_INNER;
-      strcpy(ret.retMsg, "inner error");
+      tstrncpy(ret.retMsg, "inner error", RET_MSG_LENGTH);
       return ret;
     }
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){

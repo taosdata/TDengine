@@ -545,8 +545,9 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   return code;
 }
 
-int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx, bool* tbGet) {
+int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
+                                    bool* tbGet) {
   *tbGet = false;
 
   if (tinfo == NULL || dbName == NULL || tableName == NULL) {
@@ -567,12 +568,12 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
   *sversion = pSchemaInfo->sw->version;
   *tversion = pSchemaInfo->tversion;
   if (pSchemaInfo->dbname) {
-    strcpy(dbName, pSchemaInfo->dbname);
+    tstrncpy(dbName, pSchemaInfo->dbname, dbNameBuffLen);
   } else {
     dbName[0] = 0;
   }
   if (pSchemaInfo->tablename) {
-    strcpy(tableName, pSchemaInfo->tablename);
+    tstrncpy(tableName, pSchemaInfo->tablename, tbaleNameBuffLen);
   } else {
     tableName[0] = 0;
   }
@@ -1635,13 +1636,17 @@ int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
-  pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  if (pTaskInfo->pRoot->fpSet.releaseStreamStateFn != NULL) {
+    pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  }
   return 0;
 }
 
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
-  pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  if (pTaskInfo->pRoot->fpSet.reloadStreamStateFn != NULL) {
+    pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  }
   return 0;
 }
 

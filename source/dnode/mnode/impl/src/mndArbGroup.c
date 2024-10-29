@@ -15,13 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndArbGroup.h"
-#include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
-#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "mndUser.h"
 #include "mndVgroup.h"
 
 #define ARBGROUP_VER_NUMBER   1
@@ -245,11 +242,11 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   }
 
   for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-    (void)memcpy(pOld->members[i].state.token, pNew->members[i].state.token, TSDB_ARB_TOKEN_SIZE);
+    tstrncpy(pOld->members[i].state.token, pNew->members[i].state.token, TSDB_ARB_TOKEN_SIZE);
   }
   pOld->isSync = pNew->isSync;
   pOld->assignedLeader.dnodeId = pNew->assignedLeader.dnodeId;
-  (void)memcpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
   pOld->assignedLeader.acked = pNew->assignedLeader.acked;
   pOld->version++;
 
@@ -445,7 +442,7 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
 
     SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
     if (pDnode == NULL) {
-      mError("dnodeId:%d, timer failed to send arb-hb request, failed find dnode", dnodeId);
+      mError("dnodeId:%d, timer failed to acquire dnode", dnodeId);
       taosArrayDestroy(hbMembers);
       continue;
     }
@@ -453,7 +450,10 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
     int64_t mndTerm = mndGetTerm(pMnode);
 
     if (mndIsDnodeOnline(pDnode, nowMs)) {
-      TAOS_CHECK_RETURN(mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers));
+      int32_t sendCode = mndSendArbHeartBeatReq(pDnode, arbToken, mndTerm, hbMembers);
+      if (TSDB_CODE_SUCCESS != sendCode) {
+        mError("dnodeId:%d, timer failed to send arb-hb request", dnodeId);
+      }
     }
 
     mndReleaseDnode(pMnode, pDnode);
@@ -831,12 +831,12 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     newGroup.dbUid = pUpdateGroup->dbUid;
     for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
       newGroup.members[i].info.dnodeId = pUpdateGroup->members[i].dnodeId;
-      (void)memcpy(newGroup.members[i].state.token, pUpdateGroup->members[i].token, TSDB_ARB_TOKEN_SIZE);
+      tstrncpy(newGroup.members[i].state.token, pUpdateGroup->members[i].token, TSDB_ARB_TOKEN_SIZE);
     }
 
     newGroup.isSync = pUpdateGroup->isSync;
     newGroup.assignedLeader.dnodeId = pUpdateGroup->assignedLeader.dnodeId;
-    (void)memcpy(newGroup.assignedLeader.token, pUpdateGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+    tstrncpy(newGroup.assignedLeader.token, pUpdateGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
     newGroup.assignedLeader.acked = pUpdateGroup->assignedLeader.acked;
     newGroup.version = pUpdateGroup->version;
 
@@ -894,7 +894,7 @@ static void mndArbGroupSetAssignedLeader(SArbGroup *pGroup, int32_t index) {
   SArbGroupMember *pMember = &pGroup->members[index];
 
   pGroup->assignedLeader.dnodeId = pMember->info.dnodeId;
-  (void)strncpy(pGroup->assignedLeader.token, pMember->state.token, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(pGroup->assignedLeader.token, pMember->state.token, TSDB_ARB_TOKEN_SIZE);
   pGroup->assignedLeader.acked = false;
 }
 
@@ -976,7 +976,7 @@ bool mndUpdateArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMembe
 
   // update token
   mndArbGroupDupObj(pGroup, pNewGroup);
-  (void)memcpy(pNewGroup->members[index].state.token, pRspMember->memberToken, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(pNewGroup->members[index].state.token, pRspMember->memberToken, TSDB_ARB_TOKEN_SIZE);
   pNewGroup->isSync = false;
 
   bool resetAssigned = false;
