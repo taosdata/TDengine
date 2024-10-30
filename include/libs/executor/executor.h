@@ -151,8 +151,9 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx, bool* tbGet);
+int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
+                                    bool* tbGet);
 
 /**
  * The main task execution function, including query on both table and multiple tables,

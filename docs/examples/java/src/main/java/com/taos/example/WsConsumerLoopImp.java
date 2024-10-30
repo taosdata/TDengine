@@ -1,7 +1,7 @@
 package com.taos.example;
 
-import com.alibaba.fastjson.JSON;
 import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.utils.JsonUtil;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -28,7 +28,11 @@ public abstract class WsConsumerLoopImp {
         final AbsConsumerLoop consumerLoop = new AbsConsumerLoop() {
             @Override
             public void process(ResultBean result) {
-                System.out.println("data: " + JSON.toJSONString(result));
+                try{
+                    System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(result));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
 
