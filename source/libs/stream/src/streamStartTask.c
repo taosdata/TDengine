@@ -453,10 +453,6 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
-    ret = taosRemoveRef(streamTaskRefPool, refId);
-    if (ret) {
-      stError("vgId:%d failed to remove task:0x%x, refId:%"PRId64, pMeta->vgId, pTaskId->taskId, refId);
-    }
   }
 
   taosArrayDestroy(pTaskList);
