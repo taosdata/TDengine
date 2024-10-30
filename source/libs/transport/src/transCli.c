@@ -1246,8 +1246,8 @@ static void cliHandleException(SCliConn* conn) {
   }
 
   cliDestroyAllQidFromThrd(conn);
-  QUEUE_REMOVE(&conn->q);
   if (pThrd->quit == false && conn->list) {
+    QUEUE_REMOVE(&conn->q);
     conn->list->totalSize -= 1;
     tDebug("%s conn %p removed from pool, total conn size %d", CONN_GET_INST_LABEL(conn), conn, conn->list->totalSize);
     conn->list = NULL;
