@@ -905,6 +905,10 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   }
 
   SCliThrd* thrd = conn->hostThrd;
+  if (thrd->quit == false) {
+    return;
+  }
+
   cliResetConnTimer(conn);
   if (conn->list == NULL && conn->dstAddr != NULL) {
     conn->list = taosHashGet((SHashObj*)pool, conn->dstAddr, strlen(conn->dstAddr));
