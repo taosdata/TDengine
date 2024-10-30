@@ -18,7 +18,7 @@ from tmqCommon import *
 
 class TDTestCase:
 
-    updatecfgDict = {'sDebugFlag':143}
+    updatecfgDict = {'sDebugFlag':143, 'wDebugFlag':143}
     def __init__(self):
         self.vgroups    = 1
         self.ctbNum     = 10
