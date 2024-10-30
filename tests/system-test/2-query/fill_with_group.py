@@ -374,6 +374,43 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(2)
 
+        sql = "SELECT count(*) FROM meters PARTITION BY concat(tbname, 'asd') HAVING(concat(tbname, 'asd') like '%asd')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*), concat(tbname, 'asd') FROM meters PARTITION BY concat(tbname, 'asd') HAVING(concat(tbname, 'asd') like '%asd')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*) FROM meters PARTITION BY t1 HAVING(t1 < 4) order by t1 +1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(4)
+
+        sql = "SELECT count(*), t1 + 100 FROM meters PARTITION BY t1 HAVING(t1 < 4) order by t1 +1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(4)
+
+        sql = "SELECT count(*), t1 + 100 FROM meters PARTITION BY t1 INTERVAL(1d) HAVING(t1 < 4) order by t1 +1 desc"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(280)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' and count(*) = 118)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' and count(*) != 118)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(69)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd') order by count(*) asc limit 10"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' or concat(t3, 'asd') like '%3asd') order by count(*) asc limit 10000"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(140)
+
+
     def run(self):
         self.prepareTestEnv()
         self.test_partition_by_with_interval_fill_prev_new_group_fill_error()
