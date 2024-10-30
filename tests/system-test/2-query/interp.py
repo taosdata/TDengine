@@ -6,7 +6,6 @@ from util.sql import *
 from util.cases import *
 
 
-
 class TDTestCase:
 
     def init(self, conn, logSql, replicaVar=1):
@@ -272,7 +271,139 @@ class TDTestCase:
         tdSql.checkData(0, 3, "_ttt_123")
         tdSql.checkData(1, 2, 3)
         tdSql.checkData(1, 3, "_ttt_13")
-    
+
+    def td32727(self):
+        tdLog.printNoPrefix("==========step1:create table")
+
+        tdSql.execute("create database db2 keep 36500")
+        tdSql.execute("use db2")
+        tdSql.execute(
+            f'''create table if not exists db2.td32727
+                (ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 double, c5 float, c6 bool, c7 varchar(10), c8 nchar(10), c9 tinyint unsigned, c10 smallint unsigned, c11 int unsigned, c12 bigint unsigned)
+                '''
+        )
+
+        tdLog.printNoPrefix("==========step2:insert data")
+
+
+        tdSql.execute(f"insert into db2.td32727 values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar', 5, 5, 5, 5)")
+        tdSql.execute(f"insert into db2.td32727 values ('2020-02-01 00:00:10', 10, 10, 10, 10, 10.0, 10.0, true, 'varchar', 'nchar', 10, 10, 10, 10)")
+        tdSql.execute(f"insert into db2.td32727 values ('2020-02-01 00:00:15', 15, 15, 15, 15, 15.0, 15.0, true, 'varchar', 'nchar', 15, 15, 15, 15)")
+
+        tdLog.printNoPrefix("==========step3:test interp with 1 partition key")
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (null) order by irowts;")
+        tdSql.checkRows(13)
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(1, 3, 5)
+        tdSql.checkData(2, 3, None)
+        tdSql.checkData(3, 3, None)
+        tdSql.checkData(4, 3, None)
+        tdSql.checkData(5, 3, None)
+        tdSql.checkData(6, 3, 10)
+        tdSql.checkData(7, 3, None)
+        tdSql.checkData(8, 3, None)
+        tdSql.checkData(9, 3, None)
+        tdSql.checkData(10, 3, None)
+        tdSql.checkData(11, 3, 15)
+        tdSql.checkData(12, 3, None)
+
+        for i in range(0, 13):
+            tdSql.checkData(i, 1, 'td32727')
+
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (prev) order by irowts;")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(1, 3, 5)
+        tdSql.checkData(2, 3, 5)
+        tdSql.checkData(3, 3, 5)
+        tdSql.checkData(4, 3, 5)
+        tdSql.checkData(5, 3, 10)
+        tdSql.checkData(6, 3, 10)
+        tdSql.checkData(7, 3, 10)
+        tdSql.checkData(8, 3, 10)
+        tdSql.checkData(9, 3, 10)
+        tdSql.checkData(10, 3, 15)
+        tdSql.checkData(11, 3, 15)
+
+        for i in range(0, 12):
+            tdSql.checkData(i, 1, 'td32727')
+
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (next) order by irowts;")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(1, 3, 5)
+        tdSql.checkData(2, 3, 10)
+        tdSql.checkData(3, 3, 10)
+        tdSql.checkData(4, 3, 10)
+        tdSql.checkData(5, 3, 10)
+        tdSql.checkData(6, 3, 10)
+        tdSql.checkData(7, 3, 15)
+        tdSql.checkData(8, 3, 15)
+        tdSql.checkData(9, 3, 15)
+        tdSql.checkData(10, 3, 15)
+        tdSql.checkData(11, 3, 15)
+
+        for i in range(0, 12):
+            tdSql.checkData(i, 1, 'td32727')
+
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (value, 1) order by irowts;")
+        tdSql.checkRows(13)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 3, 5)
+        tdSql.checkData(2, 3, 1)
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(4, 3, 1)
+        tdSql.checkData(5, 3, 1)
+        tdSql.checkData(6, 3, 10)
+        tdSql.checkData(7, 3, 1)
+        tdSql.checkData(8, 3, 1)
+        tdSql.checkData(9, 3, 1)
+        tdSql.checkData(10, 3, 1)
+        tdSql.checkData(11, 3, 15)
+        tdSql.checkData(12, 3, 1)
+
+        for i in range(0, 13):
+            tdSql.checkData(i, 1, 'td32727')
+
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (linear) order by irowts;")
+        tdSql.checkRows(11)
+        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(1, 3, 6)
+        tdSql.checkData(2, 3, 7)
+        tdSql.checkData(3, 3, 8)
+        tdSql.checkData(4, 3, 9)
+        tdSql.checkData(5, 3, 10)
+        tdSql.checkData(6, 3, 11)
+        tdSql.checkData(7, 3, 12)
+        tdSql.checkData(8, 3, 13)
+        tdSql.checkData(9, 3, 14)
+        tdSql.checkData(10, 3, 15)
+
+        for i in range(0, 11):
+            tdSql.checkData(i, 1, 'td32727')
+
+        tdLog.printNoPrefix("==========step3:test interp with 2 partition key")
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, c2 as c_c2, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname,c2  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (null) order by irowts,c2;")
+        tdSql.checkRows(39)
+        for i in range(0, 13):
+            tdSql.checkData(i * 3, 2, 5)
+            tdSql.checkData(i * 3 + 1, 2, 10)
+            tdSql.checkData(i * 3 + 2, 2, 15)
+        for i in range(0, 39):
+            tdSql.checkData(i, 1, 'td32727')
+        for i in range(0, 3):
+            tdSql.checkData(i, 4, None)
+        tdSql.checkData(3, 4, 5)
+        for i in range(4, 19):
+            tdSql.checkData(i, 4, None)
+        tdSql.checkData(19, 4, 10)
+        for i in range(20, 35):
+            tdSql.checkData(i, 4, None)
+        tdSql.checkData(35, 4, 15)
+
+        tdSql.query(f"select _irowts as irowts ,tbname as table_name, c2 as c_c2, _isfilled as isfilled , interp(c1) as  intp_c1  from db2.td32727 partition by tbname,c2  range('2020-02-01 00:00:04', '2020-02-01 00:00:16')  every(1s) fill (next) order by irowts,c2;")
+        tdSql.checkRows(21)
+
     def run(self):
         dbname = "db"
         tbname = "tb"
@@ -5916,6 +6047,7 @@ class TDTestCase:
         tdSql.checkData(0,  0, '2023-08-06 23:59:00')
         tdSql.checkData(0,  1, None)
 
+        self.td32727()
         self.interp_on_empty_table()
         self.ts5181()
 
