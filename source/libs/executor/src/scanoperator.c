@@ -3466,7 +3466,8 @@ FETCH_NEXT_BLOCK:
         code = setBlockGroupIdByUid(pInfo, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
 
-        deletePartName(pInfo, pBlock);
+        code = deletePartName(pInfo, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
         goto FETCH_NEXT_BLOCK;
       } break;
       case STREAM_CHECKPOINT: {
