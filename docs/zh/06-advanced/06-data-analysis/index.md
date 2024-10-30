@@ -134,30 +134,31 @@ log-level = DEBUG
 
 ## ANode 基本操作
 ### 管理 ANode
-创建 ANode 的 SQL 语法如下：
+#### 创建 ANode 
 ```sql 
 CREATE ANODE {node_url}
 ```
 node_url 是提供服务的 ANode 的 IP 和 PORT, 例如：`create anode 'http://localhost:6050'`。启动 ANode 以后如果不注册到 TDengine 集群中，无法提供正常的服务。不建议 ANode 注册到两个或多个集群中。
 
-查看 ANode
+#### 查看 ANode
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`。
 ```sql
 SHOW ANODES;
 ```
-查看当前 ANode 提供的时序数据分析服务列表
+
+#### 查看提供的时序数据分析服务
 
 ```SQL
 SHOW ANODES FULL;
 ```
 
-强制刷新 TDengine 集群中分析算法缓存
+#### 强制刷新 TDengine 集群中分析算法缓存
 ```SQL
 UPDATE ANODE {node_id}
 UPDATE ALL ANODES
 ```
 
-删除集群中的 ANode 语法如下：
+#### 删除 ANode 
 ```sql
 DROP ANODE {anode_id}
 ```
@@ -166,18 +167,21 @@ DROP ANODE {anode_id}
 ### 时序数据分析功能
 
 #### 时序数据异常检测
-异常窗口寻找时间序列中可能出现异常的多个时间区间，可基于此窗口边界，对数据进行聚合或标量查询。 
+异常窗口寻找时间序列中可能出现异常的多个时间区间，可基于此窗口边界，对数据进行聚合或标量查询。 时间序列异常窗口中的所有数据均是依据指定算法判断出来的异常值。
 
 ```SQL
-SELECT {aggregate_function}
-FROM {subquery}
-WHERE {filer_condition}
-ANOMALY_WINDOW(column, options)
+ANOMALY_WINDOW(column_name, option_expr)
+
+option_expr: {"
+algo=expr1
+[,wncheck=1|0]
+[,expr2]
+"}
 ```
 
 **语法说明**
 1. `column`：进行时序数据异常检测的输入数据列，当前只支持单列输入，且只能是数值类型，不能是字符类型（例如：`NCHAR` `VARCHAR` `VARBINARY`等类型），**不支持函数表达式**。
-2. `options`：调用异常检测的算法，及与算法相关的参数。采用 逗号分隔的K/V字符串表示，其中的字符串不需要使用单引号、双引号、或转意号等符号，不能使用中文及其他宽字符。例如：`algo=ksigma, k=2` 表示进行异常检测的算法是 ksigma，该算法接受的输入参数是 2。
+2. `options`：字符串。其中使用 K/V 调用异常检测的算法，及与算法相关的参数。采用 逗号分隔的K/V字符串表示，其中的字符串不需要使用单引号、双引号、或转意号等符号，不能使用中文及其他宽字符。例如：`algo=ksigma, k=2` 表示进行异常检测的算法是 ksigma，该算法接受的输入参数是 2。
 
 全部支持的参数列表如下：
 |参数|含义|默认值|
@@ -192,7 +196,6 @@ ANOMALY_WINDOW(column, options)
 
 **示例**
 ```SQL
-
 --- 使用 iqr 算法进行异常检测，检测列 i32 列。
 SELECT _wstart, _wend, SUM(i32) 
 FROM ai.atb
@@ -200,25 +203,36 @@ ANOMALY_WINDOW(i32, "algo=iqr");
 
 --- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列
 SELECT _wstart, _wend, SUM(i32) 
-FROM ai.atb ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+FROM ai.atb
+ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
 ```
 
 
 **使用说明**
-1. 异常检测的结果可以作为外层查询的子查询输入，在 `select` 子句中使用的聚合函数或标量函数与其他类型的窗口查询相同。
+1. 异常检测的结果可以作为外层查询的子查询输入，在 `SELECT` 子句中使用的聚合函数或标量函数与其他类型的窗口查询相同。
 2. 输入数据默认进行白噪声检查，如果检查结果是输入数据是白噪声，将不会有任何（异常）窗口信息返回。
 
 
 #### 时序数据预测
 数据预测以一段训练数据作为输入，预测接下来若干时间点的后续运行结果。其调用的语法如下：
 ```SQL
-SELECT {pseudo_column}, forecast(column, options) FROM {subquery} WHERE [where_clause]
+FORECAST(column_expr, option_expr)
+
+option_expr: {"
+algo=expr1
+[,wncheck=1|0]
+[,conf=conf_val]
+[,every=every_val]
+[,rows=rows_val]
+[,start=start_ts_val]
+[,expr2]
+"}
+
 ```
 
 **语法说明**
-1. `forecast`：关键字
-2. `column`：预测的时序数据列。与异常检测相同，只支持数值类型输入。
-3. `options`：异常检测函数的参数，使用规则与 anomaly_window 相同
+1. `column_expr`：预测的时序数据列。与异常检测相同，只支持数值类型输入。
+2. `options`：异常检测函数的参数，使用规则与 anomaly_window 相同。预测还支持`conf`, `every`, `rows`, `start`, `rows` 几个参数，其含义如下：
 
 |参数|含义|默认值|
 |---|---|---|
@@ -232,18 +246,21 @@ SELECT {pseudo_column}, forecast(column, options) FROM {subquery} WHERE [where_c
 预测查询结果新增了三个伪列，具体如下：
 1. `_FROWTS`：预测结果的时间戳
 2. `_FLOW`：置信区间下界
-3. `_FHIGH`：置信区间上界。对于没有置信区间的预测算法，其置信区间同预测结果。
+3. `_FHIGH`：置信区间上界, 对于没有置信区间的预测算法，其置信区间同预测结果
 
 **示例**
 
 ```SQL
 --- 使用 arima 算法进行预测，预测结果是 10 条记录（默认值），数据进行白噪声检查，默认置信区间 95%. 
-select  _flow, _fhigh, _frowts, forecast(i32, "algo=arima") from ai.ftb;
+SELECT  _flow, _fhigh, _frowts, FORECAST(i32, "algo=arima")
+FROM ai.ftb;
 
 --- 使用 arima 算法进行预测，输入数据的是周期数据，每10个采样点是一个周期。返回置信区间是 95%.
-select  _flow, _fhigh, _frowts, forecast(i32, "algo=arima,alpha=95,period=10") from ai.ftb;
+SELECT  _flow, _fhigh, _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10")
+FROM ai.ftb;
 ```
+
 **使用说明**
-1. `start`：返回预测结果的起始时间，改变这个起始时间不会影响返回的预测数值，只影响起始时间。
-2. `every`：可以与输入数据的采样频率不同。采样频率只能低于或等于输入数据采样频率，不能高于输入数据的采样频率。
+1. `START`：返回预测结果的起始时间，改变这个起始时间不会影响返回的预测数值，只影响起始时间。
+2. `EVERY`：可以与输入数据的采样频率不同。采样频率只能低于或等于输入数据采样频率，不能**高于**输入数据的采样频率。
 3. 对于某些不需要计算置信区间的算法，即使指定了置信区间，返回的结果中其上下界退化成为一个点。
