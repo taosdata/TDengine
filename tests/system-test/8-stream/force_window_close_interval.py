@@ -126,7 +126,7 @@ class TDTestCase:
             partition_elm = ""
         if fill_value:
             if "value" in fill_value.lower():
-                fill_value = "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"
+                fill_value = "VALUE,1"
 
         # create error stream
         tdLog.info("create error stream")
@@ -256,7 +256,7 @@ class TDTestCase:
 
         if fill_value:
             if "value" in fill_value.lower():
-                fill_value = "VALUE,1,2,3,4,5,6,7,8,9,10,11"
+                fill_value = "VALUE,1"
 
         # create stream general table
         tdLog.info("create stream general table")
@@ -271,8 +271,15 @@ class TDTestCase:
             ignore_update=ignore_update,
         )
 
-        #sleep 10s  wait stream_task status is ready
-        time.sleep(10)
+        # wait and check stream_task status is ready
+        time.sleep(self.tdCom.dataDict["interval"])
+        tdSql.query("show streams")
+        tdLog.info(f"tdSql.queryResult:{tdSql.queryResult},tdSql.queryRows:{tdSql.queryRows}")
+        for stream_number in range(tdSql.queryRows):
+            stream_name = tdSql.queryResult[stream_number][0]
+            tdCom.check_stream_task_status(
+                stream_name=stream_name, vgroups=2, stream_timeout=20,check_wal_info=False
+            )
 
         # insert data
         self.tdCom.date_time = self.tdCom.genTs(precision=self.tdCom.precision)[0]
@@ -487,8 +494,6 @@ class TDTestCase:
                 )
                 start_new_ts = tdSql.getData(0, 1)
                 if tbname == self.ctb_name:
-                    if "value" in fill_value.lower():
-                        fill_value = "VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"
                     if partition == "tbname":
                         # check data for child table 
                         tdLog.info("check data for child table ")
@@ -536,8 +541,6 @@ class TDTestCase:
                             fill_value=fill_value,
                         )                        
                 else:
-                    if "value" in fill_value.lower():
-                        fill_value = "VALUE,1"
                     if partition == "tbname":
                         # check data for general table
                         self.tdCom.check_query_data(
@@ -618,8 +621,18 @@ class TDTestCase:
                             )
 
     def run(self):
+        for fill_value in ["PREV", "NEXT", "VALUE"]:
+            self.force_window_close(
+                interval=10,
+                partition="tbname",
+                funciton_name="interp(c1)",
+                funciton_name_alias="intp_c1",
+                delete=False,
+                ignore_update=1,
+                fill_value=fill_value,
+            )
         self.force_window_close(
-            interval=10,
+            interval=8,
             partition="tbname",
             funciton_name="interp(c1)",
             funciton_name_alias="intp_c1",
@@ -643,6 +656,7 @@ class TDTestCase:
 
 
 event = threading.Event()
+
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

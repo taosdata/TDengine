@@ -1012,7 +1012,7 @@ class TDCom:
         # If no match was found, or the pattern does not match the expected format, return False
         return False
     
-    def check_stream_task_status(self, stream_name, vgroups, stream_timeout=None):
+    def check_stream_task_status(self, stream_name, vgroups, stream_timeout=0, check_wal_info=True):
         """check stream status
 
         Args:
@@ -1048,13 +1048,16 @@ class TDCom:
                 print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
                 if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
                     if result_task_history_rows == 1 and  result_task_history == [(None,)] :
-                        for vgroup_num in range(vgroups):
-                            if self.check_stream_wal_info(result_task_alll[vgroup_num][4]) :
-                                check_stream_success += 1
-                                tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
-                            else:
-                                check_stream_success = 0
-                                break
+                        if check_wal_info:
+                            for vgroup_num in range(vgroups):
+                                if self.check_stream_wal_info(result_task_alll[vgroup_num][4]) :
+                                    check_stream_success += 1
+                                    tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+                                else:
+                                    check_stream_success = 0
+                                    break
+                        else:
+                            check_stream_success = vgroups
                             
                 if check_stream_success == vgroups:
                     break
