@@ -533,7 +533,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 
   while (true) {
     tbGet = false;
-    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }
