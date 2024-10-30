@@ -103,7 +103,7 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
     pVnode = NULL;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-    // dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
+    dTrace("vgId:%d, acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -115,16 +115,24 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) { return vmAcquireVno
 void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   if (pVnode == NULL) return;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  //(void)taosThreadRwlockRdlock(&pMgmt->lock);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  dTrace("vgId:%d, release vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+  //(void)taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
 static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
   if (!ppVnode || !(*ppVnode)) return;
 
   SVnodeObj *pVnode = *ppVnode;
+
+  int32_t refCount = 1;
+  while (refCount > 0) {
+    dWarn("vgId:%d, vnode is refenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+    taosMsleep(200);
+    refCount = atomic_load_32(&pVnode->refCount);
+  }
+
   taosMemoryFree(pVnode->path);
   taosMemoryFree(pVnode);
   ppVnode[0] = NULL;
