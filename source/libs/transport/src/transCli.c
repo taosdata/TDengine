@@ -1349,6 +1349,9 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   }
   STransMsgHead* pHead = *ppHead;
   STransMsgHead* tHead = taosMemoryCalloc(1, *msgLen + sizeof(pInst->user));
+  if (tHead == NULL) {
+    return false;
+  }
   memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
   memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
 
@@ -1435,6 +1438,10 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     if (cliConnMayAddUserInfo(pConn, &pHead, &msgLen)) {
       content = transContFromHead(pHead);
       contLen = transContLenFromMsg(msgLen);
+    } else {
+      if (pConn->userInited == 0) {
+        return terrno;
+      }
     }
     if (pHead->comp == 0) {
       pHead->noResp = REQUEST_NO_RESP(pReq) ? 1 : 0;
