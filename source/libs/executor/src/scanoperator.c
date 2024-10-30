@@ -6685,7 +6685,7 @@ int32_t fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, ch
     QUERY_CHECK_NULL(colInfoData, code, lino, _end, terrno);
     if (strlen(stbName) != 0) {
       char varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      strncpy(varDataVal(varStbName), stbName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(varDataVal(varStbName), stbName, TSDB_TABLE_NAME_LEN);
       varDataSetLen(varStbName, strlen(stbName));
       code = colDataSetVal(colInfoData, 0, varStbName, false);
       QUERY_CHECK_CODE(code, lino, _end);

@@ -87,7 +87,7 @@ CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_nam
 
 **参数说明**
 
-1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考数据写入章节。
+1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考'数据写入'章节。
 2. 为指定的 stb_name 创建子表，该超级表必须已经存在。
 3. field_name 列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 NULL。
 
