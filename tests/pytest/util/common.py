@@ -170,6 +170,8 @@ class TDCom:
         self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
         self.ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:13])
         self.stream_case_when_tbname = "tbname"
+        self.tag_value_str = ""
+        self.tag_value_list = []
 
         self.update = True
         self.disorder = True
@@ -202,7 +204,7 @@ class TDCom:
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
         self.state_window_range = list()
-
+        
         self.custom_col_val = 0
         self.part_val_list = [1, 2]
     # def init(self, conn, logSql):
@@ -754,10 +756,10 @@ class TDCom:
         if len(kwargs) > 0:
             for param, value in kwargs.items():
                 ctb_params += f'{param} "{value}" '
-        tag_value_list = self.gen_tag_value_list(tag_elm_list)
+        self.tag_value_list = self.gen_tag_value_list(tag_elm_list)
         tag_value_str = ""
         # tag_value_str = ", ".join(str(v) for v in self.tag_value_list)
-        for tag_value in tag_value_list:
+        for tag_value in self.tag_value_list:
             if isinstance(tag_value, str):
                 tag_value_str += f'"{tag_value}", '
             else:
@@ -913,12 +915,13 @@ class TDCom:
             else:
                 stream_options += f" ignore update 0"
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
         else:
+            
             if watermark is None:
                 if trigger_mode == "max_delay":
                     stream_options = f'trigger {trigger_mode} {max_delay}'
@@ -938,12 +941,14 @@ class TDCom:
                 stream_options += f" ignore update {ignore_update}"
             else:
                 stream_options += f" ignore update 0"
+
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+        
 
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
@@ -1761,6 +1766,7 @@ class TDCom:
             bool: False if failed
         """
         tdLog.info("checking query data ...")
+        tdLog.info(f"sq1:{sql1}; sql2:{sql2};")
         if tag_value_list:
             dvalue = len(self.tag_type_str.split(',')) - defined_tag_count
         tdSql.query(sql1)
@@ -1796,7 +1802,7 @@ class TDCom:
             res2 = self.round_handle(res2)
         if not reverse_check:
             while res1 != res2:
-                tdLog.info("query retrying ...")
+                # tdLog.info("query retrying ...")
                 new_list = list()
                 tdSql.query(sql1)
                 res1 = tdSql.queryResult
