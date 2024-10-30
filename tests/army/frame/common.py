@@ -807,8 +807,9 @@ class TDCom:
         if (platform.system().lower() == 'windows'):
             os.system(f"TASKKILL /F /IM {processor_name}.exe")
         else:
-            tdLog.debug(f"unset LD_PRELOAD; sudo pkill -f -{signal} '{processor_name}' ")
-            os.system(f"unset LD_PRELOAD; sudo pkill -f -{signal} '{processor_name}' ")
+            command = f"unset LD_PRELOAD; sudo pkill -f -{signal} '{processor_name}'"
+            tdLog.debug(f"command: {command}")
+            os.system(command)
 
 
     def gen_tag_col_str(self, gen_type, data_type, count):
