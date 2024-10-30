@@ -1533,14 +1533,16 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  pFunc->node.resType = (SDataType){.bytes = dt.bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
 
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_VARCHAR].bytes, .type = TSDB_DATA_TYPE_VARCHAR};
+  SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  pFunc->node.resType = (SDataType){.bytes = dt.bytes, .type = TSDB_DATA_TYPE_VARCHAR};
 
   return TSDB_CODE_SUCCESS;
 }
