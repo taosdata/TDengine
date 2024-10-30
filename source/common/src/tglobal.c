@@ -2346,8 +2346,13 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
   if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
     return;
   }
-  if (taosSetDebugFlag(pFlagPtr, name, flag) != 0) {
-    uError("failed to set flag %s to %d", name, flag);
+  int32_t code = 0;
+  if ((code = taosSetDebugFlag(pFlagPtr, name, flag)) != 0) {
+    if (code != TSDB_CODE_CFG_NOT_FOUND) {
+      uError("failed to set flag %s to %d", name, flag);
+    } else {
+      uDebug("failed to set flag %s to %d", name, flag);
+    }
   }
   return;
 }
