@@ -7,6 +7,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 1000
 sql connect
 
+
 sql create database test  vgroups 1;
 sql create database test2  vgroups 4;
 sql use test2;
