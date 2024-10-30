@@ -168,14 +168,7 @@ static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable *table, const void *k
   while (*entry && ((*entry)->hash != hash || memcmp(key, (*entry)->keyData, keyLen) != 0)) {
     entry = &(*entry)->nextHash;
   }
-  /*
-   SLRUEntry  *pentry = table->list[hash >> (32 - table->lengthBits)];
-   SLRUEntry **entry = &table->list[hash >> (32 - table->lengthBits)];
-   while (pentry && (pentry->hash != hash || memcmp(key, pentry->keyData, keyLen) != 0)) {
-     entry = &pentry->nextHash;
-     pentry = *entry;
-   }
-  */
+
   return entry;
 }
 
