@@ -164,6 +164,7 @@ int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpoint
 typedef struct SStreamHbMsg {
   int32_t vgId;
   int32_t msgId;
+  int64_t ts;
   int32_t numOfTasks;
   SArray* pTaskStatus;   // SArray<STaskStatusEntry>
   SArray* pUpdateNodes;  // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.

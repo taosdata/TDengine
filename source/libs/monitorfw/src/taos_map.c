@@ -21,13 +21,13 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_errors.h"
 #include "taos_linked_list_i.h"
 #include "taos_linked_list_t.h"
 #include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_map_t.h"
+#include "taos_test.h"
 
 #define TAOS_MAP_INITIAL_SIZE 32
 
@@ -45,16 +45,14 @@ taos_map_node_t *taos_map_node_new(const char *key, void *value, taos_map_node_f
   return self;
 }
 
-int taos_map_node_destroy(taos_map_node_t *self) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 0;
+void taos_map_node_destroy(taos_map_node_t *self) {
+  TAOS_TEST_PARA_VOID(self != NULL);
   taos_free((void *)self->key);
   self->key = NULL;
   if (self->value != NULL) (*self->free_value_fn)(self->value);
   self->value = NULL;
   taos_free(self);
   self = NULL;
-  return 0;
 }
 
 void taos_map_node_free(void *item) {
@@ -87,7 +85,9 @@ taos_map_t *taos_map_new() {
   // we will only have to deallocate each key once. That will happen on taos_map_node_destroy.
   r = taos_linked_list_set_free_fn(self->keys, taos_linked_list_no_op_free);
   if (r) {
-    taos_map_destroy(self);
+    if (taos_map_destroy(self) != 0) {
+      TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+    }
     return NULL;
   }
 
@@ -98,12 +98,16 @@ taos_map_t *taos_map_new() {
     self->addrs[i] = taos_linked_list_new();
     r = taos_linked_list_set_free_fn(self->addrs[i], taos_map_node_free);
     if (r) {
-      taos_map_destroy(self);
+      if (taos_map_destroy(self) != 0) {
+        TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+      }
       return NULL;
     }
     r = taos_linked_list_set_compare_fn(self->addrs[i], taos_map_node_compare);
     if (r) {
-      taos_map_destroy(self);
+      if (taos_map_destroy(self) != 0) {
+        TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+      }
       return NULL;
     }
   }
@@ -112,7 +116,9 @@ taos_map_t *taos_map_new() {
   r = pthread_rwlock_init(self->rwlock, NULL);
   if (r) {
     TAOS_LOG(TAOS_PTHREAD_RWLOCK_INIT_ERROR);
-    taos_map_destroy(self);
+    if (taos_map_destroy(self) != 0) {
+      TAOS_LOG("TAOS_MAP_DESTROY_ERROR");
+    }
     return NULL;
   }
 
@@ -120,7 +126,7 @@ taos_map_t *taos_map_new() {
 }
 
 int taos_map_destroy(taos_map_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   int ret = 0;
 
@@ -199,7 +205,7 @@ static void *taos_map_get_internal(const char *key, size_t *size, size_t *max_si
 }
 
 void *taos_map_get(taos_map_t *self, const char *key) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {
@@ -217,7 +223,7 @@ void *taos_map_get(taos_map_t *self, const char *key) {
 }
 
 void *taos_map_get_withoutlock(taos_map_t *self, const char *key) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   int r = 0;
   void *payload =
     taos_map_get_internal(key, &self->size, &self->max_size, self->keys, self->addrs, self->free_value_fn);
@@ -248,14 +254,14 @@ static int taos_map_set_internal(const char *key, void *value, size_t *size, siz
       return 0;
     }
   }
-  taos_linked_list_append(list, map_node);
-  taos_linked_list_append(keys, (char *)map_node->key);
+  if (taos_linked_list_append(list, map_node) != 0) return 1;
+  if (taos_linked_list_append(keys, (char *)map_node->key) != 0) return 1;
   (*size)++;
   return 0;
 }
 
 int taos_map_ensure_space(taos_map_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
 
   if (self->size <= self->max_size / 2) {
@@ -311,7 +317,8 @@ int taos_map_ensure_space(taos_map_t *self) {
     self->addrs[i] = NULL;
   }
   // Destroy the collection of keys in the map
-  taos_linked_list_destroy(self->keys);
+  r = taos_linked_list_destroy(self->keys);
+  if (r) return r;
   self->keys = NULL;
 
   // Deallocate the backbone of the map
@@ -328,7 +335,7 @@ int taos_map_ensure_space(taos_map_t *self) {
 }
 
 int taos_map_set(taos_map_t *self, const char *key, void *value) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
   if (r) {
@@ -387,13 +394,13 @@ static int taos_map_delete_internal(const char *key, size_t *size, size_t *max_s
       break;
     }
   }
-  r = taos_map_node_destroy(temp_map_node);
+  taos_map_node_destroy(temp_map_node);
   temp_map_node = NULL;
   return r;
 }
 
 int taos_map_delete(taos_map_t *self, const char *key) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   int ret = 0;
   r = pthread_rwlock_wrlock(self->rwlock);
@@ -412,12 +419,12 @@ int taos_map_delete(taos_map_t *self, const char *key) {
 }
 
 int taos_map_set_free_value_fn(taos_map_t *self, taos_map_node_free_value_fn free_value_fn) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   self->free_value_fn = free_value_fn;
   return 0;
 }
 
 size_t taos_map_size(taos_map_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   return self->size;
 }

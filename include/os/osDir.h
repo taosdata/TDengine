@@ -79,6 +79,8 @@ extern "C" {
 typedef struct TdDir      *TdDirPtr;
 typedef struct TdDirEntry *TdDirEntryPtr;
 
+#define TAOS_DIRNAME(name) ((void)taosDirName(name))
+
 void    taosRemoveDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
 int32_t taosMkDir(const char *dirname);

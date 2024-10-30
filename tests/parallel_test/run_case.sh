@@ -76,15 +76,15 @@ ulimit -c unlimited
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
-#define taospy 2.7.10
+#define taospy 2.7.16
 pip3 list|grep taospy
 pip3 uninstall taospy -y
-pip3 install --default-timeout=120 taospy==2.7.15
+pip3 install --default-timeout=120 taospy==2.7.16
 
 #define taos-ws-py 0.3.1
 pip3 list|grep taos-ws-py
 pip3 uninstall taos-ws-py -y
-pip3 install --default-timeout=600 taos-ws-py==0.3.1
+pip3 install --default-timeout=600 taos-ws-py==0.3.3
 
 $TIMEOUT_CMD $cmd
 RET=$?

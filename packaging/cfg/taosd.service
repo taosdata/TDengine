@@ -1,5 +1,5 @@
 [Unit]
-Description=server service
+Description=taosd - TDengine time series database core service
 After=network-online.target
 Wants=network-online.target
 

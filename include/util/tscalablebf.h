@@ -23,22 +23,22 @@ extern "C" {
 #endif
 
 typedef struct SScalableBf {
-  SArray  *bfArray;  // array of bloom filters
-  uint32_t growth;
-  uint64_t numBits;
-  uint32_t maxBloomFilters;
-  int8_t   status;
+  SArray*    bfArray;  // array of bloom filters
+  uint32_t   growth;
+  uint64_t   numBits;
+  uint32_t   maxBloomFilters;
+  int8_t     status;
   _hash_fn_t hashFn1;
   _hash_fn_t hashFn2;
 } SScalableBf;
 
-SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate);
-int32_t      tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-int32_t      tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-int32_t      tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-void         tScalableBfDestroy(SScalableBf *pSBf);
-int32_t      tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder);
-SScalableBf *tScalableBfDecode(SDecoder *pDecoder);
+int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf** ppSBf);
+int32_t tScalableBfPutNoCheck(SScalableBf* pSBf, const void* keyBuf, uint32_t len);
+int32_t tScalableBfPut(SScalableBf* pSBf, const void* keyBuf, uint32_t len, int32_t* winRes);
+int32_t tScalableBfNoContain(const SScalableBf* pSBf, const void* keyBuf, uint32_t len);
+void    tScalableBfDestroy(SScalableBf* pSBf);
+int32_t tScalableBfEncode(const SScalableBf* pSBf, SEncoder* pEncoder);
+int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf);
 
 #ifdef __cplusplus
 }

@@ -45,9 +45,6 @@
 //
 
 static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
-  ASSERT(a >= 0);
-  ASSERT(b >= 0);
-
   int64_t c = a > b ? a - b : b - a;
   return c;
 }
@@ -57,7 +54,10 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) { return pSyncNode->qu
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   int            count = 0;
   SSyncIndexMgr* pMatches = pNode->pMatchIndex;
-  ASSERT(pNode->replicaNum == pMatches->replicaNum);
+  if (pNode->replicaNum != pMatches->replicaNum) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  };
 
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
     if(pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_VOTER){
@@ -72,27 +72,32 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
 }
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+  int32_t   code = 0;
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   commitIndex = TMAX(commitIndex, ths->commitIndex);
   ths->commitIndex = TMIN(commitIndex, lastVer);
-  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
+  // TODO add return when error
+  (void)ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
   return ths->commitIndex;
 }
 
 int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+  int32_t code = 0;
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
-    syncNodeUpdateCommitIndex(ths, commitIndex);
-    sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
-           raftStoreGetTerm(ths), commitIndex);
+    SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, commitIndex);
+    sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 ", return:%" PRId64, ths->vgId, ths->state,
+           raftStoreGetTerm(ths), commitIndex, returnIndex);
   }
   return ths->commitIndex;
 }
 
 int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex) {
+  int32_t   code = 0;
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   assignedCommitIndex = TMAX(assignedCommitIndex, ths->assignedCommitIndex);
   ths->assignedCommitIndex = TMIN(assignedCommitIndex, lastVer);
-  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex);
+  // TODO add return when error
+  (void)ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex);
   return ths->commitIndex;
 }

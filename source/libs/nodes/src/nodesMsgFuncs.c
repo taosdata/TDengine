@@ -60,7 +60,7 @@ typedef struct STlvDecoder {
 
 typedef int32_t (*FToMsg)(const void* pObj, STlvEncoder* pEncoder);
 typedef int32_t (*FToObject)(STlvDecoder* pDecoder, void* pObj);
-typedef void* (*FMakeObject)(int16_t type);
+typedef int32_t (*FMakeObject)(int16_t type, SNode** ppNode);
 typedef int32_t (*FSetObject)(STlv* pTlv, void* pObj);
 
 static int32_t nodeToMsg(const void* pObj, STlvEncoder* pEncoder);
@@ -79,7 +79,7 @@ static int32_t initTlvEncoder(STlvEncoder* pEncoder) {
   pEncoder->offset = 0;
   pEncoder->tlvCount = 0;
   pEncoder->pBuf = taosMemoryMalloc(pEncoder->allocSize);
-  return NULL == pEncoder->pBuf ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  return NULL == pEncoder->pBuf ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static void clearTlvEncoder(STlvEncoder* pEncoder) { taosMemoryFree(pEncoder->pBuf); }
@@ -96,7 +96,7 @@ static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pV
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + tlvLen);
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
   }
@@ -113,7 +113,7 @@ static int32_t tlvEncodeValueImpl(STlvEncoder* pEncoder, const void* pValue, int
   if (pEncoder->offset + len > pEncoder->allocSize) {
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize * 2);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
     pEncoder->allocSize = pEncoder->allocSize * 2;
@@ -248,7 +248,7 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pEncoder->pBuf = pNewBuf;
   }
@@ -513,14 +513,14 @@ static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue) {
 }
 
 static int32_t tlvDecodeCStrP(STlv* pTlv, char** pValue) {
-  *pValue = strndup(pTlv->value, pTlv->len);
-  return NULL == *pValue ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+  *pValue = taosStrndup(pTlv->value, pTlv->len);
+  return NULL == *pValue ? terrno : TSDB_CODE_SUCCESS;
 }
 
 static int32_t tlvDecodeDynBinary(STlv* pTlv, void** pValue) {
   *pValue = taosMemoryMalloc(pTlv->len);
   if (NULL == *pValue) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pValue, pTlv->value, pTlv->len);
   return TSDB_CODE_SUCCESS;
@@ -568,9 +568,9 @@ static int32_t tlvDecodeObjArrayFromTlv(STlv* pTlv, FToObject func, void* pArray
 }
 
 static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
-  *pObj = makeFunc(pTlv->type);
+  int32_t code = makeFunc(pTlv->type, (SNode**)pObj);
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   return tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
 }
@@ -952,7 +952,7 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
       if (NULL == pNode->datum.p) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         break;
       }
       code = tlvDecodeBinary(pTlv, pNode->datum.p);
@@ -1112,6 +1112,7 @@ enum {
   FUNCTION_NODE_PK_BYTES,
   FUNCTION_CODE_IS_MERGE_FUNC,
   FUNCTION_CODE_MERGE_FUNC_OF,
+  FUNCTION_CODE_TRIM_TYPE,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1144,6 +1145,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_MERGE_FUNC_OF, pNode->originalFuncId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, FUNCTION_CODE_TRIM_TYPE, pNode->trimType);
   }
 
   return code;
@@ -1185,6 +1189,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_MERGE_FUNC_OF:
         code = tlvDecodeI32(pTlv, &pNode->originalFuncId);
+        break;
+      case FUNCTION_CODE_TRIM_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->trimType, sizeof(pNode->trimType));
         break;
       default:
         break;
@@ -3319,7 +3326,8 @@ enum {
   PHY_FILL_CODE_WSTART,
   PHY_FILL_CODE_VALUES,
   PHY_FILL_CODE_TIME_RANGE,
-  PHY_FILL_CODE_INPUT_TS_ORDER
+  PHY_FILL_CODE_INPUT_TS_ORDER,
+  PHY_FILL_CODE_FILL_NULL_EXPRS,
 };
 
 static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3343,6 +3351,9 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_FILL_NULL_EXPRS, nodeListToMsg, pNode->pFillNullExprs);
   }
 
   return code;
@@ -3375,6 +3386,9 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FILL_CODE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, (void**)&pNode->timeRange);
+        break;
+      case PHY_FILL_CODE_FILL_NULL_EXPRS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFillNullExprs);
         break;
       default:
         break;
@@ -3523,6 +3537,46 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_COUNT_CODE_WINDOW_SLIDING:
         code = tlvDecodeI64(pTlv, &pNode->windowSliding);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum { PHY_ANOMALY_CODE_WINDOW = 1, PHY_ANOMALY_CODE_KEY, PHY_ANOMALY_CODE_WINDOW_OPTION };
+
+static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SAnomalyWindowPhysiNode* pNode = (const SAnomalyWindowPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeToMsg, pNode->pAnomalyKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_ANOMALY_CODE_WINDOW_OPTION, pNode->anomalyOpt);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiAnomalyWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SAnomalyWindowPhysiNode* pNode = (SAnomalyWindowPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_ANOMALY_CODE_WINDOW:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
+        break;
+      case PHY_ANOMALY_CODE_KEY:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAnomalyKey);
+        break;
+      case PHY_ANOMALY_CODE_WINDOW_OPTION:
+        code = tlvDecodeCStr(pTlv, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));
         break;
       default:
         break;
@@ -3754,6 +3808,50 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INERP_FUNC_CODE_TIME_SERIES:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeSeries);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
+  PHY_FORECAST_FUNC_CODE_BASE_NODE = 1,
+  PHY_FORECAST_FUNC_CODE_EXPR,
+  PHY_FORECAST_FUNC_CODE_FUNCS,
+};
+
+static int32_t physiForecastFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SForecastFuncPhysiNode* pNode = (const SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_EXPR, nodeListToMsg, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FORECAST_FUNC_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiForecastFuncNode(STlvDecoder* pDecoder, void* pObj) {
+  SForecastFuncPhysiNode* pNode = (SForecastFuncPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_FORECAST_FUNC_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_FORECAST_FUNC_CODE_EXPR:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pExprs);
+        break;
+      case PHY_FORECAST_FUNC_CODE_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
         break;
       default:
         break;
@@ -4529,6 +4627,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = physiCountWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = physiAnomalyWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionNodeToMsg(pObj, pEncoder);
       break;
@@ -4540,6 +4641,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = physiInterpFuncNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = physiForecastFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = physiDispatchNodeToMsg(pObj, pEncoder);
@@ -4691,6 +4795,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = msgToPhysiCountWindowNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = msgToPhysiAnomalyWindowNode(pDecoder, pObj);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = msgToPhysiPartitionNode(pDecoder, pObj);
       break;
@@ -4702,6 +4809,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = msgToPhysiInterpFuncNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = msgToPhysiForecastFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = msgToPhysiDispatchNode(pDecoder, pObj);
@@ -4786,9 +4896,10 @@ static int32_t SArrayToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
 
 static int32_t msgToNodeList(STlvDecoder* pDecoder, void** pObj) {
-  SNodeList* pList = nodesMakeList();
-
+  SNodeList* pList = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  code = nodesMakeList(&pList);
+
   while (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
     SNode* pNode = NULL;
     code = msgToNode(pDecoder, (void**)&pNode);
@@ -4833,7 +4944,7 @@ static int32_t msgToSArray(STlv* pTlv, void** pObj){
         }
         pArray = taosArrayInit(capacity, elemSize);
         if (NULL == pArray) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         pArray->size = actualSize;
         if (TSDB_CODE_SUCCESS != code || pTlvTemp == NULL) {
@@ -4851,7 +4962,7 @@ static int32_t msgToSArray(STlv* pTlv, void** pObj){
   if (pDataTlv != NULL) {
     pArray = taosArrayInit(capacity, elemSize);
     if (NULL == pArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pArray->size = actualSize;
     if (TSDB_CODE_SUCCESS != code || pTlvTemp == NULL) {

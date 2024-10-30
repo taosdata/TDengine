@@ -58,7 +58,7 @@ class TDTestCase:
         # fisrt add data : db\stable\childtable\general table
         for couti in count:
             tdSql.execute("drop database if exists db%d" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 100" %couti)
             tdSql.execute("use db%d" %couti)
             tdSql.execute(
             '''create table stb1

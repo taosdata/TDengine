@@ -58,17 +58,25 @@ TEST(osSemaphoreTests, Destroy) {
 
 TEST(osSemaphoreTests, WaitTime0) {
   tsem_t sem;
-  tsem_init(&sem, 0, 0);
-  EXPECT_NE(tsem_timewait(&sem, 1000), 0);
-  tsem_destroy(&sem);
+  (void)tsem_init(&sem, 0, 0);
+  EXPECT_EQ(tsem_timewait(&sem, 1000), TSDB_CODE_TIMEOUT_ERROR);
+  (void)tsem_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, WaitTime1) {
   tsem_t sem;
-  tsem_init(&sem, 0, 1);
-  EXPECT_EQ(tsem_timewait(&sem, 1000), 0);
-  EXPECT_NE(tsem_timewait(&sem, 1000), 0);
-  tsem_destroy(&sem);
+  (void)tsem_init(&sem, 0, 1);
+  EXPECT_EQ(tsem_timewait(&sem, 10000), 0);
+  EXPECT_EQ(tsem_timewait(&sem, 1000), TSDB_CODE_TIMEOUT_ERROR);
+  (void)tsem_destroy(&sem);
+}
+
+TEST(osSemaphoreTests, WaitTime2) {
+  tsem2_t sem;
+  (void)tsem2_init(&sem, 0, 1);
+  EXPECT_EQ(tsem2_timewait(&sem, 10000), 0);
+  EXPECT_EQ(tsem2_timewait(&sem, 1000), TSDB_CODE_TIMEOUT_ERROR);
+  (void)tsem2_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, WaitAndPost) {
@@ -78,7 +86,7 @@ TEST(osSemaphoreTests, WaitAndPost) {
 
   std::thread([&sem]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    tsem_post(&sem);
+    (void)tsem_post(&sem);
   }).detach();
 
   result = tsem_wait(&sem);
@@ -96,7 +104,7 @@ TEST(osSemaphoreTests, TimedWait) {
 
   std::thread([&sem]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    tsem_post(&sem);
+    (void)tsem_post(&sem);
   }).detach();
 
   result = tsem_timewait(&sem, 1000);
@@ -110,80 +118,80 @@ TEST(osSemaphoreTests, Performance1_1) {
   tsem_t    sem;
   const int count = 100000;
 
-  tsem_init(&sem, 0, 0);
+  (void)tsem_init(&sem, 0, 0);
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem_post(&sem);
+      (void)tsem_post(&sem);
     }
   }).detach();
 
   for (int i = 0; i < count; ++i) {
-    tsem_wait(&sem);
+    (void)tsem_wait(&sem);
   }
-  tsem_destroy(&sem);
+  (void)tsem_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, Performance1_2) {
   tsem2_t    sem;
   const int count = 100000;
 
-  tsem2_init(&sem, 0, 0);
+  (void)tsem2_init(&sem, 0, 0);
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem2_post(&sem);
+      (void)tsem2_post(&sem);
     }
   }).detach();
 
   for (int i = 0; i < count; ++i) {
-    tsem2_wait(&sem);
+    (void)tsem2_wait(&sem);
   }
-  tsem2_destroy(&sem);
+  (void)tsem2_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, Performance2_1) {
   tsem_t    sem;
   const int count = 50000;
 
-  tsem_init(&sem, 0, 0);
+  (void)tsem_init(&sem, 0, 0);
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem_post(&sem);
+      (void)tsem_post(&sem);
     }
   }).detach();
   
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem_post(&sem);
+      (void)tsem_post(&sem);
     }
   }).detach();
 
   for (int i = 0; i < count * 2; ++i) {
-    tsem_wait(&sem);
+    (void)tsem_wait(&sem);
   }
-  tsem_destroy(&sem);
+  (void)tsem_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, Performance2_2) {
   tsem2_t    sem;
   const int count = 50000;
 
-  tsem2_init(&sem, 0, 0);
+  (void)tsem2_init(&sem, 0, 0);
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem2_post(&sem);
+      (void)tsem2_post(&sem);
     }
   }).detach();
   
   std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
-      tsem2_post(&sem);
+      (void)tsem2_post(&sem);
     }
   }).detach();
 
   for (int i = 0; i < count * 2; ++i) {
-    tsem2_wait(&sem);
+    (void)tsem2_wait(&sem);
   }
-  tsem2_destroy(&sem);
+  (void)tsem2_destroy(&sem);
 }
 
 TEST(osSemaphoreTests, Performance3_1) {
@@ -191,9 +199,9 @@ TEST(osSemaphoreTests, Performance3_1) {
 
   for (int i = 0; i < count; ++i) {
     tsem_t sem;
-    tsem_init(&sem, 0, 1);
+    (void)tsem_init(&sem, 0, 1);
     EXPECT_EQ(tsem_timewait(&sem, 1000), 0);
-    tsem_destroy(&sem);
+    (void)tsem_destroy(&sem);
   }
 }
 
@@ -202,9 +210,9 @@ TEST(osSemaphoreTests, Performance3_2) {
 
   for (int i = 0; i < count; ++i) {
     tsem2_t sem;
-    tsem2_init(&sem, 0, 1);
+    (void)tsem2_init(&sem, 0, 1);
     EXPECT_EQ(tsem2_timewait(&sem, 1000), 0);
-    tsem2_destroy(&sem);
+    (void)tsem2_destroy(&sem);
   }
 }
 
@@ -212,14 +220,14 @@ TEST(osSemaphoreTests, Performance4_1) {
   const int count = 1000;
   for (int i = 0; i < count; ++i) {
     tsem_t sem;
-    tsem_init(&sem, 0, 0);
+    (void)tsem_init(&sem, 0, 0);
     std::thread([&sem, count]() {
-      tsem_post(&sem);
+      (void)tsem_post(&sem);
     }).detach();
 
-    tsem_timewait(&sem, 1000);
+    EXPECT_EQ(tsem_timewait(&sem, 1000),0);
 
-    tsem_destroy(&sem);
+    (void)tsem_destroy(&sem);
   }
 }
 
@@ -227,13 +235,13 @@ TEST(osSemaphoreTests, Performance4_2) {
   const int count = 1000;
   for (int i = 0; i < count; ++i) {
     tsem2_t sem;
-    tsem2_init(&sem, 0, 0);
+    (void)tsem2_init(&sem, 0, 0);
     std::thread([&sem, count]() {
-      tsem2_post(&sem);
+      (void)tsem2_post(&sem);
     }).detach();
 
-    tsem2_timewait(&sem, 1000);
+    (void)tsem2_timewait(&sem, 1000);
 
-    tsem2_destroy(&sem);
+    (void)tsem2_destroy(&sem);
   }
 }

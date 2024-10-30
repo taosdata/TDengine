@@ -23,18 +23,19 @@
 #define UNIT_ONE_PEBIBYTE        (UNIT_ONE_TEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 #define UNIT_ONE_EXBIBYTE        (UNIT_ONE_PEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 
-static int32_t parseCfgIntWithUnit(const char* str, double *res) {
-  double val, temp = (double)INT64_MAX;
+static int32_t parseCfgIntWithUnit(const char* str, int64_t* res) {
+  double val = 0, temp = (double)INT64_MAX;
   char*  endPtr;
+  bool   useDouble = false;
   errno = 0;
-  val = taosStr2Int64(str, &endPtr, 0);
+  int64_t int64Val = taosStr2Int64(str, &endPtr, 0);
   if (*endPtr == '.' || errno == ERANGE) {
     errno = 0;
     val = taosStr2Double(str, &endPtr);
+    useDouble = true;
   }
   if (endPtr == str || errno == ERANGE || isnan(val)) {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
   uint64_t factor = 1;
@@ -66,28 +67,35 @@ static int32_t parseCfgIntWithUnit(const char* str, double *res) {
         factor = UNIT_ONE_KIBIBYTE;
       } break;
       default:
-        terrno = TSDB_CODE_INVALID_CFG_VALUE;
-        return -1;
-    }
-    if ((val > 0 && val > temp) || (val < 0 && val < -temp)) {
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      return -1;
+        return terrno = TSDB_CODE_INVALID_CFG_VALUE;
     }
     endPtr++;
+
+    if ((val > 0 && val > temp) || (val < 0 && val < -temp)) {
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
+    }
     val *= factor;
+    int64Val *= factor;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
   if (*endPtr) {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
-  val = rint(val);
-  *res = val;
+  if (useDouble) {
+    val = rint(val);
+    if ((val > 0 && val >= (double)INT64_MAX) || (val < 0 && val <= (double)INT64_MIN)) {
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
+    } else {
+      *res = (int64_t)val;
+    }
+  } else {
+    *res = int64Val;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t taosStrHumanToInt64(const char* str, int64_t *out) {
-  double res;
+int32_t taosStrHumanToInt64(const char* str, int64_t* out) {
+  int64_t  res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) *out = (int64_t)res;
   return code;
@@ -113,12 +121,11 @@ void taosInt64ToHumanStr(int64_t val, char* outStr) {
 #endif
 
 int32_t taosStrHumanToInt32(const char* str, int32_t* out) {
-  double res;
+  int64_t  res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) {
     if (res < INT32_MIN || res > INT32_MAX) {
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      return -1;
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
     }
     *out = (int32_t)res;
   }

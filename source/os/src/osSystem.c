@@ -31,7 +31,7 @@ void WINAPI           windowsServiceCtrlHandle(DWORD request) {
       ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
       if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
                   DWORD nError = GetLastError();
-                  printf("failed to send stopped status to windows service: %d", nError);
+                  fprintf(stderr, "failed to send stopped status to windows service: %d", nError);
       }
       break;
               default:
@@ -50,19 +50,19 @@ void WINAPI mainWindowsService(int argc, char** argv) {
   hServiceStatusHandle = RegisterServiceCtrlHandler("taosd", &windowsServiceCtrlHandle);
   if (hServiceStatusHandle == 0) {
     DWORD nError = GetLastError();
-    printf("failed to register windows service ctrl handler: %d", nError);
+    fprintf(stderr, "failed to register windows service ctrl handler: %d", nError);
   }
 
   ServiceStatus.dwCurrentState = SERVICE_RUNNING;
   if (SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
     DWORD nError = GetLastError();
-    printf("failed to send running status to windows service: %d", nError);
+    fprintf(stderr, "failed to send running status to windows service: %d", nError);
   }
   if (mainWindowsFunc != NULL) mainWindowsFunc(argc, argv);
   ServiceStatus.dwCurrentState = SERVICE_STOPPED;
   if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
     DWORD nError = GetLastError();
-    printf("failed to send stopped status to windows service: %d", nError);
+    fprintf(stderr, "failed to send stopped status to windows service: %d", nError);
   }
 }
 void stratWindowsService(MainWindows mainWindows) {
@@ -91,7 +91,6 @@ typedef struct FILE TdCmd;
 #ifdef BUILD_NO_CALL
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -110,7 +109,6 @@ void* taosLoadDll(const char* filename) {
 
 void* taosLoadSym(void* handle, char* name) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -131,7 +129,6 @@ void* taosLoadSym(void* handle, char* name) {
 
 void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
-  ASSERT(0);
   return;
 #elif defined(_TD_DARWIN_64)
   return;
@@ -143,17 +140,27 @@ void taosCloseDll(void* handle) {
 }
 #endif
 
-int taosSetConsoleEcho(bool on) {
+int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
   HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+  if (hStdin == INVALID_HANDLE_VALUE) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   DWORD  mode = 0;
-  GetConsoleMode(hStdin, &mode);
+  if(!GetConsoleMode(hStdin, &mode)){
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   if (on) {
     mode |= ENABLE_ECHO_INPUT;
   } else {
     mode &= ~ENABLE_ECHO_INPUT;
   }
-  SetConsoleMode(hStdin, mode);
+  if(!SetConsoleMode(hStdin, mode)) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
 
   return 0;
 #else
@@ -162,8 +169,8 @@ int taosSetConsoleEcho(bool on) {
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    /*perror("Cannot get the attribution of the terminal");*/
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (on)
@@ -172,18 +179,18 @@ int taosSetConsoleEcho(bool on) {
     term.c_lflag &= ~ECHOFLAGS;
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
-  if (err == -1 || err == EINTR) {
-    /*printf("Cannot set the attribution of the terminal");*/
-    return -1;
+  if (err == -1) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return 0;
 #endif
 }
 
-void taosSetTerminalMode() {
+int32_t taosSetTerminalMode() {
 #if defined(WINDOWS)
-
+  return 0;
 #else
   struct termios newtio;
 
@@ -192,7 +199,7 @@ void taosSetTerminalMode() {
   /*     exit(EXIT_FAILURE); */
   /* } */
 
-  memcpy(&newtio, &oldtio, sizeof(oldtio));
+  (void)memcpy(&newtio, &oldtio, sizeof(oldtio));
 
   // Set new terminal attributes.
   newtio.c_iflag &= ~(IXON | IXOFF | ICRNL | INLCR | IGNCR | IMAXBEL | ISTRIP);
@@ -207,10 +214,13 @@ void taosSetTerminalMode() {
   newtio.c_cc[VMIN] = 1;
   newtio.c_cc[VTIME] = 0;
 
-  if (tcsetattr(0, TCSANOW, &newtio) != 0) {
-    fprintf(stderr, "Fail to set terminal properties!\n");
-    exit(EXIT_FAILURE);
+  if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    (void)fprintf(stderr, "Fail to set terminal properties!\n");
+    return terrno;
   }
+
+  return 0;
 #endif
 }
 
@@ -219,54 +229,75 @@ int32_t taosGetOldTerminalMode() {
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   // Get the parameter of current terminal
-  if (tcgetattr(0, &oldtio) != 0) {
-    return -1;
+  if (-1 == tcgetattr(0, &oldtio)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
-  return 1;
+  return 0;
 #endif
 }
 
-void taosResetTerminalMode() {
+int32_t taosResetTerminalMode() {
 #if defined(WINDOWS)
 #else
-  if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
-    fprintf(stderr, "Fail to reset the terminal properties!\n");
-    exit(EXIT_FAILURE);
+  if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
+    return terrno;
   }
 #endif
+  return 0;
 }
 
 TdCmdPtr taosOpenCmd(const char* cmd) {
-  if (cmd == NULL) return NULL;
+  if (cmd == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
 #else
-  return (TdCmdPtr)popen(cmd, "r");
+  TdCmdPtr p = (TdCmdPtr)popen(cmd, "r");
+  if (NULL == p) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+  return p;
 #endif
 }
 
 int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char* __restrict buf) {
   if (pCmd == NULL || buf == NULL) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   if (fgets(buf, maxSize, (FILE*)pCmd) == NULL) {
-    return -1;
+    if (feof((FILE*)pCmd)) {
+      return 0;
+    }
+
+    terrno = TAOS_SYSTEM_ERROR(ferror((FILE*)pCmd));
+    return terrno;
   }
+  
   return strlen(buf);
 }
 
 int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   if (pCmd == NULL || ptrBuf == NULL) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
+  
 #ifdef WINDOWS
   *ptrBuf = taosMemoryMalloc(1024);
   if (*ptrBuf == NULL) return -1;
@@ -277,8 +308,13 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   (*ptrBuf)[1023] = 0;
   return strlen(*ptrBuf);
 #else
-  size_t len = 0;
-  return getline(ptrBuf, &len, (FILE*)pCmd);
+  ssize_t len = 0;
+  len = getline(ptrBuf, (size_t*)&len, (FILE*)pCmd);
+  if (-1 == len) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return len;
 #endif
 }
 
@@ -289,15 +325,14 @@ int32_t taosEOFCmd(TdCmdPtr pCmd) {
   return feof((FILE*)pCmd);
 }
 
-int64_t taosCloseCmd(TdCmdPtr* ppCmd) {
+void taosCloseCmd(TdCmdPtr* ppCmd) {
   if (ppCmd == NULL || *ppCmd == NULL) {
-    return 0;
+    return;
   }
 #ifdef WINDOWS
   _pclose((FILE*)(*ppCmd));
 #else
-  pclose((FILE*)(*ppCmd));
+  (void)pclose((FILE*)(*ppCmd));
 #endif
   *ppCmd = NULL;
-  return 0;
 }

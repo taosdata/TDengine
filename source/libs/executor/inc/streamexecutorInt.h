@@ -20,10 +20,13 @@ extern "C" {
 #endif
 
 #include "executorInt.h"
+#include "tutil.h"
 
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
+
+void reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 
 #ifdef __cplusplus
 }

@@ -97,6 +97,7 @@ extern "C" {
 #include <nmmintrin.h>
 #endif
 
+
 #include "osThread.h"
 
 #include "osAtomic.h"
@@ -122,6 +123,19 @@ extern "C" {
 #include "osTimezone.h"
 #include "taoserror.h"
 #include "tlog.h"
+
+extern int32_t          tsRandErrChance;
+extern int64_t          tsRandErrDivisor;
+extern int64_t          tsRandErrScope;
+extern threadlocal bool tsEnableRandErr;
+
+#define TAOS_UNUSED(expr) (void)(expr)
+#define TAOS_SKIP_ERROR(expr) \
+  {                           \
+    int32_t _code = terrno;   \
+    (void)(expr);             \
+    terrno = _code;           \
+  }
 
 #ifdef __cplusplus
 }

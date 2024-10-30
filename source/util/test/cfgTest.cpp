@@ -51,7 +51,10 @@ TEST_F(CfgTest, 01_Str) {
 }
 
 TEST_F(CfgTest, 02_Basic) {
-  SConfig *pConfig = cfgInit();
+  SConfig *pConfig = NULL;
+  int32_t  code = cfgInit(&pConfig);
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
   EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0), 0);
@@ -66,7 +69,11 @@ TEST_F(CfgTest, 02_Basic) {
   int32_t size = cfgGetSize(pConfig);
 
   SConfigItem* pItem = NULL;
-  SConfigIter* pIter = cfgCreateIter(pConfig);
+  SConfigIter *pIter = NULL;
+  code = cfgCreateIter(pConfig, &pIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pIter, nullptr);
+
   while((pItem = cfgNextIter(pIter)) != NULL) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:

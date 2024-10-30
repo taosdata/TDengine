@@ -38,8 +38,9 @@ void tdbFree(void *p) {
 int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique) {
   int64_t stDev = 0, stIno = 0;
 
-  if (taosDevInoFile(fd, &stDev, &stIno) < 0) {
-    return -1;
+  int32_t code = taosDevInoFile(fd, &stDev, &stIno);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
   memset(fileid, 0, TDB_FILE_ID_LEN);
@@ -59,7 +60,7 @@ int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
 
   ret = tdbOsFileSize(fd, &szBytes);
   if (ret < 0) {
-    return -1;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   *size = szBytes / szPage;

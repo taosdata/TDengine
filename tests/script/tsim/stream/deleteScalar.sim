@@ -10,7 +10,8 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  ts, a, b from t1 partition by a;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,0,2,3,1.0);
 sql insert into t1 values(1648791213001,1,2,3,1.0);
@@ -94,7 +95,8 @@ sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 subtable(concat("aaa-", cast( a as varchar(10) ))) as select  ts, a, b from t1 partition by a;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,0,2,3,1.0);
 sql insert into t1 values(1648791213001,1,2,3,1.0);
@@ -178,7 +180,8 @@ sql use test2;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 subtable("aaa-a") as select  ts, a, b from t1;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,0,2,3,1.0);
 sql insert into t1 values(1648791213001,1,2,3,1.0);

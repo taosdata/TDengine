@@ -27,25 +27,35 @@ static bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo,
 static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   int32_t num = numOfTables / pBuf->numPerBucket;
   int32_t remainder = numOfTables % pBuf->numPerBucket;
+
   if (pBuf->pData == NULL) {
     pBuf->pData = taosArrayInit(num + 1, POINTER_BYTES);
+    if (pBuf->pData == NULL) {
+      return terrno;
+    }
   }
 
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
-    taosArrayPush(pBuf->pData, &p);
+    void* px = taosArrayPush(pBuf->pData, &p);
+    if (px == NULL) {
+      return terrno;
+    }
   }
 
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
-    taosArrayPush(pBuf->pData, &p);
+    void* px = taosArrayPush(pBuf->pData, &p);
+    if (px == NULL) {
+      return terrno;
+    }
   }
 
   pBuf->numOfTables = numOfTables;
@@ -78,23 +88,32 @@ int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   int32_t remainder = (numOfTables - pBuf->numOfTables) % pBuf->numPerBucket;
   if (pBuf->pData == NULL) {
     pBuf->pData = taosArrayInit(num + 1, POINTER_BYTES);
+    if (pBuf->pData == NULL) {
+      return terrno;
+    }
   }
 
   for (int32_t i = 0; i < num; ++i) {
     char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
-    taosArrayPush(pBuf->pData, &p);
+    void* px = taosArrayPush(pBuf->pData, &p);
+    if (px == NULL) {
+      return terrno;
+    }
   }
 
   if (remainder > 0) {
     char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
-    taosArrayPush(pBuf->pData, &p);
+    void* px = taosArrayPush(pBuf->pData, &p);
+    if (px == NULL) {
+      return terrno;
+    }
   }
 
   pBuf->numOfTables = numOfTables;
@@ -106,28 +125,36 @@ void clearBlockScanInfoBuf(SBlockInfoBuf* pBuf) {
   size_t num = taosArrayGetSize(pBuf->pData);
   for (int32_t i = 0; i < num; ++i) {
     char** p = taosArrayGet(pBuf->pData, i);
-    taosMemoryFree(*p);
+    if (p != NULL) {
+      taosMemoryFree(*p);
+    }
   }
 
   taosArrayDestroy(pBuf->pData);
 }
 
-void* getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index) {
+int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pInfo) {
+  *pInfo = NULL;
+
   int32_t bucketIndex = index / pBuf->numPerBucket;
   char**  pBucket = taosArrayGet(pBuf->pData, bucketIndex);
-  return (*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo);
-}
-
-STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id) {
-  STableBlockScanInfo** p = tSimpleHashGet(pTableMap, &uid, sizeof(uid));
-  if (p == NULL || *p == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    int32_t size = tSimpleHashGetSize(pTableMap);
-    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
-    return NULL;
+  if (pBucket == NULL) {
+    return TSDB_CODE_NOT_FOUND;
   }
 
-  return *p;
+  *pInfo = (STableBlockScanInfo*)((*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id) {
+  *pInfo = *(STableBlockScanInfo**)tSimpleHashGet(pTableMap, &uid, sizeof(uid));
+  if (pInfo == NULL) {
+    int32_t size = tSimpleHashGetSize(pTableMap);
+    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc) {
@@ -139,24 +166,24 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
 
     if (IS_NUMERIC_TYPE(type)) {
       if (asc) {
-        switch(type) {
+        switch (type) {
           case TSDB_DATA_TYPE_BIGINT: {
             pKey->pks[0].val = INT64_MIN;
             break;
           }
-          case TSDB_DATA_TYPE_INT:{
+          case TSDB_DATA_TYPE_INT: {
             int32_t min = INT32_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
-          case TSDB_DATA_TYPE_SMALLINT:{
+          case TSDB_DATA_TYPE_SMALLINT: {
             int16_t min = INT16_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
-          case TSDB_DATA_TYPE_TINYINT:{
+          case TSDB_DATA_TYPE_TINYINT: {
             int8_t min = INT8_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_UTINYINT:
@@ -167,20 +194,36 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
             break;
           }
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       } else {
-        switch(type) {
-          case TSDB_DATA_TYPE_BIGINT:pKey->pks[0].val = INT64_MAX;break;
-          case TSDB_DATA_TYPE_INT:pKey->pks[0].val = INT32_MAX;break;
-          case TSDB_DATA_TYPE_SMALLINT:pKey->pks[0].val = INT16_MAX;break;
-          case TSDB_DATA_TYPE_TINYINT:pKey->pks[0].val = INT8_MAX;break;
-          case TSDB_DATA_TYPE_UBIGINT:pKey->pks[0].val = UINT64_MAX;break;
-          case TSDB_DATA_TYPE_UINT:pKey->pks[0].val = UINT32_MAX;break;
-          case TSDB_DATA_TYPE_USMALLINT:pKey->pks[0].val = UINT16_MAX;break;
-          case TSDB_DATA_TYPE_UTINYINT:pKey->pks[0].val = UINT8_MAX;break;
+        switch (type) {
+          case TSDB_DATA_TYPE_BIGINT:
+            pKey->pks[0].val = INT64_MAX;
+            break;
+          case TSDB_DATA_TYPE_INT:
+            pKey->pks[0].val = INT32_MAX;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            pKey->pks[0].val = INT16_MAX;
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            pKey->pks[0].val = INT8_MAX;
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            pKey->pks[0].val = UINT64_MAX;
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            pKey->pks[0].val = UINT32_MAX;
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            pKey->pks[0].val = UINT16_MAX;
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            pKey->pks[0].val = UINT8_MAX;
+            break;
           default:
-            ASSERT(0);
+            return TSDB_CODE_INVALID_PARA;
         }
       }
     } else {
@@ -188,7 +231,6 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       pKey->pks[0].nData = 0;
 
       if (pKey->pks[0].pData == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         return terrno;
       }
 
@@ -208,7 +250,8 @@ void clearRowKey(SRowKey* pKey) {
   taosMemoryFreeClear(pKey->pks[0].pData);
 }
 
-static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
+static int32_t initLastProcKey(STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
+  int32_t code = 0;
   int32_t numOfPks = pReader->suppInfo.numOfPks;
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
   int8_t  type = pReader->suppInfo.pk.type;
@@ -219,18 +262,37 @@ static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader
     int64_t skey = pReader->info.window.skey;
     int64_t ts = (skey > INT64_MIN) ? (skey - 1) : skey;
 
-    initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
-    initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, type, bytes, asc);
+    code = initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, type, bytes, asc);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   } else {
     int64_t ekey = pReader->info.window.ekey;
     int64_t ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
 
-    initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
-    initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, type, bytes, asc);
+    code = initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, type, bytes, asc);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
-  initRowKey(&pScanInfo->sttRange.skey, INT64_MAX, numOfPks, type, bytes, asc);
-  initRowKey(&pScanInfo->sttRange.ekey, INT64_MIN, numOfPks, type, bytes, asc);
+  code = initRowKey(&pScanInfo->sttRange.skey, INT64_MAX, numOfPks, type, bytes, asc);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = initRowKey(&pScanInfo->sttRange.ekey, INT64_MIN, numOfPks, type, bytes, asc);
+  return code;
 }
 
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
@@ -242,32 +304,46 @@ int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSH
   pScanInfo->cleanSttBlocks = false;
   pScanInfo->sttBlockReturned = false;
 
-  initLastProcKey(pScanInfo, pReader);
+  int32_t code = initLastProcKey(pScanInfo, pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
-  tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  code = tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pReader, pScanInfo->uid,
             pScanInfo->lastProcKey.ts, pReader->idStr);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
-SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                   STableUidList* pUidList, int32_t numOfTables) {
+int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
+                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj) {
+  int32_t code = 0;
+  *pHashObj = NULL;
+
   // allocate buffer in order to load data blocks from file
   // todo use simple hash instead, optimize the memory consumption
   SSHashObj* pTableMap = tSimpleHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   if (pTableMap == NULL) {
-    return NULL;
+    return terrno;
   }
 
   int64_t st = taosGetTimestampUs();
-  initBlockScanInfoBuf(pBuf, numOfTables);
+  code = initBlockScanInfoBuf(pBuf, numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pTableMap);
+    return code;
+  }
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return NULL;
+    return terrno;
   }
 
   pUidList->currentIndex = 0;
@@ -275,8 +351,16 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
   for (int32_t j = 0; j < numOfTables; ++j) {
     pUidList->tableUidList[j] = idList[j].uid;
 
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
-    initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
+    STableBlockScanInfo* pScanInfo = NULL;
+    code = getPosInBlockInfoBuf(pBuf, j, &pScanInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    code = initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -286,7 +370,8 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
             (sizeof(STableBlockScanInfo) * numOfTables) / 1024.0, pTsdbReader->cost.createScanInfoList,
             pTsdbReader->idStr);
 
-  return pTableMap;
+  *pHashObj = pTableMap;
+  return code;
 }
 
 void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
@@ -308,7 +393,8 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
       pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
     }
 
-    pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+    taosArrayDestroy(pInfo->delSkyline);
+    pInfo->delSkyline = NULL;
     pInfo->lastProcKey.ts = ts;
     // todo check the nextProcKey info
     pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
@@ -329,11 +415,16 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
     p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
   }
 
-  p->delSkyline = taosArrayDestroy(p->delSkyline);
-  p->pBlockList = taosArrayDestroy(p->pBlockList);
-  p->pBlockIdxList = taosArrayDestroy(p->pBlockIdxList);
-  p->pMemDelData = taosArrayDestroy(p->pMemDelData);
-  p->pFileDelData = taosArrayDestroy(p->pFileDelData);
+  taosArrayDestroy(p->delSkyline);
+  p->delSkyline = NULL;
+  taosArrayDestroy(p->pBlockList);
+  p->pBlockList = NULL;
+  taosArrayDestroy(p->pBlockIdxList);
+  p->pBlockIdxList = NULL;
+  taosArrayDestroy(p->pMemDelData);
+  p->pMemDelData = NULL;
+  taosArrayDestroy(p->pFileDelData);
+  p->pFileDelData = NULL;
 
   clearRowKey(&p->lastProcKey);
   clearRowKey(&p->sttRange.skey);
@@ -376,8 +467,8 @@ void cleanupInfoForNextFileset(SSHashObj* pTableMap) {
 
 // brin records iterator
 void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList) {
-  memset(&pIter->block, 0, sizeof(SBrinBlock));
-  memset(&pIter->record, 0, sizeof(SBrinRecord));
+  (void)memset(&pIter->block, 0, sizeof(SBrinBlock));
+  (void)memset(&pIter->record, 0, sizeof(SBrinRecord));
   pIter->blockIndex = -1;
   pIter->recordIndex = -1;
 
@@ -385,28 +476,35 @@ void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray
   pIter->pBrinBlockList = pList;
 }
 
-SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
+int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
+  *pRecord = NULL;
+
   if (pIter->blockIndex == -1 || (pIter->recordIndex + 1) >= pIter->block.numOfRecords) {
     pIter->blockIndex += 1;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pBrinBlockList)) {
-      return NULL;
+      return TSDB_CODE_SUCCESS;
     }
 
     pIter->pCurrentBlk = taosArrayGet(pIter->pBrinBlockList, pIter->blockIndex);
+    if (pIter->pCurrentBlk == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     tBrinBlockClear(&pIter->block);
     int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
-      return NULL;
+      return code;
     }
 
     pIter->recordIndex = -1;
   }
 
   pIter->recordIndex += 1;
-  tBrinBlockGet(&pIter->block, pIter->recordIndex, &pIter->record);
-  return &pIter->record;
+  int32_t code = tBrinBlockGet(&pIter->block, pIter->recordIndex, &pIter->record);
+  *pRecord = &pIter->record;
+
+  return code;
 }
 
 void clearBrinBlockIter(SBrinRecordIter* pIter) { tBrinBlockDestroy(&pIter->block); }
@@ -426,13 +524,13 @@ static void cleanupBlockOrderSupporter(SBlockOrderSupporter* pSup) {
 }
 
 static int32_t initBlockOrderSupporter(SBlockOrderSupporter* pSup, int32_t numOfTables) {
-  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
-  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
   pSup->pDataBlockInfo = taosMemoryCalloc(1, POINTER_BYTES * numOfTables);
-
-  if (pSup->numOfBlocksPerTable == NULL || pSup->indexPerTable == NULL || pSup->pDataBlockInfo == NULL) {
+  pSup->indexPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfBlocksPerTable = taosMemoryCalloc(1, sizeof(int32_t) * numOfTables);
+  pSup->numOfTables = 0;
+  if (pSup->pDataBlockInfo == NULL || pSup->indexPerTable == NULL || pSup->numOfBlocksPerTable == NULL) {
     cleanupBlockOrderSupporter(pSup);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -461,7 +559,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
+int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -482,17 +580,24 @@ void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
       pBlockInfo->lastPk.val = record->lastKey.key.pks[0].val;
     } else {
       char* p = taosMemoryCalloc(1, pFirstKey->pks[0].nData + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), pFirstKey->pks[0].pData, pFirstKey->pks[0].nData);
       varDataSetLen(p, pFirstKey->pks[0].nData);
       pBlockInfo->firstPk.pData = (uint8_t*)p;
 
       int32_t keyLen = record->lastKey.key.pks[0].nData;
       p = taosMemoryCalloc(1, keyLen + VARSTR_HEADER_SIZE);
+      if (p == NULL) {
+        return terrno;
+      }
       memcpy(varDataVal(p), record->lastKey.key.pks[0].pData, keyLen);
       varDataSetLen(p, keyLen);
       pBlockInfo->lastPk.pData = (uint8_t*)p;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void freePkItem(void* pItem) {
@@ -550,13 +655,17 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     char* buf = taosMemoryMalloc(sizeof(SBlockOrderWrapper) * num);
     if (buf == NULL) {
       cleanupBlockOrderSupporter(&sup);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     sup.pDataBlockInfo[sup.numOfTables] = (SBlockOrderWrapper*)buf;
 
     for (int32_t k = 0; k < num; ++k) {
       SFileDataBlockInfo* pBlockInfo = taosArrayGet(pTableScanInfo->pBlockList, k);
+      if (pBlockInfo == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+
       sup.pDataBlockInfo[sup.numOfTables][k] =
           (SBlockOrderWrapper){.uid = pTableScanInfo->uid, .offset = pBlockInfo->blockOffset, .pInfo = pTableScanInfo};
       cnt++;
@@ -575,11 +684,19 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, 0);
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
-      taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
+      void*              px = taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
+      if (px == NULL) {
+        return terrno;
+      }
     }
 
-    taosArrayAddAll(pBlockIter->blockList, pTableScanInfo->pBlockList);
-    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
+    void* p = taosArrayAddAll(pBlockIter->blockList, pTableScanInfo->pBlockList);
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
 
     int64_t et = taosGetTimestampUs();
     tsdbDebug("%p create blocks info struct completed for one table, %d blocks not sorted, elapsed time:%.2f ms %s",
@@ -607,11 +724,22 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t index = sup.indexPerTable[pos]++;
 
     SFileDataBlockInfo* pBlockInfo = taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
-    taosArrayPush(pBlockIter->blockList, pBlockInfo);
+    if (pBlockInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    void* px = taosArrayPush(pBlockIter->blockList, pBlockInfo);
+    if (px == NULL) {
+      return terrno;
+    }
 
     STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
     STableDataBlockIdx   tableDataBlockIdx = {.globalIndex = numOfTotal};
-    taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
+
+    px = taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
+    if (px == NULL) {
+      return terrno;
+    }
 
     // set data block index overflow, in order to disable the offset comparator
     if (sup.indexPerTable[pos] >= sup.numOfBlocksPerTable[pos]) {
@@ -619,12 +747,16 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     }
 
     numOfTotal += 1;
-    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    code = tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
   }
 
   int64_t et = taosGetTimestampUs();
@@ -654,17 +786,27 @@ typedef enum {
   BLK_CHECK_QUIT = 0x2,
 } ETombBlkCheckEnum;
 
-static void    loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
-                                       const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j);
+static int32_t loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
+                                       const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i,
+                                       int32_t* j);
 static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_t numOfTables, int32_t* j,
                                 ETombBlkCheckEnum* pRet) {
   int32_t     code = 0;
   STombRecord record = {0};
 
   uint64_t             uid = pReader->status.uidList.tableUidList[*j];
-  STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+  STableBlockScanInfo* pScanInfo = NULL;
+
+  code = getTableBlockScanInfo(pReader->status.pTableMap, uid, &pScanInfo, pReader->idStr);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   if (pScanInfo->pFileDelData == NULL) {
     pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+    if (pScanInfo->pFileDelData == NULL) {
+      return terrno;
+    }
   }
 
   for (int32_t k = 0; k < pBlock->numOfRecords; ++k) {
@@ -694,9 +836,16 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       }
 
       uid = pReader->status.uidList.tableUidList[*j];
-      pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+      code = getTableBlockScanInfo(pReader->status.pTableMap, uid, &pScanInfo, pReader->idStr);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       if (pScanInfo->pFileDelData == NULL) {
         pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+        if (pScanInfo->pFileDelData == NULL) {
+          return terrno;
+        }
       }
     }
 
@@ -704,11 +853,17 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       continue;
     }
 
-    ASSERT(record.suid == pReader->info.suid && uid == record.uid);
+    if (!(record.suid == pReader->info.suid && uid == record.uid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
 
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
-      taosArrayPush(pScanInfo->pFileDelData, &delData);
+      void*    px = taosArrayPush(pScanInfo->pFileDelData, &delData);
+      if (px == NULL) {
+        return terrno;
+      }
     }
   }
 
@@ -735,7 +890,10 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
       break;
     }
 
-    ASSERT(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid);
+    if (!(pTombBlk->minTbid.suid <= pReader->info.suid && pTombBlk->maxTbid.suid >= pReader->info.suid)) {
+      tsdbError("tsdb reader failed at: %s:%d", __func__, __LINE__);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     if (pTombBlk->maxTbid.suid == pReader->info.suid && pTombBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;
       continue;
@@ -798,9 +956,12 @@ int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileRead
   return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
 }
 
-void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
+int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
   if (*ppMemDelData == NULL) {
     *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
+    if (*ppMemDelData == NULL) {
+      return terrno;
+    }
   }
 
   SArray* pMemDelData = *ppMemDelData;
@@ -811,7 +972,11 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
     p = pMemTbData->pHead;
     while (p) {
       if (p->version <= ver) {
-        taosArrayPush(pMemDelData, p);
+        void* px = taosArrayPush(pMemDelData, p);
+        if (px == NULL) {
+          taosRUnLockLatch(&pMemTbData->lock);
+          return terrno;
+        }
       }
 
       p = p->pNext;
@@ -823,20 +988,31 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
     p = piMemTbData->pHead;
     while (p) {
       if (p->version <= ver) {
-        taosArrayPush(pMemDelData, p);
+        void* px = taosArrayPush(pMemDelData, p);
+        if (px == NULL) {
+          return terrno;
+        }
       }
       p = p->pNext;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
                                TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
-                               int32_t numOfTables) {
+                               int32_t numOfTables, int32_t* pNumOfRows) {
   int32_t num = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (pNumOfRows != 0) {
+    *pNumOfRows = 0;
+  }
 
   if (TARRAY2_SIZE(pStatisBlkArray) <= 0) {
-    return 0;
+    return code;
   }
 
   int32_t i = 0;
@@ -845,15 +1021,19 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   }
 
   if (i >= TARRAY2_SIZE(pStatisBlkArray)) {
-    return 0;
+    return code;
   }
 
   SStatisBlk*     p = &pStatisBlkArray->data[i];
   STbStatisBlock* pStatisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
-  tStatisBlockInit(pStatisBlock);
+  TSDB_CHECK_NULL(pStatisBlock, code, lino, _err, terrno);
+
+  code = tStatisBlockInit(pStatisBlock);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   int64_t st = taosGetTimestampMs();
-  tsdbSttFileReadStatisBlock(pSttFileReader, p, pStatisBlock);
+  code = tsdbSttFileReadStatisBlock(pSttFileReader, p, pStatisBlock);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   pBlockLoadInfo->cost.loadStatisBlocks += 1;
@@ -867,7 +1047,8 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   if (index >= pStatisBlock->numOfRecords) {
     tStatisBlockDestroy(pStatisBlock);
     taosMemoryFreeClear(pStatisBlock);
-    return num;
+    *pNumOfRows = num;
+    return code;
   }
 
   int32_t j = index;
@@ -877,7 +1058,8 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
     if (p->minTbid.suid > suid) {
       tStatisBlockDestroy(pStatisBlock);
       taosMemoryFreeClear(pStatisBlock);
-      return num;
+      *pNumOfRows = num;
+      return code;
     }
 
     uint64_t uid = pUidList[uidIndex];
@@ -886,10 +1068,12 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
       num += ((int64_t*)pStatisBlock->counts.data)[j];
       uidIndex += 1;
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+      code = loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+      TSDB_CHECK_CODE(code, lino, _err);
     } else if (((int64_t*)pStatisBlock->uids.data)[j] < uid) {
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+      code = loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+      TSDB_CHECK_CODE(code, lino, _err);
     } else {
       uidIndex += 1;
     }
@@ -897,29 +1081,49 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
 
   tStatisBlockDestroy(pStatisBlock);
   taosMemoryFreeClear(pStatisBlock);
-  return num;
+  *pNumOfRows = num;
+  return code;
+
+_err:
+  tsdbError("%p failed to get number of rows in stt block, %s at line:%d code:%s", pSttFileReader, __func__, lino,
+            tstrerror(code));
+  return code;
 }
 
 // load next stt statistics block
-static void loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
-                                    const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j) {
+static int32_t loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
+                                       const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i,
+                                       int32_t* j) {
   if ((*j) >= numOfRows) {
     (*i) += 1;
     (*j) = 0;
     if ((*i) < TARRAY2_SIZE(pStatisBlkArray)) {
-      tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pStatisBlock);
+      int32_t code = tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pStatisBlock);
+      if (code != 0) {
+        tsdbError("%p failed to read statisBlock, code:%s", pSttFileReader, tstrerror(code));
+        return code;
+      }
     }
   }
+
+  return 0;
 }
 
-void doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
+int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
   int32_t size = taosArrayGetSize(pLDIterList);
 
   if (size < numOfFileObj) {
     int32_t inc = numOfFileObj - size;
     for (int32_t k = 0; k < inc; ++k) {
       SLDataIter* pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
-      taosArrayPush(pLDIterList, &pIter);
+      if (!pIter) {
+        return terrno;
+      }
+      void* px = taosArrayPush(pLDIterList, &pIter);
+      if (px == NULL) {
+        taosMemoryFree(pIter);
+        return terrno;
+      }
     }
   } else if (size > numOfFileObj) {  // remove unused LDataIter
     int32_t inc = size - numOfFileObj;
@@ -929,21 +1133,33 @@ void doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
       destroyLDataIter(pIter);
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) {
   int32_t numOfLevels = pFileSet->lvlArr->size;
+  int32_t code = 0;
 
   // add the list/iter placeholder
   while (taosArrayGetSize(pSttFileBlockIterArray) < numOfLevels) {
     SArray* pList = taosArrayInit(4, POINTER_BYTES);
-    taosArrayPush(pSttFileBlockIterArray, &pList);
+    if (pList == NULL) {
+      return terrno;
+    }
+    void* px = taosArrayPush(pSttFileBlockIterArray, &pList);
+    if (px == NULL) {
+      return terrno;
+    }
   }
 
   for (int32_t j = 0; j < numOfLevels; ++j) {
     SSttLvl* pSttLevel = pFileSet->lvlArr->data[j];
     SArray*  pList = taosArrayGetP(pSttFileBlockIterArray, j);
-    doAdjustValidDataIters(pList, TARRAY2_SIZE(pSttLevel->fobjArr));
+    code = doAdjustValidDataIters(pList, TARRAY2_SIZE(pSttLevel->fobjArr));
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -952,6 +1168,7 @@ int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) 
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr) {
   int32_t numOfRows = 0;
+  int32_t code = 0;
 
   // no data exists, go to end
   int32_t numOfLevels = pFileSet->lvlArr->size;
@@ -960,7 +1177,10 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
   }
 
   // add the list/iter placeholder
-  adjustSttDataIters(pSttFileBlockIterArray, pFileSet);
+  code = adjustSttDataIters(pSttFileBlockIterArray, pFileSet);
+  if (code != TSDB_CODE_SUCCESS) {
+    return numOfRows;
+  }
 
   for (int32_t j = 0; j < numOfLevels; ++j) {
     SSttLvl* pSttLevel = pFileSet->lvlArr->data[j];
@@ -976,7 +1196,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
         conf.file[0] = *pSttLevel->fobjArr->data[i]->f;
 
         const char* pName = pSttLevel->fobjArr->data[i]->fname;
-        int32_t     code = tsdbSttFileReaderOpen(pName, &conf, &pIter->pReader);
+        code = tsdbSttFileReaderOpen(pName, &conf, &pIter->pReader);
         if (code != TSDB_CODE_SUCCESS) {
           tsdbError("open stt file reader error. file:%s, code %s, %s", pName, tstrerror(code), pstr);
           continue;
@@ -984,8 +1204,8 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       }
 
       if (pIter->pBlockLoadInfo == NULL) {
-        pIter->pBlockLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
-        if (pIter->pBlockLoadInfo == NULL) {
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pIter->pBlockLoadInfo);
+        if (code != TSDB_CODE_SUCCESS) {
           tsdbError("failed to create block load info, code: out of memory, %s", pstr);
           continue;
         }
@@ -993,7 +1213,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
 
       // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
       TStatisBlkArray* pStatisBlkArray = NULL;
-      int32_t          code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray**)&pStatisBlkArray);
+      code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray**)&pStatisBlkArray);
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), pstr);
         continue;
@@ -1003,8 +1223,13 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       STsdbReader* pReader = pConf->pReader;
       int32_t      numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
       uint64_t*    pUidList = pReader->status.uidList.tableUidList;
-      numOfRows += getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pStatisBlkArray, pConf->suid, pUidList,
-                                          numOfTables);
+      int32_t      n = 0;
+      code = getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pStatisBlkArray, pConf->suid, pUidList,
+                                    numOfTables, &n);
+      numOfRows += n;
+      if (code) {
+        tsdbError("%s failed to get rows in stt blocks, code:%s", pstr, tstrerror(code));
+      }
     }
   }
 
@@ -1064,8 +1289,7 @@ static int32_t sortUidComparFn(const void* p1, const void* p2) {
   return ret;
 }
 
-bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo,
-                     int32_t order) {
+bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order) {
   // check if it overlap with del skyline
   taosArraySort(pKeyRangeList, sortUidComparFn);
 
@@ -1075,6 +1299,10 @@ bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlo
   }
 
   SSttKeyRange* pRange = taosArrayGet(pKeyRangeList, 0);
+  if (pRange == NULL) {
+    return false;
+  }
+
   STimeWindow w = {.skey = pRange->skey.ts, .ekey = pRange->ekey.ts};
   if (overlapWithTimeWindow(&w, pQueryWindow, pScanInfo, order)) {
     return false;
@@ -1083,13 +1311,16 @@ bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlo
   for (int32_t i = 0; i < num - 1; ++i) {
     SSttKeyRange* p1 = taosArrayGet(pKeyRangeList, i);
     SSttKeyRange* p2 = taosArrayGet(pKeyRangeList, i + 1);
+    if (p1 == NULL || p2 == NULL) {
+      return false;
+    }
 
     if (p1->ekey.ts >= p2->skey.ts) {
       return false;
     }
 
     STimeWindow w2 = {.skey = p2->skey.ts, .ekey = p2->ekey.ts};
-    bool overlap = overlapWithTimeWindow(&w2, pQueryWindow, pScanInfo, order);
+    bool        overlap = overlapWithTimeWindow(&w2, pQueryWindow, pScanInfo, order);
     if (overlap) {
       return false;
     }
@@ -1104,6 +1335,10 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p == NULL) {
+      return false;
+    }
+
     if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       if (p->version >= pRecord->minVer) {
         return true;
@@ -1112,11 +1347,17 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
       if (p->version >= pRecord->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+          if (pnext == NULL) {
+            return false;
+          }
+
           if (pnext->ts >= pRecord->firstKey.key.ts) {
             return true;
           }
         } else {  // it must be the last point
-          ASSERT(p->version == 0);
+          if (!(p->version == 0)) {
+            tsdbError("unexpected version:%" PRId64, p->version);
+          }
         }
       }
     } else {  // (p->ts > pBlock->maxKey.ts) {
@@ -1133,11 +1374,19 @@ static bool doCheckDatablockOverlapWithoutVersion(STableBlockScanInfo* pBlockSca
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p == NULL) {
+      return false;
+    }
+
     if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       return true;
     } else if (p->ts < pRecord->firstKey.key.ts) {  // p->ts < pBlock->minKey.ts
       if (i < num - 1) {
         TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+        if (pnext == NULL) {
+          return false;
+        }
+
         if (pnext->ts >= pRecord->firstKey.key.ts) {
           return true;
         }
@@ -1158,6 +1407,10 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pFirst == NULL || pLast == NULL) {
+    return false;
+  }
+
   if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
@@ -1169,6 +1422,10 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p == NULL) {
+        return false;
+      }
+
       if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
@@ -1191,6 +1448,10 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pFirst == NULL || pLast == NULL) {
+    return false;
+  }
+
   if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
@@ -1202,6 +1463,10 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p == NULL) {
+        return false;
+      }
+
       if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.

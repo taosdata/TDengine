@@ -98,6 +98,7 @@ SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
     }
   }
 
+  terrno = TSDB_CODE_SYN_INVALID_ID;
   sError("vgId:%d, indexmgr get replmgr from dnode:%d cluster:%d failed", pNode->vgId, DID(pRaftId), CID(pRaftId));
   return NULL;
 }
@@ -110,6 +111,7 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId)
     }
   }
 
+  terrno = TSDB_CODE_SYN_INVALID_ID;
   sError("vgId:%d, indexmgr get index from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
          CID(pRaftId));
   return SYNC_INDEX_INVALID;
@@ -137,7 +139,8 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftI
 
   sError("vgId:%d, indexmgr get start-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
          CID(pRaftId));
-  return -1;
+  return TSDB_CODE_SYN_INVALID_ID;
+  ;
 }
 
 void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
@@ -162,7 +165,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
 
   sError("vgId:%d, indexmgr get recv-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
          CID(pRaftId));
-  return -1;
+  return TSDB_CODE_SYN_INVALID_ID;
 }
 
 void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term) {
@@ -187,5 +190,5 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
 
   sError("vgId:%d, indexmgr get term from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
          CID(pRaftId));
-  return -1;
+  return TSDB_CODE_SYN_INVALID_ID;
 }

@@ -28,13 +28,13 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        'queryMaxConcurrentTables': '2K', 
-        'streamMax': '1M', 
+        'queryMaxConcurrentTables': '2K',
+        'streamMax': '1M',
         'totalMemoryKB': '1G',
         'streamMax': '1P',
         'streamBufferSize':'1T',
         'slowLogScope':"query"
-    }  
+    }
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -53,14 +53,14 @@ class TDTestCase(TBase):
 
     def doTaos(self):
         tdLog.info(f"check taos command options...")
-        
+
         # local command
         options = [
                      "DebugFlag 143",
                      "enableCoreFile 1",
                      "fqdn 127.0.0.1",
                      "firstEp 127.0.0.1",
-                     "locale ENG",
+                     "locale en_US.UTF-8",
                      "metaCacheMaxSize 10000",
                      "minimalTmpDirGB 5",
                      "minimalLogDirGB 1",
@@ -71,7 +71,6 @@ class TDTestCase(TBase):
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
                      "timezone tz",
-                     "tempDir /var/tmp"
                   ]
         # exec
         for option in options:
@@ -83,7 +82,7 @@ class TDTestCase(TBase):
         # help
         rets = etool.runBinFile("taos", "--help")
         self.checkListNotEmpty(rets)
-        # b r w s 
+        # b r w s
         sql = f"select * from {self.db}.{self.stb} limit 10"
         rets = etool.runBinFile("taos", f'-B -r -w 100 -s "{sql}" ')
         self.checkListNotEmpty(rets)
@@ -124,16 +123,16 @@ class TDTestCase(TBase):
         tdLog.info(f"check taosd command options...")
         idx = 1 # dnode1
         cfg = sc.dnodeCfgPath(idx)
-        
+
         # -s
         sdb = "./sdb.json"
         eos.delFile(sdb)
         etool.exeBinFile("taosd", f"-s -c {cfg}")
-        
+
 
         # -C
         etool.exeBinFile("taosd", "-C")
-        # -k 
+        # -k
         etool.exeBinFile("taosd", "-k", False)
         # -V
         rets = etool.runBinFile("taosd", "-V")
@@ -153,7 +152,7 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taosd", "-a http://192.168.1.10")
 
-        #exe 
+        #exe
         etool.exeBinFile("taosd", f"-E abc -c {cfg}", False)
         sc.dnodeStop(idx)
         etool.exeBinFile("taosd", f"-e def -c {cfg}", False)
@@ -182,7 +181,7 @@ class TDTestCase(TBase):
         # do action
         self.doTaosd()
 
-        
+
 
 
         tdLog.success(f"{__file__} successfully executed")

@@ -30,7 +30,7 @@ int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type, int32
   mgmt->slots = taosMemoryCalloc(1, msgSize);
   if (NULL == mgmt->slots) {
     qError("calloc %d failed", (int32_t)msgSize);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(terrno);
   }
 
   mgmt->rentCacheSize = msgSize;
@@ -52,13 +52,13 @@ int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size)
     if (NULL == slot->meta) {
       qError("taosArrayInit %d failed, id:0x%" PRIx64 ", slot idx:%d, type:%d", CTG_DEFAULT_RENT_SLOT_SIZE, id, widx,
              mgmt->type);
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(terrno);
     }
   }
 
   if (NULL == taosArrayPush(slot->meta, meta)) {
     qError("taosArrayPush meta to rent failed, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   mgmt->rentCacheSize += size;
@@ -100,7 +100,7 @@ int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t si
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  memcpy(orig, meta, size);
+  TAOS_MEMCPY(orig, meta, size);
 
   qDebug("meta in rent updated, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
 
@@ -181,12 +181,16 @@ int32_t ctgMetaRentGetImpl(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_
   *res = taosMemoryMalloc(msize);
   if (NULL == *res) {
     qError("malloc %d failed", (int32_t)msize);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(terrno);
   }
 
   void *meta = taosArrayGet(slot->meta, 0);
+  if (NULL == meta) {
+    qError("get the 0th meta in slot failed, total:%d", (int32_t)metaNum);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
-  memcpy(*res, meta, msize);
+  TAOS_MEMCPY(*res, meta, msize);
 
   *num = (uint32_t)metaNum;
 
@@ -227,13 +231,14 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
     return;
   }
 
+  int32_t code =  TSDB_CODE_SUCCESS;
   void *pIter = taosHashIterate(dbCache->stbCache, NULL);
   while (pIter) {
     uint64_t *suid = NULL;
     suid = taosHashGetKey(pIter, NULL);
 
-    if (TSDB_CODE_SUCCESS ==
-        ctgMetaRentRemove(&pCtg->stbRent, *suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare)) {
+    code = ctgMetaRentRemove(&pCtg->stbRent, *suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
+    if (TSDB_CODE_SUCCESS == code) {
       ctgDebug("stb removed from rent, suid:0x%" PRIx64, *suid);
     }
 
@@ -265,6 +270,7 @@ void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
   void* pIter = taosHashIterate(dbCache->tsmaCache, NULL);
   while (pIter) {
     SCtgTSMACache* pCtgCache = pIter;
+    
     CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
     int32_t size = (pCtgCache && pCtgCache->pTsmas) ? pCtgCache->pTsmas->size : 0;
     for (int32_t i = 0; i < size; ++i) {
@@ -274,6 +280,7 @@ void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
       }
     }
     CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+    
     pIter = taosHashIterate(dbCache->tsmaCache, pIter);
   }
 }
@@ -325,8 +332,10 @@ int32_t ctgUpdateRentTSMAVersion(SCatalog *pCtg, char *dbFName, const STSMACache
   tstrncpy(tsmaRent.name, pTsmaInfo->name, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsmaRent.dbFName, dbFName, TSDB_DB_FNAME_LEN);
   tstrncpy(tsmaRent.tbName, pTsmaInfo->tb, TSDB_TABLE_NAME_LEN);
+  
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->tsmaRent, &tsmaRent, tsmaRent.tsmaId, sizeof(STSMAVersion),
                                 ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare));
+                                
   ctgDebug("db %s, 0x%" PRIx64 " tsma %s, 0x%" PRIx64 "version %d updated to tsmaRent", dbFName, tsmaRent.dbId,
            pTsmaInfo->name, pTsmaInfo->tsmaId, pTsmaInfo->version);
 

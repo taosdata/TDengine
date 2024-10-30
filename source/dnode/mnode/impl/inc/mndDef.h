@@ -78,6 +78,9 @@ typedef enum {
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
   MND_OPER_BALANCE_VGROUP_LEADER,
+  MND_OPER_CREATE_ANODE,
+  MND_OPER_UPDATE_ANODE,
+  MND_OPER_DROP_ANODE
 } EOperType;
 
 typedef enum {
@@ -106,6 +109,7 @@ typedef enum {
 //  TRN_CONFLICT_TOPIC = 4,
 //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
+  TRN_CONFLICT_TSMA = 7,
 } ETrnConflct;
 
 typedef enum {
@@ -230,6 +234,24 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
   char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
+
+typedef struct {
+  int32_t nameLen;
+  char*   name;
+} SAnodeAlgo;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  urlLen;
+  int32_t  numOfAlgos;
+  int32_t  status;
+  SRWLatch lock;
+  char*    url;
+  SArray** algos;
+} SAnodeObj;
 
 typedef struct {
   int32_t    id;
@@ -596,11 +618,14 @@ typedef struct {
 typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
-  char     clientId[256];
+  char     clientId[TSDB_CLIENT_ID_LEN];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;
   int32_t  hbStatus;          // hbStatus is not applicable to serialization
+  int32_t  pollStatus;        // pollStatus is not applicable to serialization
   SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
@@ -620,9 +645,12 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int32_t resetOffsetCfg;
+  int32_t sessionTimeoutMs;
+  int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe);
+int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
+                           char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer);
 void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
 void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
@@ -665,8 +693,8 @@ typedef struct {
   char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
-SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
-SMqSubscribeObj* tCloneSubscribeObj(const SMqSubscribeObj* pSub);
+int32_t          tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub);
+int32_t          tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj **ppSub);
 void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);

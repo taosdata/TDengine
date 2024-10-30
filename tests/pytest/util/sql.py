@@ -24,26 +24,48 @@ from util.log import *
 from util.constant import *
 import ctypes
 import random
-# from datetime import timezone
+import datetime
 import time
+from tzlocal import get_localzone
 
 def _parse_ns_timestamp(timestr):
     dt_obj = datetime.datetime.strptime(timestr[:len(timestr)-3], "%Y-%m-%d %H:%M:%S.%f")
     tz = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e9) + int(dt_obj.microsecond * 1000) + int(timestr[-3:])
     return tz
 
-
 def _parse_datetime(timestr):
-    try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
-    except ValueError:
-        pass
-    try:
-        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
-    except ValueError:
-        pass
+    # defined timestr formats
+    formats = [
+        '%Y-%m-%d %H:%M:%S.%f%z',  # 包含微秒和时区偏移
+        '%Y-%m-%d %H:%M:%S%z',      # 不包含微秒但包含时区偏移
+        '%Y-%m-%d %H:%M:%S.%f',     # 包含微秒
+        '%Y-%m-%d %H:%M:%S'         # 不包含微秒
+    ]
+    
+    for fmt in formats:
+        try:
+            # try to parse the string with the current format
+            dt = datetime.datetime.strptime(timestr, fmt)
+            # 如果字符串包含时区信息，则返回 aware 对象
+            # if sting contains timezone info, return aware object
+            if dt.tzinfo is not None:
+                return dt
+
+            else:
+            # if sting does not contain timezone info, assume it is in local timezone
+                # get local timezone
+                local_timezone = get_localzone()
+                # print("Timezone:", local_timezone)
+                return dt.replace(tzinfo=local_timezone)
+        except ValueError:
+            continue  # if the current format does not match, try the next format
+    
+    # 如果所有格式都不匹配，返回 None
+    # if none of the formats match, return 
+    raise ValueError(f"input format does not match. correct formats include: '{', '.join(formats)}'")
 
 class TDSql:
+
     def __init__(self):
         self.queryRows = 0
         self.queryCols = 0
@@ -61,6 +83,13 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
+    def print_error_frame_info(self, elm, expect_elm, sql=None):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        print_sql = self.sql if sql is None else sql
+        args = (caller.filename, caller.lineno, print_sql, elm, expect_elm)
+        # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+        raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+
     def prepare(self, dbname="db", drop=True, **kwargs):
         tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
@@ -75,7 +104,7 @@ class TDSql:
         for k, v in kwargs.items():
             s += f" {k} {v}"
         if "duration" not in kwargs:
-            s += " duration 300"
+            s += " duration 100"
         self.cursor.execute(s)
         s = f'use {dbname}'
         self.cursor.execute(s)
@@ -307,8 +336,8 @@ class TDSql:
             return col_name_list, col_type_list
         return col_name_list
 
-    def waitedQuery(self, sql, expectRows, timeout):
-        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
+    def waitedQuery(self, sql, expectedRows, timeout):
+        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectedRows, timeout))
         self.sql = sql
         try:
             for i in range(timeout):
@@ -316,8 +345,8 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
-                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
-                if self.queryRows >= expectRows:
+                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectedRows, self.queryRows))
+                if self.queryRows >= expectedRows:
                     return (self.queryRows, i)
                 time.sleep(1)
         except Exception as e:
@@ -330,14 +359,26 @@ class TDSql:
     def getRows(self):
         return self.queryRows
 
-    def checkRows(self, expectRows):
-        if self.queryRows == expectRows:
-            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+    def checkRows(self, expectedRows):
+        return self.checkEqual(self.queryRows, expectedRows)
+        # if self.queryRows == expectedRows:
+        #     tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
+        #     return True
+        # else:
+        #     caller = inspect.getframeinfo(inspect.stack()[1][0])
+        #     args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
+        #     tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+
+    def checkRows_not_exited(self, expectedRows):
+        """
+            Check if the query rows is equal to the expected rows
+            :param expectedRows: The expected number of rows.
+            :return: Returns True if the actual number of rows matches the expected number, otherwise returns False.
+            """
+        if self.queryRows == expectedRows:
             return True
         else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
-            tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+            return False
 
     def checkRows_range(self, excepte_row_list):
         if self.queryRows in excepte_row_list:
@@ -389,6 +430,7 @@ class TDSql:
 
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
+                # tdLog.debug(f"self.queryResult[row][col]:{self.queryResult[row][col]}, data:{data},len(data):{len(data)}, isinstance(data,str) :{isinstance(data,str)}")
                 # suppose user want to check nanosecond timestamp if a longer data passed``
                 if isinstance(data,str) :
                     if (len(data) >= 28):
@@ -400,8 +442,9 @@ class TDSql:
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                             tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     else:
+                        # tdLog.info(f"datetime.timezone.utc:{datetime.timezone.utc},data:{data},_parse_datetime(data).astimezone(datetime.timezone.utc):{_parse_datetime(data).astimezone(datetime.timezone.utc)}")
                         if self.queryResult[row][col].astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
-                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col].astimezone(datetime.timezone.utc)} == expect:{_parse_datetime(data).astimezone(datetime.timezone.utc)}")
                             if(show):
                                tdLog.info("check successfully")
                         else:
@@ -508,7 +551,7 @@ class TDSql:
 
 
     # return true or false replace exit, no print out
-    def checkDataNoExit(self, row, col, data):
+    def checkDataNotExit(self, row, col, data):
         if self.checkRowColNoExit(row, col) == False:
             return False
         if self.queryResult[row][col] != data:
@@ -542,7 +585,7 @@ class TDSql:
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkDataNoExit(row, col, data) :
+            if self.checkDataNotExit(row, col, data) :
                 self.checkData(row, col, data)
                 return
             time.sleep(waitTime)
@@ -550,6 +593,19 @@ class TDSql:
         # last check
         self.query(sql)
         self.checkData(row, col, data)
+
+    def check_rows_loop(self, expectedRows, sql, loopCount, waitTime):
+        # loop check util checkData return true
+        for i in range(loopCount):
+            self.query(sql)
+            if self.checkRows_not_exited(expectedRows):
+                return
+            else:
+                time.sleep(waitTime)
+                continue
+        # last check
+        self.query(sql)
+        self.checkRows(expectedRows)
 
 
     def getData(self, row, col):
@@ -612,16 +668,12 @@ class TDSql:
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-            return
+            return True
         if self.__check_equal(elm, expect_elm):
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-            return
-
-        caller = inspect.getframeinfo(inspect.stack()[1][0])
-        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-        # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
-        raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
-
+            return True
+        self.print_error_frame_info(elm, expect_elm)
+        
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:
             tdLog.info("sql:%s, elm:%s != expect_elm:%s" % (self.sql, elm, expect_elm))

@@ -61,11 +61,13 @@ int32_t mndInitCluster(SMnode *pMnode) {
 void mndCleanupCluster(SMnode *pMnode) {}
 
 int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
-  SSdb *pSdb = pMnode->pSdb;
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
 
   SClusterObj *pCluster = sdbAcquire(pSdb, SDB_CLUSTER, &pMnode->clusterId);
   if (pCluster == NULL) {
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
   }
 
   tstrncpy(clusterName, pCluster->name, len);
@@ -142,6 +144,8 @@ int64_t mndGetClusterUpTime(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + CLUSTER_RESERVE_SIZE);
@@ -170,6 +174,8 @@ _OVER:
 }
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SClusterObj *pCluster = NULL;
   SSdbRow     *pRow = NULL;
@@ -235,9 +241,9 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;
 
-  int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
+  int32_t code = taosGetSystemUUIDLen(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    strcpy(clusterObj.name, "tdengine3.0");
+    (void)strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 
@@ -247,8 +253,15 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   mInfo("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
-  if (pRaw == NULL) return -1;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (pRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pRaw);
+    TAOS_RETURN(code);
+  }
 
   mInfo("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
@@ -256,21 +269,27 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
 
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pRaw);
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndTransDrop(pTrans);
@@ -281,6 +300,7 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
   SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      code = 0;
+  int32_t      lino = 0;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
   SClusterObj *pCluster = NULL;
@@ -291,31 +311,31 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&pCluster->id, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, _OVER);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET(buf, false, pCluster);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, _OVER);
 
     int32_t upTime = mndGetClusterUpTimeImp(pCluster);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&upTime, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&pCluster->createdTime, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, _OVER);
 
     char ver[12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)ver, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (tsExpireTime <= 0) {
       colDataSetNULL(pColInfo, numOfRows);
     } else {
-      COL_DATA_SET_VAL_RET((const char *)&tsExpireTime, false, pCluster);
+      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, _OVER);
     }
 
     sdbRelease(pSdb, pCluster);
@@ -323,12 +343,18 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
   }
 
   pShow->numOfRows += numOfRows;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve cluster info at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
 }
 
 static void mndCancelGetNextCluster(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_CLUSTER);
 }
 
 static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
@@ -337,7 +363,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
-    memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+    (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
     clusterObj.upTime += tsUptimeInterval;
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
@@ -347,22 +373,38 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
+  int32_t code = 0;
   mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
 
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if (pCommitRaw == NULL) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
+  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if (code != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
+
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndTransDrop(pTrans);
@@ -374,13 +416,12 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SMCfgClusterReq cfgReq = {0};
   if (tDeserializeSMCfgClusterReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER) != 0) {
-    code = terrno != 0 ? terrno : TSDB_CODE_MND_NO_RIGHTS;
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER)) != 0) {
     goto _exit;
   }
 
@@ -392,7 +433,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
     goto _exit;
   }
-  memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
   mndReleaseCluster(pMnode, pCluster, pIter);
 
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {
@@ -410,17 +451,17 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   {  // audit
-    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql,
+                TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
   }
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {
-    terrno = code;
     mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
   } else {
     mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {

@@ -46,7 +46,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
-    taosThreadRwlockInit(&pSdb->locks[i], NULL);
+    (void)taosThreadRwlockInit(&pSdb->locks[i], NULL);
     pSdb->maxId[i] = 0;
     pSdb->tableVer[i] = 0;
     pSdb->keyTypes[i] = SDB_KEY_INT32;
@@ -60,7 +60,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   pSdb->commitTerm = -1;
   pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
-  taosThreadMutexInit(&pSdb->filelock, NULL);
+  (void)taosThreadMutexInit(&pSdb->filelock, NULL);
   mInfo("sdb init success");
   return pSdb;
 }
@@ -68,7 +68,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mInfo("start to cleanup sdb");
 
-  sdbWriteFile(pSdb, 0);
+  int32_t code = 0;
+
+  if ((code = sdbWriteFile(pSdb, 0)) != 0) {
+    mError("failed to write sdb file since %s", tstrerror(code));
+  }
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -99,19 +103,21 @@ void sdbCleanup(SSdb *pSdb) {
 
     taosHashClear(hash);
     taosHashCleanup(hash);
-    taosThreadRwlockDestroy(&pSdb->locks[i]);
+    (void)taosThreadRwlockDestroy(&pSdb->locks[i]);
     pSdb->hashObjs[i] = NULL;
     memset(&pSdb->locks[i], 0, sizeof(pSdb->locks[i]));
 
     mInfo("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
-  taosThreadMutexDestroy(&pSdb->filelock);
+  (void)taosThreadMutexDestroy(&pSdb->filelock);
   taosMemoryFree(pSdb);
   mInfo("sdb is cleaned up");
 }
 
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
+  int32_t code = 0;
+
   ESdbType sdbType = table.sdbType;
   EKeyType keyType = table.keyType;
   pSdb->keyTypes[sdbType] = table.keyType;
@@ -134,39 +140,38 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(terrno);
   }
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   mInfo("sdb table:%s is initialized", sdbTableName(sdbType));
 
-  return 0;
+  TAOS_RETURN(0);
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
+  int32_t code = 0;
   if (taosMulMkDir(pSdb->currDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   if (taosMkDir(pSdb->tmpDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   return 0;
 }
 
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
-#if 1
-  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64,
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
-#endif
+  mInfo("vgId:1, mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+        " term:%" PRId64 " config:%" PRId64,
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+
   pSdb->applyIndex = index;
   pSdb->applyTerm = term;
   pSdb->applyConfig = config;
@@ -186,19 +191,19 @@ void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config
 void sdbWriteLock(SSdb *pSdb, int32_t type) {
   TdThreadRwlock *pLock = &pSdb->locks[type];
   // mTrace("sdb table:%d start write lock:%p", type, pLock);
-  taosThreadRwlockWrlock(pLock);
+  (void)taosThreadRwlockWrlock(pLock);
   // mTrace("sdb table:%d stop write lock:%p", type, pLock);
 }
 
 void sdbReadLock(SSdb *pSdb, int32_t type) {
   TdThreadRwlock *pLock = &pSdb->locks[type];
   // mTrace("sdb table:%d start read lock:%p", type, pLock);
-  taosThreadRwlockRdlock(pLock);
+  (void)taosThreadRwlockRdlock(pLock);
   // mTrace("sdb table:%d stop read lock:%p", type, pLock);
 }
 
 void sdbUnLock(SSdb *pSdb, int32_t type) {
   TdThreadRwlock *pLock = &pSdb->locks[type];
   // mTrace("sdb table:%d unlock:%p", type, pLock);
-  taosThreadRwlockUnlock(pLock);
+  (void)taosThreadRwlockUnlock(pLock);
 }

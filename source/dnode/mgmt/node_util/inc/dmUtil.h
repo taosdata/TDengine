@@ -83,12 +83,12 @@ extern "C" {
   }\
 }
 
-#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}}
-#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",QID:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 
@@ -116,11 +116,13 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*MonitorCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef void (*StopDnodeFp)();
 
 typedef struct {
   int32_t        dnodeId;
@@ -142,23 +144,26 @@ typedef struct {
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;
+  TdThreadMutex  statusInfolock;
 } SDnodeData;
 
 typedef struct {
-  const char         *path;
-  const char         *name;
-  STfs               *pTfs;
-  SDnodeData         *pData;
-  SMsgCb              msgCb;
-  ProcessCreateNodeFp processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp   processDropNodeFp;
-  SendMonitorReportFp sendMonitorReportFp;
-  SendAuditRecordsFp  sendAuditRecordFp;
-  GetVnodeLoadsFp     getVnodeLoadsFp;
-  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp     getMnodeLoadsFp;
-  GetQnodeLoadsFp     getQnodeLoadsFp;
+  const char                  *path;
+  const char                  *name;
+  STfs                        *pTfs;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  SendAuditRecordsFp           sendAuditRecordFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -203,15 +208,17 @@ void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, boo
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
-int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
-int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
-TdFilePtr dmCheckRunning(const char *dataDir);
+int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
+int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
+// int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
 // dmodule.c
 int32_t dmInitDndInfo(SDnodeData *pData);
 
 // dmEps.c
 int32_t dmGetDnodeSize(SDnodeData *pData);
+int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);

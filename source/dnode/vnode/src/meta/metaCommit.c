@@ -21,7 +21,10 @@ static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
 static FORCE_INLINE void metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn
-int metaBegin(SMeta *pMeta, int8_t heap) {
+int32_t metaBegin(SMeta *pMeta, int8_t heap) {
+  int32_t code = 0;
+  int32_t lino;
+
   void *(*xMalloc)(void *, size_t) = NULL;
   void (*xFree)(void *, void *) = NULL;
   void *xArg = NULL;
@@ -36,12 +39,19 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
     xArg = pMeta->pVnode->inUse;
   }
 
-  if (tdbBegin(pMeta->pEnv, &pMeta->txn, xMalloc, xFree, xArg, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
+  code = tdbBegin(pMeta->pEnv, &pMeta->txn, xMalloc, xFree, xArg, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tdbCommit(pMeta->pEnv, pMeta->txn);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(terrno));
+  } else {
+    metaDebug("vgId:%d %s success", TD_VID(pMeta->pVnode), __func__);
   }
-
-  tdbCommit(pMeta->pEnv, pMeta->txn);
-
   return 0;
 }
 
@@ -49,26 +59,42 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
 TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
 int  metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
 int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
-int  metaPrepareAsyncCommit(SMeta *pMeta) {
-   // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
-  int code = 0;
+
+int metaPrepareAsyncCommit(SMeta *pMeta) {
+  // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
+  int     code = 0;
+  int32_t lino;
+
   metaWLock(pMeta);
-  code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  int32_t ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to flush ttl since %s", TD_VID(pMeta->pVnode), tstrerror(ret));
+  }
   metaULock(pMeta);
+
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
+  TSDB_CHECK_CODE(code, lino, _exit);
   pMeta->changed = false;
+
+  pMeta->txn = NULL;
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(terrno));
+  } else {
+    metaDebug("vgId:%d %s success", TD_VID(pMeta->pVnode), __func__);
+  }
   return code;
 }
 
 // abort the meta txn
 int metaAbort(SMeta *pMeta) {
-  if (!pMeta->txn) return 0;
-  int code = tdbAbort(pMeta->pEnv, pMeta->txn);
-  if (code) {
-    metaError("vgId:%d, failed to abort meta since %s", TD_VID(pMeta->pVnode), tstrerror(terrno));
-  } else {
-    pMeta->txn = NULL;
+  if (!pMeta->txn) {
+    return 0;
   }
 
-  return code;
+  tdbAbort(pMeta->pEnv, pMeta->txn);
+  pMeta->txn = NULL;
+  return 0;
 }

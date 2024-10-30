@@ -17,11 +17,11 @@ int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **r
       (SRetrieveTableRsp *)(rpcMalloc ? rpcReallocCont(*rsp, msgSize) : taosMemoryRealloc(*rsp, msgSize));
   if (NULL == pRsp) {
     qError("rpcMallocCont %d failed", msgSize);
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(terrno);
   }
 
   if (NULL == *rsp) {
-    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
   }
 
   *rsp = pRsp;
@@ -79,7 +79,7 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   void *pRsp = rpcMallocCont(msgSize);
   if (NULL == pRsp) {
     qError("rpcMallocCont %d failed", msgSize);
-    QW_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_RET(terrno);
   }
 
   if (tSerializeSQueryTableRsp(pRsp, msgSize, &rsp) < 0) {
@@ -105,8 +105,19 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray *pExecList) {
   SExplainRsp       rsp = {.numOfPlans = taosArrayGetSize(pExecList), .subplanInfo = pInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
+  if (contLen < 0) {
+    qError("tSerializeSExplainRsp failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
   void   *pRsp = rpcMallocCont(contLen);
-  tSerializeSExplainRsp(pRsp, contLen, &rsp);
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
+  contLen = tSerializeSExplainRsp(pRsp, contLen, &rsp);
+  if (contLen < 0) {
+    qError("tSerializeSExplainRsp second failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_SCH_EXPLAIN_RSP,
@@ -123,8 +134,20 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray *pExecList) {
 
 int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
+  if (contLen < 0) {
+    qError("tSerializeSSchedulerHbRsp failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
+
   void   *pRsp = rpcMallocCont(contLen);
-  tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
+  contLen = tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
+  if (contLen < 0) {
+    qError("tSerializeSSchedulerHbRsp second failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_SCH_QUERY_HEARTBEAT_RSP,
@@ -143,7 +166,10 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
                                int32_t code) {
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
-    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    if (NULL == pRsp) {
+      QW_RET(terrno);
+    }
+    TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
     dataLength = 0;
   }
 
@@ -164,6 +190,9 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
 #if 0
 int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
@@ -180,6 +209,9 @@ int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code) {
 
 int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   STaskDropRsp *pRsp = (STaskDropRsp *)rpcMallocCont(sizeof(STaskDropRsp));
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
@@ -214,7 +246,7 @@ int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   void *msg = rpcMallocCont(msgSize);
   if (NULL == msg) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
   
   if (tSerializeSTaskDropReq(msg, msgSize, &qMsg) < 0) {
@@ -293,7 +325,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   void *msg = rpcMallocCont(msgSize);
   if (NULL == msg) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
   
   if (tSerializeSTaskDropReq(msg, msgSize, &qMsg) < 0) {
@@ -328,7 +360,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   void *msg = rpcMallocCont(msgSize);
   if (NULL == msg) {
     QW_SCH_ELOG("calloc %d failed", msgSize);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
   if (tSerializeSSchedulerHbReq(msg, msgSize, &req) < 0) {
     QW_SCH_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
@@ -405,6 +437,7 @@ int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
   SSubQueryMsg msg = {0};
   if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &msg) < 0) {
@@ -419,8 +452,8 @@ int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t  eId = msg.execId;
 
   QW_SCH_TASK_DLOG("Abort prerocessQuery start, handle:%p", pMsg->info.handle);
-  qwAbortPrerocessQuery(QW_FPARAMS());
-  QW_SCH_TASK_DLOG("Abort prerocessQuery end, handle:%p", pMsg->info.handle);
+  code = qwAbortPrerocessQuery(QW_FPARAMS());
+  QW_SCH_TASK_DLOG("Abort prerocessQuery end, handle:%p, code:%x", pMsg->info.handle, code);
 
   tFreeSSubQueryMsg(&msg);
 
@@ -435,7 +468,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, QUERY_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, QUERY_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.queryProcessed, 1);
 
   SSubQueryMsg  msg = {0};
@@ -469,6 +502,10 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 }
 
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
   int32_t            code = 0;
   int8_t             status = 0;
   bool               queryDone = false;
@@ -477,7 +514,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   SQWTaskCtx        *handles = NULL;
   SQWorker          *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, QUERY_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, QUERY_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.cqueryProcessed, 1);
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
@@ -495,9 +532,9 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   QW_SCH_TASK_DLOG("processCQuery start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
+  code = qwProcessCQuery(QW_FPARAMS(), &qwMsg);
 
-  QW_SCH_TASK_DLOG("processCQuery end, node:%p", node);
+  QW_SCH_TASK_DLOG("processCQuery end, node:%p, code:0x%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -510,7 +547,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   SResFetchReq req = {0};
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.fetchProcessed, 1);
 
   if (tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
@@ -528,9 +565,9 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 
   QW_SCH_TASK_DLOG("processFetch start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessFetch(QW_FPARAMS(), &qwMsg));
+  int32_t code = qwProcessFetch(QW_FPARAMS(), &qwMsg);
 
-  QW_SCH_TASK_DLOG("processFetch end, node:%p", node);
+  QW_SCH_TASK_DLOG("processFetch end, node:%p, code:%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -538,7 +575,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
   if (mgmt) {
-    qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+    QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
     QW_STAT_INC(mgmt->stat.msgStat.rspProcessed, 1);
   }
 
@@ -557,7 +594,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   int32_t         code = 0;
   STaskCancelReq *msg = pMsg->pCont;
 
-  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.cancelProcessed, 1);
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
@@ -598,7 +635,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.dropProcessed, 1);
 
   STaskDropReq  msg = {0};
@@ -621,9 +658,9 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
   QW_SCH_TASK_DLOG("processDrop start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessDrop(QW_FPARAMS(), &qwMsg));
+  code = qwProcessDrop(QW_FPARAMS(), &qwMsg);
 
-  QW_SCH_TASK_DLOG("processDrop end, node:%p", node);
+  QW_SCH_TASK_DLOG("processDrop end, node:%p, code:%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -636,7 +673,7 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.notifyProcessed, 1);
 
   STaskNotifyReq  msg = {0};
@@ -655,9 +692,9 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   QW_SCH_TASK_DLOG("processNotify start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessNotify(QW_FPARAMS(), &qwMsg));
+  code = qwProcessNotify(QW_FPARAMS(), &qwMsg);
 
-  QW_SCH_TASK_DLOG("processNotify end, node:%p", node);
+  QW_SCH_TASK_DLOG("processNotify end, node:%p, code:%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -672,7 +709,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
   SSchedulerHbReq req = {0};
   SQWorker       *mgmt = (SQWorker *)qWorkerMgmt;
 
-  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.hbProcessed, 1);
 
   if (NULL == pMsg->pCont) {
@@ -694,9 +731,9 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
   QW_SCH_DLOG("processHb start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessHb(mgmt, &qwMsg, &req));
+  code = qwProcessHb(mgmt, &qwMsg, &req);
 
-  QW_SCH_DLOG("processHb end, node:%p", node);
+  QW_SCH_DLOG("processHb end, node:%p, code:%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -712,7 +749,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SD
 
   QW_STAT_INC(mgmt->stat.msgStat.deleteProcessed, 1);
 
-  tDeserializeSVDeleteReq(pMsg->pCont, pMsg->contLen, &req);
+  QW_ERR_RET(tDeserializeSVDeleteReq(pMsg->pCont, pMsg->contLen, &req));
 
   uint64_t sId = req.sId;
   uint64_t qId = req.queryId;

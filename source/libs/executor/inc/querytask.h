@@ -98,16 +98,17 @@ struct SExecTaskInfo {
   SQueryAutoQWorkerPoolCB* pWorkerCb;
 };
 
-void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
-SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI);
-void           doDestroyTask(SExecTaskInfo* pTaskInfo);
-bool           isTaskKilled(void* pTaskInfo);
-void           setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
-void           setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
-int32_t        createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                                  int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
-int32_t        qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
-SArray*        getTableListInfo(const SExecTaskInfo* pTaskInfo);
+void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
+int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI,
+                     SExecTaskInfo** pTaskInfo);
+void    doDestroyTask(SExecTaskInfo* pTaskInfo);
+bool    isTaskKilled(void* pTaskInfo);
+void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
+void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
+int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
+int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
 
 #ifdef __cplusplus
 }

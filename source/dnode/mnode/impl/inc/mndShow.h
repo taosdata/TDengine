@@ -23,12 +23,26 @@
 extern "C" {
 #endif
 
-#define COL_DATA_SET_VAL_RET(pData, isNull, pObj)                              \
+#define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, LABEL)                      \
   do {                                                                         \
     if ((code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
       if (pObj) sdbRelease(pSdb, (pObj));                                      \
-      return code;                                                             \
+      lino = __LINE__;                                                         \
+      goto LABEL;                                                              \
     }                                                                          \
+  } while (0)
+
+#define RETRIEVE_CHECK_GOTO(CMD, pObj, LINO, LABEL) \
+  do {                                              \
+    code = (CMD);                                   \
+    if (code != TSDB_CODE_SUCCESS) {                \
+      if (LINO) {                                   \
+        *((int32_t *)(LINO)) = __LINE__;            \
+      }                                             \
+      if (pObj) sdbRelease(pSdb, (pObj));           \
+      if (pObj) sdbCancelFetch(pSdb, (pObj));       \
+      goto LABEL;                                   \
+    }                                               \
   } while (0)
 
 int32_t mndInitShow(SMnode *pMnode);

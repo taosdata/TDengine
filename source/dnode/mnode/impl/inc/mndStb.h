@@ -37,9 +37,9 @@ int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 void    mndFreeStb(SStbObj *pStb);
 int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, void **pCont, int32_t *pLen);
 
-void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
-void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst);
-void mndExtractShortDbNameFromDbFullName(const char *stbFullName, char *dst);
+int32_t mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
+int32_t mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst);
+int32_t mndExtractShortDbNameFromDbFullName(const char *stbFullName, char *dst);
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize);
 
 const char *mndGetStbStr(const char *src);

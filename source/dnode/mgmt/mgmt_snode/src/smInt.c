@@ -33,12 +33,19 @@ static void smClose(SSnodeMgmt *pMgmt) {
 
   taosMemoryFree(pMgmt);
 }
-
+int32_t sndOpenWrapper(const char *path, SSnodeOpt *pOption, SSnode **pNode) {
+  *pNode = sndOpen(path, pOption);
+  if (*pNode == NULL) {
+    return terrno;
+  }
+  return 0;
+}
 int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+  int32_t     code = 0;
   SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = terrno;
+    return code;
   }
 
   pMgmt->pData = pInput->pData;
@@ -50,35 +57,34 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   SSnodeOpt option = {0};
   smInitOption(pMgmt, &option);
-  pMgmt->pSnode = sndOpen(pMgmt->path, &option);
-  if (pMgmt->pSnode == NULL) {
-    dError("failed to open snode since %s", terrstr());
+
+  code = sndOpenWrapper(pMgmt->path, &option, &pMgmt->pSnode);
+  if (code != 0) {
+    dError("failed to open snode since %s", tstrerror(code));
     smClose(pMgmt);
-    return -1;
+    return code;
   }
 
   tmsgReportStartup("snode-impl", "initialized");
 
-  if (smStartWorker(pMgmt) != 0) {
-    dError("failed to start snode worker since %s", terrstr());
+  if ((code = smStartWorker(pMgmt)) != 0) {
+    dError("failed to start snode worker since %s", tstrerror(code));
     smClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("snode-worker", "initialized");
 
-  if (udfcOpen() != 0) {
-    dError("failed to open udfc in snode");
+  if ((code = udfcOpen()) != 0) {
+    dError("failed to open udfc in snode since:%s", tstrerror(code));
     smClose(pMgmt);
-    return -1;
+    return code;
   }
 
   pOutput->pMgmt = pMgmt;
   return 0;
 }
 
-static int32_t smStartSnodes(SSnodeMgmt *pMgmt) {
-  return sndInit(pMgmt->pSnode);
-}
+static int32_t smStartSnodes(SSnodeMgmt *pMgmt) { return sndInit(pMgmt->pSnode); }
 
 SMgmtFunc smGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};

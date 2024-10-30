@@ -23,31 +23,34 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  SDnodeData            *pData;
-  SMsgCb                 msgCb;
-  const char            *path;
-  const char            *name;
-  TdThread               statusThread;
-  TdThread               notifyThread;
-  TdThread               monitorThread;
-  TdThread               auditThread;
-  TdThread               crashReportThread;
-  SSingleWorker          mgmtWorker;
-  ProcessCreateNodeFp    processCreateNodeFp;
-  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp      processDropNodeFp;
-  SendMonitorReportFp    sendMonitorReportFp;
-  SendAuditRecordsFp     sendAuditRecordsFp;
-  GetVnodeLoadsFp        getVnodeLoadsFp;
-  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp        getMnodeLoadsFp;
-  GetQnodeLoadsFp        getQnodeLoadsFp;
-  int32_t                statusSeq;
+  SDnodeData                  *pData;
+  SMsgCb                       msgCb;
+  const char                  *path;
+  const char                  *name;
+  TdThread                     statusThread;
+  TdThread                     statusInfoThread;
+  TdThread                     notifyThread;
+  TdThread                     monitorThread;
+  TdThread                     auditThread;
+  TdThread                     crashReportThread;
+  SSingleWorker                mgmtWorker;
+  ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
+  ProcessDropNodeFp            processDropNodeFp;
+  SendMonitorReportFp          sendMonitorReportFp;
+  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  SendAuditRecordsFp           sendAuditRecordsFp;
+  GetVnodeLoadsFp              getVnodeLoadsFp;
+  GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp              getMnodeLoadsFp;
+  GetQnodeLoadsFp              getQnodeLoadsFp;
+  int32_t                      statusSeq;
 } SDnodeMgmt;
 
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+void    dmUpdateStatusInfo(SDnodeMgmt *pMgmt);
 void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -61,7 +64,9 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
+int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);

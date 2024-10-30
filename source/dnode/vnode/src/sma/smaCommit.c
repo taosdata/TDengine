@@ -99,8 +99,7 @@ int32_t smaBegin(SSma *pSma) {
     }
   }
 _exit:
-  terrno = code;
-  return code;
+  TAOS_RETURN(code);
 }
 
 extern int32_t tsdbCommitCommit(STsdb *tsdb);
@@ -119,7 +118,7 @@ _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -202,7 +201,7 @@ _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s(%d)", SMA_VID(pSma), __func__, lino, tstrerror(code), isCommit);
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -229,7 +228,7 @@ _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -241,7 +240,7 @@ _exit:
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
-    return TSDB_CODE_SUCCESS;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
@@ -258,7 +257,9 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
       if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
         int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
         if (refVal == 0) {
-          taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid));
+          if(taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid)) < 0) {
+            smaError("vgId:%d, rsma async post commit, failed to remove rsma info for table:%" PRIi64, SMA_VID(pSma), *pSuid);
+          }
         } else {
           smaDebug(
               "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "
@@ -276,5 +277,5 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
 
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

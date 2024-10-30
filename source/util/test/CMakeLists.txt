@@ -119,12 +119,26 @@ add_test(
     COMMAND bufferTest
 )
 
-#add_executable(decompressTest "decompressTest.cpp")
-#target_link_libraries(decompressTest os util common gtest_main)
-#add_test(
-#    NAME decompressTest 
-#    COMMAND decompressTest
-#)
+add_executable(regexTest "regexTest.cpp")
+target_link_libraries(regexTest os util gtest_main )
+add_test(
+    NAME regexTest
+    COMMAND regexTest
+)
+
+add_executable(logTest "log.cpp")
+    target_link_libraries(logTest os util common gtest_main)
+    add_test(
+        NAME logTest
+        COMMAND logTest 
+)
+
+add_executable(decompressTest "decompressTest.cpp")
+target_link_libraries(decompressTest os util common gtest_main)
+add_test(
+    NAME decompressTest
+    COMMAND decompressTest
+)
 
 if (${TD_LINUX})
     # terrorTest

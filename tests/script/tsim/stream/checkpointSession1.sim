@@ -15,7 +15,8 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from st session(ts, 10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 

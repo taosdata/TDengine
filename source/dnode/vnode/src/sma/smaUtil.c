@@ -19,7 +19,7 @@
 void tdRSmaQTaskInfoGetFullPath(SVnode *pVnode, tb_uid_t suid, int8_t level, STfs *pTfs, char *outputName) {
   tdRSmaGetDirName(pVnode, pTfs, true, outputName);
   int32_t rsmaLen = strlen(outputName);
-  snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8 "%s%" PRIi64, level, TD_DIRSEP, suid);
+  (void)snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8 "%s%" PRIi64, level, TD_DIRSEP, suid);
 }
 
 void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputName) {
@@ -30,8 +30,8 @@ void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputN
   offset = strlen(outputName);
 
   // rsma
-  snprintf(outputName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s", TD_DIRSEP, VNODE_RSMA_DIR,
-           (endWithSep ? TD_DIRSEP : ""));
+  (void)snprintf(outputName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s", TD_DIRSEP, VNODE_RSMA_DIR,
+                 (endWithSep ? TD_DIRSEP : ""));
 }
 
 // smaXXXUtil ================
@@ -39,9 +39,10 @@ void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) { return taosAcquireRef(rse
 
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
   if (taosReleaseRef(rsetId, refId) < 0) {
-    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
-    return TSDB_CODE_FAILED;
+    int32_t code = terrno;
+    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

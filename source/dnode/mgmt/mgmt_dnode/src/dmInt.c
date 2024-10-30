@@ -16,24 +16,29 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "libs/function/tudf.h"
+#include "tanal.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
-  if (dmStartStatusThread(pMgmt) != 0) {
-    return -1;
+  int32_t code = 0;
+  if ((code = dmStartStatusThread(pMgmt)) != 0) {
+    return code;
+  }
+  if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
+    return code;
   }
 #if defined(TD_ENTERPRISE)
-  if (dmStartNotifyThread(pMgmt) != 0) {
-    return -1;
+  if ((code = dmStartNotifyThread(pMgmt)) != 0) {
+    return code;
   }
 #endif
-  if (dmStartMonitorThread(pMgmt) != 0) {
-    return -1;
+  if ((code = dmStartMonitorThread(pMgmt)) != 0) {
+    return code;
   }
-  if (dmStartAuditThread(pMgmt) != 0) {
-    return -1;
+  if ((code = dmStartAuditThread(pMgmt)) != 0) {
+    return code;
   }
-  if (dmStartCrashReportThread(pMgmt) != 0) {
-    return -1;
+  if ((code = dmStartCrashReportThread(pMgmt)) != 0) {
+    return code;
   }
   return 0;
 }
@@ -43,6 +48,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopMonitorThread(pMgmt);
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
 #endif
@@ -50,10 +56,10 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+  int32_t     code = 0;
   SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   if (pMgmt == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   pMgmt->pData = pInput->pData;
@@ -64,19 +70,23 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
   pMgmt->getQnodeLoadsFp = pInput->getQnodeLoadsFp;
 
-  // pMgmt->pData->ipWhiteVer = 0;
-  if (dmStartWorker(pMgmt) != 0) {
-    return -1;
+  if ((code = dmStartWorker(pMgmt)) != 0) {
+    return code;
   }
 
-  if (udfStartUdfd(pMgmt->pData->dnodeId) != 0) {
-    dError("failed to start udfd");
+  if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
+    dError("failed to start udfd since %s", tstrerror(code));
+  }
+
+  if ((code = taosAnalInit()) != 0) {
+    dError("failed to init analysis env since %s", tstrerror(code));
   }
 
   pOutput->pMgmt = pMgmt;

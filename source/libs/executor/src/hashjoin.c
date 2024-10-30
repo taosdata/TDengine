@@ -60,7 +60,7 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
 /*
     size_t keySize = 0;
     int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
-    ASSERT(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
     int64_t rows = getSingleKeyRowsNum(pGroup->rows);
     pJoin->execInfo.expectRows += rows;    
     qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
@@ -90,7 +90,7 @@ int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOper
   while (!allFetched) {
     hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
     if (pJoin->midBlk->info.rows > 0) {
-      doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL);
+      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
       if (pJoin->midBlk->info.rows > 0) {
         pCtx->readMatch = true;
         HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -145,7 +145,7 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
 /*
     size_t keySize = 0;
     int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
-    ASSERT(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
     int64_t rows = getSingleKeyRowsNum(pGroup->rows);
     pJoin->execInfo.expectRows += rows;    
     qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
@@ -170,7 +170,7 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
     while (!allFetched) {
       hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
       if (pJoin->midBlk->info.rows > 0) {
-        doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL);
+        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
         if (pJoin->midBlk->info.rows > 0) {
           pCtx->readMatch = true;
           HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -248,7 +248,7 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
 /*
     size_t keySize = 0;
     int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
-    ASSERT(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
     int64_t rows = getSingleKeyRowsNum(pGroup->rows);
     pJoin->execInfo.expectRows += rows;    
     qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);

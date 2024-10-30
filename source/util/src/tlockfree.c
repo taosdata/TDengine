@@ -30,7 +30,7 @@ void taosWLockLatch(SRWLatch *pLatch) {
     if (oLatch & TD_RWLATCH_WRITE_FLAG) {
       nLoops++;
       if (nLoops > 1000) {
-        sched_yield();
+        (void)sched_yield();
         nLoops = 0;
       }
       continue;
@@ -47,7 +47,7 @@ void taosWLockLatch(SRWLatch *pLatch) {
     if (oLatch == TD_RWLATCH_WRITE_FLAG) break;
     nLoops++;
     if (nLoops > 1000) {
-      sched_yield();
+      (void)sched_yield();
       nLoops = 0;
     }
   }
@@ -80,7 +80,7 @@ void taosRLockLatch(SRWLatch *pLatch) {
     if (oLatch & TD_RWLATCH_WRITE_FLAG) {
       nLoops++;
       if (nLoops > 1000) {
-        sched_yield();
+        (void)sched_yield();
         nLoops = 0;
       }
       continue;
@@ -91,4 +91,4 @@ void taosRLockLatch(SRWLatch *pLatch) {
   }
 }
 
-void taosRUnLockLatch(SRWLatch *pLatch) { atomic_fetch_sub_32(pLatch, 1); }
+void taosRUnLockLatch(SRWLatch *pLatch) { (void)atomic_fetch_sub_32(pLatch, 1); }

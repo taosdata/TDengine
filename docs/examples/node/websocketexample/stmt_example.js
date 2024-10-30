@@ -2,16 +2,17 @@ const taos = require("@tdengine/websocket");
 
 let db = 'power';
 let stable = 'meters';
-let tags = ['California.SanFrancisco', 3];
-let values = [
-    [1706786044994, 1706786044995, 1706786044996],
-    [10.2, 10.3, 10.4],
-    [292, 293, 294],
-    [0.32, 0.33, 0.34],
-];
+let numOfSubTable = 10;
+let numOfRow = 10;
+let dsn = 'ws://localhost:6041'
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
 async function prepare() {
-    let dsn = 'ws://localhost:6041'
+
     let conf = new taos.WSConfig(dsn);
     conf.setUser('root')
     conf.setPwd('taosdata')
@@ -22,31 +23,44 @@ async function prepare() {
     return wsSql
 }
 
-(async () => {
+async function test() {
     let stmt = null;
     let connector = null;
     try {
         connector = await prepare();
         stmt = await connector.stmtInit();
         await stmt.prepare(`INSERT INTO ? USING ${db}.${stable} (location, groupId) TAGS (?, ?) VALUES (?, ?, ?, ?)`);
-        await stmt.setTableName('d1001');
-        let tagParams = stmt.newStmtParam();
-        tagParams.setVarchar([tags[0]]);
-        tagParams.setInt([tags[1]]);
-        await stmt.setTags(tagParams);
-
-        let bindParams = stmt.newStmtParam();
-        bindParams.setTimestamp(values[0]);
-        bindParams.setFloat(values[1]);
-        bindParams.setInt(values[2]);
-        bindParams.setFloat(values[3]);
-        await stmt.bind(bindParams);
-        await stmt.batch();
-        await stmt.exec();
-        console.log(stmt.getLastAffected());
+        for (let i = 0; i < numOfSubTable; i++) {
+            await stmt.setTableName(`d_bind_${i}`);
+            let tagParams = stmt.newStmtParam();
+            tagParams.setVarchar([`location_${i}`]);
+            tagParams.setInt([i]);
+            await stmt.setTags(tagParams);
+            let timestampParams = [];
+            let currentParams = [];
+            let voltageParams = [];
+            let phaseParams = [];
+            const currentMillis = new Date().getTime();
+            for (let j = 0; j < numOfRow; j++) {
+                timestampParams.push(currentMillis + j);
+                currentParams.push(Math.random() * 30);
+                voltageParams.push(getRandomInt(100, 300));
+                phaseParams.push(Math.random());
+            }
+            let bindParams = stmt.newStmtParam();
+            bindParams.setTimestamp(timestampParams);
+            bindParams.setFloat(currentParams);
+            bindParams.setInt(voltageParams);
+            bindParams.setFloat(phaseParams);
+            await stmt.bind(bindParams);
+            await stmt.batch();
+            await stmt.exec();
+            console.log("Successfully inserted " + stmt.getLastAffected() + " to power.meters.");
+        }
     }
     catch (err) {
-        console.error(err.code, err.message);
+        console.error(`Failed to insert to table meters using stmt, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
     finally {
         if (stmt) {
@@ -57,4 +71,6 @@ async function prepare() {
         }
         taos.destroy();
     }
-})();
+}
+
+test()

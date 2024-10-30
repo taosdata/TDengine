@@ -59,7 +59,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
-  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
+  pReader->tsdSetReaderTaskId = tsdbReaderSetId;
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
@@ -129,17 +129,17 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
-  pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
-//  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
+  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
+  //  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-//  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+  //  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
-  }
+}
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;

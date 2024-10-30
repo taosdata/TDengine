@@ -100,6 +100,9 @@ tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
 source/libs/parser/inc/sql.*
 tests/script/tmqResult.txt
+tests/system-test/case_to_run.txt
+tests/develop-test/case_to_run.txt
+tests/scripts/case_to_run.txt
 tests/tmqResult.txt
 tests/script/jenkins/basic.txt
 
@@ -118,6 +121,7 @@ TAGS
 contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
+!contrib/azure-cmake
 sql
 debug*/
 .env
@@ -134,3 +138,25 @@ tags
 .clangd
 *CMakeCache*
 *CMakeFiles*
+.history/
+*.txt
+*.tcl
+*.pc
+contrib/geos
+contrib/libuv
+contrib/pcre2
+contrib/zlib
+deps_tmp_CMakeLists.txt.in
+*.a
+*.ctest
+pcre2-config
+pcre2_test.sh
+pcre2_grep_test.sh
+pcre2_chartables.c
+geos-config
+config.h
+pcre2.h
+zconf.h
+version.h
+geos_c.h
+

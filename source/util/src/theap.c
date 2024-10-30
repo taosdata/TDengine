@@ -188,7 +188,6 @@ void heapRemove(Heap* heap, HeapNode* node) {
 
 void heapDequeue(Heap* heap) { heapRemove(heap, heap->min); }
 
-
 struct PriorityQueue {
   SArray*    container;
   pq_comp_fn fn;
@@ -197,16 +196,23 @@ struct PriorityQueue {
 };
 PriorityQueue* createPriorityQueue(pq_comp_fn fn, FDelete deleteFn, void* param) {
   PriorityQueue* pq = (PriorityQueue*)taosMemoryCalloc(1, sizeof(PriorityQueue));
+  if (pq == NULL) {
+    return NULL;
+  }
+
   pq->container = taosArrayInit(1, sizeof(PriorityQueueNode));
+  if (pq->container == NULL) {
+    taosMemoryFree(pq);
+    return NULL;
+  }
+
   pq->fn = fn;
   pq->deleteFn = deleteFn;
   pq->param = param;
   return pq;
 }
 
-void taosPQSetFn(PriorityQueue* pq, pq_comp_fn fn) {
-  pq->fn = fn;
-}
+void taosPQSetFn(PriorityQueue* pq, pq_comp_fn fn) { pq->fn = fn; }
 
 void destroyPriorityQueue(PriorityQueue* pq) {
   if (pq->deleteFn)
@@ -218,15 +224,16 @@ void destroyPriorityQueue(PriorityQueue* pq) {
 
 static size_t pqParent(size_t i) { return (--i) >> 1; /* (i - 1) / 2 */ }
 static size_t pqLeft(size_t i) { return (i << 1) | 1; /* i * 2 + 1 */ }
-static size_t pqRight(size_t i) { return (++i) << 1; /* (i + 1) * 2 */}
+static size_t pqRight(size_t i) { return (++i) << 1; /* (i + 1) * 2 */ }
+
 static void pqSwapPQNode(PriorityQueueNode* a, PriorityQueueNode* b) {
-  void * tmp = a->data;
+  void* tmp = a->data;
   a->data = b->data;
   b->data = tmp;
 }
 
 #define pqContainerGetEle(pq, i) ((PriorityQueueNode*)taosArrayGet((pq)->container, (i)))
-#define pqContainerSize(pq) (taosArrayGetSize((pq)->container))
+#define pqContainerSize(pq)      (taosArrayGetSize((pq)->container))
 
 size_t taosPQSize(PriorityQueue* pq) { return pqContainerSize(pq); }
 
@@ -251,10 +258,11 @@ static PriorityQueueNode* pqHeapify(PriorityQueue* pq, size_t from, size_t last)
 
 static void pqBuildHeap(PriorityQueue* pq) {
   if (pqContainerSize(pq) > 1) {
+    PriorityQueueNode* node;
     for (size_t i = pqContainerSize(pq) - 1; i > 0; --i) {
-      pqHeapify(pq, i, pqContainerSize(pq));
+      node = pqHeapify(pq, i, pqContainerSize(pq));
     }
-    pqHeapify(pq, 0, pqContainerSize(pq));
+    node = pqHeapify(pq, 0, pqContainerSize(pq));
   }
 }
 
@@ -268,32 +276,33 @@ static PriorityQueueNode* pqReverseHeapify(PriorityQueue* pq, size_t i) {
 }
 
 static void pqUpdate(PriorityQueue* pq, size_t i) {
+  PriorityQueueNode* node;
   if (i == 0 || pq->fn(pqContainerGetEle(pq, i)->data, pqContainerGetEle(pq, pqParent(i))->data, pq->param)) {
     // if value in pos i is smaller than parent, heapify down from i to the end
-    pqHeapify(pq, i, pqContainerSize(pq));
+    node = pqHeapify(pq, i, pqContainerSize(pq));
   } else {
     // if value in pos i is big than parent, heapify up from i
-    pqReverseHeapify(pq, i);
+    node = pqReverseHeapify(pq, i);
   }
 }
 
 static void pqRemove(PriorityQueue* pq, size_t i) {
   if (i == pqContainerSize(pq) - 1) {
-    taosArrayPop(pq->container);
+    void* tmp = taosArrayPop(pq->container);
     return;
   }
 
   taosArraySet(pq->container, i, taosArrayGet(pq->container, pqContainerSize(pq) - 1));
-  taosArrayPop(pq->container);
+  void* tmp = taosArrayPop(pq->container);
   pqUpdate(pq, i);
 }
 
-PriorityQueueNode* taosPQTop(PriorityQueue* pq) {
-  return pqContainerGetEle(pq, 0);
-}
+PriorityQueueNode* taosPQTop(PriorityQueue* pq) { return pqContainerGetEle(pq, 0); }
 
 PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node) {
-  taosArrayPush(pq->container, node);
+  if (taosArrayPush(pq->container, node) == NULL) {
+    return NULL;
+  }
   return pqReverseHeapify(pq, pqContainerSize(pq) - 1);
 }
 
@@ -310,15 +319,28 @@ struct BoundedQueue {
 
 BoundedQueue* createBoundedQueue(uint32_t maxSize, pq_comp_fn fn, FDelete deleteFn, void* param) {
   BoundedQueue* q = (BoundedQueue*)taosMemoryCalloc(1, sizeof(BoundedQueue));
+  if (q == NULL) {
+    return NULL;
+  }
+
   q->queue = createPriorityQueue(fn, deleteFn, param);
-  taosArrayEnsureCap(q->queue->container, maxSize + 1);
+  if (q->queue == NULL) {
+    taosMemoryFree(q);
+    return NULL;
+  }
+
+  int32_t code = taosArrayEnsureCap(q->queue->container, maxSize + 1);
+  if (code) {
+    destroyPriorityQueue(q->queue);
+    taosMemoryFree(q);
+    terrno = code;
+    return NULL;
+  }
   q->maxSize = maxSize;
   return q;
 }
 
-void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn) {
-  taosPQSetFn(q->queue, fn);
-}
+void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn) { taosPQSetFn(q->queue, fn); }
 
 void destroyBoundedQueue(BoundedQueue* q) {
   if (!q) return;
@@ -343,22 +365,12 @@ PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
   }
 }
 
-PriorityQueueNode* taosBQTop(BoundedQueue* q) {
-  return taosPQTop(q->queue);
-}
+PriorityQueueNode* taosBQTop(BoundedQueue* q) { return taosPQTop(q->queue); }
 
-void taosBQBuildHeap(BoundedQueue *q) {
-  pqBuildHeap(q->queue);
-}
+void taosBQBuildHeap(BoundedQueue* q) { pqBuildHeap(q->queue); }
 
-size_t taosBQMaxSize(BoundedQueue* q) {
-  return q->maxSize;
-}
+size_t taosBQMaxSize(BoundedQueue* q) { return q->maxSize; }
 
-size_t taosBQSize(BoundedQueue* q) {
-  return taosPQSize(q->queue);
-}
+size_t taosBQSize(BoundedQueue* q) { return taosPQSize(q->queue); }
 
-void taosBQPop(BoundedQueue* q) {
-  taosPQPop(q->queue);
-}
+void taosBQPop(BoundedQueue* q) { taosPQPop(q->queue); }

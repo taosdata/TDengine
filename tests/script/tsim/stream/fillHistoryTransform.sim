@@ -23,6 +23,8 @@ sql insert into t1 values(1648791213000,10,2,3,1.0);
 
 sql create stream stream0 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, sum(a) from t1 interval(10s);
 
+run tsim/stream/checkTaskStatus.sim
+
 $loop_count = 0
 loop00:
 
@@ -153,6 +155,8 @@ sql insert into t1 values(1648791213000,10,2,3,1.0);
 
 sql create stream stream1 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select  _wstart, sum(a) from st interval(10s);
 
+run tsim/stream/checkTaskStatus.sim
+
 $loop_count = 0
 loop00:
 
@@ -282,6 +286,8 @@ sql create table t2 using st tags(2,2,2);
 sql insert into t1 values(1648791213000,10,2,3,1.0);
 
 sql create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart, sum(a) from st partition by ta interval(10s);
+
+run tsim/stream/checkTaskStatus.sim
 
 $loop_count = 0
 loop00:

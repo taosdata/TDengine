@@ -69,7 +69,7 @@ void slowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost) {
     } else {
       clientSlowQueryLog(pTscObj->pAppInfo->clusterId, pTscObj->user, result, cost);
     }
-    releaseTscObj(rid);
+    (void)releaseTscObj(rid);
   } else {
     tscLog("slowQueryLog, not found rid");
   }

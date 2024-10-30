@@ -55,20 +55,27 @@ void flttInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, PATH_MAX);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
 
-void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode      *node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
+int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
+  SNode      *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
+    if (NULL == vnode->datum.p) {
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
   } else {
@@ -77,42 +84,53 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   }
 
   *pNode = (SNode *)vnode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
-void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
+int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
                         void *value) {
   static uint64_t dbidx = 0;
 
-  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode       *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
   rnode->dataBlockId = 0;
 
-  sprintf(rnode->dbName, "%" PRIu64, dbidx++);
+  snprintf(rnode->dbName, TSDB_DB_NAME_LEN, "%" PRIu64, dbidx++);
 
   if (NULL == block) {
     rnode->slotId = 2;
     rnode->colId = 3;
     *pNode = (SNode *)rnode;
 
-    return;
+    FLT_RET(TSDB_CODE_SUCCESS);
   }
 
   if (NULL == *block) {
-    SSDataBlock *res = createDataBlock();
+    SSDataBlock *res = NULL;
+    FLT_ERR_RET(createDataBlock(&res));
+
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, 10, 1 + i);
-      blockDataAppendColInfo(res, &idata);
+      FLT_ERR_RET(blockDataAppendColInfo(res, &idata));
     }
 
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
-    blockDataAppendColInfo(res, &idata);
-    blockDataEnsureCapacity(res, rowNum);
+    FLT_ERR_RET(blockDataAppendColInfo(res, &idata));
+    FLT_ERR_RET(blockDataEnsureCapacity(res, rowNum));
 
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+    if (NULL == pColumn) {
+      fltError("fail to get the last task, num:%d", (int32_t)taosArrayGetSize(res->pDataBlock));
+      FLT_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
+    }
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataSetVal(pColumn, i, (const char *)value, false);
+      FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -130,13 +148,16 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
     int32_t         idx = taosArrayGetSize(res->pDataBlock);
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
-    blockDataAppendColInfo(res, &idata);
-    blockDataEnsureCapacity(res, rowNum);
+    FLT_ERR_RET(blockDataAppendColInfo(res, &idata));
+    FLT_ERR_RET(blockDataEnsureCapacity(res, rowNum));
 
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
-
+    if (NULL == pColumn) {
+      fltError("fail to get the last task, num:%d", (int32_t)taosArrayGetSize(res->pDataBlock));
+      FLT_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
+    }
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataSetVal(pColumn, i, (const char *)value, false);
+      FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -149,10 +170,15 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   }
 
   *pNode = (SNode *)rnode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
-void flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
+int32_t flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
@@ -162,25 +188,36 @@ void flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
   onode->pRight = pRight;
 
   *pNode = (SNode *)onode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
-void flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+int32_t flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
+  SNode               *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
   onode->node.resType.bytes = sizeof(bool);
 
-  onode->pParameterList = nodesMakeList();
+  onode->pParameterList = NULL;
+  code = nodesMakeList(&onode->pParameterList);
   for (int32_t i = 0; i < nodeNum; ++i) {
-    nodesListAppend(onode->pParameterList, nodeList[i]);
+    FLT_ERR_RET(nodesListAppend(onode->pParameterList, nodeList[i]));
   }
 
   *pNode = (SNode *)onode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
-void flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeList *nodeList) {
-  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+int32_t flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeList *nodeList) {
+  SNode               *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -189,15 +226,21 @@ void flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeL
   onode->pParameterList = nodeList;
 
   *pNode = (SNode *)onode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
-void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+int32_t flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, &node);
+  if (NULL == node) {
+    FLT_ERR_RET(code);
+  }
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->node.resType.type = resType;
   lnode->pNodeList = list;
 
   *pNode = (SNode *)lnode;
+  FLT_RET(TSDB_CODE_SUCCESS);
 }
 
 void initScalarParam(SScalarParam *pParam) {
@@ -213,17 +256,21 @@ TEST(timerangeTest, greater) {
   SScalarParam res;
   initScalarParam(&res);
 
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t tsmall = 222, tbig = 333;
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
-  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
 
   // SFilterInfo *filter = NULL;
   // int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  int32_t     code = filterGetTimeRange(opNode1, &win, &isStrict);
+  code = filterGetTimeRange(opNode1, &win, &isStrict);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(win.skey, tsmall + 1);
@@ -237,25 +284,33 @@ TEST(timerangeTest, greater_and_lower) {
   bool         eRes[5] = {false, false, true, true, true};
   SScalarParam res;
   initScalarParam(&res);
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t tsmall = 222, tbig = 333;
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
-  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
-  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
   SNode *list[2] = {0};
   list[0] = opNode1;
   list[1] = opNode2;
 
-  flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  code = flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  ASSERT_EQ(code, 0);
 
   // SFilterInfo *filter = NULL;
   // int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  int32_t     code = filterGetTimeRange(logicNode, &win, &isStrict);
+  code = filterGetTimeRange(logicNode, &win, &isStrict);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall + 1);
@@ -269,25 +324,33 @@ TEST(timerangeTest, greater_equal_and_lower_equal) {
   bool         eRes[5] = {false, false, true, true, true};
   SScalarParam res;
   initScalarParam(&res);
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t tsmall = 222, tbig = 333;
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
-  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
-  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode1, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
   SNode *list[2] = {0};
   list[0] = opNode1;
   list[1] = opNode2;
 
-  flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  code = flttMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
+  ASSERT_EQ(code, 0);
 
   // SFilterInfo *filter = NULL;
   // int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  int32_t     code = filterGetTimeRange(logicNode, &win, &isStrict);
+  code = filterGetTimeRange(logicNode, &win, &isStrict);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
@@ -301,42 +364,58 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   bool         eRes[5] = {false, false, true, true, true};
   SScalarParam res;
   initScalarParam(&res);
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t tsmall1 = 222, tbig1 = 333;
   int64_t tsmall2 = 444, tbig2 = 555;
   SNode  *list[2] = {0};
 
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall1);
-  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig1);
-  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall1);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig1);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
   list[0] = opNode1;
   list[1] = opNode2;
 
-  flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_AND, list, 2);
+  code = flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_AND, list, 2);
+  ASSERT_EQ(code, 0);
 
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall2);
-  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
-  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
-  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig2);
-  flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall2);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
+  code = flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);
+  ASSERT_EQ(code, 0);
+  code = flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig2);
+  ASSERT_EQ(code, 0);
+  code = flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+  ASSERT_EQ(code, 0);
   list[0] = opNode1;
   list[1] = opNode2;
 
-  flttMakeLogicNode(&logicNode2, LOGIC_COND_TYPE_AND, list, 2);
+  code = flttMakeLogicNode(&logicNode2, LOGIC_COND_TYPE_AND, list, 2);
+  ASSERT_EQ(code, 0);
 
   list[0] = logicNode1;
   list[1] = logicNode2;
-  flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_OR, list, 2);
+  code = flttMakeLogicNode(&logicNode1, LOGIC_COND_TYPE_OR, list, 2);
+  ASSERT_EQ(code, 0);
 
   // SFilterInfo *filter = NULL;
   // int32_t code = filterInitFromNode(logicNode, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  int32_t     code = filterGetTimeRange(logicNode1, &win, &isStrict);
+  code = filterGetTimeRange(logicNode1, &win, &isStrict);
   ASSERT_EQ(isStrict, false);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall1 + 1);
@@ -587,7 +666,7 @@ TEST(columnTest, binary_column_like_binary) {
   int32_t rowNum = sizeof(leftv) / sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
-  sprintf(&rightv[2], "%s", "__0");
+  snprintf(&rightv[2], sizeof(rightv) - 2, "%s", "__0");
   varDataSetLen(rightv, strlen(&rightv[2]));
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);

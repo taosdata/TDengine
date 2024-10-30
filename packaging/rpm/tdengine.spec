@@ -56,6 +56,10 @@ mkdir -p %{buildroot}%{homepath}/include
 #mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
+if [ -f %{_compiledir}/../packaging/cfg/taosd.service ]; then
+    cp %{_compiledir}/../packaging/cfg/taosd.service %{buildroot}%{homepath}/cfg
+fi
+
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 if [ -f %{_compiledir}/test/cfg/taosadapter.toml ]; then
     cp %{_compiledir}/test/cfg/taosadapter.toml         %{buildroot}%{homepath}/cfg
@@ -76,8 +80,8 @@ if [ -f %{_compiledir}/../../../explorer/target/taos-explorer.service ]; then
     cp %{_compiledir}/../../../explorer/target/taos-explorer.service %{buildroot}%{homepath}/cfg ||:
 fi
 
-if [ -f %{_compiledir}/../../../explorer/server/example/explorer.toml ]; then
-    cp %{_compiledir}/../../../explorer/server/example/explorer.toml %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_compiledir}/../../../explorer/server/examples/explorer.toml ]; then
+    cp %{_compiledir}/../../../explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
 #cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
@@ -91,6 +95,10 @@ cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath}/bin
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
 if [ -f %{_compiledir}/../../../explorer/target/release/taos-explorer ]; then
     cp %{_compiledir}/../../../explorer/target/release/taos-explorer %{buildroot}%{homepath}/bin
@@ -215,6 +223,7 @@ if [ $1 -eq 0 ];then
   else
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
 
     data_link_dir="/usr/local/taos/data"
@@ -227,13 +236,18 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper       || :
+    ${csudo}rm -f ${bin_link_dir}/taosdump       || :
+    ${csudo}rm -f ${bin_link_dir}/taosBenchmark       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/tdef.h     || :
-    ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :    
-    ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
+    ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :  
+    ${csudo}rm -f ${inc_link_dir}/taows.h     || :    
+    ${csudo}rm -f ${lib_link_dir}/libtaos.so  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosws.so  || :
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :

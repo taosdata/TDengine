@@ -49,8 +49,7 @@ int32_t tjsonAddIntegerToObject(SJson* pJson, const char* pName, const uint64_t 
 
 int32_t tjsonAddDoubleToObject(SJson* pJson, const char* pName, const double number) {
   if (NULL == cJSON_AddNumberToObject((cJSON*)pJson, pName, number)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -58,8 +57,7 @@ int32_t tjsonAddDoubleToObject(SJson* pJson, const char* pName, const double num
 
 int32_t tjsonAddBoolToObject(SJson* pJson, const char* pName, const bool boolean) {
   if (NULL == cJSON_AddBoolToObject((cJSON*)pJson, pName, boolean)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -67,8 +65,7 @@ int32_t tjsonAddBoolToObject(SJson* pJson, const char* pName, const bool boolean
 
 int32_t tjsonAddStringToObject(SJson* pJson, const char* pName, const char* pVal) {
   if (NULL == cJSON_AddStringToObject((cJSON*)pJson, pName, pVal)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -87,8 +84,7 @@ int32_t tjsonAddItemToObject(SJson* pJson, const char* pName, SJson* pItem) {
     return TSDB_CODE_SUCCESS;
   }
 
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  return TSDB_CODE_FAILED;
+  return terrno = TSDB_CODE_OUT_OF_MEMORY;
 }
 
 int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem) {
@@ -96,8 +92,7 @@ int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem) {
     return TSDB_CODE_SUCCESS;
   }
 
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  return TSDB_CODE_FAILED;
+  return terrno = TSDB_CODE_OUT_OF_MEMORY;
 }
 
 int32_t tjsonAddObject(SJson* pJson, const char* pName, FToJson func, const void* pObj) {
@@ -106,18 +101,27 @@ int32_t tjsonAddObject(SJson* pJson, const char* pName, FToJson func, const void
   }
 
   SJson* pJobj = tjsonCreateObject();
-  if (NULL == pJobj || TSDB_CODE_SUCCESS != func(pObj, pJobj)) {
+  if (NULL == pJobj) {
+    return terrno;
+  }
+  int32_t rc = func(pObj, pJobj);
+  if (rc != TSDB_CODE_SUCCESS) {
     tjsonDelete(pJobj);
-    return TSDB_CODE_FAILED;
+    return rc;
   }
   return tjsonAddItemToObject(pJson, pName, pJobj);
 }
 
 int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj) {
   SJson* pJobj = tjsonCreateObject();
-  if (NULL == pJobj || TSDB_CODE_SUCCESS != func(pObj, pJobj)) {
+  if (pJobj == NULL) {
+    return terrno;
+  }
+
+  int32_t rc = func(pObj, pJobj);
+  if (rc != TSDB_CODE_SUCCESS) {
     tjsonDelete(pJobj);
-    return TSDB_CODE_FAILED;
+    return rc;
   }
   return tjsonAddItemToArray(pJson, pJobj);
 }
@@ -127,7 +131,7 @@ int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void*
   if (num > 0) {
     SJson* pJsonArray = tjsonAddArrayToObject(pJson, pName);
     if (NULL == pJsonArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (size_t i = 0; i < num; ++i) {
       int32_t code = tjsonAddItem(pJsonArray, func, (const char*)pArray + itemSize * i);
@@ -144,7 +148,7 @@ int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArr
   if (num > 0) {
     SJson* pJsonArray = tjsonAddArrayToObject(pJson, pName);
     if (NULL == pJsonArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int32_t i = 0; i < num; ++i) {
       int32_t code = tjsonAddItem(pJsonArray, func, taosArrayGet(pArray, i));
@@ -156,9 +160,21 @@ int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArr
   return TSDB_CODE_SUCCESS;
 }
 
-char* tjsonToString(const SJson* pJson) { return cJSON_Print((cJSON*)pJson); }
+char* tjsonToString(const SJson* pJson) {
+  char* p = cJSON_Print((cJSON*)pJson);
+  if (!p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+}
 
-char* tjsonToUnformattedString(const SJson* pJson) { return cJSON_PrintUnformatted((cJSON*)pJson); }
+char* tjsonToUnformattedString(const SJson* pJson) {
+  char* p = cJSON_PrintUnformatted((cJSON*)pJson);
+  if (!p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+}
 
 SJson* tjsonGetObjectItem(const SJson* pJson, const char* pName) { return cJSON_GetObjectItem(pJson, pName); }
 
@@ -178,10 +194,27 @@ int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
   return TSDB_CODE_SUCCESS;
 }
 
+void tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal) { *pVal = (int64_t)((cJSON*)pJson)->valuedouble; }
+
+void tjsonGetObjectValueDouble(const SJson* pJson, double* pVal) { *pVal = ((cJSON*)pJson)->valuedouble; }
+
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
+  }
+  strcpy(pVal, p);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tjsonGetStringValue2(const SJson* pJson, const char* pName, char* pVal, int32_t maxLen) {
+  char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
+  if (NULL == p) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t len = strlen(p);
+  if (len >= maxLen - 1) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pVal, p);
   return TSDB_CODE_SUCCESS;
@@ -304,7 +337,7 @@ int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, v
   }
   *pObj = taosMemoryCalloc(1, objSize);
   if (NULL == *pObj) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   return func(pJsonObj, *pObj);
 }
@@ -327,7 +360,7 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SAr
   if (size > 0) {
     *pArray = taosArrayInit_s(itemSize, size);
     if (NULL == *pArray) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     for (int32_t i = 0; i < size; ++i) {
       int32_t code = func(tjsonGetArrayItem(jArray, i), taosArrayGet(*pArray, i));

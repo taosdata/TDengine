@@ -38,8 +38,6 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
 }
 
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx) {
-  ASSERT(0 < pJoin->midBlk->info.rows);
-
   TSWAP(pJoin->midBlk, pJoin->finBlk);
 
   pCtx->midRemains = false;
@@ -157,7 +155,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   
   pTable->keyCols = taosMemoryMalloc(pTable->keyNum * sizeof(SHJoinColInfo));
   if (NULL == pTable->keyCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int64_t bufSize = 0;
@@ -175,7 +173,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   if (pTable->keyNum > 1) {
     pTable->keyBuf = taosMemoryMalloc(bufSize);
     if (NULL == pTable->keyBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -214,7 +212,7 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   
   pTable->valCols = taosMemoryMalloc(pTable->valNum * sizeof(SHJoinColInfo));
   if (NULL == pTable->valCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t i = 0;
@@ -238,10 +236,12 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
         if (NULL == pTable->valVarCols) {
           pTable->valVarCols = taosArrayInit(pTable->valNum, sizeof(int32_t));
           if (NULL == pTable->valVarCols) {
-            return TSDB_CODE_OUT_OF_MEMORY;
+            return terrno;
           }
         }
-        taosArrayPush(pTable->valVarCols, &i);
+        if (NULL == taosArrayPush(pTable->valVarCols, &i)) {
+          return terrno;
+        }
       }
       pTable->valCols[i].bytes = pColNode->node.resType.bytes;
       if (!pTable->valCols[i].keyCol && !pTable->valCols[i].vardata) {
@@ -260,7 +260,7 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
 static int32_t hJoinInitPrimKeyInfo(SHJoinTableCtx* pTable, int32_t slotId) {
   pTable->primCol = taosMemoryMalloc(sizeof(SHJoinColMap));
   if (NULL == pTable->primCol) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pTable->primCol->srcSlot = slotId;
@@ -332,7 +332,7 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
     return code;
   }
 
-  memcpy(&pTable->inputStat, pStat, sizeof(*pStat));
+  TAOS_MEMCPY(&pTable->inputStat, pStat, sizeof(*pStat));
 
   HJ_ERR_RET(hJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
 
@@ -388,7 +388,7 @@ static int32_t hJoinBuildResColsMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNod
   pInfo->pResColNum = pJoinNode->pTargets->length;
   pInfo->pResColMap = taosMemoryCalloc(pJoinNode->pTargets->length, sizeof(int8_t));
   if (NULL == pInfo->pResColMap) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   SNode* pNode = NULL;
@@ -413,17 +413,19 @@ static FORCE_INLINE int32_t hJoinAddPageToBufs(SArray* pRowBufs) {
   page.offset = 0;
   page.data = taosMemoryMalloc(page.pageSize);
   if (NULL == page.data) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
-  taosArrayPush(pRowBufs, &page);
+  if (NULL == taosArrayPush(pRowBufs, &page)) {
+    return terrno;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t hJoinInitBufPages(SHJoinOperatorInfo* pInfo) {
   pInfo->pRowBufs = taosArrayInit(32, sizeof(SBufPageInfo));
   if (NULL == pInfo->pRowBufs) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return hJoinAddPageToBufs(pInfo->pRowBufs);
@@ -464,12 +466,21 @@ static void hJoinDestroyKeyHash(SSHashObj** ppHash) {
   *ppHash = NULL;
 }
 
-static FORCE_INLINE char* hJoinRetrieveColDataFromRowBufs(SArray* pRowBufs, SBufRowInfo* pRow) {
+static FORCE_INLINE int32_t hJoinRetrieveColDataFromRowBufs(SArray* pRowBufs, SBufRowInfo* pRow, char** ppData) {
+  *ppData = NULL;
+  
   if ((uint16_t)-1 == pRow->pageId) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
   SBufPageInfo *pPage = taosArrayGet(pRowBufs, pRow->pageId);
-  return pPage->data + pRow->offset;
+  if (NULL == pPage) {
+    qError("fail to get %d page, total:%d", pRow->pageId, (int32_t)taosArrayGetSize(pRowBufs));
+    QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  
+  *ppData = pPage->data + pRow->offset;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum, SBufRowInfo* pStart, SSDataBlock* pRes) {
@@ -479,9 +490,11 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
   int32_t probeIdx = 0;
   SBufRowInfo* pRow = pStart;
   int32_t code = 0;
+  char* pData = NULL;
 
   for (int32_t r = 0; r < rowNum; ++r) {
-    char* pData = hJoinRetrieveColDataFromRowBufs(pJoin->pRowBufs, pRow);
+    HJ_ERR_RET(hJoinRetrieveColDataFromRowBufs(pJoin->pRowBufs, pRow, &pData));
+    
     char* pValData = pData + pBuild->valBitMapSize;
     char* pKeyData = pProbe->keyData;
     buildIdx = buildValIdx = probeIdx = 0;
@@ -544,7 +557,7 @@ int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes,
       SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
       SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pProbe->valCols[probeIdx].dstSlot);
 
-      colDataAssignNRows(pDst, pRes->info.rows, pSrc, startIdx, rows);
+      QRY_ERR_RET(colDataAssignNRows(pDst, pRes->info.rows, pSrc, startIdx, rows));
 
       probeIdx++;
     }
@@ -606,11 +619,11 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
       }
       if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
-        memcpy(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
+        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
         bufLen += varDataTLen(pData);
       } else {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].bytes * rowIdx;
-        memcpy(pTable->keyBuf + bufLen, pData, pTable->keyCols[i].bytes);
+        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, pTable->keyCols[i].bytes);
         bufLen += pTable->keyCols[i].bytes;
       }
     }
@@ -627,6 +640,10 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
 static int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
   for (int32_t i = 0; i < pTable->keyNum; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pTable->keyCols[i].srcSlot);
+    if (NULL == pCol) {
+      qError("fail to get %d col, total:%d", pTable->keyCols[i].srcSlot, (int32_t)taosArrayGetSize(pBlock->pDataBlock));
+      QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
     if (pTable->keyCols[i].vardata != IS_VAR_DATA_TYPE(pCol->info.type))  {
       qError("column type mismatch, idx:%d, slotId:%d, type:%d, vardata:%d", i, pTable->keyCols[i].srcSlot, pCol->info.type, pTable->keyCols[i].vardata);
       return TSDB_CODE_INVALID_PARA;
@@ -654,6 +671,10 @@ static int32_t hJoinSetValColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) 
       continue;
     }
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pTable->valCols[i].srcSlot);
+    if (NULL == pCol) {
+      qError("fail to get %d col, total:%d", pTable->valCols[i].srcSlot, (int32_t)taosArrayGetSize(pBlock->pDataBlock));
+      QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
     if (pTable->valCols[i].vardata != IS_VAR_DATA_TYPE(pCol->info.type))  {
       qError("column type mismatch, idx:%d, slotId:%d, type:%d, vardata:%d", i, pTable->valCols[i].srcSlot, pCol->info.type, pTable->valCols[i].vardata);
       return TSDB_CODE_INVALID_PARA;
@@ -683,7 +704,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
 
   char *pData = NULL;
   size_t bufLen = pTable->valBitMapSize;
-  memset(pTable->valData, 0, pTable->valBitMapSize);
+  TAOS_MEMSET(pTable->valData, 0, pTable->valBitMapSize);
   for (int32_t i = 0, m = 0; i < pTable->valNum; ++i) {
     if (pTable->valCols[i].keyCol) {
       continue;
@@ -693,7 +714,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
         colDataSetNull_f(pTable->valData, m);
       } else {
         pData = pTable->valCols[i].data + pTable->valCols[i].offset[rowIdx];
-        memcpy(pTable->valData + bufLen, pData, varDataTLen(pData));
+        TAOS_MEMCPY(pTable->valData + bufLen, pData, varDataTLen(pData));
         bufLen += varDataTLen(pData);
       }
     } else {
@@ -701,7 +722,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
         colDataSetNull_f(pTable->valData, m);
       } else {
         pData = pTable->valCols[i].data + pTable->valCols[i].bytes * rowIdx;
-        memcpy(pTable->valData + bufLen, pData, pTable->valCols[i].bytes);
+        TAOS_MEMCPY(pTable->valData + bufLen, pData, pTable->valCols[i].bytes);
         bufLen += pTable->valCols[i].bytes;
       }
     }
@@ -763,13 +784,13 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
   if (NULL == pGroup) {
     group.rows = taosMemoryMalloc(sizeof(SBufRowInfo));
     if (NULL == group.rows) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pRow = group.rows;
   } else {
     pRow = taosMemoryMalloc(sizeof(SBufRowInfo));
     if (NULL == pRow) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -968,34 +989,33 @@ void hJoinSetDone(struct SOperatorInfo* pOperator) {
   qDebug("hash Join done");  
 }
 
-static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
+static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  int32_t code = TSDB_CODE_SUCCESS;
-  SSDataBlock* pRes = pJoin->finBlk;
-  int64_t st = 0;
+  SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SSDataBlock*        pRes = pJoin->finBlk;
+  int64_t             st = 0;
 
+  QRY_PARAM_CHECK(pResBlock);
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
   }
 
   if (pOperator->status == OP_EXEC_DONE) {
     pRes->info.rows = 0;
-    goto _return;
+    goto _end;
   }
-  
+
   if (!pJoin->keyHashBuilt) {
     pJoin->keyHashBuilt = true;
 
     bool queryDone = false;
     code = hJoinBuildHash(pOperator, &queryDone);
-    if (code) {
-      pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (queryDone) {
-      goto _return;
+      goto _end;
     }
   }
 
@@ -1003,16 +1023,16 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
 
   if (pJoin->ctx.rowRemains) {
     code = (*pJoin->joinFp)(pOperator);
-    if (code) {
-      pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
-    
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      doFilter(pRes, pJoin->pFinFilter, NULL);
+      code = doFilter(pRes, pJoin->pFinFilter, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
+
     if (pRes->info.rows > 0) {
-      return pRes;
+      *pResBlock = pRes;
+      return code;
     }
   }
 
@@ -1025,35 +1045,39 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
 
     pJoin->execInfo.probeBlkNum++;
     pJoin->execInfo.probeBlkRows += pBlock->info.rows;
-    
+
     code = hJoinPrepareStart(pOperator, pBlock);
-    if (code) {
-      pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (!hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
       continue;
     }
-    
+
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      doFilter(pRes, pJoin->pFinFilter, NULL);
+      code = doFilter(pRes, pJoin->pFinFilter, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
-    
+
     if (pRes->info.rows > 0) {
       break;
     }
   }
 
-_return:
-
+_end:
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-  
-  return (pRes->info.rows > 0) ? pRes : NULL;
-}
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  if (pRes->info.rows > 0) {
+    *pResBlock = pRes;
+  }
 
+  return code;
+}
 
 static void destroyHashJoinOperator(void* param) {
   SHJoinOperatorInfo* pJoinOperator = (SHJoinOperatorInfo*)param;
@@ -1065,7 +1089,8 @@ static void destroyHashJoinOperator(void* param) {
 
   hJoinFreeTableInfo(&pJoinOperator->tbs[0]);
   hJoinFreeTableInfo(&pJoinOperator->tbs[1]);
-  pJoinOperator->finBlk = blockDataDestroy(pJoinOperator->finBlk);
+  blockDataDestroy(pJoinOperator->finBlk);
+  pJoinOperator->finBlk = NULL;
   taosMemoryFreeClear(pJoinOperator->pResColMap);
   taosArrayDestroyEx(pJoinOperator->pRowBufs, hJoinFreeBufPage);
 
@@ -1118,29 +1143,42 @@ static uint32_t hJoinGetFinBlkCapacity(SHJoinOperatorInfo* pJoin, SHashJoinPhysi
 
 int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
   pJoin->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
-  ASSERT(pJoinNode->node.pOutputDataBlockDesc->totalRowSize > 0);
+  if (NULL == pJoin->finBlk) {
+    QRY_ERR_RET(terrno);
+  }
 
-  blockDataEnsureCapacity(pJoin->finBlk, hJoinGetFinBlkCapacity(pJoin, pJoinNode));
+  int32_t code = blockDataEnsureCapacity(pJoin->finBlk, hJoinGetFinBlkCapacity(pJoin, pJoinNode));
+  if (TSDB_CODE_SUCCESS != code) {
+    QRY_ERR_RET(code);
+  }
   
   if (NULL != pJoin->pPreFilter) {
-    pJoin->midBlk = createOneDataBlock(pJoin->finBlk, false);
-    blockDataEnsureCapacity(pJoin->midBlk, pJoin->finBlk->info.capacity);
+    pJoin->midBlk = NULL;
+    code = createOneDataBlock(pJoin->finBlk, false, &pJoin->midBlk);
+    if (code) {
+      QRY_ERR_RET(code);
+    }
+
+    code = blockDataEnsureCapacity(pJoin->midBlk, pJoin->finBlk->info.capacity);
+    if (TSDB_CODE_SUCCESS != code) {
+      QRY_ERR_RET(code);
+    }
   }
 
   pJoin->blkThreshold = pJoin->finBlk->info.capacity * HJOIN_BLK_THRESHOLD_RATIO;
-  
   return TSDB_CODE_SUCCESS;
 }
 
 
-SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
-  SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                           SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_PARAM_CHECK(pOptrInfo);
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));
+  SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _return;
   }
 
@@ -1151,8 +1189,8 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
 
   setOperatorInfo(pOperator, "HashJoinOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]);
-  hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]);
+  HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]));
+  HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]));
 
   hJoinSetBuildAndProbeTable(pInfo, pJoinNode);
   
@@ -1179,16 +1217,17 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
 
   qDebug("create hash Join operator done");
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return TSDB_CODE_SUCCESS;
 
 _return:
+
   if (pInfo != NULL) {
     destroyHashJoinOperator(pInfo);
   }
-
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 

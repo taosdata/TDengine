@@ -53,7 +53,7 @@ void initLogEnv() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -67,7 +67,7 @@ void *processShellMsg(void *arg) {
   int        type;
   SQueueInfo qinfo = {0};
 
-  qall = taosAllocateQall();
+  taosAllocateQall(&qall);
 
   while (1) {
     int numOfMsgs = taosReadAllQitemsFromQset(multiQ->qset[idx], qall, &qinfo);
@@ -129,7 +129,7 @@ void *processShellMsg(void *arg) {
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
+  taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   int32_t idx = balance % multiQ->numOfThread;
@@ -212,8 +212,8 @@ int main(int argc, char *argv[]) {
   multiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
 
   for (int i = 0; i < numOfAthread; i++) {
-    multiQ->qhandle[i] = taosOpenQueue();
-    multiQ->qset[i] = taosOpenQset();
+    taosOpenQueue(&multiQ->qhandle[i]);
+    taosOpenQset(&multiQ->qset[i]);
     taosAddIntoQset(multiQ->qset[i], multiQ->qhandle[i], NULL);
   }
   TThread *threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);

@@ -17,14 +17,11 @@
 #define TDENGINE_TSIMPLEHASH_H
 
 #include "tarray.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
-typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
-typedef void (*_hash_free_fn_t)(void *);
 
 /**
  * @brief single thread hash

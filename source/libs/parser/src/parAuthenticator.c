@@ -34,7 +34,7 @@ typedef struct SAuthRewriteCxt {
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
-static void setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
+static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
                             bool isView, bool effective, SUserAuthInfo* pAuth) {
   if (effective) {
     snprintf(pAuth->user, sizeof(pAuth->user), "%s", pCxt->pEffectiveUser ? pCxt->pEffectiveUser : "");
@@ -43,12 +43,14 @@ static void setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char
   }
 
   if (NULL == pTabName) {
-    tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
+    int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
+    if (TSDB_CODE_SUCCESS != code) return code;
   } else {
     toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
   }
   pAuth->type = type;
   pAuth->isView = isView;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond, bool isView, bool effective) {
@@ -59,8 +61,8 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
 
   AUTH_RES_TYPE auth_res_type = isView ? AUTH_RES_VIEW : AUTH_RES_BASIC;
   SUserAuthInfo authInfo = {0};
-  setUserAuthInfo(pCxt->pParseCxt, pDbName, pTabName, type, isView, effective, &authInfo);
-  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t code = setUserAuthInfo(pCxt->pParseCxt, pDbName, pTabName, type, isView, effective, &authInfo);
+  if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
   if (NULL != pCxt->pMetaCache) {
     code = getUserAuthFromCache(pCxt->pMetaCache, &authInfo, &authRes);
@@ -105,14 +107,15 @@ static EDealRes authSubquery(SAuthCxt* pCxt, SNode* pStmt) {
 }
 
 static int32_t mergeStableTagCond(SNode** pWhere, SNode* pTagCond) {
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SLogicConditionNode* pLogicCond = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
   if (NULL == pLogicCond) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, pTagCond);
+  code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, pTagCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pLogicCond->pParameterList, *pWhere);
   }
@@ -136,9 +139,10 @@ EDealRes rewriteAuthTable(SNode* pNode, void* pContext) {
 }
 
 static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STableNode* pTable) {
-  SNode* pTagCondCopy = nodesCloneNode(pTagCond);
+  SNode* pTagCondCopy = NULL;
+  int32_t code = nodesCloneNode(pTagCond, &pTagCondCopy);
   if (NULL == pTagCondCopy) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   SAuthRewriteCxt cxt = {.pTarget = pTable};
@@ -165,10 +169,12 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
 #ifdef TD_ENTERPRISE
-    SName name;
+    SName name = {0};
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(
-        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name), &pTableMeta, true);
+        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
@@ -284,7 +290,10 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
 
 static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SNode*  pNode = NULL;
+  if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     code = checkAuth(pCxt, pClause->dbName, pClause->tableName, AUTH_TYPE_WRITE, NULL);
@@ -296,6 +305,9 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
 }
 
 static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
+  if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
   return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
 }
 
@@ -346,6 +358,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:

@@ -45,6 +45,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TWA,
   FUNCTION_TYPE_HISTOGRAM,
   FUNCTION_TYPE_HYPERLOGLOG,
+  FUNCTION_TYPE_STDVAR,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -61,6 +62,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_UNIQUE,
   FUNCTION_TYPE_STATE_COUNT,
   FUNCTION_TYPE_STATE_DURATION,
+  FUNCTION_TYPE_FORECAST,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -77,6 +79,15 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ASIN,
   FUNCTION_TYPE_ACOS,
   FUNCTION_TYPE_ATAN,
+  FUNCTION_TYPE_PI,
+  FUNCTION_TYPE_EXP,
+  FUNCTION_TYPE_LN,
+  FUNCTION_TYPE_MOD,
+  FUNCTION_TYPE_RAND,
+  FUNCTION_TYPE_SIGN,
+  FUNCTION_TYPE_DEGREES,
+  FUNCTION_TYPE_RADIANS,
+  FUNCTION_TYPE_TRUNCATE,
 
   // string function
   FUNCTION_TYPE_LENGTH = 1500,
@@ -89,6 +100,13 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_RTRIM,
   FUNCTION_TYPE_SUBSTR,
   FUNCTION_TYPE_MD5,
+  FUNCTION_TYPE_CHAR,
+  FUNCTION_TYPE_ASCII,
+  FUNCTION_TYPE_POSITION,
+  FUNCTION_TYPE_TRIM,
+  FUNCTION_TYPE_REPLACE,
+  FUNCTION_TYPE_REPEAT,
+  FUNCTION_TYPE_SUBSTR_IDX,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -104,6 +122,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TIMETRUNCATE,
   FUNCTION_TYPE_TIMEZONE,
   FUNCTION_TYPE_TODAY,
+  FUNCTION_TYPE_WEEK,
+  FUNCTION_TYPE_WEEKDAY,
+  FUNCTION_TYPE_WEEKOFYEAR,
+  FUNCTION_TYPE_DAYOFWEEK,
 
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
@@ -128,6 +150,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TBUID,
   FUNCTION_TYPE_VGID,
   FUNCTION_TYPE_VGVER,
+  FUNCTION_TYPE_FORECAST_LOW,
+  FUNCTION_TYPE_FORECAST_HIGH,
+  FUNCTION_TYPE_FORECAST_ROWTS,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -138,6 +163,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CACHE_LAST_ROW,
   FUNCTION_TYPE_CACHE_LAST,
   FUNCTION_TYPE_TABLE_COUNT,
+  FUNCTION_TYPE_GROUP_CONST_VALUE,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -161,8 +187,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LAST_MERGE,
   FUNCTION_TYPE_AVG_PARTIAL,
   FUNCTION_TYPE_AVG_MERGE,
-  FUNCTION_TYPE_STDDEV_PARTIAL,
+  FUNCTION_TYPE_STD_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
+  FUNCTION_TYPE_STDVAR_MERGE,
   FUNCTION_TYPE_IRATE_PARTIAL,
   FUNCTION_TYPE_IRATE_MERGE,
   FUNCTION_TYPE_AVG_STATE,
@@ -173,8 +200,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LAST_STATE_MERGE,
   FUNCTION_TYPE_SPREAD_STATE,
   FUNCTION_TYPE_SPREAD_STATE_MERGE,
-  FUNCTION_TYPE_STDDEV_STATE,
-  FUNCTION_TYPE_STDDEV_STATE_MERGE,
+  FUNCTION_TYPE_STD_STATE,
+  FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
 
@@ -240,6 +267,7 @@ bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsForecastFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
@@ -249,6 +277,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsForecastPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsIgnoreNullFunc(int32_t funcId);
@@ -256,9 +285,11 @@ bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmisSelectGroupConstValueFunc(int32_t funcId);
+bool fmIsElapsedFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
-SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
+int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 

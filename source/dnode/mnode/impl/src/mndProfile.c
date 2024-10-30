@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndProfile.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
+#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -65,6 +65,8 @@ typedef struct {
   int64_t ipWhiteListVer;
 } SConnPreparedObj;
 
+#define CACHE_OBJ_KEEP_TIME 3  // s
+
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
@@ -85,22 +87,23 @@ static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
 int32_t mndInitProfile(SMnode *pMnode) {
+  int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   // in ms
-  int32_t checkTime = tsShellActivityTimer * 2 * 1000;
+  int32_t checkTime = CACHE_OBJ_KEEP_TIME * 1000;
   pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
-    return -1;
+    TAOS_RETURN(code);
   }
 
   pMgmt->appCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, checkTime, true, (__cache_free_fn_t)mndFreeApp, "app");
   if (pMgmt->appCache == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatReq);
@@ -116,7 +119,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_APPS, mndRetrieveApps);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_APPS, mndCancelGetNextApp);
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 void mndCleanupProfile(SMnode *pMnode) {
@@ -137,7 +140,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
-  int32_t  len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
+  int32_t  len = tsnprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
 
@@ -160,9 +163,8 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
-  int32_t   keepTime = tsShellActivityTimer * 3;
   SConnObj *pConn =
-      taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), keepTime * 1000);
+      taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
@@ -228,32 +230,29 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SUserObj       *pUser = NULL;
   SDbObj         *pDb = NULL;
   SConnObj       *pConn = NULL;
-  int32_t         code = -1;
+  int32_t         code = 0;
   SConnectReq     connReq = {0};
   char            ip[24] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
   if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
-    terrno = (-1 == code ? TSDB_CODE_INVALID_MSG : code);
     goto _OVER;
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
     mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
-    terrno = code;
     goto _OVER;
   }
 
-  code = -1;
   taosIp2String(pReq->info.conn.clientIp, ip);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
-    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT)) != 0) {
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) {
-    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
+    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
   }
 
@@ -265,27 +264,27 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};
-    snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
+    (void)snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
       if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
           (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
-        terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+        code = TSDB_CODE_MND_DB_NOT_EXIST;
         mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-                terrstr());
+                tstrerror(code));
         goto _OVER;
       }
     }
 
-    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
-      goto _OVER;
-    }
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb), NULL, _OVER);
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
-    mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip, terrstr());
+    code = terrno;
+    mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
+            tstrerror(code));
     goto _OVER;
   }
 
@@ -309,16 +308,25 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
-  strcpy(connectRsp.sVer, version);
-  snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
-           gitinfo);
+  (void)strcpy(connectRsp.sVer, version);
+  (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version,
+                 buildinfo, gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
-  if (contLen < 0) goto _OVER;
+  if (contLen < 0) {
+    TAOS_CHECK_GOTO(contLen, NULL, _OVER);
+  }
   void *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) goto _OVER;
-  tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
+  if (pRsp == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+  }
+
+  contLen = tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
+  if (contLen < 0) {
+    rpcFreeCont(pRsp);
+    TAOS_CHECK_GOTO(contLen, NULL, _OVER);
+  }
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pRsp;
@@ -328,7 +336,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   code = 0;
 
   char detail[1000] = {0};
-  sprintf(detail, "app:%s", connReq.app);
+  (void)sprintf(detail, "app:%s", connReq.app);
 
   auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
 
@@ -338,7 +346,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseConn(pMnode, pConn, true);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
@@ -364,13 +372,13 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
   app.appId = pReq->appId;
   app.ip = clientIp;
   app.pid = pReq->pid;
-  strcpy(app.name, pReq->name);
+  (void)strcpy(app.name, pReq->name);
   app.startTime = pReq->startTime;
-  memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
+  (void)memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();
 
-  const int32_t keepTime = tsShellActivityTimer * 3;
-  SAppObj *pApp = taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), keepTime * 1000);
+  SAppObj *pApp =
+      taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), CACHE_OBJ_KEEP_TIME * 1000);
   if (pApp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to app %" PRIx64 " into cache since %s", pReq->appId, terrstr());
@@ -384,6 +392,7 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
 static void mndFreeApp(SAppObj *pApp) { mTrace("app %" PRIx64 " is destroyed", pApp->appId); }
 
 static SAppObj *mndAcquireApp(SMnode *pMnode, int64_t appId) {
+  terrno = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SAppObj *pApp = taosCacheAcquireByKey(pMgmt->appCache, &appId, sizeof(appId));
@@ -431,13 +440,16 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 }
 
 static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnInfo *connInfo) {
+  int32_t    code = 0;
   SAppHbReq *pReq = &pHbReq->app;
   SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
     pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
     if (pApp == NULL) {
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
-      return -1;
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
     } else {
       mDebug("a new app %" PRIx64 " is created", pReq->appId);
       mndReleaseApp(pMnode, pApp);
@@ -445,7 +457,7 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
     }
   }
 
-  memcpy(&pApp->summary, &pReq->summary, sizeof(pReq->summary));
+  (void)memcpy(&pApp->summary, &pReq->summary, sizeof(pReq->summary));
 
   mndReleaseApp(pMnode, pApp);
 
@@ -475,12 +487,13 @@ static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
 
 static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHbReq *pHbReq,
                                         SClientHbBatchRsp *pBatchRsp, SConnPreparedObj *pObj) {
+  int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
   SRpcConnInfo  connInfo = pMsg->info.conn;
 
   if (0 != pHbReq->app.appId) {
-    mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
+    TAOS_CHECK_RETURN(mndUpdateAppInfo(pMnode, pHbReq, &connInfo));
   }
 
   if (pHbReq->query) {
@@ -492,7 +505,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
                             pHbReq->app.pid, pHbReq->app.name, 0);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
-        return -1;
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
       } else {
         mDebug("user:%s, conn:%u is freed, will create a new conn:%u", connInfo.user, pBasic->connId, pConn->id);
       }
@@ -501,12 +516,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("user:%s, conn:%u failed to process hb while since %s", pConn->user, pBasic->connId, terrstr());
-      return -1;
+      TAOS_RETURN(code);
     }
 
-    mndSaveQueryList(pConn, pBasic);
+    TAOS_CHECK_RETURN(mndSaveQueryList(pConn, pBasic));
     if (pConn->killed != 0) {
       rspBasic->killConnection = 1;
     }
@@ -532,16 +547,18 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
   if (NULL == pHbReq->info || kvNum <= 0) {
-    taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+      mError("failed to put rsp into array, but continue at this heartbeat");
+    }
     return TSDB_CODE_SUCCESS;
   }
 
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
   if (NULL == hbRsp.info) {
     mError("taosArrayInit %d rsp kv failed", kvNum);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     tFreeClientHbRsp(&hbRsp);
-    return -1;
+    TAOS_RETURN(code);
   }
 
 #ifdef TD_ENTERPRISE
@@ -554,13 +571,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     mTrace("recv view dyn ver, bootTs:%" PRId64 ", ver:%" PRIu64, pDynViewVer->svrBootTs, pDynViewVer->dynViewVer);
 
     SDynViewVersion *pRspVer = NULL;
-    if (0 != mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck, &pRspVer)) {
-      return -1;
+    if (0 != (code = mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck, &pRspVer))) {
+      TAOS_RETURN(code);
     }
 
     if (needCheck) {
       SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pRspVer};
-      taosArrayPush(hbRsp.info, &kv1);
+      if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
+      };
       mTrace("need to check view ver, lastest bootTs:%" PRId64 ", ver:%" PRIu64, pRspVer->svrBootTs,
              pRspVer->dynViewVer);
     }
@@ -575,31 +595,37 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_USER_AUTHINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen,
-                                pObj->ipWhiteListVer);
+        (void)mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen,
+                                      pObj->ipWhiteListVer);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_USER_AUTHINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
       case HEARTBEAT_KEY_DBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
+        (void)mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
       case HEARTBEAT_KEY_STBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
+        (void)mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -614,10 +640,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
+        (void)mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_VIEWINFO, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv1);
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -625,10 +653,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_TSMA: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
+        (void)mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
-          taosArrayPush(hbRsp.info, &kv);
+          if (taosArrayPush(hbRsp.info, &kv) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
         }
         break;
       }
@@ -641,31 +671,37 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     pIter = taosHashIterate(pHbReq->info, pIter);
   }
 
-  taosArrayPush(pBatchRsp->rsps, &hbRsp);
-
-  return TSDB_CODE_SUCCESS;
+  if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+    if (terrno != 0) code = terrno;
+  }
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
   SMnode *pMnode = pReq->info.node;
 
   SClientHbBatchReq batchReq = {0};
   if (tDeserializeSClientHbBatchReq(pReq->pCont, pReq->contLen, &batchReq) != 0) {
     taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
   obj.ipWhiteListVer = batchReq.ipWhiteList;
-  mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes);
+  TAOS_CHECK_RETURN(mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes));
   mndGetMnodeEpSet(pMnode, &obj.epSet);
-  mndCreateQnodeList(pMnode, &obj.pQnodeList, -1);
+  TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));
 
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
+  if (batchRsp.rsps == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
   batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
   batchRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
@@ -678,11 +714,13 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   for (int i = 0; i < sz; i++) {
     SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
     if (pHbReq->connKey.connType == CONN_TYPE__QUERY) {
-      mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp, &obj);
+      TAOS_CHECK_EXIT(mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp, &obj));
     } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
-        taosArrayPush(batchRsp.rsps, pRsp);
+        if (taosArrayPush(batchRsp.rsps, pRsp) == NULL) {
+          mError("failed to put kv into array, but continue at this heartbeat");
+        }
         taosMemoryFree(pRsp);
       }
     }
@@ -690,40 +728,46 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
-  void   *buf = rpcMallocCont(tlen);
-  tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
-
-  tFreeClientHbBatchRsp(&batchRsp);
+  if (tlen < 0) {
+    TAOS_CHECK_EXIT(tlen);
+  }
+  void *buf = rpcMallocCont(tlen);
+  if (!buf) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  tlen = tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
+  if (tlen < 0) {
+    rpcFreeCont(buf);
+    TAOS_CHECK_EXIT(tlen);
+  }
   pReq->info.rspLen = tlen;
   pReq->info.rsp = buf;
+_exit:
+  tFreeClientHbBatchRsp(&batchRsp);
 
   taosArrayDestroy(obj.pQnodeList);
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
+  int32_t       code = 0;
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillQueryReq killReq = {0};
-  if (tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq));
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY) != 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY));
 
   int32_t  connId = 0;
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
     mError("invalid query id %s", killReq.queryStrId);
-    terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_QUERY_ID;
+    TAOS_RETURN(code);
   }
   *p = 0;
   connId = taosStr2Int32(killReq.queryStrId, NULL, 16);
@@ -732,62 +776,65 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
     mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
-    terrno = TSDB_CODE_MND_INVALID_CONN_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_CONN_ID;
+    TAOS_RETURN(code);
   } else {
     mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->info.conn.user);
     pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
-    return 0;
+    TAOS_RETURN(code);
   }
 }
 
 static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
+  int32_t       code = 0;
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillConnReq killReq = {0};
-  if (tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq));
 
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN) != 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN));
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
     mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
-    terrno = TSDB_CODE_MND_INVALID_CONN_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_CONN_ID;
+    TAOS_RETURN(code);
   } else {
     mInfo("connId:%u, is killed by user:%s", killReq.connId, pReq->info.conn.user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
-    return TSDB_CODE_SUCCESS;
+    TAOS_RETURN(code);
   }
 }
 
 static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
-  int32_t       code = -1;
+  int32_t       code = 0;
+  int32_t       lino = 0;
   SServerVerRsp rsp = {0};
   tstrncpy(rsp.ver, version, sizeof(rsp.ver));
 
   int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
-  if (contLen < 0) goto _over;
+  if (contLen < 0) {
+    TAOS_CHECK_EXIT(contLen);
+  }
   void *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) goto _over;
-  tSerializeSServerVerRsp(pRsp, contLen, &rsp);
+  if (pRsp == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  contLen = tSerializeSServerVerRsp(pRsp, contLen, &rsp);
+  if (contLen < 0) {
+    rpcFreeCont(pRsp);
+    TAOS_CHECK_EXIT(contLen);
+  }
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pRsp;
 
-  code = 0;
+_exit:
 
-_over:
-
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -795,12 +842,13 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
+  int32_t   code = 0;
   SConnObj *pConn = NULL;
-  int32_t   keepTime = tsShellActivityTimer * 3;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->connCache);
+    if (!pShow->pIter) return terrno;
   }
 
   while (numOfRows < rows) {
@@ -810,39 +858,67 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       break;
     }
 
-    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > ((int64_t)keepTime * 1000)) {
+    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > ((int64_t)CACHE_OBJ_KEEP_TIME * 1000)) {
       continue;
     }
 
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      return code;
+    }
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+    if (code != 0) {
+      mError("failed to set user since %s", tstrerror(code));
+      return code;
+    }
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
+    if (code != 0) {
+      mError("failed to set app since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      return code;
+    }
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
+    if (code != 0) {
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    if (code != 0) {
+      mError("failed to set login time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    if (code != 0) {
+      mError("failed to set last access time since %s", tstrerror(code));
+      return code;
+    }
 
     numOfRows++;
   }
@@ -861,6 +937,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBlock *pBlock, uint32_t offset,
                                     uint32_t rowsToPack) {
   int32_t cols = 0;
+  int32_t code = 0;
   taosRLockLatch(&pConn->queryLock);
   int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
   if (NULL == pConn->pQueries || numOfQueries <= offset) {
@@ -875,50 +952,110 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
+    (void)sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+    if (code != 0) {
+      mError("failed to set query id:%s since %s", queryId, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    if (code != 0) {
+      mError("failed to set query id:%" PRIx64 " since %s", pQuery->queryId, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+    if (code != 0) {
+      mError("failed to set app since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+    if (code != 0) {
+      mError("failed to set conn id:%u since %s", pConn->id, tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+    if (code != 0) {
+      mError("failed to set user since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+    if (code != 0) {
+      mError("failed to set endpoint since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+    if (code != 0) {
+      mError("failed to set start time since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    if (code != 0) {
+      mError("failed to set useconds since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+    if (code != 0) {
+      mError("failed to set stable query since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+    if (code != 0) {
+      mError("failed to set sub query since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+    if (code != 0) {
+      mError("failed to set sub plan num since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
     int64_t reserve = 64;
@@ -937,12 +1074,22 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    code = colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    if (code != 0) {
+      mError("failed to set sub status since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(sql, pQuery->sql);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+    if (code != 0) {
+      mError("failed to set sql since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
 
     pBlock->info.rows++;
   }
@@ -960,6 +1107,7 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->connCache);
+    if (!pShow->pIter) return terrno;
   }
 
   // means fetched some data last time for this conn
@@ -993,10 +1141,12 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   int32_t  numOfRows = 0;
   int32_t  cols = 0;
   SAppObj *pApp = NULL;
+  int32_t  code = 0;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->appCache);
+    if (!pShow->pIter) return terrno;
   }
 
   while (numOfRows < rows) {
@@ -1009,55 +1159,115 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    if (code != 0) {
+      mError("failed to set app id since %s", tstrerror(code));
+      return code;
+    }
 
     char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
+    (void)sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
     varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
+    if (code != 0) {
+      mError("failed to set ip since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    if (code != 0) {
+      mError("failed to set pid since %s", tstrerror(code));
+      return code;
+    }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
+    (void)sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    if (code != 0) {
+      mError("failed to set app name since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    if (code != 0) {
+      mError("failed to set start time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    if (code != 0) {
+      mError("failed to set insert req since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    if (code != 0) {
+      mError("failed to set insert rows since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    if (code != 0) {
+      mError("failed to set insert elapsed time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    if (code != 0) {
+      mError("failed to set insert bytes since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    if (code != 0) {
+      mError("failed to set fetch bytes since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    if (code != 0) {
+      mError("failed to set query elapsed time since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    if (code != 0) {
+      mError("failed to set slow queries since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    if (code != 0) {
+      mError("failed to set total requests since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    if (code != 0) {
+      mError("failed to set current requests since %s", tstrerror(code));
+      return code;
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    if (code != 0) {
+      mError("failed to set last access time since %s", tstrerror(code));
+      return code;
+    }
 
     numOfRows++;
   }

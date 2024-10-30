@@ -48,7 +48,10 @@ int32_t taosGetPId() { return GetCurrentProcessId(); }
 int32_t taosGetAppName(char* name, int32_t* len) {
   char filepath[1024] = {0};
 
-  GetModuleFileName(NULL, filepath, MAX_PATH);
+  if (GetModuleFileName(NULL, filepath, MAX_PATH) == 0) {
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    return terrno;
+  }
   char* sub = strrchr(filepath, '.');
   if (sub != NULL) {
     *sub = '\0';
@@ -70,7 +73,12 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t tsem_wait(tsem_t* sem) {
-  return WaitForSingleObject(*sem, INFINITE);
+  DWORD ret = WaitForSingleObject(*sem, INFINITE);
+  if (ret == WAIT_OBJECT_0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t timeout_ms) {
@@ -78,61 +86,65 @@ int32_t tsem_timewait(tsem_t* sem, int64_t timeout_ms) {
   if (result == WAIT_OBJECT_0) {
     return 0;  // Semaphore acquired
   } else if (result == WAIT_TIMEOUT) {
-    return -1;  // Timeout reached
+    return TSDB_CODE_TIMEOUT_ERROR;  // Timeout reached
   } else {
-    return result;
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
   }
 }
 
 // Inter-process sharing is not currently supported. The pshared parameter is invalid.
-int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
+int32_t tsem_init(tsem_t* sem, int pshared, unsigned int value) {
   *sem = CreateSemaphore(NULL, value, LONG_MAX, NULL);
-  return (*sem != NULL) ? 0 : -1;
+  return (*sem != NULL) ? 0 : TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
-int tsem_post(tsem_t* sem) {
+int32_t tsem_post(tsem_t* sem) {
   if (ReleaseSemaphore(*sem, 1, NULL)) return 0;
-  return -1;
+  return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
-int tsem_destroy(tsem_t* sem) {
+int32_t tsem_destroy(tsem_t* sem) {
   if (CloseHandle(*sem)) return 0;
-  return -1;
+  return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
 }
 
 #elif defined(_TD_DARWIN_64)
 
 #include <libproc.h>
 
-int tsem_init(tsem_t *psem, int flags, unsigned int count) {
+int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
   *psem = dispatch_semaphore_create(count);
-  if (*psem == NULL) return -1;
+  if (*psem == NULL) return TAOS_SYSTEM_ERROR(errno);
   return 0;
 }
 
-int tsem_destroy(tsem_t *psem) {
-  if (psem == NULL || *psem == NULL) return -1;
+int32_t tsem_destroy(tsem_t *psem) {
+  // if (psem == NULL || *psem == NULL) return -1;
   // dispatch_release(*psem);
   // *psem = NULL;
   return 0;
 }
 
-int tsem_post(tsem_t *psem) {
+int32_t tsem_post(tsem_t *psem) {
   if (psem == NULL || *psem == NULL) return -1;
-  dispatch_semaphore_signal(*psem);
+  (void)dispatch_semaphore_signal(*psem);
   return 0;
 }
 
-int tsem_wait(tsem_t *psem) {
+int32_t tsem_wait(tsem_t *psem) {
   if (psem == NULL || *psem == NULL) return -1;
   dispatch_semaphore_wait(*psem, DISPATCH_TIME_FOREVER);
   return 0;
 }
 
-int tsem_timewait(tsem_t *psem, int64_t milis) {
+int32_t tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
   dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
-  return dispatch_semaphore_wait(*psem, time);
+  if (dispatch_semaphore_wait(*psem, time) == 0) {
+    return 0;
+  } else {
+    return TSDB_CODE_TIMEOUT_ERROR;
+  }
 }
 
 bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
@@ -194,17 +206,18 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   const char* self = "/proc/self/exe";
   char        path[PATH_MAX] = {0};
 
-  if (readlink(self, path, PATH_MAX) <= 0) {
-    return -1;
+  if (-1 == readlink(self, path, PATH_MAX)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   path[PATH_MAX - 1] = 0;
   char* end = strrchr(path, '/');
   if (end == NULL) {
-    return -1;
+    end = path;
+  } else {
+    ++end;
   }
-
-  ++end;
 
   tstrncpy(name, end, TSDB_APP_NAME_LEN);
 
@@ -215,100 +228,169 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
+int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {
+  if (sem_init(psem, flags, count) == 0) {
+    return 0;
+  } else {
+    return terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+}
+
 int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   int ret = 0;
 
   struct timespec ts = {0};
 
   if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   ts.tv_nsec += ms * 1000000;
   ts.tv_sec += ts.tv_nsec / 1000000000;
   ts.tv_nsec %= 1000000000;
 
-  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
+  while ((ret = sem_timedwait(sem, &ts)) == -1) {
+    if (errno == EINTR) {
+      continue;
+    } else if (errno == ETIMEDOUT) {
+      return TSDB_CODE_TIMEOUT_ERROR;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
+  }
 
-  return ret;
+  return 0;
 }
 
 int32_t tsem_wait(tsem_t* sem) {
   int ret = 0;
   do {
     ret = sem_wait(sem);
-  } while (ret != 0 && errno == EINTR);
+  } while (-1 == ret && errno == EINTR);
+
+  if (-1 == ret) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
   return ret;
 }
 
 int tsem2_init(tsem2_t* sem, int pshared, unsigned int value) {
   int ret = taosThreadMutexInit(&sem->mutex, NULL);
   if (ret != 0) return ret;
+
   ret = taosThreadCondAttrInit(&sem->attr);
-  if (ret != 0)
-  {
-    taosThreadMutexDestroy(&sem->mutex);
+  if (ret != 0) {
+    (void)taosThreadMutexDestroy(&sem->mutex);
     return ret;
   }
+
   ret = taosThreadCondAttrSetclock(&sem->attr, CLOCK_MONOTONIC);
-  if (ret != 0)
-  {
-    taosThreadMutexDestroy(&sem->mutex);
-    taosThreadCondAttrDestroy(&sem->attr);
+  if (ret != 0) {
+    (void)taosThreadMutexDestroy(&sem->mutex);
+    (void)taosThreadCondAttrDestroy(&sem->attr);
     return ret;
   }
+
   ret = taosThreadCondInit(&sem->cond, &sem->attr);
-  if (ret != 0)
-  {
-    taosThreadMutexDestroy(&sem->mutex);
-    taosThreadCondAttrDestroy(&sem->attr);
+  if (ret != 0) {
+    (void)taosThreadMutexDestroy(&sem->mutex);
+    (void)taosThreadCondAttrDestroy(&sem->attr);
     return ret;
   }
 
   sem->count = value;
+
   return 0;
 }
 
-int tsem2_post(tsem2_t *sem) {
-  taosThreadMutexLock(&sem->mutex);
+int32_t tsem_post(tsem_t* psem) {
+  if (sem_post(psem) == 0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+}
+
+int32_t tsem_destroy(tsem_t* sem) {
+  if (sem_destroy(sem) == 0) {
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+}
+
+int tsem2_post(tsem2_t* sem) {
+  int32_t code = taosThreadMutexLock(&sem->mutex);
+  if (code) {
+    return code;
+  }
+
   sem->count++;
-  taosThreadCondSignal(&sem->cond);
-  taosThreadMutexUnlock(&sem->mutex);
+  code = taosThreadCondSignal(&sem->cond);
+  if (code) {
+    return code;
+  }
+
+  code = taosThreadMutexUnlock(&sem->mutex);
+  if (code) {
+    return code;
+  }
+
   return 0;
 }
 
 int tsem2_destroy(tsem2_t* sem) {
-  taosThreadMutexDestroy(&sem->mutex);
-  taosThreadCondDestroy(&sem->cond);
-  taosThreadCondAttrDestroy(&sem->attr);
+  (void)taosThreadMutexDestroy(&sem->mutex);
+  (void)taosThreadCondDestroy(&sem->cond);
+  (void)taosThreadCondAttrDestroy(&sem->attr);
+
   return 0;
 }
 
 int32_t tsem2_wait(tsem2_t* sem) {
-  taosThreadMutexLock(&sem->mutex);
+  int32_t code = taosThreadMutexLock(&sem->mutex);
+  if (code) {
+    return code;
+  }
+
   while (sem->count <= 0) {
     int ret = taosThreadCondWait(&sem->cond, &sem->mutex);
     if (0 == ret) {
       continue;
     } else {
-      taosThreadMutexUnlock(&sem->mutex);
+      (void)taosThreadMutexUnlock(&sem->mutex);
       return ret;
     }
   }
   sem->count--;
-  taosThreadMutexUnlock(&sem->mutex);
+
+  code = taosThreadMutexUnlock(&sem->mutex);
+  if (code) {
+    return code;
+  }
+
   return 0;
 }
 
 int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
-  int ret = 0;
+  int32_t code = 0;
 
-  taosThreadMutexLock(&sem->mutex);
+  code = taosThreadMutexLock(&sem->mutex);
+  if (code) {
+    return code;
+  }
+
   if (sem->count <= 0) {
     struct timespec ts = {0};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
-      taosThreadMutexUnlock(&sem->mutex);
-      return -1;
+      code = TAOS_SYSTEM_ERROR(errno);
+      (void)taosThreadMutexUnlock(&sem->mutex);
+      terrno = code;
+      return code;
     }
 
     ts.tv_sec += ms / 1000;
@@ -317,17 +399,18 @@ int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
     ts.tv_nsec %= 1000000000;
 
     while (sem->count <= 0) {
-      ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
-      if (ret != 0) {
-        taosThreadMutexUnlock(&sem->mutex);
-        return ret;
+      code = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
+      if (code != 0) {
+        (void)taosThreadMutexUnlock(&sem->mutex);
+        return code;
       }
     }
   }
 
   sem->count--;
-  taosThreadMutexUnlock(&sem->mutex);
-  return ret;
+  
+  code = taosThreadMutexUnlock(&sem->mutex);
+  return code;
 }
 
 #endif

@@ -1,5 +1,6 @@
 ---
 title: Third Party Tools
+sidebar_label: 3rd Party
 description: This document describes how to integrate TDengine with various third-party tools.
 ---
 

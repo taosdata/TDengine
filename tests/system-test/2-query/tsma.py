@@ -12,6 +12,7 @@ from util.common import *
 ROUND = 1000
 
 ignore_some_tests: int = 1
+wait_query_seconds = 30
 
 class TSMA:
     def __init__(self):
@@ -692,7 +693,7 @@ class TDTestCase:
             "======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     db,
                     'dropFlag':   1,
-                    'vgroups':    2,
+                    'vgroups':    4,
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -755,13 +756,18 @@ class TDTestCase:
                 time.sleep(1)
             time.sleep(1)
 
-    def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, interval: str, check_tsma_calculation : str=True):
+    def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, interval: str, check_tsma_calculation : str=True, expected_tsma_name: str = ''):
         tdSql.execute('use %s' % db)
         sql = "CREATE TSMA %s ON %s.%s FUNCTION(%s) INTERVAL(%s)" % (
             tsma_name, db, tb, ','.join(func_list), interval)
         tdSql.execute(sql, queryTimes=1)
+        tsma_name_trim = tsma_name
+        if tsma_name[0] == '`':
+            tsma_name_trim = tsma_name[1:-1]
+        if expected_tsma_name != '':
+            tsma_name_trim = expected_tsma_name
         if check_tsma_calculation == True:
-            self.wait_for_tsma_calculation(func_list, db, tb, interval, tsma_name)
+            self.wait_for_tsma_calculation(func_list, db, tb, interval, tsma_name_trim)
 
     def create_error_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, interval: str, expectedErrno: int):
         tdSql.execute('use %s' % db)
@@ -865,6 +871,7 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
+        tdSql.query('show create table test.meters')
         self.check(ctxs)
         if not ignore_some_tests:
             tdSql.execute('create database db2')
@@ -1266,6 +1273,21 @@ class TDTestCase:
         else:
             tdLog.debug(f'wait query succeed: {sql} to return {expected_row_num}, got: {tdSql.getRows()}')
 
+    def wait_query_err(self, sql: str, timeout_in_seconds: float, err):
+        timeout = timeout_in_seconds
+        while timeout > 0:
+            try:
+                tdSql.query(sql, queryTimes=1)
+                time.sleep(1)
+                timeout = timeout - 1
+            except:
+                tdSql.error(sql, err);
+                break
+        if timeout <= 0:
+            tdLog.exit(f'failed to wait query: {sql} to return error timeout: {timeout_in_seconds}s')
+        else:
+            tdLog.debug(f'wait query error succeed: {sql}')
+
     def test_drop_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
@@ -1276,7 +1298,7 @@ class TDTestCase:
         tdSql.error('drop tsma test.tsma1', -2147482491)
         tdSql.execute('drop tsma test.tsma2', queryTimes=1)
         tdSql.execute('drop tsma test.tsma1', queryTimes=1)
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
+        self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database test', queryTimes=1)
 
         self.init_data()
@@ -1317,7 +1339,7 @@ class TDTestCase:
             'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2), avg(t3)) interval(5m)', -2147471096) 
         
         tdSql.execute('alter table nsdb.meters drop tag t3', queryTimes=1)
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
+        self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')
 
         # drop norm table
@@ -1331,20 +1353,20 @@ class TDTestCase:
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
-        self.wait_query('show test.tables like "%t0"', 0, 10)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t0')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop multi tables
         tdSql.execute('drop table test.t3, test.t4')
-        self.wait_query('show test.tables like "%t3"', 0, 1)
-        self.wait_query('show test.tables like "%t4"', 0, 1)
-
-        tdSql.query('show test.tables like "%tsma%"')
-        tdSql.checkRows(0)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t3')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
 
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
+        self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database test', queryTimes=1)
         self.init_data()
 
@@ -1446,7 +1468,7 @@ class TDTestCase:
             ['avg(c1)', 'avg(c2)'], 'nsdb', 'meters', '10m', 'tsma1')
         tdSql.execute('drop tsma nsdb.tsma1', queryTimes=1)
 
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
+        self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):
@@ -1470,18 +1492,18 @@ class TDTestCase:
         tdSql.error(sql, -2147473920)  # syntax error 
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(1m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(7m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(11m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '20m', 'meters')
 
         sql = 'create recursive tsma tsma3 on test.tsma2 interval(30m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter    
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma2', 'tsma3', 'test', '40m', 'meters')
 
@@ -1498,9 +1520,9 @@ class TDTestCase:
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 
-        self.create_tsma('tsma_4050', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4050), '5m',check_tsma_calculation=False)
+        self.create_tsma('tsma_4050', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4050), '5m',check_tsma_calculation=True)
 
-        self.create_tsma('tsma_4090', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4090), '6m',check_tsma_calculation=False)
+        self.create_tsma('tsma_4090', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4090), '6m',check_tsma_calculation=True)
 
         self.create_error_tsma('tsma_4091', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4091), '5m',  -2147473856)  #Too many columns
 
@@ -1542,9 +1564,9 @@ class TDTestCase:
         self.drop_tsma('tsma_repeat', 'test')
         # tsma name include escape character
 
-        tdSql.execute("CREATE TSMA `129_tsma` ON test.meters FUNCTION(count(c3)) INTERVAL(5m); ")
-        tdSql.execute("CREATE TSMA `129_Tsma` ON test.meters FUNCTION(count(c3)) INTERVAL(5m); ")
-        tdSql.execute("CREATE TSMA `129_T*\-sma` ON test.meters FUNCTION(count(c3))  INTERVAL(5m); ")
+        self.create_tsma('`129_tsma`', 'test', 'meters', ['count(c3)'], '5m')
+        self.create_tsma('`129_Tsma`', 'test', 'meters', ['count(c3)'], '9m')
+        self.create_tsma('`129_T*\-sma`', 'test', 'meters', ['count(c3)'], '10m', expected_tsma_name='129_T*\\\\-sma')
         tdSql.execute("drop tsma test.`129_tsma`")
         tdSql.execute("drop tsma test.`129_Tsma`")
         tdSql.execute("drop tsma test.`129_T*\-sma`")

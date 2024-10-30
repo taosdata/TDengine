@@ -198,7 +198,7 @@ SScript *simParseScript(char *fileName) {
   simResetParser();
 
   while (!taosEOFFile(pFile)) {
-    if (taosGetsFile(pFile, sizeof(buffer) - 1, buffer) == -1) continue;
+    if (taosGetsFile(pFile, sizeof(buffer) - 1, buffer) <= 0) continue;
 
     lineNum++;
     int32_t cmdlen = (int32_t)strlen(buffer);

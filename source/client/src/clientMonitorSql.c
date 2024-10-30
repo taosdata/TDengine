@@ -65,7 +65,7 @@ void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type) {
     } else {
       clientSQLReqLog(pTscObj->pAppInfo->clusterId, pTscObj->user, result, type);
     }
-    releaseTscObj(rid);
+    (void)releaseTscObj(rid);
   } else {
     tscLog("sqlReqLog, not found rid");
   }

@@ -57,8 +57,9 @@ static void fstRegistryCellPromote(SArray* arr, uint32_t start, uint32_t end) {
   if (start >= sz && end >= sz) {
     return;
   }
-  ASSERTS(start >= end, "index-fst start lower than end");
-  if (start < end) return;
+  if (start < end) {
+    return;
+  }
 
   int32_t s = (int32_t)start;
   int32_t e = (int32_t)end;
@@ -83,7 +84,10 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 
   for (uint64_t i = 0; i < nCells; i++) {
     FstRegistryCell cell = {.addr = NONE_ADDRESS, .node = fstBuilderNodeDefault()};
-    taosArrayPush(tb, &cell);
+    if (taosArrayPush(tb, &cell) == NULL) {
+      fstRegistryDestroy(registry);
+      return NULL;
+    }
   }
 
   registry->table = tb;
@@ -116,6 +120,8 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
   uint64_t end = start + registry->mruSize;
 
   FstRegistryEntry* entry = taosMemoryMalloc(sizeof(FstRegistryEntry));
+  if (entry == NULL) return NULL;
+
   if (end - start == 1) {
     FstRegistryCell* cell = taosArrayGet(registry->table, start);
     // cell->isNode &&
@@ -124,7 +130,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       entry->addr = cell->addr;
       return entry;
     } else {
-      fstBuilderNodeCloneFrom(cell->node, bNode);
+      TAOS_UNUSED(fstBuilderNodeCloneFrom(cell->node, bNode));
       entry->state = NOTFOUND;
       entry->cell = cell;  // copy or not
     }
@@ -144,7 +150,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       return entry;
     }
     // clone from bNode, refactor later
-    fstBuilderNodeCloneFrom(cell2->node, bNode);
+    TAOS_UNUSED(fstBuilderNodeCloneFrom(cell2->node, bNode));
 
     fstRegistryCellSwap(registry->table, start, start + 1);
     FstRegistryCell* cCell = taosArrayGet(registry->table, start);
@@ -165,7 +171,7 @@ FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNo
       uint64_t         last = end - 1;
       FstRegistryCell* cell = (FstRegistryCell*)taosArrayGet(registry->table, last);
       // clone from bNode, refactor later
-      fstBuilderNodeCloneFrom(cell->node, bNode);
+      TAOS_UNUSED(fstBuilderNodeCloneFrom(cell->node, bNode));
 
       fstRegistryCellPromote(registry->table, last, start);
       FstRegistryCell* cCell = taosArrayGet(registry->table, start);

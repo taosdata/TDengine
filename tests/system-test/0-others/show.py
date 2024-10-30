@@ -284,6 +284,20 @@ class TDTestCase:
         for error_val in error_vals:
             tdSql.error(f'ALTER DNODE 1 "{var}" "{error_val}"')
 
+        var = 'randErrorDivisor'
+        vals = ['9223372036854775807', '9223372036854775807.1', '9223372036854775806', '9223372036854775808', '9223372036854775808.1', '9223372036854775807.0', '9223372036854775806.1']
+        expected_vals = ['9223372036854775807', 'err', '9223372036854775806', 'err', 'err', 'err', 'err']
+        for val_str, expected_val in zip(vals, expected_vals):
+            sql = f'ALTER dnode 1 "{var}" "{val_str}"'
+            if expected_val == 'err':
+                tdSql.error(sql)
+            else:
+                tdSql.execute(sql, queryTimes=1)
+                actual_val = self.get_variable(var, False)
+                if expected_val != actual_val:
+                    tdLog.exit(f"failed to set local {var} to {expected_val} actually {actual_val}")
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -106,7 +106,7 @@ int32_t ctgTestRspIdx = 0;
 
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   SCreateDbReq createReq = {0};
-  strcpy(createReq.db, "1.db1");
+  TAOS_STRCPY(createReq.db, "1.db1");
   createReq.numOfVgroups = 2;
   createReq.buffer = -1;
   createReq.pageSize = -1;
@@ -127,16 +127,19 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSCreateDbReq(pReq, contLen, &createReq);
-
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSCreateDbReq(pReq, contLen, &createReq);
+  ASSERT(contLen > 0);
+  
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = contLen;
   rpcMsg.msgType = TDMT_MND_CREATE_DB;
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(shandle, pEpSet, &rpcMsg, &rpcRsp);
+  ASSERT(0 == rpcSendRecv(shandle, pEpSet, &rpcMsg, &rpcRsp));
 
   ASSERT_EQ(rpcRsp.code, 0);
 }
@@ -152,15 +155,16 @@ void ctgTestInitLogFile() {
   tsAsyncLog = 0;
   qDebugFlag = 159;
   tmrDebugFlag = 159;
-  strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
-  ctgdEnableDebug("api", true);
-  ctgdEnableDebug("meta", true);
-  ctgdEnableDebug("cache", true);
-  ctgdEnableDebug("lock", true);
+  (void)ctgdEnableDebug("api", true);
+  (void)ctgdEnableDebug("meta", true);
+  (void)ctgdEnableDebug("cache", true);
+  (void)ctgdEnableDebug("lock", true);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
+    (void)printf("failed to open log file in directory:%s\n", tsLogDir);
+    ASSERT(0);
   }
 }
 
@@ -170,21 +174,21 @@ int32_t ctgTestGetVgNumFromVgVersion(int32_t vgVersion) {
 
 void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   SName cn = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(cn.dbname, "db1");
-  strcpy(cn.tname, ctgTestCTablename);
+  TAOS_STRCPY(cn.dbname, "db1");
+  TAOS_STRCPY(cn.tname, ctgTestCTablename);
 
   SName sn = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(sn.dbname, "db1");
-  strcpy(sn.tname, ctgTestSTablename);
+  TAOS_STRCPY(sn.dbname, "db1");
+  TAOS_STRCPY(sn.tname, ctgTestSTablename);
 
   char db[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(&cn, db);
+  (void)tNameGetFullDbName(&cn, db);
 
-  strcpy(output->dbFName, db);
+  TAOS_STRCPY(output->dbFName, db);
   SET_META_TYPE_BOTH_TABLE(output->metaType);
 
-  strcpy(output->ctbName, cn.tname);
-  strcpy(output->tbName, sn.tname);
+  TAOS_STRCPY(output->ctbName, cn.tname);
+  TAOS_STRCPY(output->tbName, sn.tname);
 
   output->ctbMeta.vgId = 9;
   output->ctbMeta.tableType = TSDB_CHILD_TABLE;
@@ -193,6 +197,7 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
 
   output->tbMeta =
       (STableMeta *)taosMemoryCalloc(1, sizeof(STableMeta) + sizeof(SSchema) * (ctgTestColNum + ctgTestColNum));
+  ASSERT(NULL != output->tbMeta);
   output->tbMeta->vgId = 9;
   output->tbMeta->tableType = TSDB_SUPER_TABLE;
   output->tbMeta->uid = 2;
@@ -209,19 +214,19 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &output->tbMeta->schema[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1s");
+  TAOS_STRCPY(s->name, "col1s");
 
   s = &output->tbMeta->schema[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12;
-  strcpy(s->name, "tag1s");
+  TAOS_STRCPY(s->name, "tag1s");
 }
 
 void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
@@ -229,7 +234,8 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   int32_t        vgNum = 0;
   SVgroupInfo    vgInfo = {0};
   SDBVgInfo     *dbVgroup = (SDBVgInfo *)taosMemoryCalloc(1, sizeof(SDBVgInfo));
-
+  ASSERT(NULL != dbVgroup);
+  
   dbVgroup->vgVersion = vgVersion++;
 
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
@@ -238,6 +244,7 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   dbVgroup->hashPrefix = 0;
   dbVgroup->hashSuffix = 0;
   dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  ASSERT(NULL != dbVgroup->vgHash);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
   uint32_t hashUnit = UINT32_MAX / vgNum;
@@ -250,20 +257,20 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
     vgInfo.epSet.inUse = i % vgInfo.epSet.numOfEps;
     for (int32_t n = 0; n < vgInfo.epSet.numOfEps; ++n) {
       SEp *addr = &vgInfo.epSet.eps[n];
-      strcpy(addr->fqdn, "a0");
+      TAOS_STRCPY(addr->fqdn, "a0");
       addr->port = n + 22;
     }
 
-    taosHashPut(dbVgroup->vgHash, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
+    ASSERT(0 == taosHashPut(dbVgroup->vgHash, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo)));
   }
 
   *pdbVgroup = dbVgroup;
 }
 
 void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
-  strcpy(rspMsg->dbFName, ctgTestDbname);
-  sprintf(rspMsg->tbName, "%s", ctgTestSTablename);
-  sprintf(rspMsg->stbName, "%s", ctgTestSTablename);
+  TAOS_STRCPY(rspMsg->dbFName, ctgTestDbname);
+  (void)sprintf(rspMsg->tbName, "%s", ctgTestSTablename);
+  (void)sprintf(rspMsg->stbName, "%s", ctgTestSTablename);
   rspMsg->numOfTags = ctgTestTagNum;
   rspMsg->numOfColumns = ctgTestColNum;
   rspMsg->precision = 1 + 1;
@@ -275,41 +282,43 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   rspMsg->vgId = 1;
 
   rspMsg->pSchemas = (SSchema *)taosMemoryCalloc(rspMsg->numOfTags + rspMsg->numOfColumns, sizeof(SSchema));
-
+  ASSERT(NULL != rspMsg->pSchemas);
+  
   SSchema *s = NULL;
   s = &rspMsg->pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &rspMsg->pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1s");
+  TAOS_STRCPY(s->name, "col1s");
 
   s = &rspMsg->pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12 + 1;
-  strcpy(s->name, "tag1s");
+  TAOS_STRCPY(s->name, "tag1s");
 
   return;
 }
 
-void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
 
   SUseDbRsp usedbRsp = {0};
-  strcpy(usedbRsp.db, ctgTestDbname);
+  TAOS_STRCPY(usedbRsp.db, ctgTestDbname);
   usedbRsp.vgVersion = ctgTestVgVersion;
   ctgTestCurrentVgVersion = ctgTestVgVersion;
   usedbRsp.vgNum = ctgTestVgNum;
   usedbRsp.hashMethod = 0;
   usedbRsp.uid = ctgTestDbId;
   usedbRsp.pVgroupInfos = taosArrayInit(usedbRsp.vgNum, sizeof(SVgroupInfo));
-
+  ASSERT(NULL != usedbRsp.pVgroupInfos);
+  
   uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
   for (int32_t i = 0; i < ctgTestVgNum; ++i) {
     SVgroupInfo vg = {0};
@@ -324,31 +333,36 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
     vg.epSet.inUse = i % vg.epSet.numOfEps;
     for (int32_t n = 0; n < vg.epSet.numOfEps; ++n) {
       SEp *addr = &vg.epSet.eps[n];
-      strcpy(addr->fqdn, "a0");
+      TAOS_STRCPY(addr->fqdn, "a0");
       addr->port = n + 22;
     }
     vg.numOfTable = i % 2;
 
-    taosArrayPush(usedbRsp.pVgroupInfos, &vg);
+    ASSERT(NULL != taosArrayPush(usedbRsp.pVgroupInfos, &vg));
   }
 
   int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSUseDbRsp(pReq, contLen, &usedbRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSUseDbRsp(pReq, contLen, &usedbRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   taosArrayDestroy(usedbRsp.pVgroupInfos);
+
+  return 0;
 }
 
-void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
 
   STableMetaRsp metaRsp = {0};
-  strcpy(metaRsp.dbFName, ctgTestDbname);
-  strcpy(metaRsp.tbName, ctgTestTablename);
+  TAOS_STRCPY(metaRsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(metaRsp.tbName, ctgTestTablename);
   metaRsp.numOfTags = 0;
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
@@ -359,29 +373,38 @@ void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
   metaRsp.tuid = ctgTestNormalTblUid++;
   metaRsp.vgId = 8;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  ASSERT(NULL != metaRsp.pSchemas);
 
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
+  ASSERT(NULL != metaRsp.pSchemaExt);
+  
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1");
+  TAOS_STRCPY(s->name, "col1");
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
-
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(contLen > 0);
+  
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSTableMetaRsp(&metaRsp);
+
+  return 0;
 }
 
 void ctgTestRspTableMetaNotExist(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -390,13 +413,13 @@ void ctgTestRspTableMetaNotExist(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, S
   pRsp->code = CTG_ERR_CODE_TABLE_NOT_EXIST;
 }
 
-void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
 
   STableMetaRsp metaRsp = {0};
-  strcpy(metaRsp.dbFName, ctgTestDbname);
-  strcpy(metaRsp.tbName, ctgTestCurrentCTableName ? ctgTestCurrentCTableName : ctgTestCTablename);
-  strcpy(metaRsp.stbName, ctgTestSTablename);
+  TAOS_STRCPY(metaRsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(metaRsp.tbName, ctgTestCurrentCTableName ? ctgTestCurrentCTableName : ctgTestCTablename);
+  TAOS_STRCPY(metaRsp.stbName, ctgTestSTablename);
   metaRsp.numOfTags = ctgTestTagNum;
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
@@ -407,44 +430,54 @@ void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.tuid = 0x0000000000000003;
   metaRsp.vgId = 9;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  ASSERT(NULL != metaRsp.pSchemas);
 
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
+  ASSERT(NULL != metaRsp.pSchemaExt);
+  
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1s");
+  TAOS_STRCPY(s->name, "col1s");
 
   s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12;
-  strcpy(s->name, "tag1s");
+  TAOS_STRCPY(s->name, "tag1s");
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(contLen > 0);
+
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSTableMetaRsp(&metaRsp);
+
+  return 0;
 }
 
-void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
 
   STableMetaRsp metaRsp = {0};
-  strcpy(metaRsp.dbFName, ctgTestDbname);
-  strcpy(metaRsp.tbName, ctgTestCurrentSTableName ? ctgTestCurrentSTableName : ctgTestSTablename);
-  strcpy(metaRsp.stbName, ctgTestSTablename);
+  TAOS_STRCPY(metaRsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(metaRsp.tbName, ctgTestCurrentSTableName ? ctgTestCurrentSTableName : ctgTestSTablename);
+  TAOS_STRCPY(metaRsp.stbName, ctgTestSTablename);
   metaRsp.numOfTags = ctgTestTagNum;
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
@@ -455,46 +488,55 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.tuid = ctgTestSuid + 1;
   metaRsp.vgId = 0;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  ASSERT(NULL != metaRsp.pSchemas);
+
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
+  ASSERT(NULL != metaRsp.pSchemaExt);
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1s");
+  TAOS_STRCPY(s->name, "col1s");
 
   s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12;
-  strcpy(s->name, "tag1s");
+  TAOS_STRCPY(s->name, "tag1s");
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSTableMetaRsp(&metaRsp);
+
+  return 0;
 }
 
-void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
 
   static int32_t idx = 1;
 
   STableMetaRsp metaRsp = {0};
-  strcpy(metaRsp.dbFName, ctgTestDbname);
-  sprintf(metaRsp.tbName, "%s_%d", ctgTestSTablename, idx);
-  sprintf(metaRsp.stbName, "%s_%d", ctgTestSTablename, idx);
+  TAOS_STRCPY(metaRsp.dbFName, ctgTestDbname);
+  (void)sprintf(metaRsp.tbName, "%s_%d", ctgTestSTablename, idx);
+  (void)sprintf(metaRsp.stbName, "%s_%d", ctgTestSTablename, idx);
   metaRsp.numOfTags = ctgTestTagNum;
   metaRsp.numOfColumns = ctgTestColNum;
   metaRsp.precision = 1;
@@ -505,37 +547,46 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   metaRsp.tuid = ctgTestSuid + idx;
   metaRsp.vgId = 0;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  ASSERT(NULL != metaRsp.pSchemas);
+
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
+  ASSERT(NULL != metaRsp.pSchemaExt);
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1s");
+  TAOS_STRCPY(s->name, "col1s");
 
   s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12;
-  strcpy(s->name, "tag1s");
+  TAOS_STRCPY(s->name, "tag1s");
 
   ++idx;
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSTableMetaRsp(&metaRsp);
+
+  return 0;
 }
 
 void ctgTestRspErrIndexInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -550,14 +601,17 @@ void ctgTestRspUserAuth(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   rpcFreeCont(pMsg->pCont);
 
   SGetUserAuthRsp userRsp = {0};
-  strcpy(userRsp.user, ctgTestUsername);
+  TAOS_STRCPY(userRsp.user, ctgTestUsername);
   userRsp.version = 1;
   userRsp.superAuth = 1;
   userRsp.enable = 1;
 
   int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &userRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSGetUserAuthRsp(pReq, contLen, &userRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSGetUserAuthRsp(pReq, contLen, &userRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
@@ -570,27 +624,34 @@ void ctgTestRspTableCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   static int32_t idx = 1;
 
   STableCfgRsp tblRsp = {0};
-  strcpy(tblRsp.tbName, ctgTestTablename);
+  TAOS_STRCPY(tblRsp.tbName, ctgTestTablename);
   tblRsp.numOfColumns = ctgTestColNum;
 
   tblRsp.pSchemas = (SSchema *)taosMemoryMalloc((tblRsp.numOfTags + tblRsp.numOfColumns) * sizeof(SSchema));
+  ASSERT(tblRsp.pSchemas != NULL);
+
+  tblRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((tblRsp.numOfTags + tblRsp.numOfColumns) * sizeof(SSchemaExt));
+  ASSERT(NULL != tblRsp.pSchemaExt);
 
   SSchema *s = NULL;
   s = &tblRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
-  strcpy(s->name, "ts");
+  TAOS_STRCPY(s->name, "ts");
 
   s = &tblRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
-  strcpy(s->name, "col1");
+  TAOS_STRCPY(s->name, "col1");
 
   int32_t contLen = tSerializeSTableCfgRsp(NULL, 0, &tblRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableCfgRsp(pReq, contLen, &tblRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableCfgRsp(pReq, contLen, &tblRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
@@ -605,20 +666,24 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   static int32_t idx = 1;
 
   STableIndexRsp tblRsp = {0};
-  strcpy(tblRsp.tbName, ctgTestSTablename);
+  TAOS_STRCPY(tblRsp.tbName, ctgTestSTablename);
 
   tblRsp.pIndex = taosArrayInit(ctgTestIndexNum, sizeof(STableIndexInfo));
-
+  ASSERT(NULL != tblRsp.pIndex);
+  
   STableIndexInfo info = {0};
   for (int32_t i = 0; i < ctgTestIndexNum; ++i) {
     info.interval = 1 + i;
     info.expr = (char *)taosMemoryCalloc(1, 10);
-    taosArrayPush(tblRsp.pIndex, &info);
+    ASSERT(NULL != taosArrayPush(tblRsp.pIndex, &info));
   }
 
   int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &tblRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSTableIndexRsp(pReq, contLen, &tblRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSTableIndexRsp(pReq, contLen, &tblRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
@@ -636,8 +701,11 @@ void ctgTestRspDBCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
   dbRsp.numOfVgroups = ctgTestVgNum;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &dbRsp);
+  ASSERT(contLen > 0);
   void   *pReq = rpcMallocCont(contLen);
-  tSerializeSDbCfgRsp(pReq, contLen, &dbRsp);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSDbCfgRsp(pReq, contLen, &dbRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
@@ -653,15 +721,18 @@ void ctgTestRspQnodeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
     SQueryNodeLoad nodeLoad = {0};
     nodeLoad.addr.nodeId = i;
 
-    (void)taosArrayPush(qlistRsp.qnodeList, &nodeLoad);
+    ASSERT(NULL != taosArrayPush(qlistRsp.qnodeList, &nodeLoad));
   }
 
-  int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
-  void   *pReq = rpcMallocCont(rspLen);
-  tSerializeSQnodeListRsp(pReq, rspLen, &qlistRsp);
+  int32_t contLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
+  ASSERT(contLen > 0);
+  void   *pReq = rpcMallocCont(contLen);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSQnodeListRsp(pReq, contLen, &qlistRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
-  pRsp->contLen = rspLen;
+  pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSQnodeListRsp(&qlistRsp);
@@ -675,21 +746,24 @@ void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pR
   funcRsp.pFuncInfos = taosArrayInit(1, sizeof(SFuncInfo));
   funcRsp.pFuncExtraInfos = taosArrayInit(1, sizeof(SFuncExtraInfo));
   SFuncInfo funcInfo = {0};
-  strcpy(funcInfo.name, "func1");
+  TAOS_STRCPY(funcInfo.name, "func1");
   funcInfo.funcType = ctgTestFuncType;
 
-  (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
+  ASSERT(NULL != taosArrayPush(funcRsp.pFuncInfos, &funcInfo));
   SFuncExtraInfo extraInfo = {0};
   extraInfo.funcVersion = 0;
   extraInfo.funcCreatedTime = taosGetTimestampMs();
-  (void)taosArrayPush(funcRsp.pFuncExtraInfos, &extraInfo);
+  ASSERT(NULL != taosArrayPush(funcRsp.pFuncExtraInfos, &extraInfo));
   
-  int32_t rspLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
-  void   *pReq = rpcMallocCont(rspLen);
-  tSerializeSRetrieveFuncRsp(pReq, rspLen, &funcRsp);
+  int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
+  ASSERT(contLen > 0);
+  void   *pReq = rpcMallocCont(contLen);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSRetrieveFuncRsp(pReq, contLen, &funcRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
-  pRsp->contLen = rspLen;
+  pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSRetrieveFuncRsp(&funcRsp);
@@ -699,14 +773,17 @@ void ctgTestRspSvrVer(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRs
   rpcFreeCont(pMsg->pCont);
 
   SServerVerRsp verRsp = {0};
-  strcpy(verRsp.ver, "1.0");
+  TAOS_STRCPY(verRsp.ver, "1.0");
 
-  int32_t rspLen = tSerializeSServerVerRsp(NULL, 0, &verRsp);
-  void   *pReq = rpcMallocCont(rspLen);
-  tSerializeSServerVerRsp(pReq, rspLen, &verRsp);
+  int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &verRsp);
+  ASSERT(contLen > 0);
+  void   *pReq = rpcMallocCont(contLen);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSServerVerRsp(pReq, contLen, &verRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
-  pRsp->contLen = rspLen;
+  pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 }
 
@@ -715,19 +792,23 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
   SDnodeListRsp dRsp = {0};
   dRsp.dnodeList = taosArrayInit(1, sizeof(SEpSet));
+  ASSERT(dRsp.dnodeList != NULL);
   SEpSet epSet = {0};
   epSet.numOfEps = 1;
   tstrncpy(epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
   epSet.eps[0].port = 6030;
 
-  (void)taosArrayPush(dRsp.dnodeList, &epSet);
+  ASSERT(NULL != taosArrayPush(dRsp.dnodeList, &epSet));
 
-  int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
-  void   *pReq = rpcMallocCont(rspLen);
-  tSerializeSDnodeListRsp(pReq, rspLen, &dRsp);
+  int32_t contLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
+  ASSERT(contLen > 0);
+  void   *pReq = rpcMallocCont(contLen);
+  ASSERT(pReq != NULL);
+  contLen = tSerializeSDnodeListRsp(pReq, contLen, &dRsp);
+  ASSERT(contLen > 0);
 
   pRsp->code = 0;
-  pRsp->contLen = rspLen;
+  pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
   tFreeSDnodeListRsp(&dRsp);
@@ -767,22 +848,22 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
   return;
 }
 
-void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+int32_t ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (ctgTestRspFunc[ctgTestRspIdx]) {
     case CTGT_RSP_VGINFO:
-      ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
+      ASSERT(0 == ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp));
       break;
     case CTGT_RSP_TBMETA:
-      ctgTestRspTableMeta(shandle, pEpSet, pMsg, pRsp);
+      ASSERT(0 == ctgTestRspTableMeta(shandle, pEpSet, pMsg, pRsp));
       break;
     case CTGT_RSP_CTBMETA:
-      ctgTestRspCTableMeta(shandle, pEpSet, pMsg, pRsp);
+      ASSERT(0 == ctgTestRspCTableMeta(shandle, pEpSet, pMsg, pRsp));
       break;
     case CTGT_RSP_STBMETA:
-      ctgTestRspSTableMeta(shandle, pEpSet, pMsg, pRsp);
+      ASSERT(0 == ctgTestRspSTableMeta(shandle, pEpSet, pMsg, pRsp));
       break;
     case CTGT_RSP_MSTBMETA:
-      ctgTestRspMultiSTableMeta(shandle, pEpSet, pMsg, pRsp);
+      ASSERT(0 == ctgTestRspMultiSTableMeta(shandle, pEpSet, pMsg, pRsp));
       break;
     case CTGT_RSP_INDEXINFO_E:
       ctgTestRspErrIndexInfo(shandle, pEpSet, pMsg, pRsp);
@@ -821,39 +902,39 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
 
   ctgTestRspIdx++;
 
-  return;
+  return 0;
 }
 
-void ctgTestRspDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
+int32_t ctgTestRspDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ASSERT(0 == ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp));
 
   ctgTestSetRspTableMeta();
 
-  return;
+  return 0;
 }
 
-void ctgTestRspDbVgroupsAndChildMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
+int32_t ctgTestRspDbVgroupsAndChildMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ASSERT(0 == ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp));
 
   ctgTestSetRspCTableMeta();
 
-  return;
+  return 0;
 }
 
-void ctgTestRspDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
+int32_t ctgTestRspDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ASSERT(0 == ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp));
 
   ctgTestSetRspSTableMeta();
 
-  return;
+  return 0;
 }
 
-void ctgTestRspDbVgroupsAndMultiSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
+int32_t ctgTestRspDbVgroupsAndMultiSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ASSERT(0 == ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp));
 
   ctgTestSetRspMultiSTableMeta();
 
-  return;
+  return 0;
 }
 
 void ctgTestSetRspDbVgroups() {
@@ -1069,7 +1150,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   while (!ctgTestStop) {
     code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
     if (code) {
-      printf("code:%x\n", code);
+      (void)printf("code:%x\n", code);
       assert(0);
     }
 
@@ -1081,7 +1162,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
       taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
-      printf("Get:%d\n", n);
+      (void)printf("Get:%d\n", n);
     }
   }
 
@@ -1105,7 +1186,7 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
       taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
-      printf("Set:%d\n", n);
+      (void)printf("Set:%d\n", n);
     }
   }
 
@@ -1129,7 +1210,7 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
       taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
-      printf("Set:%d\n", n);
+      (void)printf("Set:%d\n", n);
     }
   }
 
@@ -1144,8 +1225,8 @@ void *ctgTestGetCtableMetaThread(void *param) {
   bool             inCache = false;
 
   SName cn = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(cn.dbname, "db1");
-  strcpy(cn.tname, ctgTestCTablename);
+  TAOS_STRCPY(cn.dbname, "db1");
+  TAOS_STRCPY(cn.tname, ctgTestCTablename);
 
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = &cn;
@@ -1164,7 +1245,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
     }
 
     if (++n % ctgTestPrintNum == 0) {
-      printf("Get:%d\n", n);
+      (void)printf("Get:%d\n", n);
     }
   }
 
@@ -1184,9 +1265,11 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
   while (!ctgTestStop) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
+    ASSERT(NULL != output);
     ctgTestBuildCTableMetaOutput(output);
 
     SCtgUpdateTbMetaMsg *msg = (SCtgUpdateTbMetaMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTbMetaMsg));
+    ASSERT(NULL != msg);
     msg->pCtg = pCtg;
     msg->pMeta = output;
     operation.data = msg;
@@ -1200,7 +1283,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
       taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
-      printf("Set:%d\n", n);
+      (void)printf("Set:%d\n", n);
     }
   }
 
@@ -1216,14 +1299,15 @@ void ctgTestFetchRows(TAOS_RES *result, int32_t *rows) {
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
     (*rows)++;
-    memset(temp, 0, sizeof(temp));
-    taos_print_row(temp, row, fields, num_fields);
-    printf("\t[%s]\n", temp);
+    TAOS_MEMSET(temp, 0, sizeof(temp));
+    (void)taos_print_row(temp, row, fields, num_fields);
+    (void)printf("\t[%s]\n", temp);
   }
 }
 
 void ctgTestExecQuery(TAOS *taos, char *sql, bool fetch, int32_t *rows) {
   TAOS_RES *result = taos_query(taos, sql);
+  ASSERT(NULL != result);
   int       code = taos_errno(result);
   ASSERT_EQ(code, 0);
 
@@ -1255,8 +1339,8 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
@@ -1265,7 +1349,7 @@ TEST(tableMeta, normalTable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n != 1) {
       taosMsleep(50);
     } else {
@@ -1273,7 +1357,7 @@ TEST(tableMeta, normalTable) {
     }
   }
 
-  memset(&vgInfo, 0, sizeof(vgInfo));
+  TAOS_MEMSET(&vgInfo, 0, sizeof(vgInfo));
   bool exists = false;
   code = catalogGetCachedTableHashVgroup(pCtg, &n, &vgInfo, &exists);
   ASSERT_EQ(code, 0);
@@ -1322,7 +1406,7 @@ TEST(tableMeta, normalTable) {
   taosMemoryFree(tableMeta);
 
   tableMeta = NULL;
-  catalogGetCachedTableMeta(pCtg, &n, &tableMeta);
+  code = catalogGetCachedTableMeta(pCtg, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -1345,19 +1429,19 @@ TEST(tableMeta, normalTable) {
     ASSERT_EQ(code, 0);
 
     if (dbNum) {
-      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
+      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       taosMemoryFree(dbs);
       dbs = NULL;
     } else {
-      printf("no expired db\n");
+      (void)printf("no expired db\n");
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
       taosMemoryFree(stb);
       stb = NULL;
     } else {
-      printf("no expired stb\n");
+      (void)printf("no expired stb\n");
     }
 
     allDbNum += dbNum;
@@ -1391,8 +1475,8 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestCTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestCTablename);
 
   STableMeta *tableMeta = NULL;
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -1431,7 +1515,7 @@ TEST(tableMeta, childTableCase) {
 
   taosMemoryFreeClear(tableMeta);
 
-  strcpy(n.tname, ctgTestSTablename);
+  TAOS_STRCPY(n.tname, ctgTestSTablename);
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
@@ -1457,19 +1541,19 @@ TEST(tableMeta, childTableCase) {
     ASSERT_EQ(code, 0);
 
     if (dbNum) {
-      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
+      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       taosMemoryFree(dbs);
       dbs = NULL;
     } else {
-      printf("no expired db\n");
+      (void)printf("no expired db\n");
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
       taosMemoryFree(stb);
       stb = NULL;
     } else {
-      printf("no expired stb\n");
+      (void)printf("no expired stb\n");
     }
 
     allDbNum += dbNum;
@@ -1501,8 +1585,8 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestSTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -1548,8 +1632,8 @@ TEST(tableMeta, superTableCase) {
 
   tableMeta = NULL;
 
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestCTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestCTablename);
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
@@ -1598,20 +1682,20 @@ TEST(tableMeta, superTableCase) {
     ASSERT_EQ(code, 0);
 
     if (dbNum) {
-      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
+      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       taosMemoryFree(dbs);
       dbs = NULL;
     } else {
-      printf("no expired db\n");
+      (void)printf("no expired db\n");
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
 
       taosMemoryFree(stb);
       stb = NULL;
     } else {
-      printf("no expired stb\n");
+      (void)printf("no expired stb\n");
     }
 
     allDbNum += dbNum;
@@ -1645,8 +1729,8 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestSTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -1715,8 +1799,8 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestSTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -1754,7 +1838,7 @@ TEST(tableMeta, updateStbMeta) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -1795,7 +1879,7 @@ TEST(getIndexInfo, notExists) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_INDEXINFO_E;
 
@@ -1825,7 +1909,7 @@ TEST(refreshGetMeta, normal2normal) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -1844,8 +1928,8 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
@@ -1854,7 +1938,7 @@ TEST(refreshGetMeta, normal2normal) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -1904,7 +1988,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -1923,8 +2007,8 @@ TEST(refreshGetMeta, normal2notexist) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
@@ -1933,7 +2017,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -1974,7 +2058,7 @@ TEST(refreshGetMeta, normal2child) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -1994,8 +2078,8 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
   ctgTestCurrentSTableName = ctgTestSTablename;
 
@@ -2006,7 +2090,7 @@ TEST(refreshGetMeta, normal2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -2057,7 +2141,7 @@ TEST(refreshGetMeta, stable2child) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_STBMETA;
@@ -2078,8 +2162,8 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
   ctgTestCurrentCTableName = ctgTestTablename;
 
@@ -2090,7 +2174,7 @@ TEST(refreshGetMeta, stable2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -2143,7 +2227,7 @@ TEST(refreshGetMeta, stable2stable) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_STBMETA;
@@ -2164,8 +2248,8 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
@@ -2175,7 +2259,7 @@ TEST(refreshGetMeta, stable2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -2229,7 +2313,7 @@ TEST(refreshGetMeta, child2stable) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_CTBMETA;
@@ -2250,8 +2334,8 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
   ctgTestCurrentSTableName = ctgTestSTablename;
 
@@ -2262,7 +2346,7 @@ TEST(refreshGetMeta, child2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -2315,7 +2399,7 @@ TEST(tableDistVgroup, normalTable) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -2334,8 +2418,8 @@ TEST(tableDistVgroup, normalTable) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_TRUE(code != 0);
@@ -2352,7 +2436,7 @@ TEST(tableDistVgroup, childTableCase) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_CTBMETA;
@@ -2372,8 +2456,8 @@ TEST(tableDistVgroup, childTableCase) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestCTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestCTablename);
 
   code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_TRUE(code != 0);
@@ -2390,7 +2474,7 @@ TEST(tableDistVgroup, superTableCase) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_STBMETA;
@@ -2409,8 +2493,8 @@ TEST(tableDistVgroup, superTableCase) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestSTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestSTablename);
 
   code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
@@ -2441,7 +2525,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -2459,8 +2543,8 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
   ASSERT_EQ(code, 0);
@@ -2470,7 +2554,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n > 0) {
       break;
     }
@@ -2501,7 +2585,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -2545,17 +2629,17 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   TdThreadAttr thattr;
-  taosThreadAttrInit(&thattr);
+  (void)taosThreadAttrInit(&thattr);
 
   TdThread thread1, thread2;
-  taosThreadCreate(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
+  (void)taosThreadCreate(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
 
   taosSsleep(1);
-  taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  (void)taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2597,17 +2681,17 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   TdThreadAttr thattr;
-  taosThreadAttrInit(&thattr);
+  (void)taosThreadAttrInit(&thattr);
 
   TdThread thread1, thread2;
-  taosThreadCreate(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
+  (void)taosThreadCreate(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
 
   taosSsleep(1);
-  taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  (void)taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2649,16 +2733,16 @@ TEST(multiThread, ctableMeta) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   TdThreadAttr thattr;
-  taosThreadAttrInit(&thattr);
+  (void)taosThreadAttrInit(&thattr);
 
   TdThread thread1, thread2;
-  taosThreadCreate(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
+  (void)taosThreadCreate(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
   taosSsleep(1);
-  taosThreadCreate(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
+  (void)taosThreadCreate(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2701,10 +2785,10 @@ TEST(rentTest, allRent) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
+  TAOS_STRCPY(n.dbname, "db1");
 
   for (int32_t i = 1; i <= 10; ++i) {
-    sprintf(n.tname, "%s_%d", ctgTestSTablename, i);
+    (void)sprintf(n.tname, "%s_%d", ctgTestSTablename, i);
 
     STableMeta *tableMeta = NULL;
     code = catalogGetSTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -2728,25 +2812,25 @@ TEST(rentTest, allRent) {
 
     code = catalogGetExpiredDBs(pCtg, &dbs, &num);
     ASSERT_EQ(code, 0);
-    printf("%d - expired dbNum:%d\n", i, num);
+    (void)printf("%d - expired dbNum:%d\n", i, num);
     if (dbs) {
-      printf("%d - expired dbId:%" PRId64 ", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
+      (void)printf("%d - expired dbId:%" PRId64 ", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
       taosMemoryFree(dbs);
       dbs = NULL;
     }
 
     code = catalogGetExpiredSTables(pCtg, &stable, &num);
     ASSERT_EQ(code, 0);
-    printf("%d - expired stableNum:%d\n", i, num);
+    (void)printf("%d - expired stableNum:%d\n", i, num);
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
-        printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid,
+        (void)printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid,
                stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
       taosMemoryFree(stable);
       stable = NULL;
     }
-    printf("*************************************************\n");
+    (void)printf("*************************************************\n");
 
     taosSsleep(2);
   }
@@ -2761,7 +2845,7 @@ TEST(apiTest, catalogRefreshDBVgInfo_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
 
@@ -2788,7 +2872,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_USERAUTH;
 
@@ -2804,7 +2888,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
   SUserAuthInfo authInfo = {0};
   SUserAuthRes  authRes = {0};
-  strcpy(authInfo.user, ctgTestUsername);
+  TAOS_STRCPY(authInfo.user, ctgTestUsername);
   toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
   authInfo.type = AUTH_TYPE_READ;
   bool exists = false;
@@ -2818,7 +2902,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
     if (n != 1) {
       taosMsleep(50);
     } else {
@@ -2841,7 +2925,7 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_VGINFO;
   ctgTestRspFunc[1] = CTGT_RSP_TBMETA;
@@ -2857,8 +2941,8 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   STableCfg *pCfg = NULL;
 
   code = catalogRefreshGetTableCfg(pCtg, mockPointer, &n, &pCfg);
@@ -2879,7 +2963,7 @@ TEST(apiTest, catalogGetTableIndex_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_TBLINDEX;
 
@@ -2894,8 +2978,8 @@ TEST(apiTest, catalogGetTableIndex_test) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
   SArray *pRes = NULL;
 
   code = catalogGetTableIndex(pCtg, mockPointer, &n, &pRes);
@@ -2915,7 +2999,7 @@ TEST(apiTest, catalogGetDBCfg_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_DBCFG;
 
@@ -2930,8 +3014,8 @@ TEST(apiTest, catalogGetDBCfg_test) {
   ASSERT_EQ(code, 0);
 
   SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
-  strcpy(n.dbname, "db1");
-  strcpy(n.tname, ctgTestTablename);
+  TAOS_STRCPY(n.dbname, "db1");
+  TAOS_STRCPY(n.tname, ctgTestTablename);
 
   SDbCfgInfo cfgInfo = {0};
   code = catalogGetDBCfg(pCtg, mockPointer, ctgTestDbname, &cfgInfo);
@@ -2948,7 +3032,7 @@ TEST(apiTest, catalogGetQnodeList_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_QNODELIST;
 
@@ -2982,7 +3066,7 @@ TEST(apiTest, catalogGetUdfInfo_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_UDF;
 
@@ -3011,7 +3095,7 @@ TEST(apiTest, catalogGetServerVersion_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_SVRVER;
 
@@ -3040,7 +3124,7 @@ TEST(apiTest, catalogUpdateTableIndex_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_SVRVER;
 
@@ -3055,8 +3139,8 @@ TEST(apiTest, catalogUpdateTableIndex_test) {
   ASSERT_EQ(code, 0);
 
   STableIndexRsp rsp = {0};
-  strcpy(rsp.dbFName, ctgTestDbname);
-  strcpy(rsp.tbName, ctgTestSTablename);
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, ctgTestSTablename);
   rsp.suid = ctgTestSuid;
   rsp.version = 1;
   code = catalogUpdateTableIndex(pCtg, &rsp);
@@ -3072,7 +3156,7 @@ TEST(apiTest, catalogGetDnodeList_test) {
 
   ctgTestInitLogFile();
 
-  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  TAOS_MEMSET(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
   ctgTestRspIdx = 0;
   ctgTestRspFunc[0] = CTGT_RSP_DNODElIST;
 
@@ -3103,17 +3187,17 @@ TEST(intTest, autoCreateTableTest) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_TRUE(NULL != taos);
 
-  ctgdEnableDebug("api", true);
-  ctgdEnableDebug("meta", true);
-  ctgdEnableDebug("cache", true);
-  ctgdEnableDebug("lock", true);
+  (void)ctgdEnableDebug("api", true);
+  (void)ctgdEnableDebug("meta", true);
+  (void)ctgdEnableDebug("cache", true);
+  (void)ctgdEnableDebug("lock", true);
 
   ctgTestExecQuery(taos, "drop database if exists db1", false, NULL);
   ctgTestExecQuery(taos, "create database db1", false, NULL);
   ctgTestExecQuery(taos, "create stable db1.st1 (ts timestamp, f1 int) tags(tg1 int)", false, NULL);
   ctgTestExecQuery(taos, "insert into db1.tb1 using db1.st1 tags(1) values(now, 1)", false, NULL);
 
-  ctgdGetOneHandle(&pCtg);
+  (void)ctgdGetOneHandle(&pCtg);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);

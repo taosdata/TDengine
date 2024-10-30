@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
 #include "meta.h"
-
+#include "vnodeInt.h"
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME);
@@ -34,15 +33,15 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   int32_t     szBuf = 0;
   void       *p = NULL;
   SMetaReader mr = {0};
+  int32_t     code = 0;
 
   // validate req
   // save smaIndex
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   if (metaReaderGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
 #if 1
-    terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
     metaReaderClear(&mr);
-    return -1;  // don't goto _err;
+    return terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
 #else
     metaReaderClear(&mr);
     return 0;
@@ -57,7 +56,8 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   me.name = pCfg->indexName;
   me.smaEntry.tsma = pCfg;
 
-  if (metaHandleSmaEntry(pMeta, &me) < 0) goto _err;
+  code = metaHandleSmaEntry(pMeta, &me);
+  if (code) goto _err;
 
   metaDebug("vgId:%d, tsma is created, name:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pCfg->indexName, pCfg->indexUid);
 
@@ -66,7 +66,7 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
 _err:
   metaError("vgId:%d, failed to create tsma:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pCfg->indexName,
             pCfg->indexUid, tstrerror(terrno));
-  return -1;
+  return code;
 }
 
 int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
@@ -106,7 +106,7 @@ static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
 
   pVal = taosMemoryMalloc(vLen);
   if (pVal == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = terrno;
     goto _err;
   }
 
@@ -147,24 +147,25 @@ static int metaUpdateSmaIdx(SMeta *pMeta, const SMetaEntry *pME) {
 }
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
+  int32_t code = 0;
   metaWLock(pMeta);
 
   // save to table.db
-  if (metaSaveSmaToDB(pMeta, pME) < 0) goto _err;
+  if ((code = metaSaveSmaToDB(pMeta, pME)) < 0) goto _err;
 
   // update uid.idx
-  if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
+  if ((code = metaUpdateUidIdx(pMeta, pME)) < 0) goto _err;
 
   // update name.idx
-  if (metaUpdateNameIdx(pMeta, pME) < 0) goto _err;
+  if ((code = metaUpdateNameIdx(pMeta, pME)) < 0) goto _err;
 
   // update sma.idx
-  if (metaUpdateSmaIdx(pMeta, pME) < 0) goto _err;
+  if ((code = metaUpdateSmaIdx(pMeta, pME)) < 0) goto _err;
 
   metaULock(pMeta);
   return 0;
 
 _err:
   metaULock(pMeta);
-  return -1;
+  return code;
 }

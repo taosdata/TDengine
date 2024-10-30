@@ -37,7 +37,7 @@ typedef struct SName {
   char    tname[TSDB_TABLE_NAME_LEN];
 } SName;
 
-SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName);
+void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName);
 
 int32_t tNameExtractFullName(const SName* name, char* dst);
 
@@ -81,7 +81,7 @@ typedef struct {
 //  uint64_t uid;           // child table uid, may be useful
 } RandTableName;
 
-void buildChildTableName(RandTableName* rName);
+int32_t buildChildTableName(RandTableName* rName);
 
 #ifdef __cplusplus
 }

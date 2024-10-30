@@ -1,18 +1,26 @@
 import taosrest
 
-conn = taosrest.connect(url="http://localhost:6041")
+conn = None
+url = "http://localhost:6041"
+try:
+    conn = taosrest.connect(url=url,
+                   user="root",
+                   password="taosdata",
+                   timeout=30)
 
-db = "power"
+    # create database
+    rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS power")
+    print(f"Create database power successfully, rowsAffected: {rowsAffected}");
 
-conn.execute(f"DROP DATABASE IF EXISTS {db}")
-conn.execute(f"CREATE DATABASE {db}")
+    # create super table
+    rowsAffected = conn.execute(
+        f"CREATE TABLE IF NOT EXISTS power.meters (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+    )
+    print(f"Create stable power.meters successfully, rowsAffected: {rowsAffected}");
 
-# create super table
-conn.execute(
-    f"CREATE TABLE `{db}`.`meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
-)
-
-# create table
-conn.execute(f"CREATE TABLE `{db}`.`d0` USING `{db}`.`meters` TAGS(0, 'Los Angles')")
-
-conn.close()
+except Exception as err:
+    print(f"Failed to create database power or stable meters, ErrMessage:{err}") 
+    raise err
+finally:
+    if conn:
+        conn.close()

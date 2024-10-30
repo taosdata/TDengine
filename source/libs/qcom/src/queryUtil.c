@@ -128,7 +128,7 @@ static STaskQueue taskQueue = {0};
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
-  execFn(pSchedMsg->thandle);
+  (void)execFn(pSchedMsg->thandle);
   taosFreeQitem(pSchedMsg);
 }
 
@@ -158,7 +158,9 @@ int32_t cleanupTaskQueue() {
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  SSchedMsg* pSchedMsg = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0);
+  SSchedMsg* pSchedMsg; 
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
@@ -208,7 +210,6 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -223,6 +224,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
@@ -232,6 +234,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
+}
+int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
+  return rpcFreeConnById(pTransporter, pid);
 }
 
 char* jobTaskStatusStr(int32_t status) {
@@ -308,42 +313,41 @@ void destroyQueryExecRes(SExecResult* pRes) {
   }
 }
 // clang-format on
-
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = tsnprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      n = tsnprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t*)buf);
+      n = tsnprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t*)buf);
+      n = tsnprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t*)buf);
+      n = tsnprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      n = tsnprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      n = tsnprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      n = tsnprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -390,19 +394,19 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t*)buf);
+      n = tsnprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t*)buf);
+      n = tsnprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t*)buf);
+      n = tsnprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
+      n = tsnprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -415,7 +419,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-char* parseTagDatatoJson(void* p) {
+void parseTagDatatoJson(void* p, char** jsonStr) {
   char*   string = NULL;
   SArray* pTagVals = NULL;
   cJSON*  json = NULL;
@@ -434,6 +438,9 @@ char* parseTagDatatoJson(void* p) {
   }
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    if (pTagVal == NULL) {
+      continue;
+    }
     // json key  encode by binary
     tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
@@ -443,11 +450,16 @@ char* parseTagDatatoJson(void* p) {
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        if (tagJsonValue == NULL) {
+          goto end;
+        }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
         if (length < 0) {
           qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -462,25 +474,34 @@ char* parseTagDatatoJson(void* p) {
         }
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
+        if (value == NULL) {
+          goto end;
+        }
       } else {
         goto end;
       }
 
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double jsonVd = *(double*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateNumber(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       char   jsonVd = *(char*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateBool(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
+        goto end;
+      }
     } else {
       goto end;
     }
@@ -491,8 +512,11 @@ end:
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
     string = taosStrdup(TSDB_DATA_NULL_STR_L);
+    if(string == NULL) {
+      qError("failed to strdup null string");
+    }
   }
-  return string;
+  *jsonStr = string;
 }
 
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
@@ -515,7 +539,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
   *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
   if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
@@ -559,15 +583,17 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
+  (*pDst)->vgArray = NULL;
+
   if (pSrc->vgHash) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SVgroupInfo* vgInfo = NULL;
@@ -598,12 +624,13 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == *pDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pDst)->flags = pSrc->flags;
   if (pSrc->name) {
     (*pDst)->name = taosStrdup(pSrc->name);
+    if (NULL == (*pDst)->name) goto _exit;
   }
   (*pDst)->uid = pSrc->uid;
   (*pDst)->btime = pSrc->btime;
@@ -611,21 +638,25 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
   (*pDst)->commentLen = pSrc->commentLen;
   if (pSrc->comment) {
     (*pDst)->comment = taosStrdup(pSrc->comment);
+    if (NULL == (*pDst)->comment) goto _exit;
   }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
     if (pSrc->ctb.stbName) {
       (*pDst)->ctb.stbName = taosStrdup(pSrc->ctb.stbName);
+      if (NULL == (*pDst)->ctb.stbName) goto _exit;
     }
     (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
     (*pDst)->ctb.suid = pSrc->ctb.suid;
     if (pSrc->ctb.tagName) {
       (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+      if (NULL == (*pDst)->ctb.tagName) goto _exit;
     }
     STag* pTag = (STag*)pSrc->ctb.pTag;
     if (pTag) {
       (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
+      if(NULL == (*pDst)->ctb.pTag) goto _exit;
       memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
     }
   } else {
@@ -633,11 +664,17 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
     if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
       (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      if (NULL == (*pDst)->ntb.schemaRow.pSchema) goto _exit;
       memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
     }
   }
 
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  tdDestroySVCreateTbReq(*pDst);
+  taosMemoryFree(*pDst);
+  return terrno;
 }
 
 void freeDbCfgInfo(SDbCfgInfo* pInfo) {
@@ -645,4 +682,8 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
     taosArrayDestroy(pInfo->pRetensions);
   }
   taosMemoryFree(pInfo);
+}
+
+void* getTaskPoolWorkerCb() {
+  return taskQueue.wrokrerPool.pCb;
 }

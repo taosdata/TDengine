@@ -21,12 +21,16 @@ typedef struct SScaleOutContext {
 } SScaleOutContext;
 
 static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubplan* pSrc, int32_t level) {
-  SLogicSubplan* pDst = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  SLogicSubplan* pDst = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pDst);
   if (NULL == pDst) {
+    terrno = code;
     return NULL;
   }
-  pDst->pNode = (SLogicNode*)nodesCloneNode((SNode*)pSrc->pNode);
+  pDst->pNode = NULL;
+  code = nodesCloneNode((SNode*)pSrc->pNode, (SNode**)&pDst->pNode);
   if (NULL == pDst->pNode) {
+    terrno = code;
     nodesDestroyNode((SNode*)pDst);
     return NULL;
   }
@@ -43,7 +47,7 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
     if (NULL == pScan->pVgroupList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
     *pFound = true;
@@ -69,7 +73,7 @@ static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
   for (int32_t i = 0; i < pSubplan->pVgroupList->numOfVgroups; ++i) {
     SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
     if (NULL == pNewSubplan) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
     if (TSDB_CODE_SUCCESS == code) {
@@ -90,14 +94,15 @@ static int32_t scaleOutForInsertValues(SScaleOutContext* pCxt, SLogicSubplan* pS
                                        SNodeList* pGroup) {
   SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
   size_t                 numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
+  int32_t code = 0;
   for (int32_t i = 0; i < numOfVgroups; ++i) {
     SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
     if (NULL == pNewSubplan) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
-    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, (SNode*)pNewSubplan)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+    if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan))) {
+      return code;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -132,7 +137,7 @@ static int32_t scaleOutForCompute(SScaleOutContext* pCxt, SLogicSubplan* pSubpla
   for (int32_t i = 0; i < pSubplan->numOfComputeNodes; ++i) {
     SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
     if (NULL == pNewSubplan) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS != code) {
@@ -196,12 +201,12 @@ static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurren
 }
 
 static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pParentsGroup) {
-  SNodeList* pCurrentGroup = nodesMakeList();
+  SNodeList* pCurrentGroup = NULL;
+  int32_t code = nodesMakeList(&pCurrentGroup);
   if (NULL == pCurrentGroup) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   switch (pSubplan->subplanType) {
     case SUBPLAN_TYPE_MERGE:
       code = scaleOutForMerge(pCxt, pSubplan, level, pCurrentGroup);
@@ -243,13 +248,17 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
 }
 
 static SQueryLogicPlan* makeQueryLogicPlan() {
-  SQueryLogicPlan* pLogicPlan = (SQueryLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN);
+  SQueryLogicPlan* pLogicPlan = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN, (SNode**)&pLogicPlan);
   if (NULL == pLogicPlan) {
+    terrno = code;
     return NULL;
   }
-  pLogicPlan->pTopSubplans = nodesMakeList();
+  pLogicPlan->pTopSubplans = NULL;
+  code = nodesMakeList(&pLogicPlan->pTopSubplans);
   if (NULL == pLogicPlan->pTopSubplans) {
     nodesDestroyNode((SNode*)pLogicPlan);
+    terrno = code;
     return NULL;
   }
   return pLogicPlan;
@@ -258,7 +267,7 @@ static SQueryLogicPlan* makeQueryLogicPlan() {
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
   SQueryLogicPlan* pPlan = makeQueryLogicPlan();
   if (NULL == pPlan) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   SScaleOutContext cxt = {.pPlanCxt = pCxt, .subplanId = 1};

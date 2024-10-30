@@ -27,12 +27,12 @@ int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return;
   SMnode *pMnode = pMsg->info.node;
-  qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
+  (void)qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
 }
 
-int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo* pInfo) {
-  int32_t     code = -1;
-  SMnode     *pMnode = pMsg->info.node;
+int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  int32_t code = -1;
+  SMnode *pMnode = pMsg->info.node;
 
   SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb, .pWorkerCb = pInfo->workerCb};
 
@@ -67,34 +67,33 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo* pInfo) {
   return code;
 }
 
-
-static FORCE_INLINE void mnodeFreeSBatchRspMsg(void* p) {
+static FORCE_INLINE void mnodeFreeSBatchRspMsg(void *p) {
   if (NULL == p) {
     return;
   }
 
-  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
+  SBatchRspMsg *pRsp = (SBatchRspMsg *)p;
   rpcFreeCont(pRsp->msg);
 }
 
 int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
-  int32_t    code = 0;
-  int32_t    rspSize = 0;
-  SBatchReq  batchReq = {0};
-  SBatchMsg req = {0};
+  int32_t      code = 0;
+  int32_t      rspSize = 0;
+  SBatchReq    batchReq = {0};
+  SBatchMsg    req = {0};
   SBatchRspMsg rsp = {0};
-  SBatchRsp batchRsp = {0};
-  SRpcMsg   reqMsg = *pMsg;
-  void     *pRsp = NULL;
-  SMnode   *pMnode = pMsg->info.node;
+  SBatchRsp    batchRsp = {0};
+  SRpcMsg      reqMsg = *pMsg;
+  void        *pRsp = NULL;
+  SMnode      *pMnode = pMsg->info.node;
 
-  if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
+  if ((code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) != 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     mError("tDeserializeSBatchReq failed");
     goto _exit;
   }
 
-  int32_t    msgNum = taosArrayGetSize(batchReq.pMsgs);
+  int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
   if (msgNum >= MAX_META_MSG_IN_BATCH) {
     code = TSDB_CODE_INVALID_MSG;
     mError("too many msgs %d in mnode batch meta req", msgNum);
@@ -103,12 +102,12 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
 
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   if (NULL == batchRsp.pRsps) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
-    SBatchMsg* req = taosArrayGet(batchReq.pMsgs, i);
+    SBatchMsg *req = taosArrayGet(batchReq.pMsgs, i);
 
     reqMsg.msgType = req->msgType;
     reqMsg.pCont = req->msg;
@@ -119,7 +118,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(req->msgType)];
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
       taosArrayDestroy(batchRsp.pRsps);
       return -1;
     }
@@ -134,7 +133,10 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     rsp.msgLen = reqMsg.info.rspLen;
     rsp.msg = reqMsg.info.rsp;
 
-    taosArrayPush(batchRsp.pRsps, &rsp);
+    if (taosArrayPush(batchRsp.pRsps, &rsp) == NULL) {
+      mError("msg:%p, failed to put array since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+             TMSG_INFO(pMsg->msgType));
+    }
   }
 
   rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
@@ -144,7 +146,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   }
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {
@@ -164,7 +166,7 @@ _exit:
   taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
   taosArrayDestroyEx(batchRsp.pRsps, mnodeFreeSBatchRspMsg);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndInitQuery(SMnode *pMnode) {

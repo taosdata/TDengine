@@ -39,7 +39,6 @@ typedef void (*_ref_fn_t)(const void *pObj);
 // set the initial reference count value
 #define T_REF_INIT_VAL(x, _v)                \
   do {                                       \
-    assert(_v >= 0);                         \
     atomic_store_32(&((x)->_ref.val), (_v)); \
   } while (0)
 
@@ -64,8 +63,6 @@ typedef void (*_ref_fn_t)(const void *pObj);
     }                                                     \
   } while (0)
 
-#define T_REF_VAL_CHECK(x) assert((x)->_ref.val >= 0);
-
 #define T_REF_VAL_GET(x) (x)->_ref.val
 
 // single writer multiple reader lock
@@ -84,7 +81,7 @@ int32_t taosWTryLockLatch(SRWLatch *pLatch);
     int32_t old_ = atomic_add_fetch_32((x), 0); \
     if (old_ & 0x00000001) {                    \
       if (i_ % 1000 == 0) {                     \
-        sched_yield();                          \
+        (void)sched_yield();                    \
       }                                         \
       continue;                                 \
     }
@@ -98,9 +95,9 @@ int32_t taosWTryLockLatch(SRWLatch *pLatch);
 #define taosCorBeginWrite(x) \
   taosCorBeginRead(x) if (atomic_val_compare_exchange_32((x), old_, old_ + 1) != old_) { continue; }
 
-#define taosCorEndWrite(x)     \
-  atomic_add_fetch_32((x), 1); \
-  break;                       \
+#define taosCorEndWrite(x)           \
+  (void)atomic_add_fetch_32((x), 1); \
+  break;                             \
   }
 
 #ifdef __cplusplus

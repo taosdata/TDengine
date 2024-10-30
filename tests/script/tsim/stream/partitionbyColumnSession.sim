@@ -18,6 +18,8 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a session(ts, 5s);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 
@@ -198,6 +200,8 @@ sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt1 as select  _wstart c1, count(*) c2, max(c) c3, _group_key(a+b) c4 from t1 partition by a+b session(ts, 5s);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,1,2,1,1.0);
@@ -284,7 +288,8 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -481,7 +486,8 @@ sql create table t3 using st tags(2,2,2);
 sql create table t4 using st tags(2,2,2);
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
-sleep 2000
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,2,2,3,1.0);
 sql insert into t2 values(1648791213000,2,2,3,1.0);
 sql insert into t3 values(1648791213000,2,2,3,1.0);
@@ -568,7 +574,7 @@ sql use test5;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 subtable("aaa-a") as select  _wstart, count(*) from t1 partition by a session(ts, 10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,0,2,3,1.0);
 sql insert into t1 values(1648791213001,1,2,3,1.0);

@@ -107,6 +107,9 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   int32_t size = 4;
 
   char **split = taosMemoryMalloc(POINTER_BYTES * size);
+  if (split == NULL) {
+    return NULL;
+  }
 
   for (char *p = strsep(&z, delim); p != NULL; p = strsep(&z, delim)) {
     size_t len = strlen(p);
@@ -118,7 +121,9 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = taosMemoryRealloc(split, POINTER_BYTES * size);
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t) POINTER_BYTES * size);
+      if (split == NULL) {
+        return NULL;
+      }
     }
   }
 
@@ -145,10 +150,10 @@ char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
-TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len) {
-  for(int32_t i = 0; i < len; ++i) {
+TdUcs4 *wcsnchr(const TdUcs4 *haystack, TdUcs4 needle, size_t len) {
+  for (int32_t i = 0; i < len; ++i) {
     if (haystack[i] == needle) {
-      return (TdUcs4*) &haystack[i];
+      return (TdUcs4 *)&haystack[i];
     }
   }
 
@@ -314,6 +319,9 @@ char *strbetween(char *string, char *begin, char *end) {
     int32_t size = (int32_t)(_end - _begin);
     if (_end != NULL && size > 0) {
       result = (char *)taosMemoryCalloc(1, size);
+      if (!result) {
+        return NULL;
+      }
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));
     }
   }
@@ -324,13 +332,13 @@ int32_t tintToHex(uint64_t val, char hex[]) {
   const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
   int32_t j = 0, k = 0;
-  if (val == 0)  {
+  if (val == 0) {
     hex[j++] = hexstr[0];
     return j;
   }
 
   // ignore the initial 0
-  while((val & (((uint64_t)0xfL) << ((15 - k) * 4))) == 0) {
+  while ((val & (((uint64_t)0xfL) << ((15 - k) * 4))) == 0) {
     k += 1;
   }
 
@@ -346,10 +354,10 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
     return 0;
   }
 
-  const char* s = "0123456789abcdef";
-  char buf[65] = {0};
+  const char *s = "0123456789abcdef";
+  char        buf[65] = {0};
 
-  int32_t i = 0;
+  int32_t  i = 0;
   uint64_t v = val;
   do {
     buf[i++] = s[v % radix];
@@ -357,7 +365,7 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
   } while (v > 0);
 
   // reverse order
-  for(int32_t j = 0; j < i; ++j) {
+  for (int32_t j = 0; j < i; ++j) {
     str[j] = buf[i - j - 1];
   }
 
@@ -429,8 +437,8 @@ void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
 
 size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize) {
   if (rsize == 0 || rsize == 1) {
-    char* p = strnchr(str, reject[0], size, false);
-    return (p == NULL)? size:(p-str);
+    char *p = strnchr(str, reject[0], size, false);
+    return (p == NULL) ? size : (p - str);
   }
 
   /* Use multiple small memsets to enable inlining on most targets.  */
@@ -441,15 +449,15 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
   memset(p + 192, 0, 64);
 
   unsigned char *s = (unsigned char *)reject;
-  int32_t index = 0;
+  int32_t        index = 0;
   do {
     p[s[index++]] = 1;
   } while (index < rsize);
 
-  s = (unsigned char*) str;
+  s = (unsigned char *)str;
   int32_t times = size >> 2;
   if (times == 0) {
-    for(int32_t i = 0; i < size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       if (p[s[i]]) {
         return i;
       }
@@ -460,7 +468,7 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
 
   index = 0;
   uint32_t c0, c1, c2, c3;
-  for(int32_t i = 0; i < times; ++i, index += 4) {
+  for (int32_t i = 0; i < times; ++i, index += 4) {
     int32_t j = index;
     c0 = p[s[j]];
     c1 = p[s[j + 1]];
@@ -474,7 +482,7 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
   }
 
   int32_t offset = times * 4;
-  for(int32_t i = offset; i < size; ++i) {
+  for (int32_t i = offset; i < size; ++i) {
     if (p[s[i]]) {
       return i;
     }
@@ -485,8 +493,8 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
 
 size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize) {
   if (rsize == 0 || rsize == 1) {
-    TdUcs4* p = wcsnchr(wcs, reject[0], size);
-    return (p == NULL)? size:(p-wcs);
+    TdUcs4 *p = wcsnchr(wcs, reject[0], size);
+    return (p == NULL) ? size : (p - wcs);
   }
 
   size_t index = 0;
@@ -497,19 +505,17 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
   return index;
 }
 
-int32_t parseCfgReal(const char* str, double* out) {
-  double val;
+int32_t parseCfgReal(const char *str, float *out) {
+  float val;
   char  *endPtr;
   errno = 0;
-  val = taosStr2Double(str, &endPtr);
+  val = taosStr2Float(str, &endPtr);
   if (str == endPtr || errno == ERANGE || isnan(val)) {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
-  while(isspace((unsigned char)*endPtr)) endPtr++;
+  while (isspace((unsigned char)*endPtr)) endPtr++;
   if (*endPtr != '\0') {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   *out = val;
   return TSDB_CODE_SUCCESS;

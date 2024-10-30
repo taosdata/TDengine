@@ -15,20 +15,34 @@
 
 #define _DEFAULT_SOURCE
 #include "monInt.h"
+#include "taos_monitor.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "thttp.h"
 #include "ttime.h"
-#include "taos_monitor.h"
-#include "tglobal.h"
+
+#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
+
+#define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
+#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_ID   "dnode_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_EP   "dnode_ep"
+#define VNODE_METRIC_TAG_NAME_VGROUP_ID  "vgroup_id"
+#define VNODE_METRIC_TAG_NAME_USERNAME   "username"
+#define VNODE_METRIC_TAG_NAME_RESULT     "result"
+
+// #define VNODE_METRIC_TAG_VALUE_INSERT "insert"
+// #define VNODE_METRIC_TAG_VALUE_DELETE "delete"
 
 SMonitor tsMonitor = {0};
-char* tsMonUri = "/report";
-char* tsMonFwUri = "/general-metric";
-char* tsMonSlowLogUri = "/slow-sql-detail-batch";
-char* tsMonFwBasicUri = "/taosd-cluster-basic";
+char    *tsMonUri = "/report";
+char    *tsMonFwUri = "/general-metric";
+char    *tsMonSlowLogUri = "/slow-sql-detail-batch";
+char    *tsMonFwBasicUri = "/taosd-cluster-basic";
+taos_counter_t *tsInsertCounter = NULL;
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
   if (size < tsMonitor.cfg.maxLogs) {
     SMonLogItem  item = {.ts = ts, .level = level};
@@ -37,11 +51,11 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
       tstrncpy(pItem->content, content, MON_LOG_LEN);
     }
   }
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
 }
 
 int32_t monGetLogs(SMonLogs *logs) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   logs->logs = taosArrayDup(tsMonitor.logs, NULL);
   logs->numOfInfoLogs = tsNumOfInfoLogs;
   logs->numOfErrorLogs = tsNumOfErrorLogs;
@@ -52,71 +66,96 @@ int32_t monGetLogs(SMonLogs *logs) {
   tsNumOfDebugLogs = 0;
   tsNumOfTraceLogs = 0;
   taosArrayClear(tsMonitor.logs);
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   if (logs->logs == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   return 0;
 }
 
 void monSetDmInfo(SMonDmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.dmInfo, pInfo, sizeof(SMonDmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonDmInfo));
 }
 
 void monSetMmInfo(SMonMmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.mmInfo, pInfo, sizeof(SMonMmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonMmInfo));
 }
 
 void monSetVmInfo(SMonVmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.vmInfo, pInfo, sizeof(SMonVmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonVmInfo));
 }
 
 void monSetQmInfo(SMonQmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.qmInfo, pInfo, sizeof(SMonQmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonQmInfo));
 }
 
 void monSetSmInfo(SMonSmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.smInfo, pInfo, sizeof(SMonSmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonSmInfo));
 }
 
 void monSetBmInfo(SMonBmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.bmInfo, pInfo, sizeof(SMonBmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonBmInfo));
 }
 
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(terrno);
   }
 
   tsMonitor.cfg = *pCfg;
   tsLogFp = monRecordLog;
   tsMonitor.lastTime = taosGetTimestampMs();
-  taosThreadMutexInit(&tsMonitor.lock, NULL);
+  (void)taosThreadMutexInit(&tsMonitor.lock, NULL);
 
   monInitMonitorFW();
 
   return 0;
+}
+
+void monSetDnodeId(int32_t dnodeId) { tsMonitor.dnodeId = dnodeId; }
+
+void monInitVnode() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if (tsInsertCounter == NULL) {
+    taos_counter_t *counter = NULL;
+    int32_t         label_count = 7;
+    const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,
+                                       VNODE_METRIC_TAG_NAME_DNODE_ID,  VNODE_METRIC_TAG_NAME_DNODE_EP,
+                                       VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
+                                       VNODE_METRIC_TAG_NAME_RESULT};
+    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql", label_count, sample_labels);
+    uDebug("new metric:%p", counter);
+    if (taos_collector_registry_register_metric(counter) == 1) {
+      if (taos_counter_destroy(counter) != 0) {
+        uError("failed to destroy metric:%p", counter);
+      }
+      uError("failed to register metric:%p", counter);
+    } else {
+      tsInsertCounter = counter;
+      uInfo("succeed to set inserted row metric:%p", tsInsertCounter);
+    }
+  } else {
+    uError("failed to set insert counter, already set");
+  }
 }
 
 void monCleanup() {
@@ -128,7 +167,7 @@ void monCleanup() {
   tFreeSMonSmInfo(&tsMonitor.smInfo);
   tFreeSMonQmInfo(&tsMonitor.qmInfo);
   tFreeSMonBmInfo(&tsMonitor.bmInfo);
-  taosThreadMutexDestroy(&tsMonitor.lock);
+  (void)taosThreadMutexDestroy(&tsMonitor.lock);
 
   monCleanupMonitorFW();
 }
@@ -146,15 +185,18 @@ static void monCleanupMonitorInfo(SMonInfo *pMonitor) {
 }
 
 static SMonInfo *monCreateMonitorInfo() {
+  terrno = 0;
   SMonInfo *pMonitor = taosMemoryCalloc(1, sizeof(SMonInfo));
   if (pMonitor == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  monGetLogs(&pMonitor->log);
+  if ((terrno = monGetLogs(&pMonitor->log)) != 0) {
+    return NULL;
+  }
 
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&pMonitor->dmInfo, &tsMonitor.dmInfo, sizeof(SMonDmInfo));
   memcpy(&pMonitor->mmInfo, &tsMonitor.mmInfo, sizeof(SMonMmInfo));
   memcpy(&pMonitor->vmInfo, &tsMonitor.vmInfo, sizeof(SMonVmInfo));
@@ -167,7 +209,7 @@ static SMonInfo *monCreateMonitorInfo() {
   memset(&tsMonitor.smInfo, 0, sizeof(SMonSmInfo));
   memset(&tsMonitor.qmInfo, 0, sizeof(SMonQmInfo));
   memset(&tsMonitor.bmInfo, 0, sizeof(SMonBmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->log.logs == NULL) {
@@ -186,14 +228,17 @@ static void monGenBasicJson(SMonInfo *pMonitor) {
 
   SJson *pJson = pMonitor->pJson;
   char   buf[40] = {0};
-  taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI);
+  if (taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI) != 0) {
+    uError("failed to format time");
+    return;
+  }
 
-  tjsonAddStringToObject(pJson, "ts", buf);
-  tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
-  tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  if (tjsonAddStringToObject(pJson, "ts", buf) != 0) uError("failed to add ts");
+  if (tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id) != 0) uError("failed to add dnode_id");
+  if (tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep) != 0) uError("failed to add dnode_ep");
   snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
-  tjsonAddStringToObject(pJson, "cluster_id", buf);
-  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
+  if (tjsonAddStringToObject(pJson, "cluster_id", buf) != 0) uError("failed to add cluster_id");
+  if (tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol) != 0) uError("failed to add protocol");
 }
 
 static void monGenBasicJsonBasic(SMonInfo *pMonitor) {
@@ -204,12 +249,12 @@ static void monGenBasicJsonBasic(SMonInfo *pMonitor) {
   char   buf[40] = {0};
 
   sprintf(buf, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
-  tjsonAddStringToObject(pJson, "ts", buf);
-  tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
-  tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  if (tjsonAddStringToObject(pJson, "ts", buf) != 0) uError("failed to add ts");
+  if (tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id) != 0) uError("failed to add dnode_id");
+  if (tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep) != 0) uError("failed to add dnode_ep");
   snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
-  tjsonAddStringToObject(pJson, "cluster_id", buf);
-  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
+  if (tjsonAddStringToObject(pJson, "cluster_id", buf) != 0) uError("failed to add cluster_id");
+  if (tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol) != 0) uError("failed to add protocol");
 }
 
 static void monGenClusterJson(SMonInfo *pMonitor) {
@@ -223,21 +268,24 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
     return;
   }
 
-  tjsonAddStringToObject(pJson, "first_ep", pInfo->first_ep);
-  tjsonAddDoubleToObject(pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id);
-  tjsonAddStringToObject(pJson, "version", pInfo->version);
-  tjsonAddDoubleToObject(pJson, "master_uptime", pInfo->master_uptime);
-  tjsonAddDoubleToObject(pJson, "monitor_interval", pInfo->monitor_interval);
-  tjsonAddDoubleToObject(pJson, "dbs_total", pInfo->dbs_total);
-  tjsonAddDoubleToObject(pJson, "tbs_total", pInfo->tbs_total);
-  tjsonAddDoubleToObject(pJson, "stbs_total", pInfo->stbs_total);
-  tjsonAddDoubleToObject(pJson, "vgroups_total", pInfo->vgroups_total);
-  tjsonAddDoubleToObject(pJson, "vgroups_alive", pInfo->vgroups_alive);
-  tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total);
-  tjsonAddDoubleToObject(pJson, "vnodes_alive", pInfo->vnodes_alive);
-  tjsonAddDoubleToObject(pJson, "connections_total", pInfo->connections_total);
-  tjsonAddDoubleToObject(pJson, "topics_total", pInfo->topics_toal);
-  tjsonAddDoubleToObject(pJson, "streams_total", pInfo->streams_total);
+  if (tjsonAddStringToObject(pJson, "first_ep", pInfo->first_ep) != 0) uError("failed to add first_ep");
+  if (tjsonAddDoubleToObject(pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id) != 0)
+    uError("failed to add first_ep_dnode_id");
+  if (tjsonAddStringToObject(pJson, "version", pInfo->version) != 0) uError("failed to add version");
+  if (tjsonAddDoubleToObject(pJson, "master_uptime", pInfo->master_uptime) != 0) uError("failed to add master_uptime");
+  if (tjsonAddDoubleToObject(pJson, "monitor_interval", pInfo->monitor_interval) != 0)
+    uError("failed to add monitor_interval");
+  if (tjsonAddDoubleToObject(pJson, "dbs_total", pInfo->dbs_total) != 0) uError("failed to add dbs_total");
+  if (tjsonAddDoubleToObject(pJson, "tbs_total", pInfo->tbs_total) != 0) uError("failed to add tbs_total");
+  if (tjsonAddDoubleToObject(pJson, "stbs_total", pInfo->stbs_total) != 0) uError("failed to add stbs_total");
+  if (tjsonAddDoubleToObject(pJson, "vgroups_total", pInfo->vgroups_total) != 0) uError("failed to add vgroups_total");
+  if (tjsonAddDoubleToObject(pJson, "vgroups_alive", pInfo->vgroups_alive) != 0) uError("failed to add vgroups_alive");
+  if (tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total) != 0) uError("failed to add vnodes_total");
+  if (tjsonAddDoubleToObject(pJson, "vnodes_alive", pInfo->vnodes_alive) != 0) uError("failed to add vnodes_alive");
+  if (tjsonAddDoubleToObject(pJson, "connections_total", pInfo->connections_total) != 0)
+    uError("failed to add connections_total");
+  if (tjsonAddDoubleToObject(pJson, "topics_total", pInfo->topics_toal) != 0) uError("failed to add topics_total");
+  if (tjsonAddDoubleToObject(pJson, "streams_total", pInfo->streams_total) != 0) uError("failed to add streams_total");
 
   SJson *pDnodesJson = tjsonAddArrayToObject(pJson, "dnodes");
   if (pDnodesJson == NULL) return;
@@ -247,9 +295,9 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
     if (pDnodeJson == NULL) continue;
 
     SMonDnodeDesc *pDnodeDesc = taosArrayGet(pInfo->dnodes, i);
-    tjsonAddDoubleToObject(pDnodeJson, "dnode_id", pDnodeDesc->dnode_id);
-    tjsonAddStringToObject(pDnodeJson, "dnode_ep", pDnodeDesc->dnode_ep);
-    tjsonAddStringToObject(pDnodeJson, "status", pDnodeDesc->status);
+    if (tjsonAddDoubleToObject(pDnodeJson, "dnode_id", pDnodeDesc->dnode_id) != 0) uError("failed to add dnode_id");
+    if (tjsonAddStringToObject(pDnodeJson, "dnode_ep", pDnodeDesc->dnode_ep) != 0) uError("failed to add dnode_ep");
+    if (tjsonAddStringToObject(pDnodeJson, "status", pDnodeDesc->status) != 0) uError("failed to add status");
 
     if (tjsonAddItemToArray(pDnodesJson, pDnodeJson) != 0) tjsonDelete(pDnodeJson);
   }
@@ -262,9 +310,9 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
     if (pMnodeJson == NULL) continue;
 
     SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->mnodes, i);
-    tjsonAddDoubleToObject(pMnodeJson, "mnode_id", pMnodeDesc->mnode_id);
-    tjsonAddStringToObject(pMnodeJson, "mnode_ep", pMnodeDesc->mnode_ep);
-    tjsonAddStringToObject(pMnodeJson, "role", pMnodeDesc->role);
+    if (tjsonAddDoubleToObject(pMnodeJson, "mnode_id", pMnodeDesc->mnode_id) != 0) uError("failed to add mnode_id");
+    if (tjsonAddStringToObject(pMnodeJson, "mnode_ep", pMnodeDesc->mnode_ep) != 0) uError("failed to add mnode_ep");
+    if (tjsonAddStringToObject(pMnodeJson, "role", pMnodeDesc->role) != 0) uError("failed to add role");
 
     if (tjsonAddItemToArray(pMnodesJson, pMnodeJson) != 0) tjsonDelete(pMnodeJson);
   }
@@ -274,11 +322,11 @@ static void monGenClusterJsonBasic(SMonInfo *pMonitor) {
   SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
-  //tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
-  tjsonAddStringToObject(pMonitor->pJson, "first_ep", tsFirst);
-  tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id);
-  tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version);
-  //tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
+  if (tjsonAddStringToObject(pMonitor->pJson, "first_ep", tsFirst) != 0) uError("failed to add first_ep");
+  if (tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id) != 0)
+    uError("failed to add first_ep_dnode_id");
+  if (tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version) != 0)
+    uError("failed to add cluster_version");
 }
 
 static void monGenVgroupJson(SMonInfo *pMonitor) {
@@ -297,10 +345,13 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
     }
 
     SMonVgroupDesc *pVgroupDesc = taosArrayGet(pInfo->vgroups, i);
-    tjsonAddDoubleToObject(pVgroupJson, "vgroup_id", pVgroupDesc->vgroup_id);
-    tjsonAddStringToObject(pVgroupJson, "database_name", pVgroupDesc->database_name);
-    tjsonAddDoubleToObject(pVgroupJson, "tables_num", pVgroupDesc->tables_num);
-    tjsonAddStringToObject(pVgroupJson, "status", pVgroupDesc->status);
+    if (tjsonAddDoubleToObject(pVgroupJson, "vgroup_id", pVgroupDesc->vgroup_id) != 0)
+      uError("failed to add vgroup_id");
+    if (tjsonAddStringToObject(pVgroupJson, "database_name", pVgroupDesc->database_name) != 0)
+      uError("failed to add database_name");
+    if (tjsonAddDoubleToObject(pVgroupJson, "tables_num", pVgroupDesc->tables_num) != 0)
+      uError("failed to add tables_num");
+    if (tjsonAddStringToObject(pVgroupJson, "status", pVgroupDesc->status) != 0) uError("failed to add status");
 
     SJson *pVnodesJson = tjsonAddArrayToObject(pVgroupJson, "vnodes");
     if (pVnodesJson == NULL) continue;
@@ -312,8 +363,9 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
       SJson *pVnodeJson = tjsonCreateObject();
       if (pVnodeJson == NULL) continue;
 
-      tjsonAddDoubleToObject(pVnodeJson, "dnode_id", pVnodeDesc->dnode_id);
-      tjsonAddStringToObject(pVnodeJson, "vnode_role", pVnodeDesc->vnode_role);
+      if (tjsonAddDoubleToObject(pVnodeJson, "dnode_id", pVnodeDesc->dnode_id) != 0) uError("failed to add dnode_id");
+      if (tjsonAddStringToObject(pVnodeJson, "vnode_role", pVnodeDesc->vnode_role) != 0)
+        uError("failed to add vnode_role");
 
       if (tjsonAddItemToArray(pVnodesJson, pVnodeJson) != 0) tjsonDelete(pVnodeJson);
     }
@@ -336,8 +388,9 @@ static void monGenStbJson(SMonInfo *pMonitor) {
     }
 
     SMonStbDesc *pStbDesc = taosArrayGet(pInfo->stbs, i);
-    tjsonAddStringToObject(pStbJson, "stb_name", pStbDesc->stb_name);
-    tjsonAddStringToObject(pStbJson, "database_name", pStbDesc->database_name);
+    if (tjsonAddStringToObject(pStbJson, "stb_name", pStbDesc->stb_name) != 0) uError("failed to add stb_name");
+    if (tjsonAddStringToObject(pStbJson, "database_name", pStbDesc->database_name) != 0)
+      uError("failed to add database_name");
   }
 }
 
@@ -352,9 +405,11 @@ static void monGenGrantJson(SMonInfo *pMonitor) {
     return;
   }
 
-  tjsonAddDoubleToObject(pJson, "expire_time", pInfo->expire_time);
-  tjsonAddDoubleToObject(pJson, "timeseries_used", pInfo->timeseries_used);
-  tjsonAddDoubleToObject(pJson, "timeseries_total", pInfo->timeseries_total);
+  if (tjsonAddDoubleToObject(pJson, "expire_time", pInfo->expire_time) != 0) uError("failed to add expire_time");
+  if (tjsonAddDoubleToObject(pJson, "timeseries_used", pInfo->timeseries_used) != 0)
+    uError("failed to add timeseries_used");
+  if (tjsonAddDoubleToObject(pJson, "timeseries_total", pInfo->timeseries_total) != 0)
+    uError("failed to add timeseries_total");
 }
 
 static void monGenDnodeJson(SMonInfo *pMonitor) {
@@ -411,36 +466,40 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   double io_read_disk_rate = io_read_disk / interval;
   double io_write_disk_rate = io_write_disk / interval;
 
-  tjsonAddDoubleToObject(pJson, "uptime", pInfo->uptime);
-  tjsonAddDoubleToObject(pJson, "cpu_engine", cpu_engine);
-  tjsonAddDoubleToObject(pJson, "cpu_system", pSys->cpu_system);
-  tjsonAddDoubleToObject(pJson, "cpu_cores", pSys->cpu_cores);
-  tjsonAddDoubleToObject(pJson, "mem_engine", mem_engine);
-  tjsonAddDoubleToObject(pJson, "mem_system", pSys->mem_system);
-  tjsonAddDoubleToObject(pJson, "mem_total", pSys->mem_total);
-  tjsonAddDoubleToObject(pJson, "disk_engine", pSys->disk_engine);
-  tjsonAddDoubleToObject(pJson, "disk_used", pSys->disk_used);
-  tjsonAddDoubleToObject(pJson, "disk_total", pSys->disk_total);
-  tjsonAddDoubleToObject(pJson, "net_in", net_in_rate);
-  tjsonAddDoubleToObject(pJson, "net_out", net_out_rate);
-  tjsonAddDoubleToObject(pJson, "io_read", io_read_rate);
-  tjsonAddDoubleToObject(pJson, "io_write", io_write_rate);
-  tjsonAddDoubleToObject(pJson, "io_read_disk", io_read_disk_rate);
-  tjsonAddDoubleToObject(pJson, "io_write_disk", io_write_disk_rate);
-  tjsonAddDoubleToObject(pJson, "req_select", pStat->numOfSelectReqs);
-  tjsonAddDoubleToObject(pJson, "req_select_rate", req_select_rate);
-  tjsonAddDoubleToObject(pJson, "req_insert", pStat->numOfInsertReqs);
-  tjsonAddDoubleToObject(pJson, "req_insert_success", pStat->numOfInsertSuccessReqs);
-  tjsonAddDoubleToObject(pJson, "req_insert_rate", req_insert_rate);
-  tjsonAddDoubleToObject(pJson, "req_insert_batch", pStat->numOfBatchInsertReqs);
-  tjsonAddDoubleToObject(pJson, "req_insert_batch_success", pStat->numOfBatchInsertSuccessReqs);
-  tjsonAddDoubleToObject(pJson, "req_insert_batch_rate", req_insert_batch_rate);
-  tjsonAddDoubleToObject(pJson, "errors", pStat->errors);
-  tjsonAddDoubleToObject(pJson, "vnodes_num", pStat->totalVnodes);
-  tjsonAddDoubleToObject(pJson, "masters", pStat->masterNum);
-  tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
-  tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
-  tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
+  if (tjsonAddDoubleToObject(pJson, "uptime", pInfo->uptime) != 0) uError("failed to add uptime");
+  if (tjsonAddDoubleToObject(pJson, "cpu_engine", cpu_engine) != 0) uError("failed to add cpu_engine");
+  if (tjsonAddDoubleToObject(pJson, "cpu_system", pSys->cpu_system) != 0) uError("failed to add cpu_system");
+  if (tjsonAddDoubleToObject(pJson, "cpu_cores", pSys->cpu_cores) != 0) uError("failed to add cpu_cores");
+  if (tjsonAddDoubleToObject(pJson, "mem_engine", mem_engine) != 0) uError("failed to add mem_engine");
+  if (tjsonAddDoubleToObject(pJson, "mem_system", pSys->mem_system) != 0) uError("failed to add mem_system");
+  if (tjsonAddDoubleToObject(pJson, "mem_total", pSys->mem_total) != 0) uError("failed to add mem_total");
+  if (tjsonAddDoubleToObject(pJson, "disk_engine", pSys->disk_engine) != 0) uError("failed to add disk_engine");
+  if (tjsonAddDoubleToObject(pJson, "disk_used", pSys->disk_used) != 0) uError("failed to add disk_used");
+  if (tjsonAddDoubleToObject(pJson, "disk_total", pSys->disk_total) != 0) uError("failed to add disk_total");
+  if (tjsonAddDoubleToObject(pJson, "net_in", net_in_rate) != 0) uError("failed to add net_in");
+  if (tjsonAddDoubleToObject(pJson, "net_out", net_out_rate) != 0) uError("failed to add net_out");
+  if (tjsonAddDoubleToObject(pJson, "io_read", io_read_rate) != 0) uError("failed to add io_read");
+  if (tjsonAddDoubleToObject(pJson, "io_write", io_write_rate) != 0) uError("failed to add io_write");
+  if (tjsonAddDoubleToObject(pJson, "io_read_disk", io_read_disk_rate) != 0) uError("failed to add io_read_disk");
+  if (tjsonAddDoubleToObject(pJson, "io_write_disk", io_write_disk_rate) != 0) uError("failed to add io_write_disk");
+  if (tjsonAddDoubleToObject(pJson, "req_select", pStat->numOfSelectReqs) != 0) uError("failed to add req_select");
+  if (tjsonAddDoubleToObject(pJson, "req_select_rate", req_select_rate) != 0) uError("failed to add req_select_rate");
+  if (tjsonAddDoubleToObject(pJson, "req_insert", pStat->numOfInsertReqs) != 0) uError("failed to add req_insert");
+  if (tjsonAddDoubleToObject(pJson, "req_insert_success", pStat->numOfInsertSuccessReqs) != 0)
+    uError("failed to add req_insert_success");
+  if (tjsonAddDoubleToObject(pJson, "req_insert_rate", req_insert_rate) != 0) uError("failed to add req_insert_rate");
+  if (tjsonAddDoubleToObject(pJson, "req_insert_batch", pStat->numOfBatchInsertReqs) != 0)
+    uError("failed to add req_insert_batch");
+  if (tjsonAddDoubleToObject(pJson, "req_insert_batch_success", pStat->numOfBatchInsertSuccessReqs) != 0)
+    uError("failed to add req_insert_batch_success");
+  if (tjsonAddDoubleToObject(pJson, "req_insert_batch_rate", req_insert_batch_rate) != 0)
+    uError("failed to add req_insert_batch_rate");
+  if (tjsonAddDoubleToObject(pJson, "errors", pStat->errors) != 0) uError("failed to add errors");
+  if (tjsonAddDoubleToObject(pJson, "vnodes_num", pStat->totalVnodes) != 0) uError("failed to add vnodes_num");
+  if (tjsonAddDoubleToObject(pJson, "masters", pStat->masterNum) != 0) uError("failed to add masters");
+  if (tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode) != 0) uError("failed to add has_mnode");
+  if (tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode) != 0) uError("failed to add has_qnode");
+  if (tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode) != 0) uError("failed to add has_snode");
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {
@@ -475,18 +534,18 @@ static void monGenDiskJson(SMonInfo *pMonitor) {
   SJson *pLogdirJson = tjsonCreateObject();
   if (pLogdirJson == NULL) return;
   if (tjsonAddItemToObject(pJson, "logdir", pLogdirJson) != 0) return;
-  tjsonAddStringToObject(pLogdirJson, "name", pLogDesc->name);
-  tjsonAddDoubleToObject(pLogdirJson, "avail", pLogDesc->size.avail);
-  tjsonAddDoubleToObject(pLogdirJson, "used", pLogDesc->size.used);
-  tjsonAddDoubleToObject(pLogdirJson, "total", pLogDesc->size.total);
+  if (tjsonAddStringToObject(pLogdirJson, "name", pLogDesc->name) != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pLogdirJson, "avail", pLogDesc->size.avail) != 0) uError("failed to add double to json");
+  if (tjsonAddDoubleToObject(pLogdirJson, "used", pLogDesc->size.used) != 0) uError("failed to add double to json");
+  if (tjsonAddDoubleToObject(pLogdirJson, "total", pLogDesc->size.total) != 0) uError("failed to add double to json");
 
   SJson *pTempdirJson = tjsonCreateObject();
   if (pTempdirJson == NULL) return;
   if (tjsonAddItemToObject(pJson, "tempdir", pTempdirJson) != 0) return;
-  tjsonAddStringToObject(pTempdirJson, "name", pTempDesc->name);
-  tjsonAddDoubleToObject(pTempdirJson, "avail", pTempDesc->size.avail);
-  tjsonAddDoubleToObject(pTempdirJson, "used", pTempDesc->size.used);
-  tjsonAddDoubleToObject(pTempdirJson, "total", pTempDesc->size.total);
+  if (tjsonAddStringToObject(pTempdirJson, "name", pTempDesc->name) != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pTempdirJson, "avail", pTempDesc->size.avail) != 0) uError("failed to add double to json");
+  if (tjsonAddDoubleToObject(pTempdirJson, "used", pTempDesc->size.used) != 0) uError("failed to add double to json");
+  if (tjsonAddDoubleToObject(pTempdirJson, "total", pTempDesc->size.total) != 0) uError("failed to add double to json");
 }
 
 static const char *monLogLevelStr(ELogLevel level) {
@@ -531,37 +590,41 @@ static void monGenLogJson(SMonInfo *pMonitor) {
 
   SJson *pLogError = tjsonCreateObject();
   if (pLogError == NULL) return;
-  tjsonAddStringToObject(pLogError, "level", "error");
-  tjsonAddDoubleToObject(pLogError, "total", numOfErrorLogs);
+  if (tjsonAddStringToObject(pLogError, "level", "error") != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pLogError, "total", numOfErrorLogs) != 0) uError("failed to add double to json");
   if (tjsonAddItemToArray(pSummaryJson, pLogError) != 0) tjsonDelete(pLogError);
 
   SJson *pLogInfo = tjsonCreateObject();
   if (pLogInfo == NULL) return;
-  tjsonAddStringToObject(pLogInfo, "level", "info");
-  tjsonAddDoubleToObject(pLogInfo, "total", numOfInfoLogs);
+  if (tjsonAddStringToObject(pLogInfo, "level", "info") != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pLogInfo, "total", numOfInfoLogs) != 0) uError("failed to add double to json");
   if (tjsonAddItemToArray(pSummaryJson, pLogInfo) != 0) tjsonDelete(pLogInfo);
 
   SJson *pLogDebug = tjsonCreateObject();
   if (pLogDebug == NULL) return;
-  tjsonAddStringToObject(pLogDebug, "level", "debug");
-  tjsonAddDoubleToObject(pLogDebug, "total", numOfDebugLogs);
+  if (tjsonAddStringToObject(pLogDebug, "level", "debug") != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pLogDebug, "total", numOfDebugLogs) != 0) uError("failed to add double to json");
   if (tjsonAddItemToArray(pSummaryJson, pLogDebug) != 0) tjsonDelete(pLogDebug);
 
   SJson *pLogTrace = tjsonCreateObject();
   if (pLogTrace == NULL) return;
-  tjsonAddStringToObject(pLogTrace, "level", "trace");
-  tjsonAddDoubleToObject(pLogTrace, "total", numOfTraceLogs);
+  if (tjsonAddStringToObject(pLogTrace, "level", "trace") != 0) uError("failed to add string to json");
+  if (tjsonAddDoubleToObject(pLogTrace, "total", numOfTraceLogs) != 0) uError("failed to add double to json");
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 
-void monSendReport(SMonInfo *pMonitor){
+void monSendReport(SMonInfo *pMonitor) {
   char *pCont = tjsonToString(pMonitor->pJson);
-  if(tsMonitorLogProtocol){
+  if (tsMonitorLogProtocol) {
     uInfoL("report cont:\n%s", pCont);
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    char          tmp[100] = {0};
+    (void)snprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    uDebug("report cont with QID:%s", tmp);
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
+                                  tmp) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);
@@ -579,8 +642,11 @@ void monSendReportBasic(SMonInfo *pMonitor) {
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) !=
-        0) {
+    char          tmp[100] = {0};
+    (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    uDebug("report cont basic with QID:%s", tmp);
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
+                                  tmp) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);
@@ -591,7 +657,7 @@ void monGenAndSendReport() {
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;
 
-  if(!tsMonitorForceV2){
+  if (!tsMonitorForceV2) {
     monGenBasicJson(pMonitor);
     monGenClusterJson(pMonitor);
     monGenVgroupJson(pMonitor);
@@ -602,8 +668,7 @@ void monGenAndSendReport() {
     monGenLogJson(pMonitor);
 
     monSendReport(pMonitor);
-  }
-  else{
+  } else {
     monGenClusterInfoTable(pMonitor);
     monGenVgroupInfoTable(pMonitor);
     monGenDnodeInfoTable(pMonitor);
@@ -624,16 +689,20 @@ void monGenAndSendReport() {
   monCleanupMonitorInfo(pMonitor);
 }
 
-void monSendContent(char *pCont, const char* uri) {
+void monSendContent(char *pCont, const char *uri) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  if(tsMonitorLogProtocol){
-    if (pCont != NULL){
+  if (tsMonitorLogProtocol) {
+    if (pCont != NULL) {
       uInfoL("report client cont:\n%s\n", pCont);
     }
   }
   if (pCont != NULL) {
+    char tmp[100] = {0};
+    (void)sprintf(tmp, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    uInfoL("report client cont with QID:%s", tmp);
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReportWithQID(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, tmp) !=
+        0) {
       uError("failed to send monitor msg");
     }
   }

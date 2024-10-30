@@ -66,6 +66,7 @@ int32_t getLogLevel() { return g_logLevel; }
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
+    assert(TSDB_CODE_SUCCESS == qInitKeywordsTable());
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
@@ -216,7 +217,7 @@ class ParserTestBaseImpl {
 
   void setParseContext(const string& sql, SParseContext* pCxt, bool async = false) {
     stmtEnv_.sql_ = sql;
-    strtolower((char*)stmtEnv_.sql_.c_str(), sql.c_str());
+    (void)strtolower((char*)stmtEnv_.sql_.c_str(), sql.c_str());
 
     pCxt->acctId = atoi(caseEnv_.acctId_.c_str());
     pCxt->db = caseEnv_.db_.c_str();

@@ -60,7 +60,12 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return NULL;
+  }
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = pInfo->type;
@@ -73,8 +78,11 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
   }
   colInfo.info.colId = 1;
 
-  blockDataAppendColInfo(pBlock, &colInfo);
-  blockDataEnsureCapacity(pBlock, pInfo->pageRows);
+  int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+  ASSERT(code == 0);
+
+  code = blockDataEnsureCapacity(pBlock, pInfo->pageRows);
+  ASSERT(code == 0);
 
   for (int32_t i = 0; i < pInfo->pageRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
@@ -87,25 +95,31 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       int32_t len = 0;
       bool    ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), size * TSDB_NCHAR_SIZE, &len);
       if (!ret) {
-        printf("error\n");
+        (void) printf("error\n");
         return NULL;
       }
       varDataSetLen(str, len);
-      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      int32_t code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      ASSERT(code == 0);
+
       pBlock->info.hasVarCol = true;
-      printf("nchar: %s\n", strOri);
+      (void) printf("nchar: %s\n", strOri);
     } else if (pInfo->type == TSDB_DATA_TYPE_BINARY || pInfo->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t size = taosRand() % VARCOUNT;
       char    str[64] = {0};
       taosRandStr(varDataVal(str), size);
       varDataSetLen(str, size);
-      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      ASSERT(code == 0);
+
       pBlock->info.hasVarCol = true;
-      printf("binary: %s\n", varDataVal(str));
+      (void) printf("binary: %s\n", varDataVal(str));
     } else if (pInfo->type == TSDB_DATA_TYPE_DOUBLE || pInfo->type == TSDB_DATA_TYPE_FLOAT) {
       double v = rand_f2();
-      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
-      printf("float: %f\n", v);
+      code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+      ASSERT(code == 0);
+
+      (void) printf("float: %f\n", v);
     } else {
       int64_t v = ++pInfo->startVal;
       char*   result = static_cast<char*>(taosMemoryCalloc(tDataTypes[pInfo->type].bytes, 1));
@@ -115,8 +129,10 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
         memcpy(result, (char*)(&v) + sizeof(int64_t) - tDataTypes[pInfo->type].bytes, tDataTypes[pInfo->type].bytes);
       }
 
-      colDataSetVal(pColInfo, i, result, false);
-      printf("int: %" PRId64 "\n", v);
+      code = colDataSetVal(pColInfo, i, result, false);
+      ASSERT(code == 0);
+
+      (void) printf("int: %" PRId64 "\n", v);
       taosMemoryFree(result);
     }
   }
@@ -348,10 +364,14 @@ TEST(testCase, ordered_merge_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  ASSERT(code == 0);
+
   for (int32_t i = 0; i < 1; ++i) {
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
-    blockDataAppendColInfo(pBlock, &colInfo);
+    code = blockDataAppendColInfo(pBlock, &colInfo);
+    ASSERT(code == 0);
   }
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");

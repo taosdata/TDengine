@@ -43,7 +43,7 @@ void initLogEnv() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.connLimitNum = 10;
   rpcInit.connLimitLock = 1;
-  rpcInit.batchSize = 16 * 1024;
+  rpcInit.shareConnLimit = 16 * 1024;
   rpcInit.supportBatch = 1;
 
   rpcDebugFlag = 135;
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");
-    return -1;
+    return terrno;
   }
 
   tInfo("client is initialized");

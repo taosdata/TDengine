@@ -44,8 +44,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
-static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
-
 int32_t mndInitTopic(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_TOPIC,
@@ -70,12 +68,21 @@ int32_t mndInitTopic(SMnode *pMnode) {
 
 void mndCleanupTopic(SMnode *pMnode) {}
 
-const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
-  //
-  return strchr(topic, '.') + 1;
+void mndTopicGetShowName(const char* fullTopic, char* topic) {
+  if (fullTopic == NULL) {
+    return;
+  }
+  char* tmp = strchr(fullTopic, '.');
+  if (tmp == NULL) {
+    tstrncpy(topic, fullTopic, TSDB_TOPIC_FNAME_LEN);
+  }else {
+    tstrncpy(topic, tmp+1, TSDB_TOPIC_FNAME_LEN);
+  }
 }
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   void   *swBuf = NULL;
@@ -129,7 +136,9 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
       goto TOPIC_ENCODE_OVER;
     }
     void *aswBuf = swBuf;
-    taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
+    if(taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema) < 0){
+      goto TOPIC_ENCODE_OVER;
+    }
     SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
   }
 
@@ -163,6 +172,8 @@ TOPIC_ENCODE_OVER:
 }
 
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow     *pRow = NULL;
   SMqTopicObj *pTopic = NULL;
@@ -259,7 +270,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
     int16_t colId;
     SDB_GET_INT16(pRaw, dataPos, &colId, TOPIC_DECODE_OVER);
-    taosArrayPush(pTopic->ntbColIds, &colId);
+    if (taosArrayPush(pTopic->ntbColIds, &colId) == NULL) {
+      goto TOPIC_DECODE_OVER;
+    }
   }
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);
@@ -295,19 +308,19 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic) {
   mTrace("topic:%s perform update action", pOldTopic->name);
-  atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
-  atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
+  (void)atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
+  (void)atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
   return 0;
 }
 
-SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName) {
+int32_t mndAcquireTopic(SMnode *pMnode, const char *topicName, SMqTopicObj **pTopic) {
   SSdb        *pSdb = pMnode->pSdb;
-  SMqTopicObj *pTopic = sdbAcquire(pSdb, SDB_TOPIC, topicName);
-  if (pTopic == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+  *pTopic = sdbAcquire(pSdb, SDB_TOPIC, topicName);
+  if (*pTopic == NULL) {
+    return TSDB_CODE_MND_TOPIC_NOT_EXIST;
   }
-  return pTopic;
+  return TDB_CODE_SUCCESS;
 }
 
 void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
@@ -316,25 +329,23 @@ void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
-  terrno = TSDB_CODE_MND_INVALID_TOPIC;
-
-  if (pCreate->sql == NULL) return -1;
+  if (pCreate->sql == NULL) return TSDB_CODE_MND_INVALID_TOPIC;
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (pCreate->ast == NULL || pCreate->ast[0] == 0) return -1;
+    if (pCreate->ast == NULL || pCreate->ast[0] == 0) return TSDB_CODE_MND_INVALID_TOPIC;
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
-    if (pCreate->subStbName[0] == 0) return -1;
+    if (pCreate->subStbName[0] == 0) return TSDB_CODE_MND_INVALID_TOPIC;
   } else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
-    if (pCreate->subDbName[0] == 0) return -1;
+    if (pCreate->subDbName[0] == 0) return TSDB_CODE_MND_INVALID_TOPIC;
   }
 
-  terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
 
 static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
   SNodeList *pNodeList = NULL;
-  nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+  int32_t   code = 0;
+  MND_TMQ_RETURN_CHECK(nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList));
   int64_t suid = ((SRealTableNode *)((SSelectStmt *)pAst)->pFromTable)->pMeta->suid;
   int8_t  tableType = ((SRealTableNode *)((SSelectStmt *)pAst)->pFromTable)->pMeta->tableType;
   if (tableType == TSDB_CHILD_TABLE) {
@@ -345,17 +356,19 @@ static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
       SColumnNode *pCol = (SColumnNode *)pNode;
       if (pCol->tableType == TSDB_NORMAL_TABLE) {
         pTopic->ntbUid = pCol->tableId;
-        taosArrayPush(pTopic->ntbColIds, &pCol->colId);
+        MND_TMQ_NULL_CHECK(taosArrayPush(pTopic->ntbColIds, &pCol->colId));
       }
     }
   }
   nodesDestroyList(pNodeList);
-  return 0;
+
+END:
+  return code;
 }
 
 static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj *topicObj){
-  STqCheckInfo info;
-  memcpy(info.topic, topicObj->name, TSDB_TOPIC_FNAME_LEN);
+  STqCheckInfo info = {0};
+  (void)memcpy(info.topic, topicObj->name, TSDB_TOPIC_FNAME_LEN);
   info.ntbUid = topicObj->ntbUid;
   info.colIdList = topicObj->ntbColIds;
   // broadcast forbid alter info
@@ -363,7 +376,7 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
   int32_t code = 0;
-  void    *buf = NULL;
+  void   *buf = NULL;
 
   while (1) {
     // iterate vg
@@ -378,16 +391,17 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     int32_t len;
     tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
     if (code != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
     buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
+    MND_TMQ_NULL_CHECK(buf);
     void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-    SEncoder encoder;
+    SEncoder encoder = {0};
     tEncoderInit(&encoder, abuf, len);
     code = tEncodeSTqCheckInfo(&encoder, &info);
     if (code < 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tEncoderClear(&encoder);
       goto END;
     }
     tEncoderClear(&encoder);
@@ -398,10 +412,7 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     action.pCont = buf;
     action.contLen = sizeof(SMsgHead) + len;
     action.msgType = TDMT_VND_TMQ_ADD_CHECKINFO;
-    code = mndTransAppendRedoAction(pTrans, &action);
-    if (code != 0) {
-      goto END;
-    }
+    MND_TMQ_RETURN_CHECK(mndTransAppendRedoAction(pTrans, &action));
     sdbRelease(pSdb, pVgroup);
     buf = NULL;
   }
@@ -417,33 +428,22 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
                               const char *userName) {
   mInfo("start to create topic:%s", pCreate->name);
   STrans *pTrans = NULL;
-  int32_t code = -1;
+  int32_t code = 0;
   SNode  *pAst = NULL;
   SQueryPlan *pPlan = NULL;
   SMqTopicObj topicObj = {0};
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
-  if (pTrans == NULL) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    code = -1;
-    goto _OUT;
-  }
-
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-topic");
+  MND_TMQ_NULL_CHECK(pTrans);
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  code = mndTransCheckConflict(pMnode, pTrans);
-  if (code != 0) {
-    goto _OUT;
-  }
+  MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   mInfo("trans:%d to create topic:%s", pTrans->id, pCreate->name);
 
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
 
-  code = mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj);
-  if (code != 0) {
-    goto _OUT;
-  }
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
 
   topicObj.createTime = taosGetTimestampMs();
   topicObj.updateTime = topicObj.createTime;
@@ -451,97 +451,60 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = taosStrdup(pCreate->sql);
+  MND_TMQ_NULL_CHECK(topicObj.sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     topicObj.ast = taosStrdup(pCreate->ast);
+    MND_TMQ_NULL_CHECK(topicObj.ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
-
     qDebugL("topic:%s ast %s", topicObj.name, topicObj.ast);
-
-    code = nodesStringToNode(pCreate->ast, &pAst);
-    if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-      goto _OUT;
-    }
-
+    MND_TMQ_RETURN_CHECK(nodesStringToNode(pCreate->ast, &pAst));
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-    if (code != 0) {
-      mError("failed to create topic:%s since %s", pCreate->name, terrstr());
-      goto _OUT;
-    }
+    MND_TMQ_RETURN_CHECK(qCreateQueryPlan(&cxt, &pPlan, NULL));
 
     topicObj.ntbColIds = taosArrayInit(0, sizeof(int16_t));
-    if (topicObj.ntbColIds == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = terrno;
-      goto _OUT;
-    }
-
-    extractTopicTbInfo(pAst, &topicObj);
-
+    MND_TMQ_NULL_CHECK(topicObj.ntbColIds);
+    MND_TMQ_RETURN_CHECK(extractTopicTbInfo(pAst, &topicObj));
     if (topicObj.ntbUid == 0) {
       taosArrayDestroy(topicObj.ntbColIds);
       topicObj.ntbColIds = NULL;
     }
 
-    code = qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema);
-    if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-      goto _OUT;
-    }
-
-    code = nodesNodeToString((SNode *)pPlan, false, &topicObj.physicalPlan, NULL);
-    if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-      goto _OUT;
-    }
+    MND_TMQ_RETURN_CHECK(qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema));
+    MND_TMQ_RETURN_CHECK(nodesNodeToString((SNode *)pPlan, false, &topicObj.physicalPlan, NULL));
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
     SStbObj *pStb = mndAcquireStb(pMnode, pCreate->subStbName);
-    if (pStb == NULL) {
-      terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-      code = terrno;
-      goto _OUT;
-    }
-
-    strcpy(topicObj.stbName, pCreate->subStbName);
+    MND_TMQ_NULL_CHECK(pStb);
+    tstrncpy(topicObj.stbName, pCreate->subStbName, TSDB_TABLE_FNAME_LEN);
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
     if(pCreate->ast != NULL){
       qDebugL("topic:%s ast %s", topicObj.name, pCreate->ast);
       topicObj.ast = taosStrdup(pCreate->ast);
+      MND_TMQ_NULL_CHECK(topicObj.ast);
       topicObj.astLen = strlen(pCreate->ast) + 1;
     }
   }
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    code = -1;
-    goto _OUT;
+  MND_TMQ_NULL_CHECK(pCommitRaw);
+  code = mndTransAppendCommitlog(pTrans, pCommitRaw);
+  if(code != 0) {
+    sdbFreeRaw(pCommitRaw);
+    goto END;
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-
+  MND_TMQ_RETURN_CHECK(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
   if (topicObj.ntbUid != 0) {
-    code = sendCheckInfoToVnode(pTrans, pMnode, &topicObj);
-    if (code != 0){
-      goto _OUT;
-    }
+    MND_TMQ_RETURN_CHECK(sendCheckInfoToVnode(pTrans, pMnode, &topicObj));
   }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    code = -1;
-    goto _OUT;
-  }
-
+  MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-_OUT:
+END:
   taosMemoryFreeClear(topicObj.physicalPlan);
   taosMemoryFreeClear(topicObj.sql);
   taosMemoryFreeClear(topicObj.ast);
@@ -557,77 +520,72 @@ _OUT:
 
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SMnode           *pMnode = pReq->info.node;
-  int32_t           code = -1;
+  int32_t           code = TDB_CODE_SUCCESS;
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
 
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    code = TSDB_CODE_INVALID_MSG;
+    goto END;
   }
 
   mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
-  if (mndCheckCreateTopicReq(&createTopicReq) != 0) {
-    mError("topic:%s failed to create since %s", createTopicReq.name, terrstr());
-    goto _OVER;
-  }
+  MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
 
-  pTopic = mndAcquireTopic(pMnode, createTopicReq.name);
-  if (pTopic != NULL) {
+  code = mndAcquireTopic(pMnode, createTopicReq.name, &pTopic);
+  if (code == TDB_CODE_SUCCESS) {
     if (createTopicReq.igExists) {
       mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
-      code = 0;
-      goto _OVER;
+      goto END;
     } else {
-      terrno = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
-      goto _OVER;
+      code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
+      goto END;
     }
-  } else if (terrno != TSDB_CODE_MND_TOPIC_NOT_EXIST) {
-    goto _OVER;
+  } else if (code != TSDB_CODE_MND_TOPIC_NOT_EXIST) {
+    goto END;
   }
 
   pDb = mndAcquireDb(pMnode, createTopicReq.subDbName);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
-  }
+  MND_TMQ_NULL_CHECK(pDb);
 
   if (pDb->cfg.walRetentionPeriod == 0) {
-    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    code = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to create topic when WAL_RETENTION_PERIOD is zero", pDb->name);
-    goto _OVER;
+    goto END;
   }
 
   if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
-    terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
+    code = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
     mError("topic num out of range");
-    goto _OVER;
+    goto END;
   }
 
-  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
-    goto _OVER;
-  }
-
+  MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user);
   if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  SName dbname = {0};
-  tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+  {
+    SName dbname = {0};
+    int32_t ret = tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+    if (ret != 0){
+      mError("failed to parse db name:%s, ret:%d", createTopicReq.subDbName, ret);
+    }
+    SName topicName = {0};
+    ret = tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (ret != 0){
+      mError("failed to parse topic name:%s, ret:%d", createTopicReq.name, ret);
+    }
+    auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
+                createTopicReq.sql, strlen(createTopicReq.sql));
+  }
 
-  SName topicName = {0};
-  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  //reuse this function for topic
-
-  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
-              createTopicReq.sql, strlen(createTopicReq.sql));
-
-_OVER:
+END:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
+    mError("failed to create topic:%s since %s", createTopicReq.name, tstrerror(code));
   }
 
   mndReleaseTopic(pMnode, pTopic);
@@ -638,37 +596,35 @@ _OVER:
 }
 
 static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTopicObj *pTopic) {
-  int32_t code = -1;
-  if (mndUserRemoveTopic(pMnode, pTrans, pTopic->name) != 0) {
-    goto _OVER;
+  int32_t code = 0;
+  SSdbRaw *pCommitRaw = NULL;
+  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, pTopic->name));
+  pCommitRaw = mndTopicActionEncode(pTopic);
+  MND_TMQ_NULL_CHECK(pCommitRaw);
+  code = mndTransAppendCommitlog(pTrans, pCommitRaw);
+  if(code != 0) {
+    sdbFreeRaw(pCommitRaw);
+    goto END;
   }
+  MND_TMQ_RETURN_CHECK(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+  MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 
-  SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    goto _OVER;
-  }
-
-  code = 0;
-
-_OVER:
+END:
   return code;
 }
 
-static bool checkTopic(SArray *topics, char *topicName){
+bool checkTopic(SArray *topics, char *topicName){
   int32_t sz = taosArrayGetSize(topics);
   for (int32_t i = 0; i < sz; i++) {
     char *name = taosArrayGetP(topics, i);
-    if (strcmp(name, topicName) == 0) {
+    if (name && strcmp(name, topicName) == 0) {
       return true;
     }
   }
   return false;
 }
 
-static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
+static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
   int32_t         code = 0;
   SSdb           *pSdb    = pMnode->pSdb;
   void           *pIter = NULL;
@@ -681,30 +637,16 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
 
     bool found = checkTopic(pConsumer->assignedTopics, topicName);
     if (found){
-      if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
-        code = mndSetConsumerDropLogs(pTrans, pConsumer);
-        if (code != 0) {
-          goto end;
-        }
-        sdbRelease(pSdb, pConsumer);
-        continue;
-      }
       mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
              topicName, pConsumer->consumerId, pConsumer->cgroup);
       code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-      goto end;
+      goto END;
     }
 
-    if (checkTopic(pConsumer->rebNewTopics, topicName) || checkTopic(pConsumer->rebRemovedTopics, topicName))  {
-      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-      mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
-             topicName, pConsumer->consumerId, pConsumer->cgroup);
-      goto end;
-    }
     sdbRelease(pSdb, pConsumer);
   }
 
-end:
+END:
   sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pIter);
   return code;
@@ -726,13 +668,10 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
     }
 
     buf = taosMemoryCalloc(1, sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN);
-    if (buf == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto end;
-    }
+    MND_TMQ_NULL_CHECK(buf);
     void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
     ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
-    memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+    (void)memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
 
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -742,12 +681,12 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
     code = mndTransAppendRedoAction(pTrans, &action);
     if (code != 0) {
       taosMemoryFree(buf);
-      goto end;
+      goto END;
     }
     sdbRelease(pSdb, pVgroup);
   }
 
-end:
+END:
   sdbRelease(pSdb, pVgroup);
   sdbCancelFetch(pSdb, pIter);
   return code;
@@ -761,81 +700,54 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   STrans      *pTrans = NULL;
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
-  pTopic = mndAcquireTopic(pMnode, dropReq.name);
-  if (pTopic == NULL) {
+  code = mndAcquireTopic(pMnode, dropReq.name, &pTopic);
+  if (code != 0) {
     if (dropReq.igNotExists) {
       mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
       tFreeSMDropTopicReq(&dropReq);
       return 0;
     } else {
-      terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
-      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
       tFreeSMDropTopicReq(&dropReq);
-      return -1;
+      return code;
     }
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-topic");
-  if (pTrans == NULL) {
-    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
-    code = -1;
-    goto end;
-  }
+  MND_TMQ_NULL_CHECK(pTrans);
 
   mndTransSetDbName(pTrans, pTopic->db, NULL);
-  code = mndTransCheckConflict(pMnode, pTrans);
-  if (code != 0) {
-    goto end;
-  }
-
+  MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
 
-  code = mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic);
-  if (code != 0) {
-    goto end;
-  }
-
-  code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db);
-  if (code != 0) {
-    goto end;
-  }
-
-  code = mndDropConsumerByTopic(pMnode, pTrans, dropReq.name);
-  if (code != 0) {
-    goto end;
-  }
-
-  code = mndDropSubByTopic(pMnode, pTrans, dropReq.name);
-  if (code < 0) {
-    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
-    goto end;
-  }
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
+  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name));
+  MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name));
 
   if (pTopic->ntbUid != 0) {
-    code = mndDropCheckInfoByTopic(pMnode, pTrans, pTopic);
-    if (code != 0) {
-      goto end;
-    }
+    MND_TMQ_RETURN_CHECK(mndDropCheckInfoByTopic(pMnode, pTrans, pTopic));
   }
 
   code = mndDropTopic(pMnode, pTrans, pReq, pTopic);
 
-end:
+END:
   mndReleaseTopic(pMnode, pTopic);
   mndTransDrop(pTrans);
   if (code != 0) {
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
     tFreeSMDropTopicReq(&dropReq);
     return code;
   }
 
   SName name = {0};
-  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-
+  int32_t ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (ret != 0) {
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(ret));
+  }
   auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
@@ -849,8 +761,7 @@ int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    return -1;
+    return TSDB_CODE_MND_DB_NOT_SELECTED;
   }
 
   int32_t numOfTopics = 0;
@@ -875,18 +786,24 @@ int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
 }
 
 static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
-  char*  string = NULL;
+  char*   string = NULL;
+  int32_t code = 0;
   cJSON* columns = cJSON_CreateArray();
-  if (columns == NULL) {
-    return;
-  }
+  MND_TMQ_NULL_CHECK(columns);
   for (int i = 0; i < nCols; i++) {
     cJSON*   column = cJSON_CreateObject();
+    MND_TMQ_NULL_CHECK(column);
     SSchema* s = schema + i;
     cJSON*   cname = cJSON_CreateString(s->name);
-    cJSON_AddItemToObject(column, "name", cname);
+    MND_TMQ_NULL_CHECK(cname);
+    if (!cJSON_AddItemToObject(column, "name", cname)) {
+      return;
+    }
     cJSON* ctype = cJSON_CreateString(tDataTypes[s->type].name);
-    cJSON_AddItemToObject(column, "type", ctype);
+    MND_TMQ_NULL_CHECK(ctype);
+    if (!cJSON_AddItemToObject(column, "type", ctype)) {
+      return;
+    }
     int32_t length = 0;
     if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY ||
         s->type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -897,8 +814,13 @@ static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
       length = s->bytes;
     }
     cJSON*  cbytes = cJSON_CreateNumber(length);
-    cJSON_AddItemToObject(column, "length", cbytes);
-    cJSON_AddItemToArray(columns, column);
+    MND_TMQ_NULL_CHECK(cbytes);
+    if (!cJSON_AddItemToObject(column, "length", cbytes)){
+      return;
+    }
+    if (!cJSON_AddItemToArray(columns, column)){
+      return;
+    }
   }
   string = cJSON_PrintUnformatted(columns);
   cJSON_Delete(columns);
@@ -910,6 +832,9 @@ static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
     mError("mndRetrieveTopic build schema error json:%p, json len:%zu", string, len);
   }
   taosMemoryFree(string);
+
+END:
+  return;
 }
 
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
@@ -917,13 +842,16 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   SMqTopicObj *pTopic = NULL;
+  int32_t      code = 0;
+  char        *sql  = NULL;
+  char        *schemaJson  = NULL;
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pTopic);
     if (pShow->pIter == NULL) break;
 
-    SColumnInfoData *pColInfo;
-    SName            n;
+    SColumnInfoData *pColInfo= NULL;
+    SName            n = {0};
     int32_t          cols = 0;
 
     char        topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
@@ -931,28 +859,34 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_TO_VARSTR(topicName, pName);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false));
 
     char dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&n, varDataVal(dbName));
+    MND_TMQ_RETURN_CHECK(tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB));
+    MND_TMQ_RETURN_CHECK(tNameGetDbName(&n, varDataVal(dbName)));
     varDataSetLen(dbName, strlen(varDataVal(dbName)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)dbName, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)dbName, false));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pTopic->createTime, false));
 
-    char *sql = taosMemoryMalloc(strlen(pTopic->sql) + VARSTR_HEADER_SIZE);
+    sql = taosMemoryMalloc(strlen(pTopic->sql) + VARSTR_HEADER_SIZE);
+    MND_TMQ_NULL_CHECK(sql);
     STR_TO_VARSTR(sql, pTopic->sql);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)sql, false));
 
-    taosMemoryFree(sql);
+    taosMemoryFreeClear(sql);
 
-    char *schemaJson = taosMemoryMalloc(TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE);
+    schemaJson = taosMemoryMalloc(TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE);
+    MND_TMQ_NULL_CHECK(schemaJson);
     if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
       schemaToJson(pTopic->schema.pSchema, pTopic->schema.nCols, schemaJson);
     }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
@@ -969,8 +903,9 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)schemaJson, false);
-    taosMemoryFree(schemaJson);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)schemaJson, false));
+    taosMemoryFreeClear(schemaJson);
 
     char mete[4 + VARSTR_HEADER_SIZE] = {0};
     if(pTopic->withMeta){
@@ -980,7 +915,8 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)mete, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)mete, false));
 
     char type[8 + VARSTR_HEADER_SIZE] = {0};
     if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
@@ -992,7 +928,8 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)type, false);
+    MND_TMQ_NULL_CHECK(pColInfo);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)type, false));
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
@@ -1000,29 +937,16 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
-}
 
-int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {
-  SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
-
-  return 0;
-}
-
-static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {
-  SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
-
-  return 0;
+END:
+  taosMemoryFreeClear(schemaJson);
+  taosMemoryFreeClear(sql);
+  return code;
 }
 
 static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_TOPIC);
 }
 
 bool mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb) {
@@ -1047,33 +971,3 @@ bool mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb) {
 
   return false;
 }
-
-#if 0
-int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  void        *pIter = NULL;
-  SMqTopicObj *pTopic = NULL;
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    if (pTopic->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pTopic);
-      continue;
-    }
-
-    if (mndSetDropTopicCommitLogs(pMnode, pTrans, pTopic) < 0) {
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      code = -1;
-      break;
-    }
-
-    sdbRelease(pSdb, pTopic);
-  }
-
-  return code;
-}
-#endif

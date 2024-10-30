@@ -40,11 +40,12 @@ TEST_F(TfsTest, 01_Open_Close) {
   dCfg.disable = 0;
 
   taosRemoveDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   taosMulMkDir(root);
-  pTfs = tfsOpen(&dCfg, 1);
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   tfsUpdateSize(pTfs);
@@ -68,7 +69,8 @@ TEST_F(TfsTest, 02_AllocDisk) {
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   SDiskID did;
@@ -120,7 +122,8 @@ TEST_F(TfsTest, 03_Dir) {
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   char p1[] = "p1";
@@ -175,7 +178,8 @@ TEST_F(TfsTest, 04_File) {
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   STfsFile file0;
@@ -264,7 +268,8 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_NE(taosDirExist(af2), 1);
 
     {
-      STfsDir *pDir = tfsOpendir(pTfs, "t3");
+      STfsDir *pDir = NULL;
+      tfsOpendir(pTfs, "t3", &pDir);
 
       const STfsFile *pf1 = tfsReaddir(pDir);
       EXPECT_NE(pf1, nullptr);
@@ -281,7 +286,8 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_GT(tfsCopyFile(&f1, &f2), 0);
 
     {
-      STfsDir *pDir = tfsOpendir(pTfs, "t3");
+      STfsDir *pDir = NULL;
+      tfsOpendir(pTfs, "t3", &pDir);
 
       const STfsFile *pf1 = tfsReaddir(pDir);
       EXPECT_NE(pf1, nullptr);
@@ -386,17 +392,18 @@ TEST_F(TfsTest, 05_MultiDisk) {
   taosMkDir(root22);
   taosMkDir(root23);
 
-  STfs *pTfs = tfsOpen(dCfg, 9);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   dCfg[0].primary = 1;
   dCfg[1].primary = 1;
-  pTfs = tfsOpen(dCfg, 9);
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   dCfg[0].primary = 0;
   dCfg[1].primary = 1;
-  pTfs = tfsOpen(dCfg, 9);
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   tfsUpdateSize(pTfs);
@@ -693,7 +700,8 @@ TEST_F(TfsTest, 05_MultiDisk) {
       tfsRemoveFile(&f2);
 
       {
-        STfsDir *pDir = tfsOpendir(pTfs, "t3");
+        STfsDir *pDir = NULL;
+        tfsOpendir(pTfs, "t3", &pDir);
 
         const STfsFile *pf1 = tfsReaddir(pDir);
         EXPECT_NE(pf1, nullptr);
@@ -711,7 +719,8 @@ TEST_F(TfsTest, 05_MultiDisk) {
       EXPECT_GT(tfsCopyFile(&f1, &f2), 0);
 
       {
-        STfsDir *pDir = tfsOpendir(pTfs, "t3");
+        STfsDir *pDir = NULL;
+        tfsOpendir(pTfs, "t3", &pDir);
 
         const STfsFile *pf1 = tfsReaddir(pDir);
         EXPECT_NE(pf1, nullptr);

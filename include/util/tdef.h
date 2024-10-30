@@ -40,7 +40,7 @@ extern const int32_t TYPE_BYTES[21];
 #define LONG_BYTES      sizeof(int64_t)
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
-#define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+#define POINTER_BYTES   sizeof(void *)
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
@@ -131,10 +131,10 @@ static const int64_t TICK_PER_SECOND[] = {
                  : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
-#define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
-  do {                                                                              \
-    memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
-    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                    \
+#define T_APPEND_MEMBER(dst, ptr, type, member)                                           \
+  do {                                                                                    \
+    (void)memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
+    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                          \
   } while (0)
 #define T_READ_MEMBER(src, type, target)          \
   do {                                            \
@@ -221,6 +221,8 @@ typedef enum ELogicConditionType {
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
+#define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
@@ -282,7 +284,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
-#define TSDB_FQDN_LEN             128
+#define TSDB_FQDN_LEN             TD_FQDN_LEN
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
@@ -291,6 +293,14 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+#define TSDB_ANAL_ANODE_URL_LEN   128
+#define TSDB_ANAL_ALGO_NAME_LEN   64
+#define TSDB_ANAL_ALGO_TYPE_LEN   24
+#define TSDB_ANAL_ALGO_KEY_LEN    (TSDB_ANAL_ALGO_NAME_LEN + 9)
+#define TSDB_ANAL_ALGO_URL_LEN    (TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1)
+#define TSDB_ANAL_ALGO_OPTION_LEN 256
+
+#define TSDB_MAX_EP_NUM 10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -328,6 +338,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
@@ -439,13 +450,13 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MIN_S3_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_S3_CHUNK_SIZE     (1024 * 1024)
-#define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
+#define TSDB_DEFAULT_S3_CHUNK_SIZE (128 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
-#define TSDB_DEFAULT_S3_COMPACT    0
+#define TSDB_DEFAULT_S3_COMPACT    1
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -495,7 +506,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 10
+#define TSDB_MAX_RPC_THREADS 50
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -556,12 +567,15 @@ typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
 
-#define TMQ_SEPARATOR ':'
+#define TMQ_SEPARATOR      ":"
+#define TMQ_SEPARATOR_CHAR ':'
 
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
+
+enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
@@ -595,6 +609,13 @@ enum {
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+typedef enum {
+  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANAL_ALGO_TYPE_FORECAST = 1,
+  ANAL_ALGO_TYPE_END,
+} EAnalAlgoType;
+
 #ifdef __cplusplus
 }
 #endif

@@ -82,7 +82,7 @@ extern "C" {
 #define IS_SLASH_LETTER_IN_MEASUREMENT(sql)                                                           \
   (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == SLASH))
 
-#define MOVE_FORWARD_ONE(sql, len) (memmove((void *)((sql)-1), (sql), len))
+#define MOVE_FORWARD_ONE(sql, len) ((void)memmove((void *)((sql)-1), (sql), len))
 
 #define PROCESS_SLASH_IN_MEASUREMENT(key, keyLen)           \
   for (int i = 1; i < keyLen; ++i) {         \
@@ -199,11 +199,13 @@ typedef struct {
   SArray      *preLineTagKV;
   SArray      *maxTagKVs;
   SArray      *maxColKVs;
+  SArray      *escapedStringList;
 
   SSmlLineInfo preLine;
   STableMeta  *currSTableMeta;
   STableDataCxt *currTableDataCtx;
   bool         needModifySchema;
+  char        *tbnameKey;
 } SSmlHandle;
 
 extern int64_t smlFactorNS[];
@@ -211,19 +213,20 @@ extern int64_t smlFactorS[];
 
 typedef int32_t (*_equal_fn_sml)(const void *, const void *);
 
-SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
+int32_t       smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle);
 void          smlDestroyInfo(SSmlHandle *info);
 int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
 int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
-int32_t       smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
-bool          smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
+void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
+int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
-SSmlTableInfo*    smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen);
-SSmlSTableMeta*   smlBuildSTableMeta(bool isDataFormat);
-int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
-void              getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
-STableMeta*       smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen);
+
+int32_t           smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen, SSmlTableInfo** tInfo);
+int32_t           smlBuildSTableMeta(bool isDataFormat, SSmlSTableMeta** sMeta);
+int32_t           smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey);
+int32_t           getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
+int32_t           smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen, STableMeta **pTableMeta);
 int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
@@ -236,7 +239,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
 
-SSmlSTableMeta* smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement);
+int32_t         smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSmlSTableMeta** sMeta);
 bool            isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
 bool            isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
 int32_t         smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements);

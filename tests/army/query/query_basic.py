@@ -225,6 +225,11 @@ class TDTestCase(TBase):
         sql2 = "select bi from stb where bi is not null order by bi desc limit 10;"
         self.checkSameResult(sql1, sql2)
 
+        # same as by TD-31726
+        sql1 = "select fc as a, dc as a from stb limit 5;"
+        sql2 = "select * from (select fc as a, dc as a from stb)t limit 5;"
+        self.checkSameResult(sql1, sql2)
+
         # distributed expect values
         expects = {
             "Block_Rows"     : 6*100000,
@@ -262,9 +267,9 @@ class TDTestCase(TBase):
         sql1 = f"select substr(bin,1) from {self.db}.d0 order by ts desc limit 100"
         sql2 = f"select bin from {self.db}.d0 order by ts desc limit 100"
         self.checkSameResult(sql1, sql2)
-        #substr error input pos is zero
         sql = f"select substr(bin,0,3) from {self.db}.d0 order by ts desc limit 100"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, "")
 
         # cast
         nch = 99

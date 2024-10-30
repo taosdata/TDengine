@@ -64,7 +64,7 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
                                                                 : 1000000000;
   time_t    t = taosTime(NULL);
   struct tm tm;
-  taosLocalTime(&t, &tm, NULL);
+  (void) taosLocalTime(&t, &tm, NULL, 0);
   tm.tm_hour = 0;
   tm.tm_min = 0;
   tm.tm_sec = 0;
@@ -86,11 +86,11 @@ void    deltaToUtcInitOnce();
 char    getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
-int64_t convertTimeFromPrecisionToUnit(int64_t ts, int32_t fromPrecision, char toUnit);
+int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
 
-void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
+int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 
 struct STm {
   struct tm tm;
@@ -117,7 +117,7 @@ int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t pr
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
                     int32_t errMsgLen);
 
-void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
 
 /// @brief get offset seconds from zero timezone to input timezone

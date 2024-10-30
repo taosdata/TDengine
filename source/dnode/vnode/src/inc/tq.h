@@ -41,8 +41,6 @@ extern "C" {
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct STqOffsetStore STqOffsetStore;
-
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
 // tqExec
@@ -101,10 +99,11 @@ struct STQ {
   SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
-  STqOffsetStore* pOffsetStore;
+  SHashObj*       pOffset;     // subKey -> STqOffsetVal
   TDB*            pMetaDB;
   TTB*            pExecStore;
   TTB*            pCheckStore;
+  TTB*            pOffsetStore;
   SStreamMeta*    pStreamMeta;
 };
 
@@ -113,58 +112,71 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
 
 // tqRead
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset);
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset);
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp,
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
+int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
-int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
+void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
-int32_t tqMetaClose(STQ* pTq);
+void    tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
-int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
-int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
-int32_t tqMetaRestoreCheckInfo(STQ* pTq);
-int32_t tqMetaGetHandle(STQ* pTq, const char* key);
-int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
-
-STqOffsetStore* tqOffsetOpen(STQ* pTq);
-int32_t         tqMetaTransform(STQ* pTq);
-void            tqOffsetClose(STqOffsetStore*);
-STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
-int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
-
+int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen);
+int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
+int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
+int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
+int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen);
+int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
+int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
+int32_t tqMetaTransform(STQ* pTq);
 // tqSink
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr, bool newSubTableRule);
 void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
-char*   tqOffsetBuildFName(const char* path, int32_t fVer);
-int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
+int32_t tqBuildFName(char** data, const char* path, char* name);
+int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
 // tq util
 int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const void* pRsp, int32_t epoch, int64_t consumerId,
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
-int32_t tqInitDataRsp(SMqDataRspCommon* pRsp, STqOffsetVal pOffset);
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
 int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
                                  SSubmitTbData* pTableData, int64_t earlyTs, const char* id);
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
-SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
-                                       SSDataBlock* pDataBlock, SArray* pTagArray, bool newSubTableRule);
+int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
+                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
+
+#define TQ_ERR_GO_TO_END(c)          \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      goto END;                      \
+    }                                \
+  } while (0)
+
+#define TQ_NULL_GO_TO_END(c)            \
+  do {                                  \
+    if (c == NULL) {                    \
+      code = (terrno == 0 ? TSDB_CODE_OUT_OF_MEMORY : terrno);                   \
+      goto END;                         \
+    }                                   \
+  } while (0)
+
+#define TQ_SUBSCRIBE_NAME "subscribe"
+#define TQ_OFFSET_NAME    "offset-ver0"
 
 #ifdef __cplusplus
 }

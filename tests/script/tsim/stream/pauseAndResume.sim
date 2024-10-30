@@ -17,7 +17,8 @@ sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
 
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);
-sleep 2000
+
+run tsim/stream/checkTaskStatus.sim
 
 sql_error create stream stream1_same_dst into streamt1 as select _wstart, count(*) c1, sum(a) c3 from st interval(10s);
 
@@ -108,11 +109,12 @@ endi
 print ===== idle for 70 sec for checkpoint gen
 sleep 70000
 
-print ===== idle 60 sec completed , continue
+print ===== idle 70 sec completed , continue
 
 print ===== step 1 over
 
 print ===== step2
+sql drop database if exists test;
 sql drop stream if exists streams2;
 sql drop database if exists test2;
 sql create database test2  vgroups 1;
@@ -125,8 +127,12 @@ sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 wate
 sql_error create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
 sql create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
 
-sleep 1000
+print start to check stream status
 
+sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
+print pause stream2
 sql pause stream streams2;
 
 sql insert into t1 values(1648791213001,1,12,3,1.0);
@@ -249,6 +255,7 @@ print ===== step 2 over
 
 
 print ===== step3
+sql drop database if exists test2;
 sql drop stream if exists streams3;
 sql drop database if exists test3;
 sql create database test3  vgroups 3;
@@ -263,6 +270,8 @@ sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 wate
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt4 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt5 as select  _wstart, count(*) c1, sum(a) c3 from ts1 interval(10s);
 sleep 1000
+
+run tsim/stream/checkTaskStatus.sim
 
 sql pause stream streams3;
 
@@ -325,6 +334,7 @@ sql resume stream IF EXISTS streams66666666;
 print ===== step 4 over
 
 print ===== step5
+sql drop database if exists test3;
 sql drop stream if exists streams6;
 sql drop database if exists test6;
 sql create database test6  vgroups 10;
@@ -337,6 +347,7 @@ sql create table ts4 using st tags(4,2,2);
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt6 as select  _wstart, count(*) c1 from st interval(10s);
 
 sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);

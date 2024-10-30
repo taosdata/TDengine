@@ -29,5 +29,6 @@ int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs)
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp);
 int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp);
 void    qExplainFreeCtx(SExplainCtx *pCtx);
+int32_t formatDurationOrKeep(char* buffer, int64_t bufSize, int32_t timeInMinutes);
 
 #endif

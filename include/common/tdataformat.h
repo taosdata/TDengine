@@ -115,8 +115,8 @@ typedef struct {
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
-int32_t tValueColumnDestroy(SValueColumn *valCol);
-int32_t tValueColumnClear(SValueColumn *valCol);
+void    tValueColumnDestroy(SValueColumn *valCol);
+void    tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
@@ -136,7 +136,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -153,7 +153,6 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
@@ -193,7 +192,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray *colDataArr);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
@@ -315,7 +314,7 @@ struct STag {
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
+    (void)memcpy(varDataVal(x), (str), __len);    \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -324,10 +323,10 @@ struct STag {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
-  do {                                          \
-    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
-    memcpy(varDataVal(x), (str), (_size));      \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)   \
+  do {                                           \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size);  \
+    (void)memcpy(varDataVal(x), (str), (_size)); \
   } while (0);
 
 // STSchema ================================
@@ -377,6 +376,19 @@ typedef struct {
 } SBindInfo;
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                           SArray *rowArray);
+
+// stmt2 binding
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  int32_t          bytes;
+  TAOS_STMT2_BIND *bind;
+} SBindInfo2;
+
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                           SArray *rowArray);
 
 #endif
 

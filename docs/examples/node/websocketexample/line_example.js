@@ -1,16 +1,8 @@
 const taos = require("@tdengine/websocket");
 
-let influxdbData = ["meters,location=California.LosAngeles,groupId=2 current=11.8,voltage=221,phase=0.28 1648432611249",
-    "meters,location=California.LosAngeles,groupId=2 current=13.4,voltage=223,phase=0.29 1648432611250",
-    "meters,location=California.LosAngeles,groupId=3 current=10.8,voltage=223,phase=0.29 1648432611249"];
-
-let jsonData = ["{\"metric\": \"meter_current\",\"timestamp\": 1626846402,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}",
-    "{\"metric\": \"meter_current\",\"timestamp\": 1626846403,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1002\"}}",
-    "{\"metric\": \"meter_current\",\"timestamp\": 1626846404,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1003\"}}"]
-
-let telnetData = ["meters.current 1648432611249 10.3 location=California.SanFrancisco groupid=2",
-    "meters.current 1648432611250 12.6 location=California.SanFrancisco groupid=2",
-    "meters.current 1648432611249 10.8 location=California.LosAngeles groupid=3"];
+let influxdbData = ["meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639"];
+let jsonData = ["{\"metric\": \"metric_json\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}"]
+let telnetData = ["metric_telnet 1707095283260 4 host=host0 interface=eth0"];
 
 async function createConnect() {
     let dsn = 'ws://localhost:6041'
@@ -23,6 +15,7 @@ async function createConnect() {
     return wsSql;
 }
 
+
 async function test() {
     let wsSql = null;
     let wsRows = null;
@@ -30,11 +23,13 @@ async function test() {
     try {
         wsSql = await createConnect()
         await wsSql.schemalessInsert(influxdbData, taos.SchemalessProto.InfluxDBLineProtocol, taos.Precision.MILLI_SECONDS, ttl);
-        await wsSql.schemalessInsert(jsonData, taos.SchemalessProto.OpenTSDBJsonFormatProtocol, taos.Precision.SECONDS, ttl);
         await wsSql.schemalessInsert(telnetData, taos.SchemalessProto.OpenTSDBTelnetLineProtocol, taos.Precision.MILLI_SECONDS, ttl);
+        await wsSql.schemalessInsert(jsonData, taos.SchemalessProto.OpenTSDBJsonFormatProtocol, taos.Precision.SECONDS, ttl);
+        console.log("Inserted data with schemaless successfully.")
     }
     catch (err) {
-        console.error(err.code, err.message);
+        console.error(`Failed to insert data with schemaless, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
     finally {
         if (wsRows) {
@@ -46,4 +41,5 @@ async function test() {
         taos.destroy();
     }
 }
+
 test()

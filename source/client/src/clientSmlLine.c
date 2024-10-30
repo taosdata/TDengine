@@ -103,7 +103,10 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         return code;
       }
       char* tmp = taosMemoryCalloc(pVal->length, 1);
-      memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
+      if (tmp == NULL){
+        return terrno;
+      }
+      (void)memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
       code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
@@ -147,9 +150,9 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         }
         void *data = taosMemoryMalloc(pVal->length);
         if(data == NULL){
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
-        memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
+        (void)memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
         pVal->value = data;
       }
 
@@ -212,8 +215,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
-        terrno = TSDB_CODE_SML_INVALID_DATA;
-        return -1;
+        return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
         keyLen = *sql - key;
@@ -230,8 +232,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
       smlBuildInvalidDataMsg(&info->msgBuf, "invalid key or key is too long than 64", key);
-      terrno = TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
-      return -1;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
     // parse value
@@ -245,8 +246,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         break;
       } else if (unlikely(IS_EQUAL(*sql,escapeChar))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
-        terrno = TSDB_CODE_SML_INVALID_DATA;
-        return -1;
+        return TSDB_CODE_SML_INVALID_DATA;
       }
 
       if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
@@ -261,24 +261,28 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 
     if (unlikely(valueLen == 0)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", value);
-      terrno = TSDB_CODE_SML_INVALID_DATA;
-      return -1;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
 
     if (unlikely(valueLen - valueLenEscaped > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
-      terrno = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
-      return -1;
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
     if (keyEscaped) {
       char *tmp = (char *)taosMemoryMalloc(keyLen);
-      memcpy(tmp, key, keyLen);
+      if (tmp == NULL){
+        return terrno;
+      }
+      (void)memcpy(tmp, key, keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, keyLen);
       key = tmp;
     }
     if (valueEscaped) {
       char *tmp = (char *)taosMemoryMalloc(valueLen);
-      memcpy(tmp, value, valueLen);
+      if (tmp == NULL){
+        return terrno;
+      }
+      (void)memcpy(tmp, value, valueLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, valueLen);
       value = tmp;
     }
@@ -289,11 +293,12 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         .length = valueLen,
         .keyEscaped = keyEscaped,
         .valueEscaped = valueEscaped};
-    taosArrayPush(preLineKV, &kv);
+    if(taosArrayPush(preLineKV, &kv) == NULL){
+      return terrno;
+    }
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
-      terrno = TSDB_CODE_SUCCESS;
-      return -1;
+      return TSDB_CODE_TSC_INVALID_JSON;
     }
 
     cnt++;
@@ -302,7 +307,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     }
     (*sql)++;
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *elements) {
@@ -315,13 +320,19 @@ static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
   if(info->dataFormat){
     ret = smlProcessSuperTable(info, elements);
     if(ret != 0){
-      return terrno;
+      if(info->reRun){
+        return TSDB_CODE_SUCCESS;
+      }
+      return ret;
     }
   }
 
   ret = smlProcessTagLine(info, sql, sqlEnd);
   if(ret != 0){
-    return terrno;
+    if (info->reRun){
+      return TSDB_CODE_SUCCESS;
+    }
+    return ret;
   }
 
   return smlProcessChildTable(info, elements);
@@ -410,7 +421,10 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 
     if (keyEscaped) {
       char *tmp = (char *)taosMemoryMalloc(kv.keyLen);
-      memcpy(tmp, key, kv.keyLen);
+      if (tmp == NULL){
+        return terrno;
+      }
+      (void)memcpy(tmp, key, kv.keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, kv.keyLen);
       kv.key = tmp;
       kv.keyEscaped = keyEscaped;
@@ -418,9 +432,16 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 
     if (valueEscaped) {
       char *tmp = (char *)taosMemoryMalloc(kv.length);
-      memcpy(tmp, kv.value, kv.length);
+      if (tmp == NULL){
+        return terrno;
+      }
+      (void)memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
-      ASSERT(kv.type != TSDB_DATA_TYPE_GEOMETRY);
+      if(kv.type == TSDB_DATA_TYPE_GEOMETRY) {
+        uError("SML:0x%" PRIx64 " smlParseColLine error, invalid GEOMETRY type.", info->id);
+        taosMemoryFree((void*)kv.value);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
       if(kv.type == TSDB_DATA_TYPE_VARBINARY){
         taosMemoryFree((void*)kv.value);
       }
@@ -430,6 +451,13 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 
     if (info->dataFormat) {
       bool isAligned = isSmlColAligned(info, cnt, &kv);
+      if (kv.type == TSDB_DATA_TYPE_BINARY && valueEscaped) {
+        if (taosArrayPush(info->escapedStringList, &kv.value) == NULL){
+          freeSSmlKv(&kv);
+          return terrno;
+        }
+        kv.value = NULL;
+      }
       freeSSmlKv(&kv);
       if(!isAligned){
         return TSDB_CODE_SUCCESS;
@@ -437,8 +465,15 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     } else {
       if (currElement->colArray == NULL) {
         currElement->colArray = taosArrayInit_s(sizeof(SSmlKv), 1);
+        if (currElement->colArray == NULL) {
+          freeSSmlKv(&kv);
+          return terrno;
+        }
       }
-      taosArrayPush(currElement->colArray, &kv);  // reserve for timestamp
+      if (taosArrayPush(currElement->colArray, &kv) == NULL){  // reserve for timestamp
+        freeSSmlKv(&kv);
+        return terrno;
+      }
     }
 
     cnt++;

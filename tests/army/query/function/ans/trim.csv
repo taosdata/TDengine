@@ -1,0 +1,1049 @@
+
+taos> select trim('foo')
+ trim('foo') |
+==============
+ foo         |
+
+taos> select trim('foo' from 'foobarfoo')
+ trim('foo' from 'foobarfoo') |
+===============================
+ bar                          |
+
+taos> select trim(trailing 'foo' from 'foobarfoo')
+ trim(trailing 'foo' from 'foobarfoo') |
+========================================
+ foobar                                |
+
+taos> select trim(leading 'foo' from 'foobarfoo')
+ trim(leading 'foo' from 'foobarfoo') |
+=======================================
+ barfoo                               |
+
+taos> select trim(both 'foo' from 'foobarfoo')
+ trim(both 'foo' from 'foobarfoo') |
+====================================
+ bar                               |
+
+taos> select trim('   blank     ')
+ trim('   blank     ') |
+========================
+ blank                 |
+
+taos> select trim(both ' ' from '   bla  nk     ')
+ trim(both ' ' from '   bla  nk     ') |
+========================================
+ bla  nk                               |
+
+taos> select trim(leading ' ' from '   bla  nk')
+ trim(leading ' ' from '   bla  nk') |
+======================================
+ bla  nk                             |
+
+taos> select trim(trailing ' ' from '   bla  nk     ')
+ trim(trailing ' ' from '   bla  nk     ') |
+============================================
+    bla  nk                                |
+
+taos> select trim(' ' from '   blank     ')
+ trim(' ' from '   blank     ') |
+=================================
+ blank                          |
+
+taos> select TRIM(BOTH 'å' FROM 'aæaå')
+ trim(both 'å' from 'aæaå') |
+================================
+ aæa                           |
+
+taos> select trim('  中文测试  ')
+ trim('  中文测试  ') |
+===========================
+ 中文测试                 |
+
+taos> select trim(both ' ' from '  中文测试  ')
+ trim(both ' ' from '  中文测试  ') |
+=========================================
+ 中文测试                               |
+
+taos> select trim(leading ' ' from '  中文测试')
+ trim(leading ' ' from '  中文测试') |
+==========================================
+ 中文测试                                |
+
+taos> select trim(trailing ' ' from '  中文测试  ')
+ trim(trailing ' ' from '  中文测试  ') |
+=============================================
+   中文测试                                 |
+
+taos> select trim(' ' from '  中文测试  ')
+ trim(' ' from '  中文测试  ') |
+====================================
+ 中文测试                          |
+
+taos> select trim('一' from '一二中文测试一')
+ trim('一' from '一二中文测试一') |
+===========================================
+ 二中文测试                               |
+
+taos> select trim(both '一' from '一二中文测试一')
+ trim(both '一' from '一二中文测试一') |
+================================================
+ 二中文测试                                    |
+
+taos> select trim(leading '一' from '一二中文测试一')
+ trim(leading '一' from '一二中文测试一') |
+===================================================
+ 二中文测试一                                     |
+
+taos> select trim(trailing '一' from '一二中文测试一')
+ trim(trailing '一' from '一二中文测试一') |
+====================================================
+ 一二中文测试                                      |
+
+taos> select trim('   中文andEnglish测试Test   ')
+ trim('   中文andEnglish测试Test   ') |
+===========================================
+ 中文andEnglish测试Test                   |
+
+taos> select trim(both ' ' from '   中文andEnglish测试Test   ')
+ trim(both ' ' from '   中文andEnglish测试Test   ') |
+=========================================================
+ 中文andEnglish测试Test                                 |
+
+taos> select trim(leading ' ' from '   中文andEnglish测试Test')
+ trim(leading ' ' from '   中文andEnglish测试Test') |
+=========================================================
+ 中文andEnglish测试Test                                 |
+
+taos> select trim(trailing ' ' from '   中文andEnglish测试Test   ')
+ trim(trailing ' ' from '   中文andEnglish测试Test   ') |
+=============================================================
+    中文andEnglish测试Test                                  |
+
+taos> select trim('空格' from '空格中文andEngTes空格空格')
+ trim('空格' from '空格中文andEngTes空格空格') |
+==========================================================
+ 中文andEngTes                                           |
+
+taos> select trim(both '空格' from '空格中文andEngTes空格空格')
+ trim(both '空格' from '空格中文andEngTes空格空格') |
+===============================================================
+ 中文andEngTes                                                |
+
+taos> select trim(leading '空格' from '空格中文andEngTes空格空格')
+ trim(leading '空格' from '空格中文andEngTes空格空格') |
+==================================================================
+ 中文andEngTes空格空格                                           |
+
+taos> select trim(trailing '空格' from '空格中文andEngTes空格空格')
+ trim(trailing '空格' from '空格中文andEngTes空格空格') |
+===================================================================
+ 空格中文andEngTes                                                |
+
+taos> select trim('blank' from 'blankblank中文andEnglish测试Tesblankblankblank')
+ trim('blank' from 'blankblank中文andEnglish测试Tesblankblank |
+===================================================================
+ 中文andEnglish测试Tes                                            |
+
+taos> select trim(both 'blank' from 'blankblank中文andEnglish测试Tesblankblankblank')
+ trim(both 'blank' from 'blankblank中文andEnglish测试Tesblank |
+===================================================================
+ 中文andEnglish测试Tes                                            |
+
+taos> select trim(leading 'blank' from 'blankblank中文andEnglish测试Tesblankblankblank')
+ trim(leading 'blank' from 'blankblank中文andEnglish测试Tesbl |
+===================================================================
+ 中文andEnglish测试Tesblankblankblank                             |
+
+taos> select trim(trailing 'blank' from 'blankblank中文andEnglish测试Tesblankblankblank')
+ trim(trailing 'blank' from 'blankblank中文andEnglish测试Tesb |
+===================================================================
+ blankblank中文andEnglish测试Tes                                  |
+
+taos> select trim('空格blank' from '空格blank空格中Tes空格blank空')
+ trim('空格blank' from '空格blank空格中Tes空格blank空') |
+===================================================================
+ 空格中Tes空格blank空                                             |
+
+taos> select trim(both '空格blank' from '空格blank空格中Tes空格blank空')
+ trim(both '空格blank' from '空格blank空格中Tes空格blank |
+===================================================================
+ 空格中Tes空格blank空                                             |
+
+taos> select trim(leading '空格blank' from '空格blank空格中Tes空格blank空')
+ trim(leading '空格blank' from '空格blank空格中Tes空格bl |
+===================================================================
+ 空格中Tes空格blank空                                             |
+
+taos> select trim(trailing '空格blank' from '空格blank空格中Tes空格blank空')
+ trim(trailing '空格blank' from '空格blank空格中Tes空格b |
+===================================================================
+ 空格blank空格中Tes空格blank空                                    |
+
+taos> select trim(nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
+      trim(nch2 from nch1)      |
+=================================
+ novel                          |
+ abc一二三abc一二三abc          |
+ 一二三abc                      |
+ 一二三四五六七八九十           |
+ person                         |
+
+taos> select trim(both nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
+   trim(both nch2 from nch1)    |
+=================================
+ novel                          |
+ abc一二三abc一二三abc          |
+ 一二三abc                      |
+ 一二三四五六七八九十           |
+ person                         |
+
+taos> select trim(leading nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
+  trim(leading nch2 from nch1)  |
+=================================
+ novel                          |
+ abc一二三abc一二三abc          |
+ 一二三abc                      |
+ 一二三四五六七八九十           |
+ person                         |
+
+taos> select trim(trailing nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
+ trim(trailing nch2 from nch1)  |
+=================================
+ novel                          |
+ abc一二三abc一二三abc          |
+ 一二三abc                      |
+ 一二三四五六七八九十           |
+ person                         |
+
+taos> select trim(nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+      trim(nch2 from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(both nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+   trim(both nch2 from nch1)    |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(leading nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+  trim(leading nch2 from nch1)  |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(trailing nch2 from nch1) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+ trim(trailing nch2 from nch1)  |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+
+taos> select trim(var2 from nch1) from ts_4893.meters where position(var2 in nch1) != 0 order by ts limit 5
+      trim(var2 from nch1)      |
+=================================
+ novel                          |
+ novel                          |
+ abc                            |
+ 123321三二一                   |
+ abc一二三abc一二三ab           |
+
+taos> select trim(both var2 from nch1) from ts_4893.meters where position(var2 in nch1) != 0 order by ts limit 5
+   trim(both var2 from nch1)    |
+=================================
+ novel                          |
+ novel                          |
+ abc                            |
+ 123321三二一                   |
+ abc一二三abc一二三ab           |
+
+taos> select trim(leading var2 from nch1) from ts_4893.meters where position(var2 in nch1) != 0 order by ts limit 5
+  trim(leading var2 from nch1)  |
+=================================
+ novel                          |
+ novel                          |
+ abc                            |
+ 123321三二一                   |
+ abc一二三abc一二三abc          |
+
+taos> select trim(trailing var2 from nch1) from ts_4893.meters where position(var2 in nch1) != 0 order by ts limit 5
+ trim(trailing var2 from nch1)  |
+=================================
+ novel                          |
+ novel                          |
+ 一二三abc                      |
+ 一二三123321三二一             |
+ abc一二三abc一二三ab           |
+
+taos> select trim(var2 from nch1) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+      trim(var2 from nch1)      |
+=================================
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(both var2 from nch1) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+   trim(both var2 from nch1)    |
+=================================
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(leading var2 from nch1) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+  trim(leading var2 from nch1)  |
+=================================
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(trailing var2 from nch1) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+ trim(trailing var2 from nch1)  |
+=================================
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(nch2 from var1) from ts_4893.meters where position(nch2 in var1) != 0 order by ts limit 5
+      trim(nch2 from var1)      |
+=================================
+ 一二三abc                      |
+ abc一二三abc一二三abc          |
+ bc一二三abc一二三abc           |
+ novel                          |
+ update                         |
+
+taos> select trim(both nch2 from var1) from ts_4893.meters where position(nch2 in var1) != 0 order by ts limit 5
+   trim(both nch2 from var1)    |
+=================================
+ 一二三abc                      |
+ abc一二三abc一二三abc          |
+ bc一二三abc一二三abc           |
+ novel                          |
+ update                         |
+
+taos> select trim(leading nch2 from var1) from ts_4893.meters where position(nch2 in var1) != 0 order by ts limit 5
+  trim(leading nch2 from var1)  |
+=================================
+ 一二三abc                      |
+ abc一二三abc一二三abc          |
+ bc一二三abc一二三abc           |
+ novel                          |
+ update                         |
+
+taos> select trim(trailing nch2 from var1) from ts_4893.meters where position(nch2 in var1) != 0 order by ts limit 5
+ trim(trailing nch2 from var1)  |
+=================================
+ 一二三abc                      |
+ abc一二三abc一二三abc          |
+ abc一二三abc一二三abc          |
+ novel                          |
+ update                         |
+
+taos> select trim(nch2 from var1) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+      trim(nch2 from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+
+taos> select trim(both nch2 from var1) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+   trim(both nch2 from var1)    |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+
+taos> select trim(leading nch2 from var1) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+  trim(leading nch2 from var1)  |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+
+taos> select trim(trailing nch2 from var1) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+ trim(trailing nch2 from var1)  |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+
+taos> select trim(var2 from var1) from ts_4893.meters where position(var2 in var1) != 0 order by ts limit 5
+      trim(var2 from var1)      |
+=================================
+ novel                          |
+ plat                           |
+ 一二三abc                      |
+ 123321三二一                   |
+ abc一二三abc一二三ab           |
+
+taos> select trim(both var2 from var1) from ts_4893.meters where position(var2 in var1) != 0 order by ts limit 5
+   trim(both var2 from var1)    |
+=================================
+ novel                          |
+ plat                           |
+ 一二三abc                      |
+ 123321三二一                   |
+ abc一二三abc一二三ab           |
+
+taos> select trim(leading var2 from var1) from ts_4893.meters where position(var2 in var1) != 0 order by ts limit 5
+  trim(leading var2 from var1)  |
+=================================
+ novel                          |
+ plate                          |
+ 一二三abc                      |
+ 123321三二一                   |
+ abc一二三abc一二三abc          |
+
+taos> select trim(trailing var2 from var1) from ts_4893.meters where position(var2 in var1) != 0 order by ts limit 5
+ trim(trailing var2 from var1)  |
+=================================
+ novel                          |
+ plat                           |
+ 一二三abc                      |
+ 一二三123321三二一             |
+ abc一二三abc一二三ab           |
+
+taos> select trim(var2 from var1) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+      trim(var2 from var1)      |
+=================================
+ person                         |
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+
+taos> select trim(both var2 from var1) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+   trim(both var2 from var1)    |
+=================================
+ person                         |
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+
+taos> select trim(leading var2 from var1) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+  trim(leading var2 from var1)  |
+=================================
+ person                         |
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+
+taos> select trim(trailing var2 from var1) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+ trim(trailing var2 from var1)  |
+=================================
+ person                         |
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+
+taos> select trim('一' from nch1) from ts_4893.meters where position('一' in nch1) != 0 order by ts limit 5
+     trim('一' from nch1)      |
+=================================
+ 二三四五六七八九十             |
+ 二三四五六七八九十             |
+ abc一二三abc一二三abc          |
+ ||                             |
+ 二三123321三二                 |
+
+taos> select trim(both '一' from nch1) from ts_4893.meters where position('一' in nch1) != 0 order by ts limit 5
+   trim(both '一' from nch1)   |
+=================================
+ 二三四五六七八九十             |
+ 二三四五六七八九十             |
+ abc一二三abc一二三abc          |
+ ||                             |
+ 二三123321三二                 |
+
+taos> select trim(leading '一' from nch1) from ts_4893.meters where position('一' in nch1) != 0 order by ts limit 5
+ trim(leading '一' from nch1)  |
+=================================
+ 二三四五六七八九十             |
+ 二三四五六七八九十             |
+ abc一二三abc一二三abc          |
+ ||一一一一                     |
+ 二三123321三二一               |
+
+taos> select trim(trailing '一' from nch1) from ts_4893.meters where position('一' in nch1) != 0 order by ts limit 5
+ trim(trailing '一' from nch1) |
+=================================
+ 一二三四五六七八九十           |
+ 一二三四五六七八九十           |
+ abc一二三abc一二三abc          |
+ 一一一一一||                   |
+ 一二三123321三二               |
+
+taos> select trim('一' from nch1) from ts_4893.meters where position('一' in nch1) = 0 order by ts limit 5
+     trim('一' from nch1)      |
+=================================
+ novel                          |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(both '一' from nch1) from ts_4893.meters where position('一' in nch1) = 0 order by ts limit 5
+   trim(both '一' from nch1)   |
+=================================
+ novel                          |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(leading '一' from nch1) from ts_4893.meters where position('一' in nch1) = 0 order by ts limit 5
+ trim(leading '一' from nch1)  |
+=================================
+ novel                          |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim(trailing '一' from nch1) from ts_4893.meters where position('一' in nch1) = 0 order by ts limit 5
+ trim(trailing '一' from nch1) |
+=================================
+ novel                          |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+
+taos> select trim('一' from var1) from ts_4893.meters where position('一' in var1) != 0 order by ts limit 5
+     trim('一' from var1)      |
+=================================
+ 二三四五六七八九十             |
+ 二三abc                        |
+ abc一二三abc一二三abc          |
+ 二三123321三二                 |
+ ||                             |
+
+taos> select trim(both '一' from var1) from ts_4893.meters where position('一' in var1) != 0 order by ts limit 5
+   trim(both '一' from var1)   |
+=================================
+ 二三四五六七八九十             |
+ 二三abc                        |
+ abc一二三abc一二三abc          |
+ 二三123321三二                 |
+ ||                             |
+
+taos> select trim(leading '一' from var1) from ts_4893.meters where position('一' in var1) != 0 order by ts limit 5
+ trim(leading '一' from var1)  |
+=================================
+ 二三四五六七八九十             |
+ 二三abc                        |
+ abc一二三abc一二三abc          |
+ 二三123321三二一               |
+ ||一一一一                     |
+
+taos> select trim(trailing '一' from var1) from ts_4893.meters where position('一' in var1) != 0 order by ts limit 5
+ trim(trailing '一' from var1) |
+=================================
+ 一二三四五六七八九十           |
+ 一二三abc                      |
+ abc一二三abc一二三abc          |
+ 一二三123321三二               |
+ 一一一一一||                   |
+
+taos> select trim('一' from var1) from ts_4893.meters where position('一' in var1) = 0 order by ts limit 5
+     trim('一' from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ update                         |
+
+taos> select trim(both '一' from var1) from ts_4893.meters where position('一' in var1) = 0 order by ts limit 5
+   trim(both '一' from var1)   |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ update                         |
+
+taos> select trim(leading '一' from var1) from ts_4893.meters where position('一' in var1) = 0 order by ts limit 5
+ trim(leading '一' from var1)  |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ update                         |
+
+taos> select trim(trailing '一' from var1) from ts_4893.meters where position('一' in var1) = 0 order by ts limit 5
+ trim(trailing '一' from var1) |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ update                         |
+
+taos> select trim(nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(nch2 from '三abbcfp三a') |
+==================================
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ bbcfp                           |
+ 三abbcfp三a                     |
+
+taos> select trim(both nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(both nch2 from '三abbcfp三a') |
+=======================================
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ bbcfp                                |
+ 三abbcfp三a                          |
+
+taos> select trim(leading nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(leading nch2 from '三abbcfp三a') |
+==========================================
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ bbcfp三a                                |
+ 三abbcfp三a                             |
+
+taos> select trim(trailing nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(trailing nch2 from '三abbcfp三a') |
+===========================================
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp                                 |
+ 三abbcfp三a                              |
+
+taos> select trim(nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(nch2 from '三abbcfp三a') |
+==================================
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+
+taos> select trim(both nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(both nch2 from '三abbcfp三a') |
+=======================================
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+
+taos> select trim(leading nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(leading nch2 from '三abbcfp三a') |
+==========================================
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+
+taos> select trim(trailing nch2 from '三abbcfp三a') from ts_4893.meters where position(nch2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(trailing nch2 from '三abbcfp三a') |
+===========================================
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+
+taos> select trim(var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(var2 from '三abbcfp三a') |
+==================================
+ bbcfp                           |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三                      |
+
+taos> select trim(both var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(both var2 from '三abbcfp三a') |
+=======================================
+ bbcfp                                |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三                           |
+
+taos> select trim(leading var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(leading var2 from '三abbcfp三a') |
+==========================================
+ bbcfp三a                                |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+
+taos> select trim(trailing var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') != 0 order by ts limit 5
+ trim(trailing var2 from '三abbcfp三a') |
+===========================================
+ 三abbcfp                                 |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三                               |
+
+taos> select trim(var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(var2 from '三abbcfp三a') |
+==================================
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+ 三abbcfp三a                     |
+
+taos> select trim(both var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(both var2 from '三abbcfp三a') |
+=======================================
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+ 三abbcfp三a                          |
+
+taos> select trim(leading var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(leading var2 from '三abbcfp三a') |
+==========================================
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+ 三abbcfp三a                             |
+
+taos> select trim(trailing var2 from '三abbcfp三a') from ts_4893.meters where position(var2 in '三abbcfp三a') = 0 order by ts limit 5
+ trim(trailing var2 from '三abbcfp三a') |
+===========================================
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+ 三abbcfp三a                              |
+
+taos> select trim('     A      ')
+ trim('     A      ') |
+=======================
+ A                    |
+
+taos> select trim('     涛思      ')
+ trim('     涛思      ') |
+============================
+ 涛思                      |
+
+taos> select trim('a' FROM 'aaab      bbba')
+ trim('a' from 'aaab      bbba') |
+==================================
+ b      bbb                      |
+
+taos> select trim(LEADING FROM '      aaa      ')
+ trim(leading from '      aaa      ') |
+=======================================
+ aaa                                  |
+
+taos> select trim(LEADING 'a' FROM '   aaa    abab   aaaa   ')
+ trim(leading 'a' from '   aaa    abab   aaaa   ') |
+====================================================
+    aaa    abab   aaaa                             |
+
+taos> select trim(LEADING 'a' FROM 'aaa    abab   aaaa   ')
+ trim(leading 'a' from 'aaa    abab   aaaa   ') |
+=================================================
+     abab   aaaa                                |
+
+taos> select trim(LEADING '北' FROM '北京涛思数据科技有限公司北')
+ trim(leading '北' from '北京涛思数据科技有限公司北 |
+===================================================================
+ 京涛思数据科技有限公司北                                         |
+
+taos> select trim(LEADING '北' FROM '北bei京涛思数据科技有限公司北')
+ trim(leading '北' from '北bei京涛思数据科技有限公司 |
+===================================================================
+ bei京涛思数据科技有限公司北                                      |
+
+taos> select trim(TRAILING FROM '   aaa    abab   aaaa   ')
+ trim(trailing from '   aaa    abab   aaaa   ') |
+=================================================
+    aaa    abab   aaaa                          |
+
+taos> select trim(TRAILING 'a' FROM 'aaa    abab   aaaa')
+ trim(trailing 'a' from 'aaa    abab   aaaa') |
+===============================================
+ aaa    abab                                  |
+
+taos> select trim(TRAILING 'a' FROM '   aaa    abab   aaaa')
+ trim(trailing 'a' from '   aaa    abab   aaaa') |
+==================================================
+    aaa    abab                                  |
+
+taos> select trim(TRAILING '北' FROM '北京涛思数据科技有限公司北') as sub
+              sub               |
+=================================
+ 北京涛思数据科技有限公司       |
+
+taos> select trim(TRAILING '北' FROM '北京涛思数据科技有限公司bei北')
+ trim(trailing '北' from '北京涛思数据科技有限公司be |
+===================================================================
+ 北京涛思数据科技有限公司bei                                      |
+
+taos> select trim(BOTH FROM '   aaa    abab   aaaa   ')
+ trim(both from '   aaa    abab   aaaa   ') |
+=============================================
+ aaa    abab   aaaa                         |
+
+taos> select trim(BOTH 'a' FROM '   aaa    abab   aaaa    ')
+ trim(both 'a' from '   aaa    abab   aaaa    ') |
+==================================================
+    aaa    abab   aaaa                           |
+
+taos> select trim(BOTH 'a' FROM 'aaa    abab   aaaa')
+ trim(both 'a' from 'aaa    abab   aaaa') |
+===========================================
+     abab                                 |
+
+taos> select trim(BOTH '北' FROM '北京涛思数据科技有限公司北')
+ trim(both '北' from '北京涛思数据科技有限公司北') |
+==================================================================
+ 京涛思数据科技有限公司                                          |
+
+taos> select trim(nch2 from nch1) from ts_4893.d0 order by ts limit 10
+      trim(nch2 from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select trim(nch2 from nch1) from ts_4893.meters order by ts limit 10
+      trim(nch2 from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select trim(nch2 from var1) from ts_4893.d0 order by ts limit 10
+      trim(nch2 from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ person                         |
+ prision                        |
+ plate                          |
+
+taos> select trim(nch2 from var1) from ts_4893.meters order by ts limit 10
+      trim(nch2 from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plate                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ person                         |
+ prision                        |
+ plate                          |
+
+taos> select trim(var2 from nch1) from ts_4893.d0 order by ts limit 10
+      trim(var2 from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select trim(var2 from nch1) from ts_4893.meters order by ts limit 10
+      trim(var2 from nch1)      |
+=================================
+ novel                          |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ novel                          |
+ novel                          |
+ again                          |
+ 一二三四五六七八九十           |
+ novel                          |
+ again                          |
+
+taos> select trim(var2 from var1) from ts_4893.d0 order by ts limit 10
+      trim(var2 from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plat                           |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ person                         |
+ prision                        |
+ plate                          |
+
+taos> select trim(var2 from var1) from ts_4893.meters order by ts limit 10
+      trim(var2 from var1)      |
+=================================
+ novel                          |
+ person                         |
+ novel                          |
+ plat                           |
+ 一二三四五六七八九十           |
+ update                         |
+ prision                        |
+ person                         |
+ prision                        |
+ plate                          |
+
+taos> select trim(null)
+ trim(null) |
+=============
+ NULL       |
+
+taos> select trim('')
+ trim('') |
+===========
+          |
+
+taos> select trim(leading ' ' from '   hello')
+ trim(leading ' ' from '   hello') |
+====================================
+ hello                             |
+
+taos> select trim(trailing ' ' from 'hello   ')
+ trim(trailing ' ' from 'hello   ') |
+=====================================
+ hello                              |
+
+taos> select trim('0' from '000123000')
+ trim('0' from '000123000') |
+=============================
+ 123                        |
+
+taos> select trim('  hello  ')
+ trim('  hello  ') |
+====================
+ hello             |
+
+taos> select trim('   apple banana   ')
+ trim('   apple banana   ') |
+=============================
+ apple banana               |
+
+taos> select var2, trim('*' from var2) from ts_4893.meters limit 1
+              var2              |      trim('*' from var2)       |
+==================================================================
+ e                              | e                              |
+
+taos> select trim('x' from 'hello')
+ trim('x' from 'hello') |
+=========================
+ hello                  |
+
+taos> select trim('longer' from 'short')
+ trim('longer' from 'short') |
+==============================
+ short                       |
+
+taos> select trim('hello')
+ trim('hello') |
+================
+ hello         |
+
+taos> select trim('   12345   ')
+ trim('   12345   ') |
+======================
+ 12345               |
+
+taos> select trim(concat('   hello', '   world   '))
+ trim(concat('   hello', '   world   ')) |
+==========================================
+ hello   world                           |
+
+taos> select trim(upper('  hello world  '))
+ trim(upper('  hello world  ')) |
+=================================
+ HELLO WORLD                    |
+
+taos> select trim(substring('   hello world   ', 4))
+ trim(substring('   hello world   ', 4)) |
+==========================================
+ hello world                             |
+
+taos> select trim(replace('   hello world   ', ' ', '-'))
+ trim(replace('   hello world   ', ' ', '-')) |
+===============================================
+ ---hello-world---                            |
+
+taos> select name, trim(name) from ts_4893.meters limit 1
+              name              |           trim(name)           |
+==================================================================
+ lili                           | lili                           |
+
+taos> select var1, trim(trailing '!' from var1) from ts_4893.meters limit 1
+              var1              |  trim(trailing '!' from var1)  |
+==================================================================
+ novel                          | novel                          |
+
+taos> select nch1, trim(leading '-' from nch1) from ts_4893.meters limit 1
+              nch1              |  trim(leading '-' from nch1)   |
+==================================================================
+ novel                          | novel                          |
+

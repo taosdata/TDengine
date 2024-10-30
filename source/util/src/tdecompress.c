@@ -34,12 +34,13 @@ int32_t getWordLength(char type) {
       break;
     default:
       uError("Invalid decompress integer type:%d", type);
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
   }
 
   return wordLength;
 }
 
+#ifdef __AVX2__
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type) {
   int32_t word_length = getWordLength(type);
 
@@ -52,7 +53,6 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int32_t     _pos = 0;
   int64_t     prevValue = 0;
 
-#if __AVX2__ || __AVX512F__
   while (_pos < nelements) {
     uint64_t w = *(uint64_t *)ip;
 
@@ -156,7 +156,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               // 13		6		9		4		5		2		1
               // 0 D7,D6		D6		D5,D4		D4		D3,D2		D2
               // D1,D0		D0 +D5,D4	D5,D4,		0		0		D1,D0		D1,D0
-              //0		0 D7~D4		D6~D4		D5~D4		D4		D3~D0		D2~D0
+              // 0		0 D7~D4		D6~D4		D5~D4		D4		D3~D0		D2~D0
               // D1~D0		D0 22		15		9		4		6		3
               // 1		0
               //
@@ -309,31 +309,154 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
     ip += LONG_BYTES;
   }
 
-#endif
   return nelements * word_length;
 }
 
-int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output) {
-#if __AVX512F__
-  // todo add it
-#endif
-  return 0;
+#define M256_BYTES sizeof(__m256i)
+
+FORCE_INLINE __m256i decodeFloatAvx2(const char *data, const char *flag) {
+  __m256i dataVec = _mm256_load_si256((__m256i *)data);
+  __m256i flagVec = _mm256_load_si256((__m256i *)flag);
+  __m256i k7 = _mm256_set1_epi32(7);
+  __m256i lopart = _mm256_set_epi32(0, -1, 0, -1, 0, -1, 0, -1);
+  __m256i hipart = _mm256_set_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
+  __m256i trTail = _mm256_cmpgt_epi32(flagVec, k7);
+  __m256i trHead = _mm256_andnot_si256(trTail, _mm256_set1_epi32(-1));
+  __m256i shiftVec = _mm256_slli_epi32(_mm256_sub_epi32(_mm256_set1_epi32(3), _mm256_and_si256(flagVec, k7)), 3);
+  __m256i maskVec = hipart;
+  __m256i diffVec = _mm256_sllv_epi32(dataVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_or_si256(trHead, lopart);
+  diffVec = _mm256_srlv_epi32(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_and_si256(trTail, lopart);
+  diffVec = _mm256_sllv_epi32(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  return diffVec;
 }
 
-// todo add later
-int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output) {
-#if __AVX2__
-#endif
-  return 0;
+int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output) {
+  // Allocate memory-aligned buffer
+  char buf[M256_BYTES * 3];
+  memset(buf, 0, sizeof(buf));
+  char       *data = (char *)ALIGN_NUM((uint64_t)buf, M256_BYTES);
+  char       *flag = data + M256_BYTES;
+  const char *in = input;
+  char       *out = output;
+
+  // Load data into the buffer for batch processing
+  int32_t  batchSize = M256_BYTES / FLOAT_BYTES;
+  int32_t idx = 0;
+  uint32_t cur = 0;
+  for (int32_t i = 0; i < nelements; i += 2) {
+    if (idx == batchSize) {
+      // Start processing when the buffer is full
+      __m256i resVec = decodeFloatAvx2(data, flag);
+      _mm256_storeu_si256((__m256i *)out, resVec);
+      uint32_t *p = (uint32_t *)out;
+      for (int32_t j = 0; j < batchSize; ++j) {
+        p[j] = cur = (p[j] ^ cur);
+      }
+      out += M256_BYTES;
+      idx = 0;
+    }
+    uint8_t flag1 = (*in) & 0xF;
+    uint8_t flag2 = ((*in) >> 4) & 0xF;
+    int32_t nbytes1 = (flag1 & 0x7) + 1;
+    int32_t nbytes2 = (flag2 & 0x7) + 1;
+    in++;
+    flag[idx * FLOAT_BYTES] = flag1;
+    flag[(idx + 1) * FLOAT_BYTES] = flag2;
+    memcpy(data + (idx + 1) * FLOAT_BYTES - nbytes1, in, nbytes1 + nbytes2);
+    in += nbytes1 + nbytes2;
+    idx += 2;
+  }
+  if (idx) {
+    idx -= (nelements & 0x1);
+    // Process the remaining few bytes
+    __m256i resVec = decodeFloatAvx2(data, flag);
+    memcpy(out, &resVec, idx * FLOAT_BYTES);
+    uint32_t *p = (uint32_t *)out;
+    for (int32_t j = 0; j < idx; ++j) {
+      p[j] = cur = (p[j] ^ cur);
+    }
+    out += idx * FLOAT_BYTES;
+  }
+  return (int32_t)(out - output);
 }
 
+FORCE_INLINE __m256i decodeDoubleAvx2(const char *data, const char *flag) {
+  __m256i dataVec = _mm256_load_si256((__m256i *)data);
+  __m256i flagVec = _mm256_load_si256((__m256i *)flag);
+  __m256i k7 = _mm256_set1_epi64x(7);
+  __m256i lopart = _mm256_set_epi64x(0, -1, 0, -1);
+  __m256i hipart = _mm256_set_epi64x(-1, 0, -1, 0);
+  __m256i trTail = _mm256_cmpgt_epi64(flagVec, k7);
+  __m256i trHead = _mm256_andnot_si256(trTail, _mm256_set1_epi64x(-1));
+  __m256i shiftVec = _mm256_slli_epi64(_mm256_sub_epi64(k7, _mm256_and_si256(flagVec, k7)), 3);
+  __m256i maskVec = hipart;
+  __m256i diffVec = _mm256_sllv_epi64(dataVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_or_si256(trHead, lopart);
+  diffVec = _mm256_srlv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_and_si256(trTail, lopart);
+  diffVec = _mm256_sllv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  return diffVec;
+}
+
+int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, char *const output) {
+  // Allocate memory-aligned buffer
+  char buf[M256_BYTES * 3];
+  memset(buf, 0, sizeof(buf));
+  char       *data = (char *)ALIGN_NUM((uint64_t)buf, M256_BYTES);
+  char       *flag = data + M256_BYTES;
+  const char *in = input;
+  char       *out = output;
+
+  // Load data into the buffer for batch processing
+  int32_t  batchSize = M256_BYTES / DOUBLE_BYTES;
+  int32_t  idx = 0;
+  uint64_t cur = 0;
+  for (int32_t i = 0; i < nelements; i += 2) {
+    if (idx == batchSize) {
+      // Start processing when the buffer is full
+      __m256i resVec = decodeDoubleAvx2(data, flag);
+      _mm256_storeu_si256((__m256i *)out, resVec);
+      uint64_t *p = (uint64_t *)out;
+      for (int32_t j = 0; j < batchSize; ++j) {
+        p[j] = cur = (p[j] ^ cur);
+      }
+      out += M256_BYTES;
+      idx = 0;
+    }
+    uint8_t flag1 = (*in) & 0xF;
+    uint8_t flag2 = ((*in) >> 4) & 0xF;
+    int32_t nbytes1 = (flag1 & 0x7) + 1;
+    int32_t nbytes2 = (flag2 & 0x7) + 1;
+    in++;
+    flag[idx * DOUBLE_BYTES] = flag1;
+    flag[(idx + 1) * DOUBLE_BYTES] = flag2;
+    memcpy(data + (idx + 1) * DOUBLE_BYTES - nbytes1, in, nbytes1 + nbytes2);
+    in += nbytes1 + nbytes2;
+    idx += 2;
+  }
+  if (idx) {
+    idx -= (nelements & 0x1);
+    // Process the remaining few bytes
+    __m256i resVec = decodeDoubleAvx2(data, flag);
+    memcpy(out, &resVec, idx * DOUBLE_BYTES);
+    uint64_t *p = (uint64_t *)out;
+    for (int32_t j = 0; j < idx; ++j) {
+      p[j] = cur = (p[j] ^ cur);
+    }
+    out += idx * DOUBLE_BYTES;
+  }
+  return (int32_t)(out - output);
+}
+#endif
+
+#if __AVX512VL__
 // decode two timestamps in one loop.
-int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
-                                  bool bigEndian) {
+void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
 
-#if __AVX2__
   __m128i prevVal = _mm_setzero_si128();
   __m128i prevDelta = _mm_setzero_si128();
 
@@ -465,16 +588,13 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
       ostream[opos++] = prevVal[1] + prevDeltaX;
     }
   }
-#endif
-  return 0;
+  return;
 }
 
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool UNUSED_PARAM(bigEndian)) {
+void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
+                                 bool UNUSED_PARAM(bigEndian)) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
-
-#if __AVX512VL__
 
   __m128i prevVal = _mm_setzero_si128();
   __m128i prevDelta = _mm_setzero_si128();
@@ -580,6 +700,6 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
     }
   }
 
-#endif
-  return 0;
+  return;
 }
+#endif

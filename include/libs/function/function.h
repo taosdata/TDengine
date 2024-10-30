@@ -23,11 +23,13 @@ extern "C" {
 #include "tcommon.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "functionResInfo.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
 struct SFunctionNode;
+struct SExprSupp;
 typedef struct SScalarParam SScalarParam;
 typedef struct SStreamState SStreamState;
 
@@ -36,11 +38,13 @@ typedef struct SFuncExecEnv {
 } SFuncExecEnv;
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+typedef void (*FExecCleanUp)(struct SqlFunctionCtx* pCtx);
+typedef int32_t (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
+typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf, struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
 typedef int32_t (*processFuncByRow)(SArray* pCtx);  // array of SqlFunctionCtx
 
 typedef struct SScalarFuncExecFuncs {
@@ -54,6 +58,8 @@ typedef struct SFuncExecFuncs {
   FExecProcess     process;
   FExecFinalize    finalize;
   FExecCombine     combine;
+  FExecCleanUp     cleanup;
+  FExecDecode      decode;
   processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 
@@ -61,6 +67,8 @@ typedef struct SFuncExecFuncs {
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 32
+
+#define FUNCTION_RESULT_INFO_VERSION 1
 
 typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
@@ -83,14 +91,7 @@ enum {
   PRE_SCAN = 0x2u,      // pre-scan belongs to the main scan and occurs before main scan
 };
 
-typedef struct SPoint1 {
-  int64_t key;
-  union {
-    double val;
-    char  *ptr;
-  };
-} SPoint1;
-
+struct SPoint1;
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
@@ -169,6 +170,11 @@ typedef struct STdbState {
   void               *txn;
 } STdbState;
 
+typedef struct SResultRowStore {
+  int32_t (*resultRowPut)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+  int32_t (*resultRowGet)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+} SResultRowStore;
+
 struct SStreamState {
   STdbState               *pTdbState;
   struct SStreamFileState *pFileState;
@@ -179,6 +185,8 @@ struct SStreamState {
   int64_t                  streamBackendRid;
   int8_t                   dump;
   int32_t                  tsIndex;
+  SResultRowStore          pResultRowStore;
+  struct SExprSupp        *pExprSupp;
 };
 
 typedef struct SFunctionStateStore {
@@ -256,6 +264,7 @@ typedef struct SqlFunctionCtx {
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
   bool                 hasWindowOrGroup; // denote that the function is used with time window or group
+  bool                 needCleanup; // denote that the function need to be cleaned up
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -294,7 +303,7 @@ typedef struct SPoint {
   void   *val;
 } SPoint;
 
-int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
+void taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
 
 #define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25

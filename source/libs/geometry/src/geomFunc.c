@@ -21,8 +21,8 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
-typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
-                                         bool swapped, char *res);
+typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
+                                         const GEOSGeometry *geom2, bool swapped, char *res);
 
 typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
@@ -35,7 +35,7 @@ int32_t doMakePointFunc(double x, double y, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *outputGeom = NULL;
-  size_t size = 0;
+  size_t         size = 0;
   code = doMakePoint(x, y, &outputGeom, &size);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
@@ -43,11 +43,11 @@ int32_t doMakePointFunc(double x, double y, unsigned char **output) {
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
-  memcpy(varDataVal(*output), outputGeom, size);
+  (void)memcpy(varDataVal(*output), outputGeom, size);
   varDataSetLen(*output, size);
   code = TSDB_CODE_SUCCESS;
 
@@ -62,35 +62,32 @@ _exit:
 int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
-  if ((varDataLen(input)) == 0) { //empty value
+  if ((varDataLen(input)) == 0) {  // empty value
     *output = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  char *inputGeom = NULL;
+  char          *inputGeom = NULL;
   unsigned char *outputGeom = NULL;
-  size_t size = 0;
+  size_t         size = 0;
 
   // make a zero ending string
   inputGeom = taosMemoryCalloc(1, varDataLen(input) + 1);
   if (inputGeom == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
-  memcpy(inputGeom, varDataVal(input), varDataLen(input));
+  (void)memcpy(inputGeom, varDataVal(input), varDataLen(input));
 
-  code = doGeomFromText(inputGeom, &outputGeom, &size);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
+  TAOS_CHECK_GOTO(doGeomFromText(inputGeom, &outputGeom, &size), NULL, _exit);
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
-  memcpy(varDataVal(*output), outputGeom, size);
+  (void)memcpy(varDataVal(*output), outputGeom, size);
   varDataSetLen(*output, size);
   code = TSDB_CODE_SUCCESS;
 
@@ -106,25 +103,22 @@ _exit:
 int32_t doAsTextFunc(unsigned char *input, char **output) {
   int32_t code = TSDB_CODE_FAILED;
 
-  if ((varDataLen(input)) == 0) { //empty value
+  if ((varDataLen(input)) == 0) {  // empty value
     *output = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
   char *outputWKT = NULL;
-  code = doAsText(varDataVal(input), varDataLen(input), &outputWKT);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
+  TAOS_CHECK_GOTO(doAsText(varDataVal(input), varDataLen(input), &outputWKT), NULL, _exit);
 
   size_t size = strlen(outputWKT);
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
-  memcpy(varDataVal(*output), outputWKT, size);
+  (void)memcpy(varDataVal(*output), outputWKT, size);
   varDataSetLen(*output, size);
   code = TSDB_CODE_SUCCESS;
 
@@ -137,18 +131,19 @@ _exit:
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
+  unsigned char *output = NULL;
 
   _getDoubleValue_fn_t getDoubleValueFn[2];
-  getDoubleValueFn[0]= getVectorDoubleValueFn(pInputData[0]->info.type);
-  getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[0]->info.type, &getDoubleValueFn[0]), NULL, _exit);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[1]->info.type, &getDoubleValueFn[1]), NULL, _exit);
 
-  unsigned char *output = NULL;
-  code = doMakePointFunc(getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
+  double         leftRes = 0;
+  double         rightRes = 0;
 
-  colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+  TAOS_CHECK_GOTO(getDoubleValueFn[0](pInputData[0]->pData, iLeft, &leftRes), NULL, _exit);
+  TAOS_CHECK_GOTO(getDoubleValueFn[1](pInputData[1]->pData, iRight, &rightRes), NULL, _exit);
+  TAOS_CHECK_GOTO(doMakePointFunc(leftRes, rightRes, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL)), NULL, _exit);
 
 _exit:
   if (output) {
@@ -161,14 +156,15 @@ _exit:
 int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
-  char *input = colDataGetData(pInputData, i);
-  unsigned char *output = NULL;
-  code = doGeomFromTextFunc(input, &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+  if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  char          *input = colDataGetData(pInputData, i);
+  unsigned char *output = NULL;
+
+  TAOS_CHECK_GOTO(doGeomFromTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
   if (output) {
@@ -182,13 +178,10 @@ int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoDat
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *input = colDataGetData(pInputData, i);
-  char *output = NULL;
-  code = doAsTextFunc(input, &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
+  char          *output = NULL;
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  TAOS_CHECK_GOTO(doAsTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
   if (output) {
@@ -199,36 +192,22 @@ _exit:
 }
 
 int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
-                            const GEOSGeometry *geom2, int32_t i,
-                            bool swapped, SColumnInfoData *pOutputData,
+                            const GEOSGeometry *geom2, int32_t i, bool swapped, SColumnInfoData *pOutputData,
                             _geomDoRelationFunc_t doRelationFn) {
-  int32_t code = TSDB_CODE_FAILED;
   char res = 0;
 
-  if (!geom1 || !geom2) { //if empty input value
+  if (!geom1 || !geom2) {  // if empty input value
     res = -1;
-    code = TSDB_CODE_SUCCESS;
-  }
-  else {
-    code = doRelationFn(geom1, preparedGeom1, geom2, swapped, &res);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+  } else {
+    TAOS_CHECK_RETURN(doRelationFn(geom1, preparedGeom1, geom2, swapped, &res));
   }
 
-  colDataSetVal(pOutputData, i, &res, (res==-1));
-
-  return code;
+  return colDataSetVal(pOutputData, i, &res, (res == -1));
 }
 
-int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                             _geomInitCtxFunc_t initCtxFn, _geomExecuteOneParamFunc_t executeOneParamFn) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  code = initCtxFn();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomInitCtxFunc_t initCtxFn,
+                             _geomExecuteOneParamFunc_t executeOneParamFn) {
+  TAOS_CHECK_RETURN(initCtxFn());
 
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -236,54 +215,40 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
 
   if (IS_NULL_TYPE(GET_PARAM_TYPE(pInput))) {
     colDataSetNNULL(pOutputData, 0, pInput->numOfRows);
-    code = TSDB_CODE_SUCCESS;
-  }
-  else {
+  } else {
     for (int32_t i = 0; i < pInput->numOfRows; ++i) {
       if (colDataIsNull_s(pInputData, i)) {
         colDataSetNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
         continue;
       }
 
-      code = executeOneParamFn(pInputData, i, pOutputData);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      TAOS_CHECK_RETURN(executeOneParamFn(pInputData, i, pOutputData));
     }
   }
 
-  return code;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                              _geomInitCtxFunc_t initCtxFn, _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  code = initCtxFn();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomInitCtxFunc_t initCtxFn,
+                              _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
+  TAOS_CHECK_RETURN(initCtxFn());
 
   SColumnInfoData *pInputData[2];
   SColumnInfoData *pOutputData = pOutput->columnData;
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
 
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
-                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-  bool isConstantLeft = (pInput[0].numOfRows == 1);
-  bool isConstantRight = (pInput[1].numOfRows == 1);
+  bool    hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+  bool    isConstantLeft = (pInput[0].numOfRows == 1);
+  bool    isConstantRight = (pInput[1].numOfRows == 1);
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   pOutput->numOfRows = numOfRows;
 
-  if (hasNullType ||                                           // one of operant is NULL type
-     (isConstantLeft && colDataIsNull_s(pInputData[0], 0)) ||  // left operand is constant NULL
-     (isConstantRight && colDataIsNull_s(pInputData[1], 0))) { // right operand is constant NULL
+  if (hasNullType ||                                             // one of operant is NULL type
+      (isConstantLeft && colDataIsNull_s(pInputData[0], 0)) ||   // left operand is constant NULL
+      (isConstantRight && colDataIsNull_s(pInputData[1], 0))) {  // right operand is constant NULL
     colDataSetNNULL(pOutputData, 0, numOfRows);
-    code = TSDB_CODE_SUCCESS;
-  }
-  else {
+  } else {
     int32_t iLeft = 0;
     int32_t iRight = 0;
     for (int32_t i = 0; i < numOfRows; ++i) {
@@ -293,107 +258,80 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
       if ((!isConstantLeft && colDataIsNull_s(pInputData[0], iLeft)) ||
           (!isConstantRight && colDataIsNull_s(pInputData[1], iRight))) {
         colDataSetNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
         continue;
       }
 
-      code = executeTwoParamsFn(pInputData, iLeft, iRight, pOutputData);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      TAOS_CHECK_RETURN(executeTwoParamsFn(pInputData, iLeft, iRight, pOutputData));
     }
   }
 
-  return code;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                             bool swapAllowed, _geomDoRelationFunc_t doRelationFn) {
+int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput, bool swapAllowed,
+                             _geomDoRelationFunc_t doRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
 
-  code = initCtxRelationFunc();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  TAOS_CHECK_RETURN(initCtxRelationFunc());
 
   // handle with all NULL output
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
-                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-  bool isConstant1 = (pInput[0].numOfRows == 1);
-  bool isConstant2 = (pInput[1].numOfRows == 1);
+  bool    hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+  bool    isConstant1 = (pInput[0].numOfRows == 1);
+  bool    isConstant2 = (pInput[1].numOfRows == 1);
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   pOutput->numOfRows = numOfRows;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  if (hasNullType || // at least one of operant is NULL type
-     (isConstant1 && colDataIsNull_s(pInput[0].columnData, 0)) || // left operand is constant NULL
-     (isConstant2 && colDataIsNull_s(pInput[1].columnData, 0))) { // right operand is constant NULL
+  if (hasNullType ||                                                // at least one of operant is NULL type
+      (isConstant1 && colDataIsNull_s(pInput[0].columnData, 0)) ||  // left operand is constant NULL
+      (isConstant2 && colDataIsNull_s(pInput[1].columnData, 0))) {  // right operand is constant NULL
     colDataSetNNULL(pOutputData, 0, numOfRows);
-    code = TSDB_CODE_SUCCESS;
-    return code;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  bool swapped = false;
+  bool             swapped = false;
   SColumnInfoData *pInputData[2];
 
   // swap two input data to make sure input data 0 is constant if swapAllowed and only isConstant2 is true
-  if (swapAllowed &&
-     !isConstant1 && isConstant2) {
+  if (swapAllowed && !isConstant1 && isConstant2) {
     pInputData[0] = pInput[1].columnData;
     pInputData[1] = pInput[0].columnData;
 
     isConstant1 = true;
     isConstant2 = false;
     swapped = true;
-  }
-  else {
+  } else {
     pInputData[0] = pInput[0].columnData;
     pInputData[1] = pInput[1].columnData;
   }
 
-  GEOSGeometry *geom1 = NULL;
-  GEOSGeometry *geom2 = NULL;
+  GEOSGeometry               *geom1 = NULL;
+  GEOSGeometry               *geom2 = NULL;
   const GEOSPreparedGeometry *preparedGeom1 = NULL;
 
   // if there is constant, make PreparedGeometry from pInputData 0
   if (isConstant1) {
-    code = readGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_GOTO(readGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1), NULL, _exit);
   }
   if (isConstant2) {
-    code = readGeometry(colDataGetData(pInputData[1], 0), &geom2, NULL);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_GOTO(readGeometry(colDataGetData(pInputData[1], 0), &geom2, NULL), NULL, _exit);
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    if ((!isConstant1 && colDataIsNull_s(pInputData[0], i)) ||
-        (!isConstant2 && colDataIsNull_s(pInputData[1], i))) {
+    if ((!isConstant1 && colDataIsNull_s(pInputData[0], i)) || (!isConstant2 && colDataIsNull_s(pInputData[1], i))) {
       colDataSetNULL(pOutputData, i);
-      code = TSDB_CODE_SUCCESS;
       continue;
     }
 
     if (!isConstant1) {
-      code = readGeometry(colDataGetData(pInputData[0], i), &geom1, &preparedGeom1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
+      TAOS_CHECK_GOTO(readGeometry(colDataGetData(pInputData[0], i), &geom1, &preparedGeom1), NULL, _exit);
     }
     if (!isConstant2) {
-      code = readGeometry(colDataGetData(pInputData[1], i), &geom2, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
+      TAOS_CHECK_GOTO(readGeometry(colDataGetData(pInputData[1], i), &geom2, NULL), NULL, _exit);
     }
 
-    code = executeRelationFunc(geom1, preparedGeom1, geom2, i, swapped, pOutputData, doRelationFn);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_GOTO(executeRelationFunc(geom1, preparedGeom1, geom2, i, swapped, pOutputData, doRelationFn), NULL,
+                    _exit);
 
     if (!isConstant1) {
       destroyGeometry(&geom1, &preparedGeom1);
@@ -403,11 +341,13 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
     }
   }
 
+  code = TSDB_CODE_SUCCESS;
+
 _exit:
   destroyGeometry(&geom1, &preparedGeom1);
   destroyGeometry(&geom2, NULL);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

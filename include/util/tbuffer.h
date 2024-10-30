@@ -27,9 +27,9 @@ typedef struct SBufferReader SBufferReader;
 
 // SBuffer
 #define BUFFER_INITIALIZER ((SBuffer){0, 0, NULL})
-static int32_t tBufferInit(SBuffer *buffer);
-static int32_t tBufferDestroy(SBuffer *buffer);
-static int32_t tBufferClear(SBuffer *buffer);
+static void    tBufferInit(SBuffer *buffer);
+static void    tBufferDestroy(SBuffer *buffer);
+static void    tBufferClear(SBuffer *buffer);
 static int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity);
 static int32_t tBufferPut(SBuffer *buffer, const void *data, uint32_t size);
 static int32_t tBufferPutAt(SBuffer *buffer, uint32_t offset, const void *data, uint32_t size);

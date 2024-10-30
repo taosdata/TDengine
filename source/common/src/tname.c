@@ -33,7 +33,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     }
     struct tm tm;
     time_t t = (time_t)start;
-    taosLocalTime(&t, &tm);
+    taosLocalTime(&t, &tm, NULL, 0);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -87,25 +87,26 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
-SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  if (pName == NULL){
+    return;
+  }
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
   snprintf(pName->dbname, sizeof(pName->dbname), "%s", pDbName);
   snprintf(pName->tname, sizeof(pName->tname), "%s", pTableName);
-  return pName;
 }
 
 int32_t tNameExtractFullName(const SName* name, char* dst) {
   // invalid full name format, abort
   if (!tNameIsValid(name)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = tsnprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    /*ASSERT(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -142,7 +143,7 @@ bool tNameIsValid(const SName* name) {
 
 SName* tNameDup(const SName* name) {
   SName* p = taosMemoryMalloc(sizeof(SName));
-  memcpy(p, name, sizeof(SName));
+  if (p) TAOS_MEMCPY(p, name, sizeof(SName));
   return p;
 }
 
@@ -154,14 +155,20 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
   return 0;
 }
 
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
-  ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
+  if (!(name != NULL && name->type == TSDB_TABLE_NAME_T)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   return &name->tname[0];
 }
 
@@ -170,7 +177,7 @@ void tNameAssign(SName* dst, const SName* src) { memcpy(dst, src, sizeof(SName))
 int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
   // too long account id or too long db name
   if (nameLen <= 0 || nameLen >= tListLen(dst->dbname)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->type = TSDB_DB_NAME_T;
@@ -182,7 +189,7 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
   // too long account id or too long db name
   if (nameLen >= tListLen(dst->tname) || nameLen <= 0) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->type = TSDB_TABLE_NAME_T;
@@ -226,14 +233,14 @@ bool tNameTbNameEqual(SName* left, SName* right) {
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   if (strlen(str) == 0) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   char* p = NULL;
   if ((type & T_NAME_ACCT) == T_NAME_ACCT) {
     p = strstr(str, TS_PATH_DELIMITER);
     if (p == NULL) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     dst->acctId = taosStr2Int32(str, NULL, 10);
@@ -253,7 +260,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 
     // too long account id or too long db name
     if ((len >= tListLen(dst->dbname)) || (len <= 0)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     memcpy(dst->dbname, start, len);
@@ -267,7 +274,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     // too long account id or too long db name
     int32_t len = (int32_t)strlen(start);
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     memcpy(dst->tname, start, len);
@@ -293,17 +300,21 @@ static int compareKv(const void* p1, const void* p2) {
 /*
  * use stable name and tags to grearate child table name
  */
-void buildChildTableName(RandTableName* rName) {
+int32_t buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
   if (sb.buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGet(rName->tags, j);
+    if (tagKv == NULL) {
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
     taosStringBuilderAppendChar(&sb, '=');
     if (IS_VAR_DATA_TYPE(tagKv->type)) {
@@ -312,6 +323,7 @@ void buildChildTableName(RandTableName* rName) {
       taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
     }
   }
+
   size_t    len = 0;
   char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
   T_MD5_CTX context;
@@ -323,8 +335,9 @@ void buildChildTableName(RandTableName* rName) {
   rName->ctbShortName[0] = 't';
   rName->ctbShortName[1] = '_';
   for (int i = 0; i < 16; i++) {
-    sprintf(temp, "%02x", context.digest[i]);
-    strcat(rName->ctbShortName, temp);
+    (void)sprintf(temp, "%02x", context.digest[i]);
+    (void)strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
+  return TSDB_CODE_SUCCESS;
 }

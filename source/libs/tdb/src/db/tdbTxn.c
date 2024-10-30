@@ -20,7 +20,7 @@ int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void 
   // not support read-committed version at the moment
   if (flags != 0 && flags != (TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED)) {
     tdbError("tdb/txn: invalid txn flags: %" PRId32, flags);
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   pTxn->flags = flags;
@@ -31,7 +31,7 @@ int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void 
   return 0;
 }
 
-int tdbTxnCloseImpl(TXN *pTxn) {
+void tdbTxnCloseImpl(TXN *pTxn) {
   if (pTxn) {
     if (pTxn->jPageSet) {
       hashset_destroy(pTxn->jPageSet);
@@ -39,12 +39,14 @@ int tdbTxnCloseImpl(TXN *pTxn) {
     }
 
     if (pTxn->jfd) {
-      tdbOsClose(pTxn->jfd);
-      ASSERT(pTxn->jfd == NULL);
+      int32_t code = tdbOsClose(pTxn->jfd);
+      if (code) {
+        tdbError("tdb/txn: close journal file failed, code:%d", code);
+      }
     }
 
     tdbOsFree(pTxn);
   }
 
-  return 0;
+  return;
 }

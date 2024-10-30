@@ -25,9 +25,9 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "tlog.h"
-#include "tsimplehash.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "tsimplehash.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -69,16 +69,16 @@ typedef enum {
 #define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
 #define QUERY_MSG_MASK_AUDIT()        (1 << 1)
 #define QUERY_MSG_MASK_VIEW()         (1 << 2)
-#define TEST_SHOW_REWRITE_MASK(m)     (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
-#define TEST_AUDIT_MASK(m)            (((m) & QUERY_MSG_MASK_AUDIT()) != 0)
-#define TEST_VIEW_MASK(m)             (((m) & QUERY_MSG_MASK_VIEW()) != 0)
+#define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+#define TEST_AUDIT_MASK(m)            (((m)&QUERY_MSG_MASK_AUDIT()) != 0)
+#define TEST_VIEW_MASK(m)             (((m)&QUERY_MSG_MASK_VIEW()) != 0)
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
   col_id_t numOfColumns;  // the number of columns
   int16_t  numOfPKs;
-  int32_t  rowSize;       // row size of the schema
+  int32_t  rowSize;  // row size of the schema
 } STableComInfo;
 
 typedef struct SIndexMeta {
@@ -119,8 +119,9 @@ typedef struct STableMeta {
   int32_t       sversion;
   int32_t       tversion;
   STableComInfo tableInfo;
-  SSchemaExt*   schemaExt; // There is no additional memory allocation, and the pointer is fixed to the next address of the schema content.
-  SSchema       schema[];
+  SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
+                            // the schema content.
+  SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
 
@@ -192,12 +193,13 @@ typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
+  bool     hasBoundCols;
 } SBoundColInfo;
 
 typedef struct STableColsData {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  SArray*  aCol;
-  bool     getFromHash;
+  char    tbName[TSDB_TABLE_NAME_LEN];
+  SArray* aCol;
+  bool    getFromHash;
 } STableColsData;
 
 typedef struct STableVgUid {
@@ -206,14 +208,13 @@ typedef struct STableVgUid {
 } STableVgUid;
 
 typedef struct STableBufInfo {
-  void*     pCurBuff;
-  SArray*   pBufList;
-  int64_t   buffUnit;
-  int64_t   buffSize;
-  int64_t   buffIdx;
-  int64_t   buffOffset;
+  void*   pCurBuff;
+  SArray* pBufList;
+  int64_t buffUnit;
+  int64_t buffSize;
+  int64_t buffIdx;
+  int64_t buffOffset;
 } STableBufInfo;
-
 
 typedef struct STableDataCxt {
   STableMeta*    pMeta;
@@ -236,22 +237,21 @@ typedef struct SStbInterlaceInfo {
   void*          pRequest;
   uint64_t       requestId;
   int64_t        requestSelf;
-  bool           tbFromHash;      
+  bool           tbFromHash;
   SHashObj*      pVgroupHash;
   SArray*        pVgroupList;
   SSHashObj*     pTableHash;
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
   char           firstName[TSDB_TABLE_NAME_LEN];
-  STSchema      *pTSchema;
-  STableDataCxt *pDataCtx;
-  void          *boundTags;
+  STSchema*      pTSchema;
+  STableDataCxt* pDataCtx;
+  void*          boundTags;
 
-  bool           tableColsReady;
-  SArray        *pTableCols;
-  int32_t        pTableColsIdx;
+  bool    tableColsReady;
+  SArray* pTableCols;
+  int32_t pTableColsIdx;
 } SStbInterlaceInfo;
-
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
@@ -307,6 +307,8 @@ void destroyAhandle(void* ahandle);
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* ctx);
 
+int32_t asyncFreeConnById(void* pTransporter, int64_t pid);
+;
 /**
  * Asynchronously send message to server, after the response received, the callback will be incured.
  *
@@ -324,17 +326,18 @@ void initQueryModuleMsgHandle();
 
 const SSchema* tGetTbnameColumnSchema();
 bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
-int32_t getAsofJoinReverseOp(EOperatorType op);
+int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
-char*   parseTagDatatoJson(void* p);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
+void    parseTagDatatoJson(void* p, char** jsonStr);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
@@ -345,6 +348,8 @@ void    freeDbCfgInfo(SDbCfgInfo* pInfo);
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
+
+void* getTaskPoolWorkerCb();
 
 #define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE
@@ -383,7 +388,7 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW || \
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||     \
    (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
@@ -402,29 +407,29 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define IS_AUDIT_CTB_NAME(_ctbname) \
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
-#define qFatal(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qFatal(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_FATAL) {                                                           \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qError(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qError(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_ERROR) {                                                           \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qWarn(...)                                                    \
-  do {                                                                \
-    if (qDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
-    }                                                                 \
+#define qWarn(...)                                                                          \
+  do {                                                                                      \
+    if (qDebugFlag & DEBUG_WARN) {                                                          \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                       \
   } while (0)
-#define qInfo(...)                                               \
-  do {                                                           \
-    if (qDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
-    }                                                            \
+#define qInfo(...)                                                                     \
+  do {                                                                                 \
+    if (qDebugFlag & DEBUG_INFO) {                                                     \
+      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                  \
   } while (0)
 #define qDebug(...)                                               \
   do {                                                            \

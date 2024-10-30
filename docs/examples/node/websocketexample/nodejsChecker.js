@@ -10,10 +10,8 @@ for(var i = 2; i < global.process.argv.length; i++){
 }
 
 if(host == null){
-    console.log("Usage: node nodejsChecker.js host=<hostname> port=<port>");
-    process.exit(0);
+    host = 'localhost';
 }
-
 
 async function createConnect() {
     let dsn = 'ws://' + host + ':6041'
@@ -41,7 +39,7 @@ async function test() {
         taosResult = await wsSql.exec('USE power', reqId++);
         console.log(taosResult);
 
-        taosResult = await wsSql.exec('CREATE STABLE IF NOT EXISTS meters (_ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);', reqId++);
+        taosResult = await wsSql.exec('CREATE STABLE IF NOT EXISTS meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);', reqId++);
         console.log(taosResult);
 
         taosResult = await wsSql.exec('DESCRIBE meters', reqId++);
@@ -62,6 +60,7 @@ async function test() {
     }
     catch (err) {
         console.error(err.code, err.message);
+        throw err;
     }
     finally {
         if (wsRows) {

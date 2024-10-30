@@ -25,7 +25,6 @@ int32_t streamMetaId = 0;
 
 struct SMetaHbInfo {
   tmr_h        hbTmr;
-  int32_t      stopFlag;
   int32_t      tickCounter;
   int32_t      hbCount;
   int64_t      hbStart;
@@ -43,7 +42,7 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
   int32_t numOfExisted = taosArrayGetSize(pMsg->pUpdateNodes);
-  for (int k = 0; k < numOfExisted; ++k) {
+  for (int32_t k = 0; k < numOfExisted; ++k) {
     if (pTaskEpset->nodeId == *(int32_t*)taosArrayGet(pMsg->pUpdateNodes, k)) {
       return true;
     }
@@ -54,22 +53,26 @@ static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
 static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
-  for (int j = 0; j < num; ++j) {
+  for (int32_t j = 0; j < num; ++j) {
     SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, j);
 
     bool exist = existInHbMsg(pMsg, pTaskEpset);
     if (!exist) {
-      taosArrayPush(pMsg->pUpdateNodes, &pTaskEpset->nodeId);
+      void* p = taosArrayPush(pMsg->pUpdateNodes, &pTaskEpset->nodeId);
+      if (p == NULL) {
+        stError("failed to set the updateNode info in hbMsg, vgId:%d", pMeta->vgId);
+      }
+
       stDebug("vgId:%d nodeId:%d added into hbMsg update list, total:%d", pMeta->vgId, pTaskEpset->nodeId,
               (int32_t)taosArrayGetSize(pMsg->pUpdateNodes));
     }
   }
 
   taosArrayClear(pTask->outputInfo.pNodeEpsetUpdateList);
-  taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 }
 
 static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* pEpset) {
@@ -92,6 +95,7 @@ static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* p
   tEncoderInit(&encoder, buf, tlen);
   if ((code = tEncodeStreamHbMsg(&encoder, pMsg)) < 0) {
     rpcFreeCont(buf);
+    tEncoderClear(&encoder);
     stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
     return TSDB_CODE_FAILED;
   }
@@ -101,9 +105,7 @@ static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* p
 
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
-  tmsgSendReq(pEpset, &msg);
-
-  return TSDB_CODE_SUCCESS;
+  return tmsgSendReq(pEpset, &msg);
 }
 
 // NOTE: this task should be executed within the SStreamMeta lock region.
@@ -112,6 +114,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   bool         hasMnodeEpset = false;
   int32_t      numOfTasks = streamMetaGetNumOfTasks(pMeta);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
+  int32_t      code = 0;
 
   // not recv the hb msg rsp yet, send current hb msg again
   if (pInfo->msgSendTs > 0) {
@@ -135,22 +138,21 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     pInfo->msgSendTs = taosGetTimestampMs();
-    doSendHbMsgInfo(&pInfo->hbMsg, pMeta, &epset);
-    return TSDB_CODE_SUCCESS;
+    return doSendHbMsgInfo(&pInfo->hbMsg, pMeta, &epset);
   }
 
   SStreamHbMsg* pMsg = &pInfo->hbMsg;
-  stDebug("vgId:%d build stream hbMsg, leader:%d msgId:%d", pMeta->vgId, (pMeta->role == NODE_ROLE_LEADER),
-          pMeta->pHbInfo->hbCount);
-
   pMsg->vgId = pMeta->vgId;
   pMsg->msgId = pMeta->pHbInfo->hbCount;
+  pMsg->ts = taosGetTimestampMs();
+
+  stDebug("vgId:%d build stream hbMsg, leader:%d HbMsgId:%d, HbMsgTs:%" PRId64, pMeta->vgId,
+          (pMeta->role == NODE_ROLE_LEADER), pMsg->msgId, pMsg->ts);
 
   pMsg->pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   if (pMsg->pTaskStatus == NULL || pMsg->pUpdateNodes == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -168,9 +170,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
-    taosThreadMutexLock(&(*pTask)->lock);
+    streamMutexLock(&(*pTask)->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(*pTask);
-    taosThreadMutexUnlock(&(*pTask)->lock);
+    streamMutexUnlock(&(*pTask)->lock);
 
     entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
@@ -188,17 +190,18 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
         stInfo("s-task:%s set kill checkpoint trans in hbMsg, transId:%d, clear the active checkpointInfo",
                (*pTask)->id.idStr, p->transId);
 
-        taosThreadMutexLock(&(*pTask)->lock);
+        streamMutexLock(&(*pTask)->lock);
         streamTaskClearCheckInfo((*pTask), true);
-        taosThreadMutexUnlock(&(*pTask)->lock);
+        streamMutexUnlock(&(*pTask)->lock);
       }
     }
 
-    if ((*pTask)->status.requireConsensusChkptId) {
-      entry.checkpointInfo.consensusChkptId = 1;
-      (*pTask)->status.requireConsensusChkptId = false;
-      stDebug("s-task:%s vgId:%d set the require consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
+    streamMutexLock(&(*pTask)->lock);
+    entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(*pTask, pMsg->ts);
+    if (entry.checkpointInfo.consensusChkptId) {
+      entry.checkpointInfo.consensusTs = pMsg->ts;
     }
+    streamMutexUnlock(&(*pTask)->lock);
 
     if ((*pTask)->exec.pWalReader != NULL) {
       entry.processedVer = walReaderGetCurrentVer((*pTask)->exec.pWalReader) - 1;
@@ -210,7 +213,11 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     addUpdateNodeIntoHbMsg(*pTask, pMsg);
-    taosArrayPush(pMsg->pTaskStatus, &entry);
+    p = taosArrayPush(pMsg->pTaskStatus, &entry);
+    if (p == NULL) {
+      stError("failed to add taskInfo:0x%x in hbMsg, vgId:%d", (*pTask)->id.taskId, pMeta->vgId);
+    }
+
     if (!hasMnodeEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
       hasMnodeEpset = true;
@@ -221,18 +228,21 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
 
   if (hasMnodeEpset) {
     pInfo->msgSendTs = taosGetTimestampMs();
-    doSendHbMsgInfo(pMsg, pMeta, &epset);
+    code = doSendHbMsgInfo(pMsg, pMeta, &epset);
   } else {
     stDebug("vgId:%d no tasks or no mnd epset, not send stream hb to mnode", pMeta->vgId);
     tCleanupStreamHbMsg(&pInfo->hbMsg);
     pInfo->msgSendTs = -1;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void streamMetaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
+  int32_t code = 0;
+  int32_t vgId = 0;
+  int32_t role = 0;
 
   SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
   if (pMeta == NULL) {
@@ -240,19 +250,41 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
+  vgId = pMeta->vgId;
+  role = pMeta->role;
+
   // need to stop, stop now
-  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {  // todo refactor: not need this now, use closeFlag in Meta
-    pMeta->pHbInfo->stopFlag = STREAM_META_OK_TO_STOP;
-    stDebug("vgId:%d jump out of meta timer", pMeta->vgId);
-    taosReleaseRef(streamMetaId, rid);
+  if (pMeta->closeFlag) {
+    pMeta->pHbInfo->hbStart = 0;
+    code = taosReleaseRef(streamMetaId, rid);
+    if (code == TSDB_CODE_SUCCESS) {
+      stDebug("vgId:%d jump out of meta timer", vgId);
+    } else {
+      stError("vgId:%d jump out of meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
+    }
     return;
   }
 
   // not leader not send msg
   if (pMeta->role != NODE_ROLE_LEADER) {
-    stInfo("vgId:%d role:%d not leader not send hb to mnode", pMeta->vgId, pMeta->role);
-    taosReleaseRef(streamMetaId, rid);
     pMeta->pHbInfo->hbStart = 0;
+    code = taosReleaseRef(streamMetaId, rid);
+    if (code == TSDB_CODE_SUCCESS) {
+      stInfo("vgId:%d role:%d not leader not send hb to mnode", vgId, role);
+    } else {
+      stError("vgId:%d role:%d not leader not send hb to mnodefailed to release the meta rid:%" PRId64, vgId, role, rid);
+    }
+    return;
+  }
+
+  if (!waitForEnoughDuration(pMeta->pHbInfo)) {
+    streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, vgId,
+                   "meta-hb-tmr");
+
+    code = taosReleaseRef(streamMetaId, rid);
+    if (code) {
+      stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
+    }
     return;
   }
 
@@ -261,58 +293,56 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
-  if (!waitForEnoughDuration(pMeta->pHbInfo)) {
-    taosTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
-    taosReleaseRef(streamMetaId, rid);
-    return;
-  }
-
   streamMetaRLock(pMeta);
-  streamMetaSendHbHelper(pMeta);
+  code = streamMetaSendHbHelper(pMeta);
+  if (code) {
+    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+  }
   streamMetaRUnLock(pMeta);
 
-  taosTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
-  taosReleaseRef(streamMetaId, rid);
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
+                 "meta-hb-tmr");
+
+  code = taosReleaseRef(streamMetaId, rid);
+  if (code) {
+    stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
+  }
 }
 
-SMetaHbInfo* createMetaHbInfo(int64_t* pRid) {
+int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
+  *pRes = NULL;
   SMetaHbInfo* pInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pInfo;
+    return terrno;
   }
 
-  pInfo->hbTmr = taosTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer, &pInfo->hbTmr, 0, "stream-hb");
   pInfo->tickCounter = 0;
-  pInfo->stopFlag = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;
-  return pInfo;
+
+  *pRes = pInfo;
+  return TSDB_CODE_SUCCESS;
 }
 
-void* destroyMetaHbInfo(SMetaHbInfo* pInfo) {
+void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
   if (pInfo != NULL) {
     tCleanupStreamHbMsg(&pInfo->hbMsg);
 
     if (pInfo->hbTmr != NULL) {
-      taosTmrStop(pInfo->hbTmr);
+      streamTmrStop(pInfo->hbTmr);
       pInfo->hbTmr = NULL;
     }
 
     taosMemoryFree(pInfo);
   }
-
-  return NULL;
 }
 
 void streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta) {
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
-    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
-      taosMsleep(100);
-      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
-    }
+    taosMsleep(2 * META_HB_CHECK_INTERVAL);
+    stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
   }
 }
 

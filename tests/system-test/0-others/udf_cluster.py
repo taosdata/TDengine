@@ -64,7 +64,7 @@ class TDTestCase:
     def prepare_data(self):
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database if not exists db replica 1 duration 300")
+        tdSql.execute("create database if not exists db replica 1 duration 100")
         tdSql.execute("use db")
         tdSql.execute(
         '''create table stb1

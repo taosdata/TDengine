@@ -40,17 +40,20 @@ int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen);
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
 int32_t taosGetCpuCores(float *numOfCores, bool physical);
-void    taosGetCpuUsage(double *cpu_system, double *cpu_engine);
+int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
 int32_t taosGetSysMemory(int64_t *usedKB);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
-void    taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
-void    taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
+int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+void    taosSetDefaultProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
+void    taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 
 void    taosKillSystem();
-int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
+int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen);
+int32_t taosGetSystemUUIDLen(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
@@ -78,7 +81,7 @@ typedef struct {
 
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
-int         taosGetlocalhostname(char *hostname, size_t maxLen);
+int32_t     taosGetlocalhostname(char *hostname, size_t maxLen);
 
 #ifdef __cplusplus
 }
