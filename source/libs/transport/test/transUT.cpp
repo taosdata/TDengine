@@ -501,7 +501,7 @@ TEST_F(TransEnv, queryExcept) {
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  for (int i = 0; i < 50000; i++) {
+  for (int i = 0; i < 500000; i++) {
    memset(&req, 0, sizeof(req));
    req.info.noResp = 1;
    req.msgType = 3;
