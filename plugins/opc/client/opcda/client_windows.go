@@ -8,12 +8,12 @@ import (
 	"collector/common"
 	"collector/config"
 	"collector/log"
+	"collector/regexp"
 	"collector/types"
 	"container/list"
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -249,7 +249,7 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if c.conn == nil {
 		return nil, fmt.Errorf("opcda get all points error: connection is nil")
 	}
-	var reg *regexp.Regexp
+	var reg regexp.Regexp
 	var err error
 	if len(conf.Regex) > 0 {
 		reg, err = regexp.Compile(conf.Regex)
@@ -283,7 +283,7 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	return tags, nil
 }
 
-func (c *DAClient) browse(tree *opc.Tree, pointRegex *regexp.Regexp, pointLimit int) (points []common.Point) {
+func (c *DAClient) browse(tree *opc.Tree, pointRegex regexp.Regexp, pointLimit int) (points []common.Point) {
 	l := list.New()
 	l.PushBack(tree)
 

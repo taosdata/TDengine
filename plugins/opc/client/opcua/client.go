@@ -11,12 +11,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"collector/regexp"
 
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/id"
@@ -924,7 +925,7 @@ var attributeNames = []string{
 	"BrowseName",
 }
 
-func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg *regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
+func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
 	nodes := make([]*opcua.Node, 0, len(ns))
 	for i := 0; i < len(ns); i++ {
 		if len(nsMap) == 0 {
@@ -986,7 +987,7 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 	return result
 }
 
-func regMatched(reg *regexp.Regexp, point *common.Point) bool {
+func regMatched(reg regexp.Regexp, point *common.Point) bool {
 	if reg == nil {
 		return true
 	}
