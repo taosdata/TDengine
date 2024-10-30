@@ -250,6 +250,12 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   pOld->assignedLeader.acked = pNew->assignedLeader.acked;
   pOld->version++;
 
+  mInfo(
+      "arbgroup:%d, perform update action. members[0].token:%s, members[1].token:%s, isSync:%d, as-dnodeid:%d, "
+      "as-token:%s, as-acked:%d, version:%" PRId64,
+      pOld->vgId, pOld->members[0].state.token, pOld->members[1].state.token, pOld->isSync,
+      pOld->assignedLeader.dnodeId, pOld->assignedLeader.token, pOld->assignedLeader.acked, pOld->version);
+
 _OVER:
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
