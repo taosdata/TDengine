@@ -385,7 +385,7 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int
   if (SCH_IS_DATA_BIND_PLAN(pSubplan)) {
     if (pSubplan->execNode.epSet.numOfEps <= 0) {
       SCH_JOB_ELOG("no execNode specifed for data src plan %d, numOfEps:%d", pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);
-      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
     }
     if (pSubplan->execNode.epSet.inUse >= pSubplan->execNode.epSet.numOfEps) {
       SCH_JOB_ELOG("invalid epset inUse %d for data src plan %d, numOfEps:%d", pSubplan->execNode.epSet.inUse, pSubplan->subplanType, pSubplan->execNode.epSet.numOfEps);

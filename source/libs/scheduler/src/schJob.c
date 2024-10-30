@@ -402,7 +402,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     for (int32_t n = 0; n < taskNum; ++n) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
 
-      SCH_ERR_RET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
+      SCH_ERR_JRET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
       
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
