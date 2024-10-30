@@ -457,6 +457,7 @@ static bool filteBySeq(void* key, void* arg) {
   SFiterArg* targ = arg;
   SCliReq*   pReq = QUEUE_DATA(key, SCliReq, q);
   if (pReq->seq == targ->seq && pReq->msg.msgType + 1 == targ->msgType) {
+    removeReqFromSendQ(pReq);
     return true;
   } else {
     return false;
@@ -543,6 +544,7 @@ bool filterByQid(void* key, void* arg) {
   SCliReq* pReq = QUEUE_DATA(key, SCliReq, q);
 
   if (pReq->msg.info.qId == *qid) {
+    removeReqFromSendQ(pReq);
     return true;
   } else {
     return false;
@@ -1226,6 +1228,7 @@ static FORCE_INLINE void destroyReqInQueue(SCliConn* conn, queue* set, int32_t c
     QUEUE_REMOVE(el);
 
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
+    removeReqFromSendQ(pReq);
     notifyAndDestroyReq(conn, pReq, code);
   }
 }
@@ -1284,6 +1287,7 @@ bool filterToRmReq(void* h, void* arg) {
   queue*   el = h;
   SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
   if (pReq->sent == 1 && pReq->inSendQ == 0 && REQUEST_NO_RESP(&pReq->msg)) {
+    removeReqFromSendQ(pReq);
     return true;
   }
   return false;
@@ -3700,6 +3704,7 @@ bool filterTimeoutReq(void* key, void* arg) {
   if (pReq->msg.info.qId == 0 && !REQUEST_NO_RESP(&pReq->msg) && pReq->ctx) {
     int64_t elapse = ((st - pReq->st) / 1000000);
     if (listArg && elapse >= listArg->pInst->readTimeout) {
+      removeReqFromSendQ(pReq);
       return true;
     } else {
       return false;

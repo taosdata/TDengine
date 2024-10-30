@@ -524,6 +524,6 @@ TEST_F(TransEnv, noResp) {
    tr->cliSendReq(&req); 
    //tr->cliSendAndRecv(&req, &resp);
   }
-  taosMsleep(100000);
+  taosMsleep(10000);
   // no resp
 }
