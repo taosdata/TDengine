@@ -1498,8 +1498,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   if (req == NULL) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(terrno));
     while (!QUEUE_IS_EMPTY(&reqToSend)) {
-      queue* h = QUEUE_HEAD(&reqToSend);
-
+      queue*   h = QUEUE_HEAD(&reqToSend);
       SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
       removeReqFromSendQ(pCliMsg);
     }
