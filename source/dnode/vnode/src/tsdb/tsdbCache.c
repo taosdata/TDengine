@@ -230,6 +230,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   pTsdb->rCache.readoptions = readoptions;
   pTsdb->rCache.flushoptions = flushoptions;
   pTsdb->rCache.db = db;
+  pTsdb->rCache.sver = -1;
   pTsdb->rCache.suid = -1;
   pTsdb->rCache.uid = -1;
   pTsdb->rCache.pTSchema = NULL;
@@ -1303,31 +1304,35 @@ _exit:
 }
 
 void tsdbCacheInvalidateSchema(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
-  if (pTsdb->rCache.pTSchema && pTsdb->rCache.suid == suid) {
-    if (pTsdb->rCache.suid && sver == pTsdb->rCache.sver) {
-      pTsdb->rCache.sver = -1;
-      pTsdb->rCache.suid = -1;
-    } else if (pTsdb->rCache.uid == uid && pTsdb->rCache.sver == sver) {
-      pTsdb->rCache.sver = -1;
-      pTsdb->rCache.uid = -1;
-    }
+  SRocksCache *pRCache = &pTsdb->rCache;
+  if (!pRCache->pTSchema || sver <= pTsdb->rCache.sver) return;
+
+  if (suid > 0 && suid == pRCache->suid) {
+    pRCache->sver = -1;
+    pRCache->suid = -1;
+  }
+  if (suid == 0 && uid == pRCache->uid) {
+    pRCache->sver = -1;
+    pRCache->uid = -1;
   }
 }
 
 static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
-  if (pTsdb->rCache.pTSchema && pTsdb->rCache.suid == suid) {
-    if (pTsdb->rCache.suid && sver == pTsdb->rCache.sver) {
+  SRocksCache *pRCache = &pTsdb->rCache;
+  if (pRCache->pTSchema && sver == pRCache->sver) {
+    if (suid > 0 && suid == pRCache->suid) {
       return 0;
-    } else if (pTsdb->rCache.uid == uid && pTsdb->rCache.sver == sver) {
+    }
+    if (suid == 0 && uid == pRCache->uid) {
       return 0;
     }
   }
 
-  pTsdb->rCache.suid = suid;
-  pTsdb->rCache.uid = uid;
-  pTsdb->rCache.sver = sver;
-  tDestroyTSchema(pTsdb->rCache.pTSchema);
-  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTsdb->rCache.pTSchema);
+  pRCache->suid = suid;
+  pRCache->uid = uid;
+  pRCache->sver = sver;
+  tDestroyTSchema(pRCache->pTSchema);
+  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pRCache->pTSchema);
 }
 
 int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,
