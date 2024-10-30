@@ -85,6 +85,14 @@ class Client {
     SemWait();
     *resp = this->resp;
   }
+  void sendReq(SRpcMsg *req) {
+    SEpSet epSet = {0};
+    epSet.inUse = 0;
+    addEpIntoEpSet(&epSet, "127.0.0.1", 7000);
+
+    rpcSendRequest(this->transCli, &epSet, req, NULL);
+
+  }
   void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
     if (req->info.handle != NULL) {
       rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT);
@@ -264,6 +272,7 @@ class TransObj {
     cli->Stop();
   }
   void cliSendAndRecv(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecv(req, resp); }
+  void cliSendReq(SRpcMsg *req) { cli->sendReq(req); }
   void cliSendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecvNoHandle(req, resp); }
 
   ~TransObj() {
@@ -492,15 +501,16 @@ TEST_F(TransEnv, queryExcept) {
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  // for (int i = 0; i < 5; i++) {
-  //  memset(&req, 0, sizeof(req));
-  //  req.info.noResp = 1;
-  //  req.msgType = 1;
-  //  req.pCont = rpcMallocCont(10);
-  //  req.contLen = 10;
-  //  tr->cliSendAndRecv(&req, &resp);
-  //}
-  // taosMsleep(2000);
+  for (int i = 0; i < 50000; i++) {
+   memset(&req, 0, sizeof(req));
+   req.info.noResp = 1;
+   req.msgType = 3;
+   req.pCont = rpcMallocCont(10);
+   req.contLen = 10;
+   tr->cliSendReq(&req); 
+   //tr->cliSendAndRecv(&req, &resp);
+  }
+  taosMsleep(2000);
 
   // no resp
 }
