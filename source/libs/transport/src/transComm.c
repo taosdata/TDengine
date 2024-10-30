@@ -423,6 +423,7 @@ int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);
   wq->freeFunc = (void (*)(void*))freeFunc;
   wq->size = 0;
+  wq->inited = 1;
   return 0;
 }
 void transQueuePush(STransQueue* q, void* arg) {
@@ -497,6 +498,7 @@ void transQueueRemove(STransQueue* q, void* e) {
 bool transQueueEmpty(STransQueue* q) { return q->size == 0 ? true : false; }
 
 void transQueueClear(STransQueue* q) {
+  if (q->inited == 0) return;
   while (!QUEUE_IS_EMPTY(&q->node)) {
     queue* h = QUEUE_HEAD(&q->node);
     QUEUE_REMOVE(h);
