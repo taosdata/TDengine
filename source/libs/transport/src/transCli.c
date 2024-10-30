@@ -1092,6 +1092,7 @@ _failed:
     transQueueDestroy(&conn->reqsToSend);
     transQueueDestroy(&conn->reqsSentOut);
     taosMemoryFree(conn->dstAddr);
+    taosMemoryFree(conn->ipStr);
   }
   tError("failed to create conn, code:%d", code);
   taosMemoryFree(conn);
