@@ -169,6 +169,7 @@ static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   rpcMsg.contLen = 100;
   rpcMsg.info = pMsg->info;
   rpcMsg.code = 0;
+  rpcFreeCont(pMsg->pCont);
   rpcSendResponse(&rpcMsg);
 }
 
