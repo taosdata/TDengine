@@ -20,7 +20,6 @@ reqwest = { version = "0.11.27", default-features = false, features = [
 	"rustls-tls",
 ] }
 anyhow = "1"
-atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.2.0"
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
@@ -57,6 +56,8 @@ taoslog = { path = "../../crates/taoslog", features = ["ansi"] }
 http = "0.2.12"
 bitfield = "0.16.1"
 serde_with = "3.9.0"
+assert_cmd = "2.0.16"
+assert_fs = "1.1.2"
 
 [dependencies.taos]
 # path = "../taos-connector-rust/taos"

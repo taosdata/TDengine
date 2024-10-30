@@ -13,7 +13,7 @@ pytest-timeout = "^2.2.0"
 semver = "^3.0.2"
 python-dateutil = "^2.9.0.post0"
 taos-ws-py = "^0.3.3"
-testng-taosx = {path = "/Users/wangxu/PycharmProjects/TestNG_taosX", develop = true}
+testng-taosx = { git = "https://github.com/taosdata/TestNG_taosX.git", branch = "framework-only" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"
@@ -21,3 +21,8 @@ pre-commit = "^3.7.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "mirrors"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
+priority = "primary"

@@ -1047,6 +1047,7 @@ export default {
                 "Z"
               : "";
             item["taskActivities"] = activitList;
+            item["statusText"] = this.textOfstatus(item.status);
             return item;
           })[0]
         );

@@ -1338,16 +1338,16 @@ mod tests {
     #[tokio::test]
     async fn test_modify_dsn_params() {
         // modify the csv_config_file
-        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2F2.16OPCDA.csv".to_string();
+        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv".to_string();
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let csv_config = new_dsn.params.get("csv_config_file").unwrap();
-        assert_eq!("Tm8uLHRhZ19uYW1lLGVuYWJsZWQsc3RhYmxlLHRibmFtZSx2YWx1ZV9jb2wsdmFsdWVfdHJhbnNmb3JtLHR5cGUscXVhbGl0eV9jb2wsdHNfY29sLHJlY2VpdmVkX3RzX2NvbCx0c190cmFuc2Zvcm0scmVjZWl2ZWRfdHNfdHJhbnNmb3JtLHRhZzo6VkFSQ0hBUigyMDApOjpuYW1lCjEsZGV2aWNlMC50YWdkMF8wLDEsc3RiMSxzdGIxX3RiMSx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzAKMixkZXZpY2UwLnRhZ2QwXzEsMSxzdGIyLHN0YjJfdGIyLHZhbCwsLHF1YWxpdHksdHMscnRzLCwsdGFnZDBfMQozLGRldmljZTAudGFnZDBfMiwxLHN0YjMsc3RiM190YjMsdmFsLCwscXVhbGl0eSx0cyxydHMsLCx0YWdkMF8yCjQsZGV2aWNlMC50YWdkMF80LDEsc3RiNCxzdGI0X3RiNCx2YWwsLCxxdWFsaXR5LHRzLHJ0cywsLHRhZ2QwXzQ=", csv_config);
+        assert_eq!("MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==", csv_config);
 
         // do not modify the transform_config_file
-        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftests%2Fpi%2Fpi_singlecol_point.csv".to_string();
+        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv".to_string();
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let config_file = new_dsn.params.get("transform_config_file").unwrap();
-        assert_eq!("@./tests/pi/pi_singlecol_point.csv", config_file);
+        assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
     }
 
     // use super::FlightServiceImpl;
