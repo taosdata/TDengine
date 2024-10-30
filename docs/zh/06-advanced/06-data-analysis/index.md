@@ -42,7 +42,7 @@ systemctl status taosanoded
 |目录/文件|说明|
 |---------------|------|
 |/usr/local/taos/taosanode/bin|可执行文件目录|
-|/usr/local/taos/taosanode/resource|资源文件目录，连接到文件夹 /var/lib/taos/taosanode/resource/|
+|/usr/local/taos/taosanode/resource|资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/|
 |/usr/local/taos/taosanode/lib|库文件目录|
 |/var/lib/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
 |/var/log/taos/taosanode/|日志文件目录|
@@ -212,6 +212,14 @@ ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
 1. 异常检测的结果可以作为外层查询的子查询输入，在 `SELECT` 子句中使用的聚合函数或标量函数与其他类型的窗口查询相同。
 2. 输入数据默认进行白噪声检查，如果检查结果是输入数据是白噪声，将不会有任何（异常）窗口信息返回。
 
+**当前支持异常检测算法**
+- iqr
+- ksigma
+- grubbs
+- lof
+- shesd
+- tac
+
 
 #### 时序数据预测
 数据预测以一段训练数据作为输入，预测接下来若干时间点的后续运行结果。其调用的语法如下：
@@ -264,3 +272,7 @@ FROM ai.ftb;
 1. `START`：返回预测结果的起始时间，改变这个起始时间不会影响返回的预测数值，只影响起始时间。
 2. `EVERY`：可以与输入数据的采样频率不同。采样频率只能低于或等于输入数据采样频率，不能**高于**输入数据的采样频率。
 3. 对于某些不需要计算置信区间的算法，即使指定了置信区间，返回的结果中其上下界退化成为一个点。
+
+**支持预测算法**
+- arima
+- holtwinters
