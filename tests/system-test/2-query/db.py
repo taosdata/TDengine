@@ -57,10 +57,16 @@ class TDTestCase:
             tdSql.checkData(0, 2, 0)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
-        tdSql.checkRows(24)
+        tdSql.checkRows(25)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
         tdSql.checkRows(2)
+
+        tdSql.query("show dnode 1 variables like 's3MigrateEna%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 's3MigrateEnabled')
+        tdSql.checkData(0, 2, 0)
 
     def threadTest(self, threadID):
         print(f"Thread {threadID} starting...")

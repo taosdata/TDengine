@@ -43,11 +43,11 @@
     }                                         \
   } while (0)
 
-#define CHECK_NAME(p)                         \
-  do {                                        \
-    if (!p) {                                 \
-      goto _err;                              \
-    }                                         \
+#define CHECK_NAME(p) \
+  do {                \
+    if (!p) {         \
+      goto _err;      \
+    }                 \
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
@@ -333,7 +333,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
-      sprintf(pExpr->aliasName, "%"PRIu64, hashVal);
+      sprintf(pExpr->aliasName, "%" PRIu64, hashVal);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
@@ -405,7 +405,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
   val->literal = taosStrndup(pLiteral->z, pLiteral->n);
-  if(!val->literal) {
+  if (!val->literal) {
     pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
@@ -586,8 +586,8 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
   if (NULL == pLiteral || pLiteral->n <= 5) {
     return NULL;
   }
-  SNodeList*  pHintList = NULL;
-  char*       hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
+  SNodeList* pHintList = NULL;
+  char*      hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
   if (!hint) return NULL;
   int32_t     i = 0;
   bool        quit = false;
@@ -971,7 +971,7 @@ _err:
 }
 
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
-  SNode* pNew = NULL, *pGE = NULL, *pLE = NULL;
+  SNode *pNew = NULL, *pGE = NULL, *pLE = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr, &pNew);
   CHECK_PARSER_STATUS(pCxt);
@@ -993,7 +993,7 @@ _err:
 }
 
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
-  SNode* pNew = NULL, *pLT = NULL, *pGT = NULL;
+  SNode *pNew = NULL, *pLT = NULL, *pGT = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr, &pNew);
   CHECK_PARSER_STATUS(pCxt);
@@ -1959,7 +1959,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_S3_CHUNKSIZE:
+    case DB_OPTION_S3_CHUNKPAGES:
       pDbOptions->s3ChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_S3_KEEPLOCAL: {
@@ -2209,7 +2209,7 @@ _err:
 
 SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2) {
   CHECK_PARSER_STATUS(pCxt);
-  char      optionType[TSDB_CL_OPTION_LEN];
+  char optionType[TSDB_CL_OPTION_LEN];
 
   memset(optionType, 0, TSDB_CL_OPTION_LEN);
   strncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
@@ -2806,7 +2806,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);
   if (!ipCopy) return terrno;
-  char*   slash = strchr(ipCopy, '/');
+  char* slash = strchr(ipCopy, '/');
   if (slash) {
     *slash = '\0';
     struct in_addr addr;
