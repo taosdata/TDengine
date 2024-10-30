@@ -4171,6 +4171,11 @@ pub async fn listen_tcp_socket(
                             }
                         }
                     }
+                    _ = cancel.cancelled() => {
+                        tracing::debug!("IPC listener received task cancel signal");
+                        notified.notify_waiters();
+                        break;
+                    }
                 }
             }
             tracing::info!(ipc.handlers = ipc_id, "IPC stream listener would wait for handlers to finish");
