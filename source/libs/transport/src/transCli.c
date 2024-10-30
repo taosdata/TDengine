@@ -905,7 +905,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   }
 
   SCliThrd* thrd = conn->hostThrd;
-  if (thrd->quit == false) {
+  if (thrd->quit == true) {
     return;
   }
 
