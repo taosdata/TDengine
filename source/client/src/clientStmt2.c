@@ -1076,33 +1076,33 @@ static int stmtFetchFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** 
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (fields) {
+  if (fields != NULL) {
     *fields = taosMemoryCalloc(tags->numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
       return terrno;
     }
 
     SSchema* pSchema = meta->schema;
-    int32_t tbnameIdx = meta->tableInfo.numOfTags + meta->tableInfo.numOfColumns;
+    int32_t  tbnameIdx = meta->tableInfo.numOfTags + meta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < tags->numOfBound; ++i) {
       int16_t idx = tags->pColIndex[i];
       if (idx == tbnameIdx) {
         (*fields)[i].field_type = TAOS_FIELD_TBNAME;
-        strcpy((*fields)[i].name, "tbname");
+        tstrncpy((*fields)[i].name, "tbname", sizeof((*fields)[i].name));
         continue;
       } else if (idx < meta->tableInfo.numOfColumns) {
         (*fields)[i].field_type = TAOS_FIELD_COL;
       } else {
         (*fields)[i].field_type = TAOS_FIELD_TAG;
       }
-      SSchema schema = pSchema[tags->pColIndex[i]];
-      if (TSDB_DATA_TYPE_TIMESTAMP == schema.type) {
+
+      if (TSDB_DATA_TYPE_TIMESTAMP == pSchema[tags->pColIndex[i]].type) {
         (*fields)[i].precision = meta->tableInfo.precision;
       }
 
-      tstrncpy((*fields)[i].name, schema.name, sizeof((*fields)[i].name));
-      (*fields)[i].type = schema.type;
-      (*fields)[i].bytes = schema.bytes;
+      tstrncpy((*fields)[i].name, pSchema[tags->pColIndex[i]].name, sizeof((*fields)[i].name));
+      (*fields)[i].type = pSchema[tags->pColIndex[i]].type;
+      (*fields)[i].bytes = pSchema[tags->pColIndex[i]].bytes;
     }
   }
 

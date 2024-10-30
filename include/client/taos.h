@@ -95,11 +95,11 @@ typedef struct taosField {
 } TAOS_FIELD;
 
 typedef struct TAOS_FIELD_E {
-  char    name[65];
-  int8_t  type;
-  uint8_t precision;
-  uint8_t scale;
-  int32_t bytes;
+  char         name[65];
+  int8_t       type;
+  uint8_t      precision;
+  uint8_t      scale;
+  int32_t      bytes;
   TAOS_FIELD_T field_type;
 } TAOS_FIELD_E;
 
@@ -253,17 +253,17 @@ DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
-DLL_EXPORT int         taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
-DLL_EXPORT void        taos_stop_query(TAOS_RES *res);
-DLL_EXPORT bool        taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
-DLL_EXPORT int         taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);
-DLL_EXPORT bool        taos_is_update_query(TAOS_RES *res);
-DLL_EXPORT int         taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
-DLL_EXPORT int         taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData);
-DLL_EXPORT int        *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
-DLL_EXPORT int         taos_validate_sql(TAOS *taos, const char *sql);
-DLL_EXPORT void        taos_reset_current_db(TAOS *taos);
+DLL_EXPORT int  taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
+DLL_EXPORT void taos_stop_query(TAOS_RES *res);
+DLL_EXPORT bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
+DLL_EXPORT int  taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows);
+DLL_EXPORT bool taos_is_update_query(TAOS_RES *res);
+DLL_EXPORT int  taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
+DLL_EXPORT int  taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
+DLL_EXPORT int  taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData);
+DLL_EXPORT int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex);
+DLL_EXPORT int  taos_validate_sql(TAOS *taos, const char *sql);
+DLL_EXPORT void taos_reset_current_db(TAOS *taos);
 
 DLL_EXPORT int      *taos_fetch_lengths(TAOS_RES *res);
 DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
