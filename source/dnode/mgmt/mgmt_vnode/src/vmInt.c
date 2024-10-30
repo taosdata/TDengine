@@ -126,7 +126,7 @@ static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
 
   SVnodeObj *pVnode = *ppVnode;
 
-  int32_t refCount = 1;
+  int32_t refCount = atomic_load_32(&pVnode->refCount);
   while (refCount > 0) {
     dWarn("vgId:%d, vnode is refenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
     taosMsleep(200);
