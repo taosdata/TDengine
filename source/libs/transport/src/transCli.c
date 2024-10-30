@@ -604,7 +604,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
       queue* el = QUEUE_HEAD(&set);
       QUEUE_REMOVE(el);
       SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
-
+      removeReqFromSendQ(pReq);
       STraceId* trace = &pReq->msg.info.traceId;
       tGDebug("start to free msg %p", pReq);
       destroyReqWrapper(pReq, pThrd);
