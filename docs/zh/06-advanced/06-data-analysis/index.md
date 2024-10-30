@@ -41,12 +41,12 @@ systemctl status taosanoded
 ## 目录及配置说明
 |目录/文件|说明|
 |---------------|------|
-|/usr/local/taos/taosanode/bin|Anode 的可执行文件目录|
-|/usr/local/taos/taosanode/resource|Anode 的资源文件目录，连接到文件夹 /var/lib/taos/taosanode/resource/|
-|/usr/local/taos/taosanode/lib|Anode 库文件目录|
-|/var/lib/taos/taosanode/model/|Anode 的模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
-|/var/log/taos/taosanode/|Anode 的日志文件目录|
-|/etc/taos/taosanode.ini|Anode 的配置文件|
+|/usr/local/taos/taosanode/bin|可执行文件目录|
+|/usr/local/taos/taosanode/resource|资源文件目录，连接到文件夹 /var/lib/taos/taosanode/resource/|
+|/usr/local/taos/taosanode/lib|库文件目录|
+|/var/lib/taos/taosanode/model/|模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model|
+|/var/log/taos/taosanode/|日志文件目录|
+|/etc/taos/taosanode.ini|配置文件|
 
 ### 配置说明
 
