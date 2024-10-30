@@ -1491,6 +1491,11 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
   if (req == NULL) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(terrno));
+    while (!QUEUE_IS_EMPTY(&reqToSend)) {
+      queue*   h = QUEUE_HEAD(&reqToSend);
+      SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
+      removeReqFromSendQ(pCliMsg);
+    }
     transRefCliHandle(pConn);
     return terrno;
   }
@@ -1502,6 +1507,12 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
+      queue*   h = QUEUE_HEAD(&pWreq->node);
+      SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
+      removeReqFromSendQ(pCliMsg);
+    }
+
     freeWReqToWQ(&pConn->wq, req->data);
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_UNUSED(transUnrefCliHandle(pConn));
