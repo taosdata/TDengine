@@ -24,7 +24,7 @@ def input_data():
 
     yield env_data
     pi_test_logger.info("after pi test...")
-
+    
 
 def pi_sanity(env_data, case_data, task, file, files_dir, param):
     TaosAdapter.create_db(
@@ -73,7 +73,7 @@ def test_multicol_template(input_data):
     assert (
         row_count == metrics["current"]["written_rows"]
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 
 @pytest.mark.sanity
 def test_singlecol_template(input_data):
@@ -94,7 +94,7 @@ def test_singlecol_template(input_data):
     assert (
         row_count == metrics["current"]["written_rows"]
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 
 @pytest.mark.sanity
 def test_singlecol_point(input_data):
@@ -113,5 +113,5 @@ def test_singlecol_point(input_data):
     assert (
         row_count == metrics["current"]["written_rows"]
     ), f"test case {inspect.currentframe().f_code.co_name} failed, insert rows wrong!"
-
+    TaosAdapter.drop_db(ENV.taosd_host, case_data["to"]["target_dbname"])
 

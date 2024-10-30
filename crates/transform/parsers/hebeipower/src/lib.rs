@@ -156,6 +156,23 @@ pub unsafe extern "C" fn parser_mutate(
                 }
                 r.unwrap()
             }
+            Ok(JsonValue::Array(objs)) => {
+                let mut result_array = Vec::new();
+
+                for obj in objs.into_iter() {
+                    if let JsonValue::Object(object) = obj {
+                        let parsed_data = parser_config.parse_object(object);
+                        result_array.extend(parsed_data);
+                    }
+                }
+
+                let r = serde_json::to_string(&result_array);
+                if r.is_err() {
+                    tracing::error!("Failed to serialize parsed data: {:?}", r.err());
+                    return "[]".to_string();
+                }
+                r.unwrap()
+            }
             Ok(_) => {
                 tracing::error!("raw data is not a json object");
                 "[]".to_string()

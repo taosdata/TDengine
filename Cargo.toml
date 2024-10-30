@@ -31,7 +31,6 @@ dashmap = "6.1.0"
 faststr = { version = "0.2.19", features = ["serde"] }
 rayon = { version = "1" }
 parquet = "53.1.0"
-metrics-exporter-prometheus = { version = "0.15.3", default-features = false }
 metrics-tracing-context = "0.16.0"
 tonic = "0.12.3"
 zerocopy = { version = "0.8.3", features = ["derive"] }
@@ -234,7 +233,6 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
-tracing-opentelemetry = { git = "https://github.com/ymgyt/tracing-opentelemetry", branch = "bump-otel" }
 
 [lints]
 workspace = true

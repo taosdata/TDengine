@@ -1347,22 +1347,7 @@ pub async fn tmq_to_td(
         .remove("max.polling.timeout")
         .or(from.remove("timeout")) // for compatibility
         .or(std::env::var("TMQ_MAX_POLLING_TIMEOUT").ok())
-        .map(|s| {
-            let s = s.trim();
-            if matches!(s, "never" | "0" | "-1") {
-                Ok(Duration::MAX)
-            } else {
-                parse_duration(s).map_err(|e| {
-                    tracing::warn!(
-                        key = "max.polling.timeout",
-                        value = s,
-                        "parse max.polling.timeout error: {}",
-                        e
-                    );
-                    anyhow::anyhow!("parse max.polling.timeout error: {e:#}")
-                })
-            }
-        })
+        .map(|s| parse_timeout_duration(&s))
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(5));
     let mut options = WriteOptions {
@@ -1843,4 +1828,52 @@ pub async fn get_table_progress(
         from_count: from_result.1,
         to_count: to_result.1,
     })
+}
+
+fn parse_timeout_duration(s: &str) -> anyhow::Result<Duration> {
+    let s = s.trim();
+    if matches!(s, "never" | "0" | "-1") {
+        Ok(Duration::MAX)
+    } else {
+        parse_duration(s)
+            .inspect_err(|e| {
+                tracing::warn!(
+                    key = "max.polling.timeout",
+                    value = s,
+                    "parse max.polling.timeout error: {e}",
+                );
+            })
+            .context("parse max.polling.timeout error")
+            .map(|d| if d.is_zero() { Duration::MAX } else { d })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dsn_parse_duration_test() {
+        assert_eq!(parse_timeout_duration("0").unwrap(), Duration::MAX);
+        assert_eq!(parse_timeout_duration("never").unwrap(), Duration::MAX);
+        assert_eq!(parse_timeout_duration("-1").unwrap(), Duration::MAX);
+
+        assert_eq!(parse_timeout_duration("0s").unwrap(), Duration::MAX);
+        assert_eq!(parse_timeout_duration("0ms").unwrap(), Duration::MAX);
+        assert_eq!(parse_timeout_duration("0ns").unwrap(), Duration::MAX);
+        assert_eq!(parse_timeout_duration("0m").unwrap(), Duration::MAX);
+
+        assert_eq!(
+            parse_timeout_duration("10s").unwrap(),
+            Duration::from_secs(10)
+        );
+        assert_eq!(
+            parse_timeout_duration("10ms").unwrap(),
+            Duration::from_millis(10)
+        );
+        assert_eq!(
+            parse_timeout_duration("10m").unwrap(),
+            Duration::from_secs(10 * 60)
+        );
+    }
 }

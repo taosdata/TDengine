@@ -808,19 +808,30 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
-
           this.$parent.echoData = deepClone([].concat(data.parser));
-          let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
-          let hasheader = data.from.match(/has_header=([^&]*)/)[1];
-          let localCols = data.from.match(/(?<=header=).*/)[0];
-          if (localCols && localCols.includes("=")) {
-            this.$store.commit(
-              "app/SET_CSV_LOCAL_COLS",
-              localCols.split("=")[1].split(",")
-            );
+          
+          let csv_file_configs = {}
+          let params = data.from.match(/[?&](file_or_dir|file_pattern|new_file_notify|notify_interval|sort|keep_processed_files)=([^&]*)/g);
+          for (let i = 0; i < params.length; i++) {
+            let params_parsed = params[i].match(/[?&]([^&?]+)=([^&]*)/);
+            csv_file_configs[params_parsed[1]] = params_parsed[2];
           }
-          this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
-          this.$store.commit("app/SET_CSV_FILES", filelist);
+
+          let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
+          if (csv_file_configs['file_or_dir'] === '1') {
+            this.$store.commit("app/SET_CSV_FILES", filelist);
+          } else if (csv_file_configs['file_or_dir'] === '2') {
+            csv_file_configs.fileurl = filelist;
+          } else if (filelist.startsWith('./')) {
+            // 兼容性处理，如果是相对路径，则是上传文件方式
+            this.$store.commit("app/SET_CSV_FILES", filelist);
+            csv_file_configs.file_or_dir = '1';
+          } else {
+            // 兼容性处理，如果是绝对路径，则是设置监听文件路径方式
+            csv_file_configs.fileurl = filelist;
+            csv_file_configs.file_or_dir = '2';
+          }
+          this.$store.commit("app/SET_CSV_FILE_LISTENER", csv_file_configs);
         }
         let dbname =
           data.to_expand && data.to_expand.subject
@@ -1047,6 +1058,7 @@ export default {
                 "Z"
               : "";
             item["taskActivities"] = activitList;
+            item["statusText"] = this.textOfstatus(item.status);
             return item;
           })[0]
         );

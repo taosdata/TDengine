@@ -1,0 +1,12 @@
+[advisories]
+ignore = [
+  # `rsa` is indirectly referenced by sqlx
+  "RUSTSEC-2023-0071",
+  # `proc-macro-error` is indirectly referenced by utoipa and multi_index_map
+  "RUSTSEC-2024-0370",
+  # `yaml-rust` is indirectly referenced by config
+  "RUSTSEC-2024-0320",
+]
+
+[output]
+quiet = false

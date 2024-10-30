@@ -597,7 +597,8 @@ export default {
             const newParams = _.cloneDeep(params)
             delete newParams.from
             newParams.data = this.sourceForm.data
-            if (!this.isEqualParams(this.oldParams,newParams)) {
+      
+            if (this.sourceForm.type == "csv" || !this.isEqualParams(this.oldParams,newParams)) {
               let result = await EditSource(params, this.editId);
               this.loading = false;
               if (result.message) {

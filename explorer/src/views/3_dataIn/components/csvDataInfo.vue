@@ -138,7 +138,7 @@ export default {
           {
             required: true,
             // trigger: "blur",
-            message: this.$t("datasource.uploadcsvtip"),
+            message: this.$t("datasource.inputcsvdir"),
           },
         ],
       },
