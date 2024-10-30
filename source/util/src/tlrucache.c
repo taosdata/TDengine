@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tlrucache.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
-#include "tlrucache.h"
 #include "tutil.h"
 
 typedef struct SLRUEntry      SLRUEntry;
@@ -110,7 +110,7 @@ struct SLRUEntryTable {
 };
 
 static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
-  table->lengthBits = 4;
+  table->lengthBits = 16;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
     TAOS_RETURN(terrno);
@@ -168,7 +168,14 @@ static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable *table, const void *k
   while (*entry && ((*entry)->hash != hash || memcmp(key, (*entry)->keyData, keyLen) != 0)) {
     entry = &(*entry)->nextHash;
   }
-
+  /*
+   SLRUEntry  *pentry = table->list[hash >> (32 - table->lengthBits)];
+   SLRUEntry **entry = &table->list[hash >> (32 - table->lengthBits)];
+   while (pentry && (pentry->hash != hash || memcmp(key, pentry->keyData, keyLen) != 0)) {
+     entry = &pentry->nextHash;
+     pentry = *entry;
+   }
+  */
   return entry;
 }
 
@@ -371,9 +378,9 @@ static void taosLRUCacheShardCleanup(SLRUCacheShard *shard) {
 
 static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *e, LRUHandle **handle,
                                               bool freeOnFail) {
-  LRUStatus status = TAOS_LRU_STATUS_OK;
+  LRUStatus  status = TAOS_LRU_STATUS_OK;
   SLRUEntry *toFree = NULL;
-  SArray   *lastReferenceList = NULL;
+  SArray    *lastReferenceList = NULL;
   if (shard->usage + e->totalCharge > shard->capacity) {
     lastReferenceList = taosArrayInit(16, POINTER_BYTES);
     if (!lastReferenceList) {
@@ -744,7 +751,8 @@ void taosLRUCacheCleanup(SLRUCache *cache) {
 }
 
 LRUStatus taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
-                             _taos_lru_deleter_t deleter, _taos_lru_overwriter_t overwriter, LRUHandle **handle, LRUPriority priority, void *ud) {
+                             _taos_lru_deleter_t deleter, _taos_lru_overwriter_t overwriter, LRUHandle **handle,
+                             LRUPriority priority, void *ud) {
   uint32_t hash = TAOS_LRU_CACHE_SHARD_HASH32(key, keyLen);
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 

@@ -621,7 +621,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     }
     if (uids) taosArrayDestroy(uids);
 
-    tsdbCacheInvalidateSchema(pTsdb, pReq->suid, -1);
+    tsdbCacheInvalidateSchema(pTsdb, pReq->suid, -1, pReq->schemaRow.version);
   }
 
   metaWLock(pMeta);
@@ -1948,7 +1948,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   }
 
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-    tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, entry.uid);
+    tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, entry.uid, pSchema->version);
   }
 
   entry.version = version;
