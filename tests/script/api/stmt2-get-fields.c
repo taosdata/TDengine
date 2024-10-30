@@ -25,8 +25,8 @@ void do_stmt(TAOS *taos) {
            "int, t2 binary(10))");
 
   TAOS_STMT2_OPTION option = {0};
-  TAOS_STMT2 *stmt = taos_stmt2_init(taos, &option);
-  const char *sql = "insert into db.stb(t1,t2,ts,b,tbname) values(?,?,?,?,?)";
+  TAOS_STMT2       *stmt = taos_stmt2_init(taos, &option);
+  const char       *sql = "insert into db.stb(t1,t2,ts,b,tbname) values(?,?,?,?,?)";
 
   int code = taos_stmt2_prepare(stmt, sql, 0);
   if (code != 0) {
@@ -35,18 +35,17 @@ void do_stmt(TAOS *taos) {
     return;
   }
 
-  int           fieldNum = 0;
-  TAOS_FIELD_E *pFields = NULL;
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL *pFields = NULL;
   code = taos_stmt2_get_all_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
   } else {
     printf("col nums:%d\n", fieldNum);
-    for(int i = 0; i < fieldNum; i++) {
-      printf("field[%d]: %s,type:%d\n", i, pFields[i].name,pFields[i].field_type);
+    for (int i = 0; i < fieldNum; i++) {
+      printf("field[%d]: %s,type:%d\n", i, pFields[i].name, pFields[i].field_type);
     }
   }
-
 
   taos_stmt2_close(stmt);
 }

@@ -885,7 +885,7 @@ _return:
 }
 
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum,
-                         TAOS_FIELD_E** fields, uint8_t timePrec, TAOS_FIELD_T fieldType) {
+                         TAOS_FIELD_E** fields, uint8_t timePrec) {
   if (fields != NULL) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
@@ -900,7 +900,6 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
     for (int32_t i = 0; i < numOfBound; ++i) {
       schema = &pSchema[boundColumns[i]];
       strcpy((*fields)[i].name, schema->name);
-      (*fields)[i].field_type = schema->type;
       (*fields)[i].type = schema->type;
       (*fields)[i].bytes = schema->bytes;
     }
@@ -930,7 +929,7 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CODE(buildBoundFields(tags->numOfBound, tags->pColIndex, pSchema, fieldNum, fields, 0, TAOS_FIELD_TAG));
+  CHECK_CODE(buildBoundFields(tags->numOfBound, tags->pColIndex, pSchema, fieldNum, fields, 0));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -948,7 +947,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   }
 
   CHECK_CODE(buildBoundFields(pDataBlock->boundColsInfo.numOfBound, pDataBlock->boundColsInfo.pColIndex, pSchema,
-                              fieldNum, fields, pDataBlock->pMeta->tableInfo.precision, TAOS_FIELD_COL));
+                              fieldNum, fields, pDataBlock->pMeta->tableInfo.precision));
 
   return TSDB_CODE_SUCCESS;
 }

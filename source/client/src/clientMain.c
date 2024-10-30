@@ -2102,17 +2102,23 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
   }
 }
 
-int taos_stmt2_get_all_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_E **fields) {
+int taos_stmt2_get_all_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtGetColFields2(stmt, count, fields);
+  return stmtGetColFieldsALL2(stmt, count, fields);
 }
 
 void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
+  (void)stmt;
+  if (!fields) return;
+  taosMemoryFree(fields);
+}
+
+DLL_EXPORT void taos_stmt2_free_all_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);

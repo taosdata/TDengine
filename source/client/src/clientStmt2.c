@@ -1069,7 +1069,7 @@ static int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E
   return TSDB_CODE_SUCCESS;
 }
 
-static int stmtFetchFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
+static int stmtFetchFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_ALL** fields) {
   SBoundColInfo* tags = (SBoundColInfo*)pStmt->bInfo.boundTags;
   STableMeta*    meta = ((SVnodeModifyOpStmt*)(pStmt->sql.pQuery->pRoot))->pTableMeta;
   if (tags == NULL || meta == NULL || (meta->schema == NULL && tags->numOfBound != 0)) {
@@ -1077,7 +1077,7 @@ static int stmtFetchFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** 
   }
 
   if (fields != NULL) {
-    *fields = taosMemoryCalloc(tags->numOfBound, sizeof(TAOS_FIELD_E));
+    *fields = taosMemoryCalloc(tags->numOfBound, sizeof(TAOS_FIELD_ALL));
     if (NULL == *fields) {
       return terrno;
     }
@@ -1885,6 +1885,47 @@ int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
   }
 
   STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, fields));
+
+_return:
+
+  pStmt->errCode = preCode;
+
+  return code;
+}
+
+int stmtGetColFieldsALL2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
+  int32_t    code = 0;
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    preCode = pStmt->errCode;
+
+  STMT_DLOG_E("start to get col fields");
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
+  if (STMT_TYPE_QUERY == pStmt->sql.type) {
+    STMT_ERRI_JRET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
+
+  STMT_ERRI_JRET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
+
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
+  }
+
+  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+    STMT_ERR_RET(stmtCreateRequest(pStmt));
+  }
+
+  STMT_ERRI_JRET(stmtCreateRequest(pStmt));
+
+  if (pStmt->bInfo.needParse) {
+    STMT_ERRI_JRET(stmtParseSql(pStmt));
+  }
 
 _return:
 
