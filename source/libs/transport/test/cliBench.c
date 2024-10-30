@@ -53,8 +53,6 @@ static void processResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
          pMsg->code);
 
-  if (pEpSet) pInfo->epSet = *pEpSet;
-
   rpcFreeCont(pMsg->pCont);
   tsem_post(&pInfo->rspSem);
 }
@@ -72,12 +70,12 @@ static void *sendRequest(void *param) {
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.info.ahandle = pInfo;
-    rpcMsg.info.noResp = 1;
+    rpcMsg.info.noResp = 0;
     rpcMsg.msgType = 1;
     tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
-    // tsem_wait(&pInfo->rspSem);
+    tsem_wait(&pInfo->rspSem);
   }
 
   tDebug("thread:%d, it is over", pInfo->index);
@@ -110,17 +108,15 @@ int main(int argc, char *argv[]) {
   rpcInit.label = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processResponse;
-  rpcInit.sessions = 100;
+  rpcInit.sessions = 1000;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "michael";
 
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.connLimitNum = 10;
-  rpcInit.connLimitLock = 1;
-  rpcInit.shareConnLimit = 16 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit;
   rpcInit.supportBatch = 1;
-
-  rpcDebugFlag = 135;
+  rpcInit.compressSize = -1;
+  rpcDebugFlag = 143;
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
     } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
@@ -139,6 +135,10 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-u") == 0 && i < argc - 1) {
     } else if (strcmp(argv[i], "-k") == 0 && i < argc - 1) {
     } else if (strcmp(argv[i], "-spi") == 0 && i < argc - 1) {
+    } else if (strcmp(argv[i], "-l") == 0 && i < argc - 1) {
+      rpcInit.shareConnLimit = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
+      rpcInit.compressSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0 && i < argc - 1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
@@ -150,6 +150,8 @@ int main(int argc, char *argv[]) {
       printf("  [-n requests]: number of requests per thread, default is:%d\n", numOfReqs);
       printf("  [-u user]: user name for the connection, default is:%s\n", rpcInit.user);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
+      printf("  [-c compressSize]: compress size, default:%d\n", tsCompressMsgSize);
+      printf("  [-l shareConnLimit]: share conn limit, default:%d\n", tsShareConnLimit);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
@@ -168,18 +170,18 @@ int main(int argc, char *argv[]) {
 
   int64_t now = taosGetTimestampUs();
 
-  SInfo *pInfo = (SInfo *)taosMemoryCalloc(1, sizeof(SInfo) * appThreads);
-  SInfo *p = pInfo;
+  SInfo **pInfo = (SInfo **)taosMemoryCalloc(1, sizeof(SInfo *) * appThreads);
   for (int i = 0; i < appThreads; ++i) {
-    pInfo->index = i;
-    pInfo->epSet = epSet;
-    pInfo->numOfReqs = numOfReqs;
-    pInfo->msgSize = msgSize;
-    tsem_init(&pInfo->rspSem, 0, 0);
-    pInfo->pRpc = pRpc;
+    SInfo *p = taosMemoryCalloc(1, sizeof(SInfo));
+    p->index = i;
+    p->epSet = epSet;
+    p->numOfReqs = numOfReqs;
+    p->msgSize = msgSize;
+    tsem_init(&p->rspSem, 0, 0);
+    p->pRpc = pRpc;
+    pInfo[i] = p;
 
-    taosThreadCreate(&pInfo->thread, NULL, sendRequest, pInfo);
-    pInfo++;
+    taosThreadCreate(&p->thread, NULL, sendRequest, pInfo[i]);
   }
 
   do {
@@ -192,12 +194,14 @@ int main(int argc, char *argv[]) {
   tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime, msgSize);
 
   for (int i = 0; i < appThreads; i++) {
-    SInfo *pInfo = p;
-    taosThreadJoin(pInfo->thread, NULL);
-    p++;
+    SInfo *p = pInfo[i];
+    taosThreadJoin(p->thread, NULL);
+    taosMemoryFree(p);
   }
-  int ch = getchar();
-  UNUSED(ch);
+  taosMemoryFree(pInfo);
+
+  // int ch = getchar();
+  // UNUSED(ch);
 
   taosCloseLog();
 
