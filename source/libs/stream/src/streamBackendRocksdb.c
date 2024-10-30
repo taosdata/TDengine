@@ -3364,7 +3364,7 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   return 0;
 }
 void streamStateCurNext_rocksdb(SStreamStateCur* pCur) {
-  if (pCur) {
+  if (pCur && pCur->iter && rocksdb_iter_valid(pCur->iter)) {
     rocksdb_iter_next(pCur->iter);
   }
 }
