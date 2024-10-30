@@ -21,10 +21,12 @@
 #include "tjson.h"
 #include "tutil.h"
 
-#define LOG_MAX_LINE_SIZE             (10024)
-#define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
-#define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 128)
+#define LOG_MAX_LINE_SIZE              (10024)
+#define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
+#define LOG_MAX_STACK_LINE_SIZE        (512)
+#define LOG_MAX_STACK_LINE_BUFFER_SIZE (LOG_MAX_STACK_LINE_SIZE + 3)
+#define LOG_MAX_LINE_DUMP_SIZE         (1024 * 1024)
+#define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 128)
 
 #define LOG_FILE_DAY_LEN 64
 
@@ -669,16 +671,40 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 }
 
-void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...) {
-  if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
+/*
+  use taosPrintLogImpl_useStackBuffer to avoid stack overflow
 
-  char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
+*/
+static int8_t taosPrintLogImplUseStackBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
+                                             va_list args) {
+  char    buffer[LOG_MAX_STACK_LINE_BUFFER_SIZE];
   int32_t len = taosBuildLogHead(buffer, flags);
 
-  va_list argpointer;
-  va_start(argpointer, format);
-  int32_t writeLen = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
-  va_end(argpointer);
+  int32_t writeLen = len + vsnprintf(buffer + len, LOG_MAX_STACK_LINE_BUFFER_SIZE - len - 1, format, args);
+  if (writeLen > LOG_MAX_STACK_LINE_SIZE) {
+    return 1;
+  }
+
+  buffer[writeLen++] = '\n';
+  buffer[writeLen] = 0;
+
+  taosPrintLogImp(level, dflag, buffer, writeLen);
+
+  if (tsLogFp && level <= DEBUG_INFO) {
+    buffer[writeLen - 1] = 0;
+    (*tsLogFp)(taosGetTimestampMs(), level, buffer + len);
+  }
+  return 0;
+}
+static int8_t taosPrintLogImplUseHeapBuffer(const char *flags, int32_t level, int32_t dflag, const char *format,
+                                            va_list args) {
+  char *buffer = taosMemoryCalloc(1, LOG_MAX_LINE_BUFFER_SIZE + 1);
+  if (buffer == NULL) {
+    return 1;
+  }
+  int32_t len = taosBuildLogHead(buffer, flags);
+
+  int32_t writeLen = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len - 1, format, args);
 
   if (writeLen > LOG_MAX_LINE_SIZE) writeLen = LOG_MAX_LINE_SIZE;
   buffer[writeLen++] = '\n';
@@ -690,6 +716,22 @@ void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *f
     buffer[writeLen - 1] = 0;
     (*tsLogFp)(taosGetTimestampMs(), level, buffer + len);
   }
+  taosMemoryFree(buffer);
+  return 0;
+}
+void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...) {
+  if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
+
+  va_list argpointer, argpointer_copy;
+  va_start(argpointer, format);
+  va_copy(argpointer_copy, argpointer);
+
+  if (taosPrintLogImplUseStackBuffer(flags, level, dflag, format, argpointer) == 0) {
+  } else {
+    TAOS_UNUSED(taosPrintLogImplUseHeapBuffer(flags, level, dflag, format, argpointer_copy));
+  }
+  va_end(argpointer_copy);
+  va_end(argpointer);
 }
 
 void taosPrintLongString(const char *flags, int32_t level, int32_t dflag, const char *format, ...) {
