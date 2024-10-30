@@ -993,7 +993,7 @@ async fn sync_interlace(
     }
 
     let now = std::time::Instant::now();
-    // println!("# [{id}] Start consuming at {}", chrono::Local::now());
+    println!("# [{id}] Start consuming at {}", chrono::Local::now());
     tracing::info!("Start consuming");
     // For message timeout
     let mut last_message = std::time::Instant::now();
@@ -1192,7 +1192,7 @@ async fn sync_concurrently(
     }
 
     let now = std::time::Instant::now();
-    // println!("# [{id}] Start consuming at {}", chrono::Local::now());
+    println!("# [{id}] Start consuming at {}", chrono::Local::now());
     tracing::info!("Start consuming");
     let mut per_message_instant = std::time::Instant::now();
 
