@@ -1031,7 +1031,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, 0};
 
 int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-              /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIME NCHA UTINY USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+              /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIM NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
     /*NULL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  -1,  -1,  -1,  20,
     /*BOOL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   5,  10,  11,  12,  13,  14,  -1,  -1,  -1,  -1,  -1,  -1,
     /*TINY*/    0,   0,   2,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,  -1,  -1,  -1,  -1,  -1,  -1,
@@ -1047,7 +1047,7 @@ int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*USMA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  12,  13,  14,  -1,  -1,  -1,  -1,  -1,  -1,
     /*UINT*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  13,  14,  -1,  -1,  -1,  -1,  -1,  -1,
     /*UBIG*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  14,  -1,  -1,  -1,  -1,  -1,  -1,
-    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,  -1,  -1,
+    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  15,  -1,  -1,  -1,  -1,  -1,
     /*VARB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  16,  -1,  -1,  -1,  -1,
     /*DECI*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,
     /*BLOB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,

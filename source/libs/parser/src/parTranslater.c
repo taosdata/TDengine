@@ -3297,7 +3297,7 @@ extern int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX];
 static int32_t selectCommonType(SDataType* commonType, const SDataType* newType) {
   if (commonType->type < TSDB_DATA_TYPE_NULL || commonType->type >= TSDB_DATA_TYPE_MAX || 
       newType->type < TSDB_DATA_TYPE_NULL || newType->type >= TSDB_DATA_TYPE_MAX) {
-        return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_INVALID_PARA;
   }
   int8_t type1 = commonType->type;
   int8_t type2 = newType->type;
@@ -3307,23 +3307,27 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
+  
   if (resultType == -1) {
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
+  
   if (commonType->type == newType->type) {
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
-  commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
-  if((resultType == TSDB_DATA_TYPE_VARCHAR || resultType == TSDB_DATA_TYPE_NCHAR) && (
-    (IS_FLOAT_TYPE(commonType->type) || IS_FLOAT_TYPE(newType->type)) ||
-    (IS_NUMERIC_TYPE(commonType->type) || IS_NUMERIC_TYPE(newType->type))))
-    {
-      commonType->bytes = TMAX(commonType->bytes, 32);
-    }
-  commonType->type = resultType;
-  return TSDB_CODE_SUCCESS;
 
+  if ((resultType == TSDB_DATA_TYPE_VARCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+    commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN);
+  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+    commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
+  } else {
+    commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
+  }
+  
+  commonType->type = resultType;
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
