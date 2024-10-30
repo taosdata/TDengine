@@ -3142,7 +3142,7 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
   if (ctx != NULL) pCtx->userCtx = *ctx;
 
   pCliReq = taosMemoryCalloc(1, sizeof(SCliReq));
-  if (pReq == NULL) {
+  if (pCliReq == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
