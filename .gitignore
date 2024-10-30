@@ -39,3 +39,9 @@ tmp.*
 /*.ps1
 .zed/
 .vs
+.envrc
+.pre-commit-config.yaml
+Dockerfile.*
+*.repo
+compose.yaml
+scripts/

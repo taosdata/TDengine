@@ -1130,109 +1130,109 @@ async fn consume_lush_record_with_transform(
             let span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
                 record.into_par_iter().try_for_each_with(tx, |tx, record| {
-                let _enter = span.enter();
-                let num_rows = record.num_rows();
-                if num_rows == 0 {
-                    tracing::debug!("No data in record");
-                    return anyhow::Ok(());
-                }
-                let timer = std::time::Instant::now();
-                let name_of_table_id_column = lush_model_config.table_id_column.as_str();
-                // 只包含普通列的值
-                let values_records: &RecordBatch = record.record();
-                let table_id_column: &Arc<dyn Array> = values_records
-                    .column_by_name(name_of_table_id_column)
-                    .ok_or_else(|| anyhow!("table_name_column not found"))?;
-                let table_id_column: &StringArray = table_id_column
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap();
-                // 只包含 tag 列的值
-                let tags_records: Result<RecordBatch, anyhow::Error> =
-                    lush::create_tags_record(name_of_table_id_column, table_id_column, table_cache.clone());
-                if let Err(err) = tags_records {
-                    tracing::error!("{err:#}");
-                    return Ok(());
-                    // continue;
-                }
-                let tags_records: RecordBatch = tags_records.unwrap();
-                // 左右合并 RecordBatch
-                let combined_records: RecordBatch = tags_records.concat_by_columns(values_records).unwrap();
-                // 类型转换
-                let parsed_records: RecordBatch = combined_records;
+                    let _enter = span.enter();
+                    let num_rows = record.num_rows();
+                    if num_rows == 0 {
+                        tracing::debug!("No data in record");
+                        return anyhow::Ok(());
+                    }
+                    let timer = std::time::Instant::now();
+                    let name_of_table_id_column = lush_model_config.table_id_column.as_str();
+                    // 只包含普通列的值
+                    let values_records: &RecordBatch = record.record();
+                    let table_id_column: &Arc<dyn Array> = values_records
+                        .column_by_name(name_of_table_id_column)
+                        .ok_or_else(|| anyhow!("table_name_column not found"))?;
+                    let table_id_column: &StringArray = table_id_column
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+                    // 只包含 tag 列的值
+                    let tags_records: Result<RecordBatch, anyhow::Error> =
+                        lush::create_tags_record(name_of_table_id_column, table_id_column, table_cache.clone());
+                    if let Err(err) = tags_records {
+                        tracing::error!("{err:#}");
+                        return Ok(());
+                        // continue;
+                    }
+                    let tags_records: RecordBatch = tags_records.unwrap();
+                    // 左右合并 RecordBatch
+                    let combined_records: RecordBatch = tags_records.concat_by_columns(values_records).unwrap();
+                    // 类型转换
+                    let parsed_records: RecordBatch = combined_records;
 
-                // 按超级表名分组
-                // let grouped_batches: LinkedHashMap<String, RecordBatch> =
-                //     lush::group_by_super_table_name(
-                //         &parsed_records,
-                //         name_of_table_name_column,
-                //         &lush_model_config.super_table_name_mapping,
-                //     );
+                    // 按超级表名分组
+                    // let grouped_batches: LinkedHashMap<String, RecordBatch> =
+                    //     lush::group_by_super_table_name(
+                    //         &parsed_records,
+                    //         name_of_table_name_column,
+                    //         &lush_model_config.super_table_name_mapping,
+                    //     );
 
-                // 性能优化，多列模型无需按超级表分组
-                // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
-                let prepare_elapsed = timer.elapsed();
-                let skip_null = lush_model_config.skip_null;
-                // for (default_super_table, record_batch) in grouped_batches {
-                let timer = std::time::Instant::now();
-                let record_batch = parsed_records;
-                let default_super_table = record_batch
-                    .column_by_name("_using")
-                    .unwrap()
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap()
-                    .value(0);
-                let super_table = lush_model_config
-                    .super_table_name_mapping
-                    .get(default_super_table);
-                if super_table.is_none() {
-                    tracing::error!(
+                    // 性能优化，多列模型无需按超级表分组
+                    // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
+                    let prepare_elapsed = timer.elapsed();
+                    let skip_null = lush_model_config.skip_null;
+                    // for (default_super_table, record_batch) in grouped_batches {
+                    let timer = std::time::Instant::now();
+                    let record_batch = parsed_records;
+                    let default_super_table = record_batch
+                        .column_by_name("_using")
+                        .unwrap()
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap()
+                        .value(0);
+                    let super_table = lush_model_config
+                        .super_table_name_mapping
+                        .get(default_super_table);
+                    if super_table.is_none() {
+                        tracing::error!(
                         "default_super_table {} not found in super_table_name_mapping",
                         default_super_table
                     );
-                    return Ok(());
-                    // continue;
-                }
-                let super_table = super_table.unwrap();
-                let parser: &transform::Parser = lush_model_config
-                    .super_table_parsers
-                    .get(super_table.as_str())
-                    .ok_or_else(|| {
-                        anyhow!(
+                        return Ok(());
+                        // continue;
+                    }
+                    let super_table = super_table.unwrap();
+                    let parser: &transform::Parser = lush_model_config
+                        .super_table_parsers
+                        .get(super_table.as_str())
+                        .ok_or_else(|| {
+                            anyhow!(
                             "super table {} not found in model_config.super_table_parsers",
                             super_table
                         )
-                    })?;
-                let message: transform::Message =
+                        })?;
+                    let message: transform::Message =
                         parser.parse_message_from_records(&record_batch, true).with_context(|| {
                             format!("transform failed for super table: {}", super_table)
                         })?;
 
-                let transform_elapsed = timer.elapsed();
-                if let crate::plugins::transform::Message::Records(message) = message {
-                    if message.is_empty() {
-                        return Ok(());
-                    }
-                    let table_count = message.len();
-                    let pool = pool.clone();
-                    let super_table = super_table.clone();
-                    let metrics_ref = metrics_arc.clone();
-                    let breakpoints = breakpoint_db.clone();
-                    let table_id_column_name = name_of_table_id_column.to_string();
-                    if let Err(err) = tx.send(async move {
-                        let metrics = metrics_ref.ipc();
-                         lush::write(
-                        &pool,
-                        super_table.as_str(),
-                        taos::Precision::Millisecond,
-                        message,
-                        metrics,
-                        skip_null,
-                        table_id_column_name.as_str(),
-                        breakpoints,
-                    ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
-                        tracing::info!(
+                    let transform_elapsed = timer.elapsed();
+                    if let crate::plugins::transform::Message::Records(message) = message {
+                        if message.is_empty() {
+                            return Ok(());
+                        }
+                        let table_count = message.len();
+                        let pool = pool.clone();
+                        let super_table = super_table.clone();
+                        let metrics_ref = metrics_arc.clone();
+                        let breakpoints = breakpoint_db.clone();
+                        let table_id_column_name = name_of_table_id_column.to_string();
+                        if let Err(err) = tx.send(async move {
+                            let metrics = metrics_ref.ipc();
+                            lush::write(
+                                &pool,
+                                super_table.as_str(),
+                                taos::Precision::Millisecond,
+                                message,
+                                metrics,
+                                skip_null,
+                                table_id_column_name.as_str(),
+                                breakpoints,
+                            ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
+                                tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
                             super_table,
                             table_count,
@@ -1242,15 +1242,17 @@ async fn consume_lush_record_with_transform(
                             gen_sql_time.as_millis(),
                             write_time.as_millis(),
                         );
-                        metrics.add_processed_rows(num_rows as u64);
-                        num_rows
-                    }) }.in_current_span()) {
-                        tracing::error!("send to tx error: {err:#}");
-                        bail!("Send future error: {err:#}");
+                                metrics.add_processed_rows(num_rows as u64);
+                                num_rows
+                            })
+                        }.in_current_span()) {
+                            tracing::error!("send to tx error: {err:#}");
+                            bail!("Send future error: {err:#}");
+                        }
                     }
-                }
-                anyhow::Ok(())
-            })}).await.context("Spawn blocking transform lush records inserts")??;
+                    anyhow::Ok(())
+                })
+            }).await.context("Spawn blocking transform lush records inserts")??;
 
             *count += handle.await??;
         }
@@ -3544,6 +3546,84 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
     }
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_handle_point_message_init() {
+    use crate::runners::opc::config::model::PointConfig;
+    use crate::runners::opc::OpcType;
+
+    use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};
+    use linked_hash_map::LinkedHashMap;
+    use taos::sync::Fetchable;
+    use tracing_subscriber;
+
+    tracing_subscriber::fmt::try_init().ok();
+    INSTANCE_ID.set(DEFAULT_INSTANCE_ID).unwrap();
+
+    // given
+    let dsn = "taos:///";
+    let taos = TaosBuilder::from_dsn(dsn).unwrap().build().await.unwrap();
+    let db = "test_handle_point_message_init";
+    taos.exec_many([
+        format!("drop database if exists {db}"),
+        format!("create database {db}"),
+        format!("use {db}"),
+        "create stable opc_int(ts timestamp, v int) tags(t int)".to_string(),
+        "create table `AbC-3-1001` using opc_int tags(1)".to_string(),
+        "create table `AbC-3-1002` using opc_int tags(2)".to_string(),
+        "create table `AbC-3-1003` using opc_int tags(3)".to_string(),
+    ])
+    .await
+    .unwrap();
+    let mut point_config_map = LinkedHashMap::new();
+    let mut table_config_map = LinkedHashMap::new();
+    for i in 1..=3 {
+        point_config_map.insert(
+            i.to_string(),
+            PointConfig {
+                row_index: 1,
+                code: format!("AbC-3-100{}", i),
+                stable: None,
+                tag_values: None,
+                value_type: None,
+            },
+        );
+        table_config_map.insert(
+            i.to_string(),
+            TableConfig {
+                enabled: Some(i % 2),
+                stable_prefix: None,
+                column_configs: vec![],
+                tag_configs: None,
+            },
+        );
+    }
+    let config = OpcModelConfig {
+        opc_type: OpcType::OPCUA,
+        generate_rule: None,
+        point_config_map,
+        table_config_map,
+    };
+    let taos = TaosBuilder::from_dsn(format!("{dsn}{db}"))
+        .unwrap()
+        .build()
+        .await
+        .unwrap();
+    // when
+    handle_point_message_init(&config, &taos).await.unwrap();
+    // then
+    let mut res = taos.query("show tables").await.unwrap();
+    let mut tables = vec![];
+    for row in res.to_rows_vec().unwrap() {
+        let table = row.first().unwrap().to_string().unwrap();
+        tables.push(table);
+    }
+    let tables = tables.iter().map(|s| s.as_str()).sorted().collect_vec();
+    assert_eq!(tables, ["AbC-3-1001", "AbC-3-1003"]);
+
+    // clean
+    taos.exec(format!("drop database {db}")).await.unwrap();
 }
 
 #[instrument(skip_all)]
