@@ -176,8 +176,8 @@ ANOMALY_WINDOW(column, options)
 ```
 
 **语法说明**
-1. column：进行时序数据异常检测的输入数据列，当前只支持单列输入，且只能是数值类型，不能是字符类型（例如：`NCHAR` `VARCHAR` `VARBINARY`等类型），**不支持函数表达式**。
-2. options：调用异常检测的算法，及与算法相关的参数。采用 逗号分隔的K/V字符串表示，其中的字符串不需要使用单引号、双引号、或转意号等符号，不能使用中文及其他宽字符。例如：`algo=ksigma, k=2` 表示进行异常检测的算法是 ksigma，该算法接受的输入参数是 2。
+1. `column`：进行时序数据异常检测的输入数据列，当前只支持单列输入，且只能是数值类型，不能是字符类型（例如：`NCHAR` `VARCHAR` `VARBINARY`等类型），**不支持函数表达式**。
+2. `options`：调用异常检测的算法，及与算法相关的参数。采用 逗号分隔的K/V字符串表示，其中的字符串不需要使用单引号、双引号、或转意号等符号，不能使用中文及其他宽字符。例如：`algo=ksigma, k=2` 表示进行异常检测的算法是 ksigma，该算法接受的输入参数是 2。
 
 全部支持的参数列表如下：
 |参数|含义|默认值|
@@ -186,12 +186,22 @@ ANOMALY_WINDOW(column, options)
 |wncheck|对输入数据列是否进行白噪声检查|取值为0或者1，默认值为 1，表示进行白噪声检查|
 
 异常检测的返回结果以窗口的形式呈现，因此窗口查询相关的伪列在这种场景下仍然可用。可以使用的伪列如下：
-1. _WSTART： 异常窗口开始时间戳
-2. _WEND：异常窗口结束时间戳
-3. _WDURATION：异常窗口持续时间
+1. `_WSTART`： 异常窗口开始时间戳
+2. `_WEND`：异常窗口结束时间戳
+3. `_WDURATION`：异常窗口持续时间
 
 **示例**
+```SQL
 
+--- 使用 iqr 算法进行异常检测，检测列 i32 列。
+SELECT _wstart, _wend, SUM(i32) 
+FROM ai.atb
+ANOMALY_WINDOW(i32, "algo=iqr");
+
+--- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列
+SELECT _wstart, _wend, SUM(i32) 
+FROM ai.atb ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+```
 
 
 **使用说明**
@@ -202,13 +212,13 @@ ANOMALY_WINDOW(column, options)
 #### 时序数据预测
 数据预测以一段训练数据作为输入，预测接下来若干时间点的后续运行结果。其调用的语法如下：
 ```SQL
-SELECT {pseudo_column}, forecast(column, options) from {subquery} where [where_clause]
+SELECT {pseudo_column}, forecast(column, options) FROM {subquery} WHERE [where_clause]
 ```
 
 **语法说明**
-1. forecast：关键字
-2. column：预测的时序数据列。与异常检测相同，只支持数值类型输入。
-3. options：异常检测函数的参数，使用规则与 anomaly_window 相同
+1. `forecast`：关键字
+2. `column`：预测的时序数据列。与异常检测相同，只支持数值类型输入。
+3. `options`：异常检测函数的参数，使用规则与 anomaly_window 相同
 
 |参数|含义|默认值|
 |---|---|---|
@@ -216,15 +226,24 @@ SELECT {pseudo_column}, forecast(column, options) from {subquery} where [where_c
 |wncheck|白噪声（white noise data）检查|默认值为 1，0 表示不进行检查|
 |conf|预测数据的置信区间范围 ，取值范围[0, 100]|95|
 |every|预测数据的采样间隔|输入数据的采样间隔|
-|start|预测结果的开始时间戳|无|
-|rows|预测结果的记录数|无|
+|start|预测结果的开始时间戳|输入数据最后一个时间戳加上一个采样时间段|
+|rows|预测结果的记录数|10|
 
 预测查询结果新增了三个伪列，具体如下：
-1. _FROWTS：预测结果的时间戳
-2. _FLOW：置信区间下界
-3. _FHIGH：置信区间上界。对于没有置信区间的预测算法，其置信区间同预测结果。
+1. `_FROWTS`：预测结果的时间戳
+2. `_FLOW`：置信区间下界
+3. `_FHIGH`：置信区间上界。对于没有置信区间的预测算法，其置信区间同预测结果。
 
 **示例**
 
+```SQL
+--- 使用 arima 算法进行预测，预测结果是 10 条记录（默认值），数据进行白噪声检查，默认置信区间 95%. 
+select  _flow, _fhigh, _frowts, forecast(i32, "algo=arima") from ai.ftb;
 
+--- 使用 arima 算法进行预测，输入数据的是周期数据，每10个采样点是一个周期。返回置信区间是 95%.
+select  _flow, _fhigh, _frowts, forecast(i32, "algo=arima,alpha=95,period=10") from ai.ftb;
+```
 **使用说明**
+1. `start`：返回预测结果的起始时间，改变这个起始时间不会影响返回的预测数值，只影响起始时间。
+2. `every`：可以与输入数据的采样频率不同。采样频率只能低于或等于输入数据采样频率，不能高于输入数据的采样频率。
+3. 对于某些不需要计算置信区间的算法，即使指定了置信区间，返回的结果中其上下界退化成为一个点。
