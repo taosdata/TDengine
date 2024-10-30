@@ -1928,7 +1928,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   }
 
   if (pOld->numOfColumns == 2) {
-    code = TSDB_CODE_MND_ONLY_TS_SCHEMA_NOT_ALLOW;
+    code = TSDB_CODE_PAR_INVALID_DROP_COL;
     TAOS_RETURN(code);
   }
 
