@@ -127,10 +127,12 @@ typedef struct {
 typedef struct SCliReq {
   SReqCtx*      ctx;
   queue         q;
+  queue         sendQ;
   STransMsgType type;
   uint64_t      st;
   int64_t       seq;
   int32_t       sent;  //(0: no send, 1: alread sent)
+  int8_t        inSendQ;
   STransMsg     msg;
   int8_t        inRetry;
 
@@ -274,11 +276,12 @@ static FORCE_INLINE void destroyReqAndAhanlde(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pInst);
 static FORCE_INLINE void destroyReqCtx(SReqCtx* ctx);
 
-static int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq);
-static int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead);
-static int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, STransMsg* pResp);
-static int32_t cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq);
-static int32_t cliHandleState_mayUpdateStateTime(SCliConn* pConn, SCliReq* pReq);
+static FORCE_INLINE void removeReqFromSendQ(SCliReq* pReq);
+static int32_t           cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq);
+static int32_t           cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead);
+static int32_t           cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, STransMsg* pResp);
+static int32_t           cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq);
+static int32_t           cliHandleState_mayUpdateStateTime(SCliConn* pConn, SCliReq* pReq);
 
 int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
 
@@ -599,6 +602,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
       queue* el = QUEUE_HEAD(&set);
       QUEUE_REMOVE(el);
       SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
+      QUEUE_REMOVE(&pReq->sendQ);
 
       STraceId* trace = &pReq->msg.info.traceId;
       tGDebug("start to free msg %p", pReq);
@@ -700,6 +704,7 @@ void cliHandleResp(SCliConn* conn) {
              tstrerror(code));
     }
   }
+  removeReqFromSendQ(pReq);
 
   code = cliBuildRespFromCont(pReq, &resp, pHead);
   STraceId* trace = &resp.info.traceId;
@@ -1219,6 +1224,7 @@ static FORCE_INLINE void destroyReqInQueue(SCliConn* conn, queue* set, int32_t c
     QUEUE_REMOVE(el);
 
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
+    QUEUE_REMOVE(&pReq->sendQ);
     notifyAndDestroyReq(conn, pReq, code);
   }
 }
@@ -1277,7 +1283,7 @@ static void cliHandleException(SCliConn* conn) {
 bool filterToRmReq(void* h, void* arg) {
   queue*   el = h;
   SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
-  if (pReq->sent == 1 && REQUEST_NO_RESP(&pReq->msg)) {
+  if (pReq->sent == 1 && pReq->inSendQ == 0 && REQUEST_NO_RESP(&pReq->msg)) {
     return true;
   }
   return false;
@@ -1291,6 +1297,7 @@ static void cliConnRmReqs(SCliConn* conn) {
     queue* el = QUEUE_HEAD(&set);
     QUEUE_REMOVE(el);
     SCliReq* pReq = QUEUE_DATA(el, SCliReq, q);
+    QUEUE_REMOVE(&pReq->sendQ);
     destroyReq(pReq);
   }
   return;
@@ -1303,14 +1310,13 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
 
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
-
+  tDebug("%s conn %p batch send cb", CONN_GET_INST_LABEL(conn), conn);
   while (!QUEUE_IS_EMPTY(&wrapper->node)) {
-    queue* h = QUEUE_HEAD(&wrapper->node);
-    QUEUE_REMOVE(h);
-
-    SCliReq* pReq = QUEUE_DATA(h, SCliReq, q);
-    transQueuePush(&conn->reqsSentOut, &pReq->q);
+    queue*   h = QUEUE_HEAD(&wrapper->node);
+    SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
+    removeReqFromSendQ(pReq);
   }
+
   freeWReqToWQ(&conn->wq, wrapper);
 
   int32_t ref = transUnrefCliHandle(conn);
@@ -1463,29 +1469,28 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     wb[j++] = uv_buf_init((char*)pHead, msgLen);
     totalLen += msgLen;
 
-    pCliMsg->sent = 1;
     pCliMsg->seq = pConn->seq;
+    pCliMsg->sent = 1;
 
     STraceId* trace = &pCliMsg->msg.info.traceId;
     tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%" PRId64 ", sid:%" PRId64 "", CONN_GET_INST_LABEL(pConn),
             pConn, TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
 
-    QUEUE_PUSH(&reqToSend, &pCliMsg->q);
+    transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
+
+    QUEUE_INIT(&pCliMsg->sendQ);
+    QUEUE_PUSH(&reqToSend, &pCliMsg->sendQ);
+    pCliMsg->inSendQ = 1;
+
     if (j >= batchLimit) {
       break;
     }
   }
   transRefCliHandle(pConn);
-  uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
 
+  uv_write_t* req = allocWReqFromWQ(&pConn->wq, pConn);
   if (req == NULL) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(terrno));
-    while (!QUEUE_IS_EMPTY(&reqToSend)) {
-      queue* h = QUEUE_HEAD(&reqToSend);
-      QUEUE_REMOVE(h);
-      SCliReq* pReq = QUEUE_DATA(h, SCliReq, q);
-      transQueuePush(&pConn->reqsToSend, &pReq->q);
-    }
     transRefCliHandle(pConn);
     return terrno;
   }
@@ -1497,12 +1502,6 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
-    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
-      queue* h = QUEUE_HEAD(&pWreq->node);
-      QUEUE_REMOVE(h);
-      SCliReq* pReq = QUEUE_DATA(h, SCliReq, q);
-      transQueuePush(&pConn->reqsToSend, &pReq->q);
-    }
     freeWReqToWQ(&pConn->wq, req->data);
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_UNUSED(transUnrefCliHandle(pConn));
@@ -1537,6 +1536,7 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
     QUEUE_REMOVE(h);
 
     SCliReq* p = QUEUE_DATA(h, SCliReq, q);
+    QUEUE_REMOVE(&p->sendQ);
     destroyReq(p);
   }
   SCliBatchList* p = pBatch->pList;
@@ -2214,12 +2214,20 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd, pThrd->stopMsg);
 }
-
+static FORCE_INLINE void removeReqFromSendQ(SCliReq* pReq) {
+  if (pReq == NULL || pReq->inSendQ == 0) {
+    return;
+  }
+  QUEUE_REMOVE(&pReq->sendQ);
+  pReq->inSendQ = 0;
+}
 static FORCE_INLINE void destroyReq(void* arg) {
   SCliReq* pReq = arg;
   if (pReq == NULL) {
     return;
   }
+  removeReqFromSendQ(pReq);
+
   STraceId* trace = &pReq->msg.info.traceId;
   tGDebug("free memory:%p, free ctx: %p", pReq, pReq->ctx);
 
@@ -2561,7 +2569,7 @@ int32_t cliSendQuit(SCliThrd* thrd) {
   if (msg == NULL) {
     return terrno;
   }
-
+  QUEUE_INIT(&msg->sendQ);
   msg->type = Quit;
   if ((code = transAsyncSend(thrd->asyncPool, &msg->q)) != 0) {
     code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
@@ -2994,6 +3002,7 @@ int32_t cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   STrans*   pInst = pThrd->pInst;
 
   if (pReq != NULL) {
+    removeReqFromSendQ(pReq);
     if (pResp->code != TSDB_CODE_SUCCESS) {
       if (cliMayRetry(pConn, pReq, pResp)) {
         return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
@@ -3106,6 +3115,8 @@ int32_t transReleaseCliHandle(void* handle) {
     taosMemoryFree(pCtx);
     return terrno;
   }
+  QUEUE_INIT(&cmsg->sendQ);
+
   cmsg->msg = tmsg;
   cmsg->st = taosGetTimestampUs();
   cmsg->type = Normal;
@@ -3155,6 +3166,8 @@ static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pRe
   pCliReq->msg = *pReq;
   pCliReq->st = taosGetTimestampUs();
   pCliReq->type = Normal;
+  QUEUE_INIT(&pCliReq->q);
+  QUEUE_INIT(&pCliReq->sendQ);
 
   *pCliMsg = pCliReq;
   return code;
@@ -3336,6 +3349,7 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
   pCliReq->msg = *pReq;
   pCliReq->st = taosGetTimestampUs();
   pCliReq->type = Normal;
+  QUEUE_INIT(&pCliReq->sendQ);
 
   STraceId* trace = &pReq->info.traceId;
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pInst), pThrd->pid,
@@ -3468,7 +3482,7 @@ int32_t transSendRecvWithTimeout(void* pInstRef, SEpSet* pEpSet, STransMsg* pReq
   pCliReq->msg = *pReq;
   pCliReq->st = taosGetTimestampUs();
   pCliReq->type = Normal;
-
+  QUEUE_INIT(&pCliReq->sendQ);
   STraceId* trace = &pReq->info.traceId;
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pInst), pThrd->pid,
           EPSET_GET_INUSE_IP(pCtx->epSet), EPSET_GET_INUSE_PORT(pCtx->epSet), pReq->info.ahandle);
@@ -3552,6 +3566,7 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
 
     pReq->ctx = pCtx;
     pReq->type = Update;
+    QUEUE_INIT(&pReq->sendQ);
 
     SCliThrd* thrd = ((SCliObj*)pInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64, pInst->label, thrd->pid);
@@ -3620,6 +3635,8 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
   msg.info.qId = transpointId;
   pCli->msg = msg;
+
+  QUEUE_INIT(&pCli->sendQ);
 
   STraceId* trace = &pCli->msg.info.traceId;
   tGDebug("%s start to free conn sid:%" PRId64 "", pInst->label, transpointId);
