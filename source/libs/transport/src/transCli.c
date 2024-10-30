@@ -1477,13 +1477,12 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     totalLen += msgLen;
 
     pCliMsg->seq = pConn->seq;
-    pCliMsg->inSendQ = 1;
+    pCliMsg->sent = 1;
 
     STraceId* trace = &pCliMsg->msg.info.traceId;
     tGDebug("%s conn %p %s is sent to %s, local info:%s, seq:%" PRId64 ", sid:%" PRId64 "", CONN_GET_INST_LABEL(pConn),
             pConn, TMSG_INFO(pReq->msgType), pConn->dst, pConn->src, pConn->seq, pReq->info.qId);
 
-    // QUEUE_PUSH(&reqToSend, &pCliMsg->q);
     transQueuePush(&pConn->reqsSentOut, &pCliMsg->q);
     QUEUE_INIT(&pCliMsg->sendQ);
     QUEUE_PUSH(&reqToSend, &pCliMsg->sendQ);
@@ -1500,10 +1499,9 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(terrno));
     while (!QUEUE_IS_EMPTY(&reqToSend)) {
       queue* h = QUEUE_HEAD(&reqToSend);
-      QUEUE_REMOVE(h);
 
       SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
-      pCliMsg->inSendQ = 0;
+      removeReqFromSendQ(pCliMsg);
     }
 
     transRefCliHandle(pConn);
@@ -1519,11 +1517,9 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   if (ret != 0) {
     tError("%s conn %p failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
-      queue* h = QUEUE_HEAD(&pWreq->node);
-      QUEUE_REMOVE(h);
-
+      queue*   h = QUEUE_HEAD(&pWreq->node);
       SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
-      pCliMsg->inSendQ = 0;
+      removeReqFromSendQ(pCliMsg);
     }
 
     freeWReqToWQ(&pConn->wq, req->data);
