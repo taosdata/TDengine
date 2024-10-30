@@ -886,17 +886,32 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   return false;
 }
 
-int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
-                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
+int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* tFields,
+                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw) {
+  int ret = 0;
   if(data == NULL) {
     uError("rawBlockBindData, data is NULL");
     return TSDB_CODE_APP_ERROR;
   }
   void* tmp =
       taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
+  SVCreateTbReq *pCreateReqTmp = NULL;
+  if (tmp == NULL && pCreateTb != NULL){
+    ret = cloneSVreateTbReq(pCreateTb, &pCreateReqTmp);
+    if (ret != TSDB_CODE_SUCCESS){
+      uError("cloneSVreateTbReq error");
+      goto end;
+    }
+  }
+
   STableDataCxt* pTableCxt = NULL;
-  int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                                          sizeof(pTableMeta->uid), pTableMeta, pCreateTb, &pTableCxt, true, false);
+  ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateReqTmp, &pTableCxt, true, false);
+  if (pCreateReqTmp != NULL) {
+    tdDestroySVCreateTbReq(pCreateReqTmp);
+    taosMemoryFree(pCreateReqTmp);
+  }
+
   if (ret != TSDB_CODE_SUCCESS) {
     uError("insGetTableDataCxt error");
     goto end;
@@ -948,12 +963,17 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
-  if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    if (errstr != NULL)
-      snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
+//  if (tFields != NULL && numFields > boundInfo->numOfBound) {
+//    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
+//    ret = TSDB_CODE_INVALID_PARA;
+//    goto end;
+//  }
+  if (tFields == NULL && numOfCols != boundInfo->numOfBound) {
+    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d not equal to num of bound cols:%d", numOfCols, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
+
   if (tFields == NULL) {
     for (int j = 0; j < boundInfo->numOfBound; j++) {
       SSchema*  pColSchema = &pSchema[j];
@@ -991,7 +1011,13 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
         SSchema* pColSchema = &pSchema[j];
-        if (strcmp(pColSchema->name, tFields[i].name) == 0) {
+        char* fieldName = NULL;
+        if (raw) {
+          fieldName = ((SSchemaWrapper*)tFields)->pSchema[i].name;
+        } else {
+          fieldName = ((TAOS_FIELD*)tFields)[i].name;
+        }
+        if (strcmp(pColSchema->name, fieldName) == 0) {
           if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
             if (errstr != NULL)
               snprintf(errstr, errstrLen,
@@ -1011,6 +1037,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             pStart += numOfRows * sizeof(int32_t);
           } else {
             pStart += BitmapLen(numOfRows);
+//            for(int k = 0; k < numOfRows; k++) {
+//              if(!colDataIsNull_f(offset, k) && pColSchema->type == TSDB_DATA_TYPE_INT){
+//                printf("colName:%s,val:%d", fieldName, *(int32_t*)(pStart + k * sizeof(int32_t)));
+//              }
+//            }
           }
           char* pData = pStart;
 

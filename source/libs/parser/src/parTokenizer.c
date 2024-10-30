@@ -340,7 +340,7 @@ static SKeyword keywordTable[] = {
     {"_FROWTS",              TK_FROWTS},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
-    {"S3_CHUNKSIZE",         TK_S3_CHUNKSIZE},
+    {"S3_CHUNKPAGES",        TK_S3_CHUNKPAGES},
     {"S3_KEEPLOCAL",         TK_S3_KEEPLOCAL},
     {"S3_COMPACT",           TK_S3_COMPACT},
     {"S3MIGRATE",            TK_S3MIGRATE},
@@ -370,7 +370,7 @@ static int32_t doInitKeywordsTable(void) {
   keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
-    void* ptr = &keywordTable[i];
+    void*   ptr = &keywordTable[i];
     int32_t code = taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(keywordHashTable);
@@ -698,7 +698,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
       }
       if (hasNonAsciiChars) {
-        *tokenId = TK_NK_ALIAS; // must be alias
+        *tokenId = TK_NK_ALIAS;  // must be alias
         return i;
       }
       if (IS_TRUE_STR(z, i) || IS_FALSE_STR(z, i)) {
@@ -713,10 +713,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         break;
       }
       bool hasNonAsciiChars = false;
-      for (i = 1; ; i++) {
+      for (i = 1;; i++) {
         if ((z[i] & 0x80) != 0) {
           hasNonAsciiChars = true;
-        } else if (isIdChar[(uint8_t)z[i]]){
+        } else if (isIdChar[(uint8_t)z[i]]) {
         } else {
           break;
         }
@@ -834,9 +834,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
 bool taosIsKeyWordToken(const char* z, int32_t len) { return (tKeywordCode((char*)z, len) != TK_NK_ID); }
 
-int32_t taosInitKeywordsTable() {
-  return doInitKeywordsTable();
-}
+int32_t taosInitKeywordsTable() { return doInitKeywordsTable(); }
 
 void taosCleanupKeywordsTable() {
   void* m = keywordHashTable;
