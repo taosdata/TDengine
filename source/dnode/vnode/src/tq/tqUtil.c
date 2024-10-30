@@ -626,6 +626,9 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
     tmp = taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
     TSDB_CHECK_NULL(tmp, code, line, END, terrno)
     colDataSetNULL(tmp, i);
+    tmp = taosArrayGet(pDelBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+    TSDB_CHECK_NULL(tmp, code, line, END, terrno)
+    colDataSetNULL(tmp, i);
   }
 
   if (type == 0) {
