@@ -1311,11 +1311,9 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   STrans*   pInst = pThrd->pInst;
 
   while (!QUEUE_IS_EMPTY(&wrapper->node)) {
-    queue* h = QUEUE_HEAD(&wrapper->node);
-    QUEUE_REMOVE(h);
-
+    queue*   h = QUEUE_HEAD(&wrapper->node);
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
-    pReq->inSendQ = 0;
+    removeReqFromSendQ(pReq);
   }
   freeWReqToWQ(&conn->wq, wrapper);
 
