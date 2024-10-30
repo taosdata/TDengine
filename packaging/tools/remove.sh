@@ -206,6 +206,8 @@ function clean_service_on_launchctl() {
   ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
   ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
   ${csudo}rm /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
+  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${clientName2}keeper.plist > /dev/null 2>&1 || :
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.${clientName2}keeper.plist > /dev/null 2>&1 || :
 }
 
 function remove_data_and_config() {
