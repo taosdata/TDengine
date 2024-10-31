@@ -16,8 +16,15 @@ git-fetch-with-cli = true
 [build]
 incremental = false
 
-[target.x86_64-unknown-linux-gnu]
-# rustflags = ["-C", "link-arg=-B/usr/libexec/mold", "--cfg", "tokio_unstable"]
+# GCC >= 12.1.0
+#[target.x86_64-unknown-linux-gnu]
+#rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold", "--cfg", "tokio_unstable"]
+#[target.aarch64-unknown-linux-gnu]
+#rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold", "--cfg", "tokio_unstable"]
 
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold", "--cfg", "tokio_unstable"]
+# GCC 10 for manylinux2014
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-B/usr/bin/mold", "--cfg", "tokio_unstable"]
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-B/usr/bin/mold", "--cfg", "tokio_unstable"]
+
