@@ -1,68 +1,58 @@
-FROM centos:7 as base
+FROM alpine AS builder
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETVARIANT
+RUN echo ${BUILDPLATFORM}, ${TARGETPLATFORM}
+RUN case "${TARGETPLATFORM}" in \
+  "linux/amd64") \
+    echo MOLD_ARCH=x86_64 > /etc/environment; \
+    echo TINI_ARCH=amd64 >> /etc/environment \
+    ;; \
+  "linux/arm64") \
+    echo MOLD_ARCH=aarch64 > /etc/environment; \
+    echo TINI_ARCH=arm64 >> /etc/environment \
+    ;; \
+  *) \
+    echo "Unsupported platform: ${TARGETPLATFORM}" \
+    exit 1 \
+    ;; \
+  esac
+RUN cat /etc/environment
 
-# 1.0. Use tuna mirrors as base mirror
-RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
-    -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos|g' \
-    -i.bak \
-    /etc/yum.repos.d/CentOS-*.repo
-# 1.1. Add endpoint repo for git-*
-RUN yum install -y https://mirrors.tuna.tsinghua.edu.cn/ius/ius-release-el7.rpm epel-release
-# https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
-# 1.2. Add SCLs repo
-RUN yum install -y centos-release-scl
-
-# 2. Install
-RUN yum install -y \
-  autoconf make automake cmake openssl-devel curl wget \
-  git236-all \
-  perl-IPC-Cmd libatomic \
-  devtoolset-11-gcc devtoolset-11-gcc-c++ cmake3
-
-RUN wget -c https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/llvm-project-14.0.6.src.tar.xz \
-  && tar -xvf llvm-project-14.0.6.src.tar.xz \
-	&& cd llvm-project-14.0.6.src \
-	&& mkdir build \
-	&& . /opt/rh/devtoolset-11/enable \
-	&& cmake3 -S llvm -B build -G 'Unix Makefiles' \
-      -DLLVM_ENABLE_PROJECTS='clang;lld' \
-      -DCMAKE_BUILD_TYPE=Release \
-  && cmake3 --build build -j20 \
-	&& cmake3 --install build \
-	&& cd .. \
-	&& rm -rf llvm-project-14.0.6.src llvm-project-14.0.6.src.tar.xz
+# based on https://github.com/pypa/manylinux/issues/1306#issuecomment-1374817895
+FROM lukewiwa/manylinux2014
+COPY --from=builder /etc/environment /etc/
+RUN yum makecache fast && yum install -y wget perl-IPC-Cmd libatomic openssl-devel
 
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.78.0
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --default-toolchain nightly
+ENV RUST_VERSION=1.81.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 ENV PATH=/root/.cargo/bin:$PATH
 
-ENV TINI_VERSION v0.19.0
-RUN wget https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini -O /tini
-RUN chmod +x /tini
 
-ENV MOLD_VERSION 2.4.0
-RUN wget https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz \
-  && tar -xvf mold-${MOLD_VERSION}-x86_64-linux.tar.gz \
-	&& cp mold-${MOLD_VERSION}-x86_64-linux/bin/mold /usr/bin/mold \
-	&& rm -rf mold-${MOLD_VERSION}-x86_64-linux.tar.gz mold-${MOLD_VERSION}-x86_64-linux/
+#COPY --from=builder /etc/environment /etc/
+ENV TINI_VERSION=v0.19.0
+RUN . /etc/environment && wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && chmod +x /bin/tini
 
-ENV SCCACHE_VERSION v0.7.6
-RUN wget https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz \
-  && tar -xvf sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz \
-  && cp sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache /usr/bin/sccache \
-  && rm -rf sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/
+ENV MOLD_VERSION=2.34.1
+RUN cat /etc/environment
+RUN . /etc/environment && wget https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz \
+  && tar -xvf mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz  \
+	&& cp mold-${MOLD_VERSION}-${MOLD_ARCH}-linux/bin/mold /usr/bin/mold \
+	&& rm -rf mold-${MOLD_VERSION}-${MOLD_ARCH}-linux mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz
 
-ENV RUSTC_WRAPPER=/usr/bin/sccache
+# Fix openssl compile error.
+COPY ./cpanm /bin/
+ENV CPAN_MIRROR=https://mirrors.aliyun.com/CPAN/
+ENV PERL_CPANM_OPT="-M ${CPAN_MIRROR}"
+RUN cpanm --force --notest List::Util
 
+# Workdir and trust
 WORKDIR /app
 RUN git config --global --add safe.directory /app
-RUN ln -sf /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
-RUN ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
-ADD docker/dev/entrypoint.sh /sbin/entrypoint.sh
-ADD docker/dev/cargo.toml /root/.cargo/config
+ADD ./cargo.toml /root/.cargo/config.toml
 
-ENTRYPOINT ["/tini", "--", "/sbin/entrypoint.sh"]
-CMD ["cargo", "build", "--release", "--all"]
+ENTRYPOINT ["/bin/tini", "--"]

@@ -357,18 +357,56 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
 
 [tasks.build-docker-dev]
+cwd = "docker/dev/"
 script = """
-echo use CentOS 7 as dev image with docker/dev/Dockerfile .
-docker build -f docker/dev/Dockerfile -t taosx/dev .
+echo use manylinux2014 as base image with docker/dev/Dockerfile .
+docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev .
 """
 
+# # Examples
+#
+# 1. Build aarch64 taosx: cargo make build-centos7-release --platform linux/arm64 -p taosx
+# 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
+#
 [tasks.build-centos7-release]
-# dependencies = ["build-docker-dev"]
+dependencies = ["build-docker-dev"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
-mkdir -p target/centos7
-docker compose run --remove-orphans --rm build \
-  cargo build --release $@
+
+# Get platform
+export PLATFORM=$(echo "$@" | rg '\\--platform (\\S+)' -o -r '$1')
+export EXTRAS=$(echo "$@" | rg '\\--platform (\\S+)' -r '')
+
+case "${PLATFORM}" in
+  "linux/amd64" | "linux/arm64")
+    echo Build taosX release for target $PLATFORM
+    export TARGET_DIR=$PWD/target/${PLATFORM}
+    mkdir -p $TARGET_DIR
+    docker run --platform $PLATFORM --rm \
+      -v .:/app -v $HOME:$HOME \
+      -v $HOME/.cargo/registry:/root/.cargo/registry \
+      -v $HOME/.cargo/git:/root/.cargo/git \
+      -v $TARGET_DIR:/app/target \
+      taosx/dev \
+      cargo build --release $@
+    ;;
+  "")
+    export TARGET_DIR=$PWD/target/centos7
+    mkdir -p $TARGET_DIR
+    docker run --rm \
+      -v .:/app -v $HOME:$HOME \
+      -v $HOME/.cargo/registry:/root/.cargo/registry \
+      -v $HOME/.cargo/git:/root/.cargo/git \
+      -v $TARGET_DIR:/app/target \
+      taosx/dev \
+      cargo build --release $@
+    ;;
+  *)
+    echo Unsupported platform $PLATFORM
+    exit -1
+    ;;
+esac
+
 """
 
 [tasks.build-centos7-sani]
