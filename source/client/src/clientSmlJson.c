@@ -470,8 +470,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
       uError("SML:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
       taosMemoryFree(tmp);
     }
-    code = TSDB_CODE_INVALID_TIMESTAMP;
-    goto END;
+    SML_CHECK_CODE(TSDB_CODE_INVALID_TIMESTAMP);
   }
   SSmlKv kvTs = {0};
   smlBuildTsKv(&kvTs, ts);
