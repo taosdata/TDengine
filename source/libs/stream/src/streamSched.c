@@ -137,6 +137,8 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     return;
   }
 
+  stDebug("s-task:%s acquire task, refId:%"PRId64, pTask->id.idStr, pTask->id.refId);
+
   const char*  id = pTask->id.idStr;
   int32_t      nextTrigger = (int32_t)pTask->info.delaySchedParam;
   int32_t      vgId = pTask->pMeta->vgId;
