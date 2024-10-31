@@ -21,6 +21,7 @@
 #include "tlog.h"
 #include "tlrucache.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 typedef struct SLRUEntry      SLRUEntry;
 typedef struct SLRUEntryTable SLRUEntryTable;
@@ -110,7 +111,7 @@ struct SLRUEntryTable {
 };
 
 static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
-  table->lengthBits = 4;
+  table->lengthBits = tsLruTableBits;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
     TAOS_RETURN(terrno);
@@ -527,6 +528,37 @@ static int taosLRUCacheShardApply(SLRUCacheShard *shard, _taos_lru_functor_t fun
   return ret;
 }
 
+static int32_t taosLRUCacheShardRefByCond(SLRUCacheShard *shard, _taos_lru_condition_t condition, SArray *handleArray,
+                                          void *ud) {
+  (void)taosThreadMutexLock(&shard->mutex);
+
+  int32_t         code = 0;
+  SLRUEntryTable *table = &shard->table;
+  uint32_t        end = 1 << table->lengthBits;
+  for (uint32_t i = 0; i < end; ++i) {
+    SLRUEntry *h = table->list[i];
+    while (h) {
+      SLRUEntry *n = h->nextHash;
+      if (condition(h->keyData, h->keyLength, h->value, ud)) {
+        if (taosArrayPush(handleArray, &h) == NULL) {
+          return terrno;
+        }
+        if (!TAOS_LRU_ENTRY_HAS_REFS(h)) {
+          taosLRUCacheShardLRURemove(shard, h);
+        }
+        TAOS_LRU_ENTRY_REF(h);
+        TAOS_LRU_ENTRY_SET_HIT(h);
+      }
+
+      h = n;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&shard->mutex);
+
+  return code;
+}
+
 static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
   SArray *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
 
@@ -764,6 +796,18 @@ void taosLRUCacheApply(SLRUCache *cache, _taos_lru_functor_t functor, void *ud) 
   }
 }
 
+int32_t taosLRUCacheRefByCond(SLRUCache *cache, _taos_lru_condition_t condition, SArray *handleArray, void *ud) {
+  int32_t code = 0;
+  int numShards = cache->numShards;
+  for (int i = 0; i < numShards; ++i) {
+    if ((code = taosLRUCacheShardRefByCond(&cache->shards[i], condition, handleArray, ud)) != 0) {
+      break;
+    }
+  }
+
+  return code;
+}
+
 void taosLRUCacheEraseUnrefEntries(SLRUCache *cache) {
   int numShards = cache->numShards;
   for (int i = 0; i < numShards; ++i) {
@@ -793,7 +837,70 @@ bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
   return taosLRUCacheShardRelease(&cache->shards[shardIndex], handle, eraseIfLastRef);
 }
 
-void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->value; }
+void taosLRUCacheReleaseBatch(SLRUCache *cache, SArray *handleArray, bool eraseIfLastRef) {
+  size_t size = taosArrayGetSize(handleArray);
+  if (size == 0) {
+    return;
+  }
+
+  SArray *freeArray = taosArrayInit(size, sizeof(bool));
+
+  uint32_t        lastShardIndex = UINT32_MAX;
+  SLRUCacheShard *shard = NULL;
+
+  for (int i = 0; i < size; ++i) {
+    SLRUEntry *e = *(SLRUEntry **)taosArrayGet(handleArray, i);
+
+    uint32_t hash = e->hash;
+    uint32_t shardIndex = hash & cache->shardedCache.shardMask;
+
+    if (shardIndex != lastShardIndex) {
+      if (shard != NULL) {
+        (void)taosThreadMutexUnlock(&shard->mutex);
+      }
+      shard = &cache->shards[shardIndex];
+      (void)taosThreadMutexLock(&shard->mutex);
+      lastShardIndex = shardIndex;
+    }
+
+    bool lastReference = taosLRUEntryUnref(e);
+    if (lastReference && TAOS_LRU_ENTRY_IN_CACHE(e)) {
+      if (shard->usage > shard->capacity || eraseIfLastRef) {
+        SLRUEntry *tentry = taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
+        TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
+      } else {
+        taosLRUCacheShardLRUInsert(shard, e);
+        lastReference = false;
+      }
+    }
+
+    if (lastReference && e->value) {
+      shard->usage -= e->totalCharge;
+    }
+
+    if (NULL == taosArrayPush(freeArray, &lastReference)) {
+      // TODO: handle this
+      continue;
+    }
+  }
+
+  if (shard != NULL) {
+    (void)taosThreadMutexUnlock(&shard->mutex);
+  }
+
+  for (int i = 0; i < size; ++i) {
+    bool lastReference = *(bool*)taosArrayGet(freeArray, i);
+    if (lastReference) {
+      taosLRUEntryFree(*(SLRUEntry **)taosArrayGet(handleArray, i));
+    }
+  }
+
+  taosArrayDestroy(freeArray);
+}
+
+void  *taosLRUCacheKey(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->keyData; }
+size_t taosLRUCacheKeyLen(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->keyLength; }
+void  *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->value; }
 
 size_t taosLRUCacheGetUsage(SLRUCache *cache) {
   size_t usage = 0;

@@ -444,6 +444,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
     code = tsdbCacheCommit(pVnode->pTsdb);
+    vInfo("vgId:%d, cache commit done", TD_VID(pVnode));
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
