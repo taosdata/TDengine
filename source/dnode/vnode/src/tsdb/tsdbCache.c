@@ -1350,6 +1350,9 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   int32_t nCol = pTSchema->numOfCols;
 
   ctxArray = taosArrayInit(nCol * 2, sizeof(SLastUpdateCtx));
+  if (ctxArray == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
 
   // 1. prepare by lrow
   STsdbRowKey tsdbRowKey = {0};
@@ -1362,20 +1365,27 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal && iCol < nCol; pColVal = tsdbRowIterNext(&iter), iCol++) {
     SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST_ROW, .tsdbRowKey = tsdbRowKey, .colVal = *pColVal};
     if (!taosArrayPush(ctxArray, &updateCtx)) {
+      tsdbRowClose(&iter);
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
     if (COL_VAL_IS_VALUE(pColVal)) {
       updateCtx.lflag = LFLAG_LAST;
       if (!taosArrayPush(ctxArray, &updateCtx)) {
+        tsdbRowClose(&iter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
     } else {
       if (!iColHash) {
         iColHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+        if (ctxArray == NULL) {
+          tsdbRowClose(&iter);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        }
       }
 
       if (tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0)) {
+        tsdbRowClose(&iter);
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
     }
