@@ -97,8 +97,8 @@ static int32_t getDataLen(int32_t type, const char* pData) {
   return dataLen;
 }
 
-int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-  if (isNull || pData == NULL) {
+static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
+    if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
@@ -143,7 +143,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[rowIndex] = len;
 
-    (void) memmove(pColumnInfoData->pData + len, pData, dataLen);
+    (void)memmove(pColumnInfoData->pData + len, pData, dataLen);
     pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, pColumnInfoData->info.bytes);
@@ -151,6 +151,18 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   }
 
   return 0;
+}
+
+int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+   pColumnInfoData->varmeta.offset[rowIndex] = -1;
+  }
+
+  return colDataSetValHelp(pColumnInfoData, rowIndex, pData, isNull);
+}
+
+int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
+  return colDataSetValHelp(pColumnInfoData, rowIndex, pData, isNull);
 }
 
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx,
@@ -3382,7 +3394,6 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
           }
 
           memcpy(p2, p1, len);
-          pDst->varmeta.offset[numOfRows] = -1;
           code = colDataSetVal(pDst, numOfRows, p2, false);
           taosMemoryFree(p2);
           if (code) {
