@@ -125,7 +125,7 @@ where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.
 Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 http status code when the C interface returns an error
 
 | **Description** | **httpCodeServerError false** | **httpCodeServerError true** |
-|--------------------|---------------------------- ------|---------------------------------------|
+|--------------------|----------------------------------|---------------------------------------|
 | taos_errno() returns 0 | 200 | 200 |
 | taos_errno() returns non-0 | 200 (except authentication error) | 500 (except authentication error and 400/502 error) |
 | Parameter error | 400 (only handle HTTP request URL parameter error) | 400 (handle HTTP request URL parameter error and taosd return error) |

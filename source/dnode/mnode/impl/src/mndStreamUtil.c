@@ -1499,6 +1499,30 @@ bool mndStreamNodeIsUpdated(SMnode *pMnode) {
   return updated;
 }
 
+int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SSnodeObj *pObj = NULL;
+
+  if (pSrcDb->cfg.replications == 1) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
+      if (pIter == NULL) {
+        break;
+      }
+
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    mError("snode not existed when trying to create stream in db with multiple replica");
+    return TSDB_CODE_SNODE_NOT_DEPLOYED;
+  }
+}
+
 uint32_t seed = 0;
 static SRpcMsg createRpcMsg(STransAction* pAction, int64_t traceId, int64_t signature) {
   SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};

@@ -889,7 +889,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
 }
 
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  int32_t                code;
+  int32_t                code = 0;
   int32_t                tlen = 0;
   int32_t                vgId = pTask->pMeta->vgId;
   const char*            id = pTask->id.idStr;

@@ -38,7 +38,7 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
     SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      dTrace("vgId:%d,acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
       pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->hash, pIter);
     } else {
@@ -52,7 +52,7 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
     SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      dTrace("vgId:%d, acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
       pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->closedHash, pIter);
     } else {
@@ -84,7 +84,7 @@ int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeOb
     SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      dTrace("vgId:%d, acquire vnode, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
       pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->hash, pIter);
     } else {
