@@ -31,8 +31,6 @@ from frame.eos import *
 
 
 class TDTestCase(TBase):
-    index = eutil.cpuRand(20) + 1
-    bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
         's3EndPoint': 'https://<account-id>.blob.core.windows.net',
@@ -44,7 +42,6 @@ class TDTestCase(TBase):
         's3MigrateEnabled': '1'
     }
 
-    tdLog.info(f"assign bucketName is {bucketName}\n")
     maxFileSize = (128 + 10) * 1014 * 1024 # add 10M buffer
 
     def insertData(self):
@@ -172,6 +169,23 @@ class TDTestCase(TBase):
         sql = "drop database db1"
         tdSql.execute(sql)
 
+    def checkDefault(self, keepLocal, chunkSize, compact):
+        sql = f" create database db1 vgroups 1"
+        tdSql.execute(sql, show=True)
+        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
+        sql = f"select * from information_schema.ins_databases where name='db1';"
+        tdSql.query(sql)
+        # 29 30 31 -> chunksize keeplocal compact
+        if chunkSize is not None:
+            tdSql.checkData(0, 29, chunkSize)
+        if keepLocal is not None:
+            keepLocalm = keepLocal * 24 * 60
+            tdSql.checkData(0, 30, f"{keepLocalm}m")
+        if compact is not None:
+            tdSql.checkData(0, 31, compact)
+        sql = "drop database db1"
+        tdSql.execute(sql)
+
     def checkExcept(self):
         # errors
         sqls = [
@@ -226,16 +240,7 @@ class TDTestCase(TBase):
         
         # except
         self.checkExcept()
-
-    #
-    def preDb(self, vgroups):
-        cnt = int(time.time())%2 + 1
-        for i in range(cnt):
-             vg = eutil.cpuRand(9) + 1
-             sql = f"create database predb vgroups {vg}"
-             tdSql.execute(sql, show=True)
-             sql = "drop database predb"
-             tdSql.execute(sql, show=True)
+        self.checkDefault(365, 131072, 1)
 
     # history
     def insertHistory(self):
@@ -287,9 +292,6 @@ class TDTestCase(TBase):
         if eos.isArm64Cpu():
             tdLog.success(f"{__file__} arm64 ignore executed")
         else:
-            
-            self.preDb(10)
-
             # insert data
             self.insertData()
 
@@ -311,7 +313,6 @@ class TDTestCase(TBase):
             # check insert correct again
             self.checkInsertCorrect()
 
-
             # check stream correct and drop stream
             #self.checkStreamCorrect()
 
@@ -321,7 +322,7 @@ class TDTestCase(TBase):
             # insert history  disorder data
             self.insertHistory()
 
-            # checkBasic
+            # check db params
             self.checkBasic()
 
             #self.checkInsertCorrect()
@@ -335,10 +336,8 @@ class TDTestCase(TBase):
             # drop database and free s3 file
             self.dropDb()
 
-
             tdLog.success(f"{__file__} successfully executed")
 
         
-
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
