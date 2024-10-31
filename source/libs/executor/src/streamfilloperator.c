@@ -1272,7 +1272,7 @@ _end:
   return code;
 }
 
-static int32_t buildAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SArray* pUpdated) {
+int32_t buildAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SArray* pUpdated) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   int64_t          groupId = 0;
@@ -1367,6 +1367,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  removeDuplicateTs(pInfo->pCloseTs);
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pCloseTs); i++) {
     TSKEY ts = *(TSKEY*) taosArrayGet(pInfo->pCloseTs, i);
     code = buildAllResultKey(pInfo->pStreamAggSup, ts, pInfo->pUpdated);

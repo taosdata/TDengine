@@ -856,6 +856,7 @@ typedef struct SStreamTimeSliceOperatorInfo {
   SGroupResInfo         groupResInfo;
   bool                  ignoreNull;
   bool                  isHistoryOp;
+  SArray*               pCloseTs;
   struct SOperatorInfo* pOperator;
 } SStreamTimeSliceOperatorInfo;
 

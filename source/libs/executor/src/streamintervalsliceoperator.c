@@ -19,6 +19,7 @@
 #include "storageapi.h"
 #include "streamexecutorInt.h"
 #include "tcommon.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "ttime.h"
 
@@ -626,4 +627,10 @@ _error:
   pTaskInfo->code = code;
   (*ppOptInfo) = NULL;
   return code;
+}
+
+void removeDuplicateTs(SArray* pTsArrray) {
+  __compar_fn_t fn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, TSDB_ORDER_ASC);
+  taosArraySort(pTsArrray, fn);
+  taosArrayRemoveDuplicate(pTsArrray, fn, NULL);
 }

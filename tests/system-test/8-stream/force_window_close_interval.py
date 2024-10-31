@@ -275,8 +275,9 @@ class TDTestCase:
         time.sleep(self.tdCom.dataDict["interval"])
         tdSql.query("show streams")
         tdLog.info(f"tdSql.queryResult:{tdSql.queryResult},tdSql.queryRows:{tdSql.queryRows}")
+        localQueryResult = tdSql.queryResult
         for stream_number in range(tdSql.queryRows):
-            stream_name = tdSql.queryResult[stream_number][0]
+            stream_name = localQueryResult[stream_number][0]
             tdCom.check_stream_task_status(
                 stream_name=stream_name, vgroups=2, stream_timeout=20,check_wal_info=False
             )

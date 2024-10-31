@@ -177,6 +177,8 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->historyWins);
 
+  taosArrayDestroy(pInfo->pCloseTs);
+
   taosMemoryFreeClear(param);
 }
 
@@ -1449,11 +1451,15 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   for (; pGroupResInfo->index < numOfRows; pGroupResInfo->index++) {
     SWinKey* pKey = (SWinKey*)taosArrayGet(pGroupResInfo->pRows, pGroupResInfo->index);
-    qDebug("===stream=== build interp res. key:%" PRId64 ",groupId:%" PRId64, pKey->ts, pKey->groupId);
+    qDebug("===stream=== build interp res. key:%" PRId64 ",groupId:%" PRIu64, pKey->ts, pKey->groupId);
     if (pBlock->info.id.groupId == 0) {
       pBlock->info.id.groupId = pKey->groupId;
     } else if (pBlock->info.id.groupId != pKey->groupId) {
-      break;
+      if (pBlock->info.rows > 0) {
+        break;
+      } else {
+        pBlock->info.id.groupId = pKey->groupId;
+      }
     }
     SSlicePoint curPoint = {.key.ts = pKey->ts, .key.groupId = pKey->groupId};
     SSlicePoint prevPoint = {0};
@@ -1813,8 +1819,8 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
         goto _end;
       } break;
       case STREAM_GET_RESULT: {
-        code = setAllResultKey(pAggSup, pBlock->info.window.skey, pInfo->pUpdatedMap);
-        QUERY_CHECK_CODE(code, lino, _end);
+        void* pPushRes = taosArrayPush(pInfo->pCloseTs, &pBlock->info.window.skey);
+        QUERY_CHECK_NULL(pPushRes, code, lino, _end, terrno);
         continue;
       }
       default:
@@ -1831,12 +1837,29 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  void*   pIte = NULL;
-  int32_t iter = 0;
-  while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
-    SWinKey* pKey = (SWinKey*)tSimpleHashGetKey(pIte, NULL);
-    void*    tmp = taosArrayPush(pInfo->pUpdated, pKey);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  if (taosArrayGetSize(pInfo->pCloseTs) > 0) {
+    removeDuplicateTs(pInfo->pCloseTs);
+    int32_t size = taosArrayGetSize(pInfo->pCloseTs);
+    qDebug("build stream result, ts count:%d", size);
+    for (int32_t i = 0; i < size; i++) {
+      TSKEY ts = *(TSKEY*) taosArrayGet(pInfo->pCloseTs, i);
+      code = buildAllResultKey(&pInfo->streamAggSup, ts, pInfo->pUpdated);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    qDebug("build stream result, ts count:%d", taosArrayGetSize(pInfo->pUpdated));
+    taosArrayClear(pInfo->pCloseTs);
+    if (size > 1024) {
+      taosArrayDestroy(pInfo->pCloseTs);
+      pInfo->pCloseTs = taosArrayInit(1024, sizeof(TSKEY));
+    }
+  } else {
+    void*   pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
+      SWinKey* pKey = (SWinKey*)tSimpleHashGetKey(pIte, NULL);
+      void*    tmp = taosArrayPush(pInfo->pUpdated, pKey);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    }
   }
   taosArraySort(pInfo->pUpdated, winKeyCmprImpl);
 
@@ -2088,6 +2111,10 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
+
+  pInfo->pCloseTs = taosArrayInit(1024, sizeof(TSKEY));
+  QUERY_CHECK_NULL(pInfo->pCloseTs, code, lino, _error, terrno);
+
   pInfo->pOperator = pOperator;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
