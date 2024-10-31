@@ -241,14 +241,14 @@ typedef struct {
       case TSDB_DATA_TYPE_FLOAT: {                                                     \
         int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));               \
         if (n >= (_outputBytes)) {                                                                      \
-          snprintf(_output, (int32_t)(_outputBytes), "%*.7f", (_outputBytes) - 1, *(float *)(_input));  \
+          snprintf(_output, (int32_t)(_outputBytes), "%*.7f", (int32_t)((_outputBytes) - 1), *(float *)(_input));  \
         }                                                                              \
         break;                                                                         \
       }                                                                                \
       case TSDB_DATA_TYPE_DOUBLE: {                                                    \
         int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));              \
         if (n >= (_outputBytes)) {                                                                      \
-          snprintf(_output, (int32_t)(_outputBytes), "%*.7f", (_outputBytes) - 1, *(double *)(_input)); \
+          snprintf(_output, (int32_t)(_outputBytes), "%*.7f", (int32_t)((_outputBytes) - 1), *(double *)(_input)); \
         }                                                                              \
         break;                                                                         \
       }                                                                                \
