@@ -114,16 +114,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = getDataLen(type, pData);
     if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
-      if (rowIndex == 0) {
-        pColumnInfoData->varmeta.length = 0;
-      } else {
-        int32_t start = pColumnInfoData->varmeta.offset[rowIndex - 1];
-        int32_t lastDataLen = getDataLen(type, pColumnInfoData->pData + start);
-        if (start + lastDataLen < pColumnInfoData->varmeta.length) {
-          uInfo("column data is reassigned, row:%d, offset:%d, length:%d", rowIndex, start, lastDataLen);
-          pColumnInfoData->varmeta.length = start + lastDataLen;
-        }
-      }
+      pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
     }
 
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;
@@ -3391,6 +3382,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
           }
 
           memcpy(p2, p1, len);
+          pDst->varmeta.offset[numOfRows] = -1;
           code = colDataSetVal(pDst, numOfRows, p2, false);
           taosMemoryFree(p2);
           if (code) {
