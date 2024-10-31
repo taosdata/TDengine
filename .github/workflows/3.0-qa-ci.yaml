@@ -319,7 +319,7 @@ jobs:
           lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info --quiet
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-merged/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-unit/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
-          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e.info
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
 
       - name: mqtt & opc Report
