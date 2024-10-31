@@ -92,7 +92,17 @@ class Client {
     addEpIntoEpSet(&epSet, "127.0.0.1", 7000);
 
     rpcSendRequest(this->transCli, &epSet, req, NULL);
+  }
 
+  void sendReqWithId(SRpcMsg *req, int64_t *id) {
+    SEpSet epSet = {0};
+    epSet.inUse = 0;
+    addEpIntoEpSet(&epSet, "127.0.0.1",7000);
+    rpcSendRequestWithCtx(this->transCli, &epSet, req, id, NULL);
+     
+  }
+  void freeId(int64_t *id) {
+    rpcFreeConnById(this->transCli, *id);
   }
   void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
     if (req->info.handle != NULL) {
@@ -275,6 +285,9 @@ class TransObj {
   }
   void cliSendAndRecv(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecv(req, resp); }
   void cliSendReq(SRpcMsg *req) { cli->sendReq(req); }
+
+  void cliSendReqWithId(SRpcMsg *req, int64_t *id) { cli->sendReqWithId(req, id);}
+  void cliFreeReqId(int64_t *id) { cli->freeId(id);}
   void cliSendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecvNoHandle(req, resp); }
 
   ~TransObj() {
@@ -483,6 +496,22 @@ TEST_F(TransEnv, multiCliPersistHandleExcept) {
 TEST_F(TransEnv, queryExcept) {
   //taosMsleep(4 * 1000);
 }
+TEST_F(TransEnv, idTest) {
+  SRpcMsg resp = {0};
+  SRpcMsg req = {0};
+  for (int i = 0; i < 50000; i++) {
+   memset(&req, 0, sizeof(req));
+   req.info.noResp = 0;
+   req.msgType = 3;
+   req.pCont = rpcMallocCont(10);
+   req.contLen = 10;
+   int64_t id;
+   tr->cliSendReqWithId(&req, &id); 
+   tr->cliFreeReqId(&id); 
+  }
+  taosMsleep(1000);
+  // no resp
+}
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
@@ -496,6 +525,5 @@ TEST_F(TransEnv, noResp) {
    //tr->cliSendAndRecv(&req, &resp);
   }
   taosMsleep(100000);
-
   // no resp
 }
