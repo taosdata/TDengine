@@ -991,9 +991,9 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
       } else {
         pFillInfo->pos = FILL_POS_INVALID;
         setFillKeyInfo(ts, ts + 1, &pFillSup->interval, pFillInfo);
-        if (pFillSup->cur.pRowVal != NULL) {
-          copyNonFillValueInfo(pFillSup, pFillInfo);
-        }
+      }
+      if (pFillSup->cur.pRowVal != NULL) {
+        copyNonFillValueInfo(pFillSup, pFillInfo);
       }
     } break;
     case TSDB_FILL_PREV: {
@@ -1021,6 +1021,9 @@ static void setForceWindowCloseFillRule(SStreamFillSupporter* pFillSup, SStreamF
 static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  if (IS_FILL_CONST_VALUE(pFillInfo->type)) {
+      copyNonFillValueInfo(pFillSup, pFillInfo);
+  }
   if (!hasNextWindow(pFillSup) && !hasPrevWindow(pFillSup)) {
     pFillInfo->needFill = false;
     pFillInfo->pos = FILL_POS_START;
@@ -1057,7 +1060,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
-      copyNonFillValueInfo(pFillSup, pFillInfo);
+      // copyNonFillValueInfo(pFillSup, pFillInfo);
     } break;
     case TSDB_FILL_PREV: {
       if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup) && pFillInfo->preRowKey != pFillInfo->prePointKey &&
