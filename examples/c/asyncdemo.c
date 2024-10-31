@@ -17,7 +17,6 @@
 // this example opens multiple tables, insert/retrieve multiple tables
 // it is used by TAOS internally for one performance testing
 // to compiple: gcc -o asyncdemo asyncdemo.c -ltaos
-//
 
 #include <stdio.h>
 #include <stdlib.h>
