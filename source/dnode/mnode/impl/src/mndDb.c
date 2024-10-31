@@ -926,8 +926,12 @@ _exit:
 }
 
 int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  return terrno;
+  if (dnodeListStr[0] != 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  } else {
+    return 0;
+  }
 }
 
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
