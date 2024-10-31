@@ -85,8 +85,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->readTimeout = pInit->readTimeout;
-  if (pRpc->readTimeout < 0) {
-    pRpc->readTimeout = INT64_MAX;
+  if (pRpc->readTimeout <= 0) {
+    pRpc->readTimeout = INT32_MAX;
   }
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
