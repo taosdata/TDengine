@@ -2018,7 +2018,12 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
         code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
-        break;
+        if (pRes->info.rows == 0) {
+          // After filtering for last group, the result is empty, so we need to continue to process next group
+          continue;
+        } else {
+          break;
+        }
       } else {
         // continue
         pRes->info.id.groupId = pMiaInfo->groupId;
