@@ -533,12 +533,12 @@ class TDTestCase:
                         )
                         self.tdCom.check_query_data(
                             f'select irowts, table_name, c_c1, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column1_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c1, irowts',
-                            f'select _irowts as irowts ,tbname as table_name, c1 as c_c1, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname}  partition by {partition},c1  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c1, irowts',
+                            f'select _irowts as irowts ,tbname as table_name, c1 as c_c1, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c1  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c1, irowts',
                             fill_value=fill_value,
                         )    
                         self.tdCom.check_query_data(
                             f'select irowts, table_name, c_c2, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column2_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c2, irowts',
-                            f'select _irowts as irowts ,tbname as table_name, c2 as c_c2, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname},  {where_tbname}  partition by {partition},c2  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c2, irowts',
+                            f'select _irowts as irowts ,tbname as table_name, c2 as c_c2, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c2  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c2, irowts',
                             fill_value=fill_value,
                         )                        
                 else:

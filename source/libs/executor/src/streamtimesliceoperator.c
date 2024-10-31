@@ -1840,13 +1840,13 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   if (taosArrayGetSize(pInfo->pCloseTs) > 0) {
     removeDuplicateTs(pInfo->pCloseTs);
     int32_t size = taosArrayGetSize(pInfo->pCloseTs);
-    qDebug("build stream result, ts count:%d", size);
+    qDebug("===stream===build stream result, ts count:%d", size);
     for (int32_t i = 0; i < size; i++) {
       TSKEY ts = *(TSKEY*) taosArrayGet(pInfo->pCloseTs, i);
       code = buildAllResultKey(&pInfo->streamAggSup, ts, pInfo->pUpdated);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-    qDebug("build stream result, ts count:%d", taosArrayGetSize(pInfo->pUpdated));
+    qDebug("===stream===build stream result, res count:%ld", taosArrayGetSize(pInfo->pUpdated));
     taosArrayClear(pInfo->pCloseTs);
     if (size > 1024) {
       taosArrayDestroy(pInfo->pCloseTs);
