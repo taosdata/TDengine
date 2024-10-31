@@ -67,7 +67,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
   for (int32_t i = 0; i < dnodeSize; ++i) {
     for (int32_t j = i + 1; j < dnodeSize; ++j) {
       if (((int32_t *)TARRAY_DATA(dnodeList))[i] == ((int32_t *)TARRAY_DATA(dnodeList))[j]) {
-        terrno = TSDB_CODE_MND_DNODE_LIST_REPEAT;
+        terrno = TSDB_CODE_OPS_NOT_SUPPORT;
         return terrno;
       }
     }
