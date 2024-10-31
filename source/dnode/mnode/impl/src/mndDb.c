@@ -57,7 +57,6 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
-int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) { return 0; }
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -924,6 +923,11 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 #endif
 _exit:
   TAOS_RETURN(code);
+}
+
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  return terrno;
 }
 
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {

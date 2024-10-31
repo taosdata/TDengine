@@ -724,15 +724,18 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   }
 
   if (dnodeList != NULL) {
-    bool inDnodeList = false;
-    for (int32_t index = 0; index < taosArrayGetSize(dnodeList); ++index) {
-      int32_t dnodeId = *(int32_t *)taosArrayGet(dnodeList, index);
-      if (pDnode->id == dnodeId) {
-        inDnodeList = true;
+    int32_t dnodeListSize = taosArrayGetSize(dnodeList);
+    if (dnodeListSize > 0) {
+      bool inDnodeList = false;
+      for (int32_t index = 0; index < dnodeListSize; ++index) {
+        int32_t dnodeId = *(int32_t *)taosArrayGet(dnodeList, index);
+        if (pDnode->id == dnodeId) {
+          inDnodeList = true;
+        }
       }
-    }
-    if (!inDnodeList) {
-      return true;
+      if (!inDnodeList) {
+        return true;
+      }
     }
   }
 
