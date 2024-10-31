@@ -2945,6 +2945,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
 
   tscDebug("taos_query end with sql:%s", sql);
 
+  clientOperateReport(pRequest);
+
   return pRequest;
 }
 
