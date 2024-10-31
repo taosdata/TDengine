@@ -242,7 +242,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
-                      pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+                             pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
 end:
@@ -594,7 +594,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   }
 
   code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
-                      pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+                             pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
   pTag = NULL;
 
 end:
@@ -886,7 +886,7 @@ _return:
 
 int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSchema, int32_t* fieldNum,
                          TAOS_FIELD_E** fields, uint8_t timePrec) {
-  if (fields) {
+  if (fields != NULL) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_E));
     if (NULL == *fields) {
       return terrno;
@@ -939,7 +939,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {
     *fieldNum = 0;
-    if (fields) {
+    if (fields != NULL) {
       *fields = NULL;
     }
 
