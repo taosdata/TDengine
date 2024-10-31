@@ -58,6 +58,8 @@ enum {
 #define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
 #define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
 
+#define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
