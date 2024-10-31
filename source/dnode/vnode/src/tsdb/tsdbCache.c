@@ -1378,7 +1378,7 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
     } else {
       if (!iColHash) {
         iColHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-        if (ctxArray == NULL) {
+        if (iColHash == NULL) {
           tsdbRowClose(&iter);
           TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
         }
