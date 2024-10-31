@@ -25,7 +25,6 @@ exe:
 	gcc $(CFLAGS) ./stmt.c  -o $(ROOT)stmt $(LFLAGS)
 	gcc $(CFLAGS) ./stmt2.c  -o $(ROOT)stmt2 $(LFLAGS)
 	gcc $(CFLAGS) ./stmt2-example.c  -o $(ROOT)stmt2-example $(LFLAGS)
-	gcc $(CFLAGS) ./stmt2-get-fields.c  -o $(ROOT)stmt2-get-fields $(LFLAGS)
 	gcc $(CFLAGS) ./stmt2-nohole.c  -o $(ROOT)stmt2-nohole $(LFLAGS)
 	gcc $(CFLAGS) ./stmt-crash.c  -o $(ROOT)stmt-crash $(LFLAGS)
 
@@ -43,6 +42,5 @@ clean:
 	rm $(ROOT)stmt
 	rm $(ROOT)stmt2
 	rm $(ROOT)stmt2-example
-	rm $(ROOT)stmt2-get-fields
 	rm $(ROOT)stmt2-nohole
 	rm $(ROOT)stmt-crash
