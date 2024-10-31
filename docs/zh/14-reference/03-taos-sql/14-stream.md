@@ -291,3 +291,4 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 CREATE SNODE ON DNODE [id]
 ```
 其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
+从 3.3.4.0 版本开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
