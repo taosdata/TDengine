@@ -1,8 +1,8 @@
 name: 3.0 QA-workflow
 
 on:
-  schedule:
-    - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
+  # schedule:
+  #   - cron: '0 22 * * *'  # 每天 22 点触发 github 使用的是 UTC 时间，对应的北京时间是 6 点
   workflow_dispatch:
   # pull_request:
   # push:
@@ -233,7 +233,9 @@ jobs:
           docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry lock --no-update && poetry install --no-root"
 
           docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
-
+      - name: Stop container
+        run: |
+          docker stop -t 60 ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}}
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_mqtt]
