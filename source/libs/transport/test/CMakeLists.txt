@@ -14,7 +14,7 @@ target_sources(transUT2
   PRIVATE
   "transUT2.cpp"
 )
-target_sources(transportTest 
+target_sources(transportTest
   PRIVATE
   "transportTests.cpp"
 )
@@ -30,16 +30,16 @@ target_sources(cliBench
 target_sources(httpBench
   PRIVATE
   "http_test.c"
-) 
+)
 
-target_include_directories(transportTest 
+target_include_directories(transportTest
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries (transportTest
-  os  
+target_link_libraries(transportTest
+  os
   util
   common
   gtest_main
@@ -47,81 +47,81 @@ target_link_libraries (transportTest
   function
 )
 
-target_link_libraries (transUT
-  os  
+target_link_libraries(transUT
+  os
   util
   common
   gtest_main
-  transport 
+  transport
 )
 
 target_include_directories(transUT
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries (transUT2
-  os  
+target_link_libraries(transUT2
+  os
   util
   common
   gtest_main
-  transport 
+  transport
 )
 
 target_include_directories(transUT2
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 target_include_directories(svrBench
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries (svrBench
-  os  
+target_link_libraries(svrBench
+  os
   util
   common
   gtest_main
-  transport 
+  transport
 )
 
 target_include_directories(cliBench
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 target_include_directories(httpBench
   PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport"
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries (cliBench
-  os  
+target_link_libraries(cliBench
+  os
   util
   common
   gtest_main
-  transport 
+  transport
 )
 
 target_link_libraries(httpBench
-  os  
+  os
   util
   common
   gtest_main
-  transport 
+  transport
 )
 
 add_test(
-  NAME transUT 
-  COMMAND transUT 
+  NAME transUT
+  COMMAND transUT
 )
 add_test(
-  NAME transUtilUt 
+  NAME transUtilUt
   COMMAND transportTest
 )
