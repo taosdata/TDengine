@@ -57,6 +57,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) { return 0; }
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -881,59 +882,6 @@ static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int6
     (void)sprintf(tmp, format, para);
     (void)strcat(detail, tmp);
   }
-}
-
-static int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
-  if (dnodeListStr[0] == 0) return 0;
-
-  mInfo("db:%s, dnode list is %s", db, dnodeListStr);
-
-  int32_t len = strlen(dnodeListStr);
-  for (int32_t i = 0; i < len; ++i) {
-    if ((dnodeListStr[i] < '0' || dnodeListStr[i] > '9') && dnodeListStr[i] != ',') {
-      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
-      return terrno;
-    }
-  }
-
-  char *pos = dnodeListStr;
-  while (pos != NULL) {
-    if (pos[0] < '0' || pos[0] > '9') {
-      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
-      return terrno;
-    }
-
-    int32_t    dnodeId = taosStr2Int32(pos, NULL, 10);
-    SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
-    if (pDnode != NULL) {
-      mndReleaseDnode(pMnode, pDnode);
-      if (taosArrayPush(dnodeList, &dnodeId) == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return terrno;
-      }
-    } else {
-      mError("db:%s, invalid dnode:%d from pos:%s", db, dnodeId, pos);
-      terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-      return terrno;
-    }
-
-    pos = strstr(pos, ",");
-    if (pos != NULL) {
-      pos++;
-    }
-  }
-
-  int32_t dnodeSize = (int32_t)taosArrayGetSize(dnodeList);
-  for (int32_t i = 0; i < dnodeSize; ++i) {
-    for (int32_t j = i + 1; j < dnodeSize; ++j) {
-      if (((int32_t *)TARRAY_DATA(dnodeList))[i] == ((int32_t *)TARRAY_DATA(dnodeList))[j]) {
-        terrno = TSDB_CODE_MND_DNODE_LIST_REPEAT;
-        return terrno;
-      }
-    }
-  }
-
-  return 0;
 }
 
 static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
