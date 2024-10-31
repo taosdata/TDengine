@@ -867,6 +867,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pIter == NULL) break;
 
     if (pNew->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+
     if (pNew->conflict == TRN_CONFLICT_DB) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
@@ -874,6 +875,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
         mndTransLogConflict(pNew, pTrans, mndCheckStbConflict(pNew->stbname, pTrans), &conflict);
       }
     }
+
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
@@ -885,22 +887,6 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
     }
 
-//    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
-//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-//      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-//      }
-//    }
-//    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-//      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
-//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-//      }
-//      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
-//          conflict = true;
-//      }
-//    }
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
