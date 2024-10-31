@@ -925,6 +925,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#ifndef TD_ENTERPRISE
 int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
   if (dnodeListStr[0] != 0) {
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -933,6 +934,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
     return 0;
   }
 }
+#endif
 
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
