@@ -1058,6 +1058,8 @@ int32_t walSaveMeta(SWal* pWal) {
 
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
   }
+  wInfo("vgId:%d, save meta file: %s, firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, tmpFnameStr,
+        pWal->vers.firstVer, pWal->vers.lastVer);
 
   // rename it
   n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
@@ -1155,8 +1157,8 @@ int32_t walLoadMeta(SWal* pWal) {
   (void)taosCloseFile(&pFile);
   taosMemoryFree(buf);
 
-  wInfo("vgId:%d, load meta file: %s, fileInfoSet size:%d", pWal->cfg.vgId, fnameStr,
-        (int32_t)taosArrayGetSize(pWal->fileInfoSet));
+  wInfo("vgId:%d, load meta file: %s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileInfoSet size:%d", pWal->cfg.vgId,
+        fnameStr, pWal->vers.firstVer, pWal->vers.lastVer, (int32_t)taosArrayGetSize(pWal->fileInfoSet));
   printFileSet(pWal->fileInfoSet);
 
   TAOS_RETURN(code);

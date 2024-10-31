@@ -4105,18 +4105,16 @@ void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 #define MQ_DATA_RSP_VERSION 100
 
 typedef struct {
-  struct {
-    SMqRspHead   head;
-    STqOffsetVal rspOffset;
-    STqOffsetVal reqOffset;
-    int32_t      blockNum;
-    int8_t       withTbName;
-    int8_t       withSchema;
-    SArray*      blockDataLen;
-    SArray*      blockData;
-    SArray*      blockTbName;
-    SArray*      blockSchema;
-  };
+  SMqRspHead   head;
+  STqOffsetVal rspOffset;
+  STqOffsetVal reqOffset;
+  int32_t      blockNum;
+  int8_t       withTbName;
+  int8_t       withSchema;
+  SArray*      blockDataLen;
+  SArray*      blockData;
+  SArray*      blockTbName;
+  SArray*      blockSchema;
 
   union{
     struct{

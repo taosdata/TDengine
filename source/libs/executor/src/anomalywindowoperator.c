@@ -86,7 +86,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   pOperator->exprSupp.hasWindowOrGroup = true;
   pInfo->tsSlotId = ((SColumnNode*)pAnomalyNode->window.pTspk)->slotId;
-  strncpy(pInfo->anomalyOpt, pAnomalyNode->anomalyOpt, sizeof(pInfo->anomalyOpt));
+  tstrncpy(pInfo->anomalyOpt, pAnomalyNode->anomalyOpt, sizeof(pInfo->anomalyOpt));
 
   if (pAnomalyNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;

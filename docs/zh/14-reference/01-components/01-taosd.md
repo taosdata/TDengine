@@ -33,7 +33,7 @@ taosd 命令行参数如下
 |        secondEp        | taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，缺省值：无 |
 |          fqdn          |        启动 taosd 后所监听的服务地址，缺省值：所在服务器上配置的第一个 hostname         |
 |       serverPort       |                         启动 taosd 后所监听的端口，缺省值：6030                         |
-|    numOfRpcSessions    |          允许一个客户端能创建的最大连接数，取值范围 100-100000，缺省值：30000           |
+|    numOfRpcSessions    |          允许一个 dnode 能发起的最大连接数，取值范围 100-100000，缺省值：30000           |
 | timeToGetAvailableConn |      获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值：500000       |
 
 ### 监控相关
@@ -163,7 +163,7 @@ charset 的有效值是 UTF-8。
 
 |      参数名称      |                    参数说明                     |
 | :----------------: | :---------------------------------------------: |
-| numOfCommitThreads | 写入线程的最大数量，取值范围 0-1024，缺省值为 4 |
+| numOfCommitThreads | 落盘线程的最大数量，取值范围 0-1024，缺省值为 4 |
 
 ### 日志相关
 
@@ -223,16 +223,16 @@ lossyColumns     float|double
 
 |     参数名称     |                                                                                                 参数说明                                                                                                 |
 | :--------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-|  enableCoreFile  | crash 时是否生成 core 文件；0: 不生成，1：生成；默认值  为 1; 不同的启动方式，生成 core 文件的目录如下：1、systemctl start taosd 启动：生成的 core 在根目录下 <br/> 2、手动启动，就在 taosd 执行目录下。 |
-|       udf        |                                                                            是否启动 UDF 服务；0: 不启动，1：启动；默认值 为 0                                                                            |
-| ttlChangeOnWrite |                                                                   ttl 到期时间是否伴随表的修改操作改变; 0: 不改变，1：改变 ；默认值 为                                                                   |
-|  tmqMaxTopicNum  |                                                                        订阅最多可建立的 topic 数量; 取值范围 1-10000；缺省值 为20                                                                        |
-|    maxTsmaNum    |                                                                             集群内可创建的TSMA个数；取值范围：0-3；缺省值: 3                                                                             |
+|  enableCoreFile  | crash 时是否生成 core 文件；0: 不生成，1：生成；默认值为 1; 不同的启动方式，生成 core 文件的目录如下：1、systemctl start taosd 启动：生成的 core 在根目录下  <br/> 2、手动启动，就在 taosd 执行目录下。  |
+|       udf        |                                                                            是否启动 UDF 服务；0: 不启动，1：启动；默认值为 0                                                                             |
+| ttlChangeOnWrite |                                                                   ttl 到期时间是否伴随表的修改操作改变; 0: 不改变，1：改变；默认值为 0                                                                   |
+|  tmqMaxTopicNum  |                                                                        订阅最多可建立的 topic 数量; 取值范围 1-10000；缺省值为20                                                                         |
+|    maxTsmaNum    |                                                                             集群内可创建的TSMA个数；取值范围：0-3；缺省值为 3                                                                            |
 
 
 ## taosd 监控指标
 
-taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。  
+taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。
 
 ### taosd\_cluster\_basic 表
 
@@ -458,4 +458,4 @@ TDengine 的日志文件主要包括普通日志和慢日志两种类型。
         3. 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
         4. 慢日志文件不自动删除，不压缩。
         5. 使用和普通日志文件相同的三个参数 logDir,  minimalLogDirGB,  asyncLog。另外两个参数 numOfLogLines，logKeepDays 不适用于慢日志。
- 
+
