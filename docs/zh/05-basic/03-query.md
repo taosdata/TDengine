@@ -25,7 +25,7 @@ ORDER BY ts DESC
 LIMIT 5;
 ```
 
-上面的 SQL，从超级表 `meters` 中查询出电压 `voltage` 大于 230 的记录，按时间降序排列，且仅输出前 5 行。查询结果如下：
+上面的 SQL，从超级表 `meters` 中查询出电压 `voltage` 大于 230V 的记录，按时间降序排列，且仅输出前 5 行。查询结果如下：
 
 ```text
           ts            |  current   | voltage |    phase    | groupid |          location        |
