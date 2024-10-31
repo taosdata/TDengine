@@ -538,6 +538,11 @@ void streamMetaClear(SStreamMeta* pMeta) {
     if (code) {
       stError("vgId:%d remove task refId failed, refId:%" PRId64, pMeta->vgId, refId);
     }
+
+    code = taosReleaseRef(streamTaskRefPool, refId);
+    if (code) {
+      stError("vgId:%d failed to release refId:%" PRId64, pMeta->vgId, refId);
+    }
   }
 
   if (pMeta->streamBackendRid != 0) {
