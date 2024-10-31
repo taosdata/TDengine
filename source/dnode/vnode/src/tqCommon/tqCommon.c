@@ -200,6 +200,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   bool update = streamMetaInitUpdateTaskList(pMeta, req.transId);
   if (!update) {
     rsp.code = TSDB_CODE_SUCCESS;
+
+    streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
 
     taosArrayDestroy(req.pNodeList);
@@ -214,7 +216,10 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     tqDebug("s-task:%s (vgId:%d) already update in transId:%d, discard the nodeEp update msg", idstr, vgId,
             req.transId);
     rsp.code = TSDB_CODE_SUCCESS;
+
+    streamMetaReleaseTask(pMeta, pTask);
     streamMetaWUnLock(pMeta);
+
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
