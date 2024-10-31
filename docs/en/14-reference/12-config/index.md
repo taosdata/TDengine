@@ -701,15 +701,6 @@ The charset that takes effect is UTF-8.
 | Type          | String                                                        |
 | Default Value | _tag_null                                                     |
 
-### smlDataFormat
-
-| Attribute   | Description                                                                         |
-| ----------- | ----------------------------------------------------------------------------------- |
-| Applicable  | Client only                                                                         |
-| Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0 |
-| Value Range | 0: not consistent; 1: consistent.                                                   |
-| Default     | 0                                                                                   |
-
 ### smlTsDefaultName
 
 | Attribute     | Description                                                     |
@@ -718,6 +709,16 @@ The charset that takes effect is UTF-8.
 | Meaning       | The name of the time column for schemaless automatic table creation is set through this configuration |
 | Type          | String                                                          |
 | Default Value | _ts                                                             |
+
+### smlDot2Underline
+
+| Attribute     | Description                                                     |
+| --------      | --------------------------------------------------------        |
+| Applicable    | Client only                                                     |
+| Meaning       | Convert the dot in the supertable name to an underscore         |
+| Type          | Bool                                                            |
+| Default Value | true                                                            |
+
 
 ## Compress Parameters
 
