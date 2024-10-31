@@ -227,7 +227,7 @@ void tFreeStreamTask(void* pParam) {
   }
   streamMutexUnlock(&pTask->lock);
 
-  stDebug("start to free s-task:0x%x %p, state:%s", taskId, pTask, p);
+  stDebug("start to free s-task:0x%x %p, state:%s, refId:%" PRId64, taskId, pTask, p, pTask->id.refId);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64

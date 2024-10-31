@@ -88,15 +88,6 @@ void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
     numOfTicks = SCANHISTORY_IDLE_TICK;
   }
 
-  // add ref for task
-  SStreamTask* p = NULL;
-  int32_t      code = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, &p);
-  if (p == NULL || code != 0) {
-    stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
-            streamTaskGetStatus(pTask).name);
-    return;
-  }
-
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
 
   stDebug("s-task:%s scan-history resumed in %.2fs", pTask->id.idStr, numOfTicks * 0.1);
