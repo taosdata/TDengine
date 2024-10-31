@@ -1541,14 +1541,12 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   }
   pFillInfo->pLinearInfo->winIndex = 0;
 
+  pFillInfo->pNonFillRow = NULL;
   pFillInfo->pResRow = NULL;
   if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_SET_VALUE_F ||
       pFillSup->type == TSDB_FILL_NULL || pFillSup->type == TSDB_FILL_NULL_F) {
     pFillInfo->pResRow = taosMemoryCalloc(1, sizeof(SResultRowData));
-    if (!pFillInfo->pResRow) {
-      code = terrno;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    QUERY_CHECK_NULL(pFillInfo->pResRow, code, lino, _end, terrno);
 
     pFillInfo->pResRow->key = INT64_MIN;
     pFillInfo->pResRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
@@ -1568,6 +1566,12 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
       pCell->bytes = pColData->info.bytes;
       pCell->type = pColData->info.type;
     }
+
+    pFillInfo->pNonFillRow = taosMemoryCalloc(1, sizeof(SResultRowData));
+    QUERY_CHECK_NULL(pFillInfo->pNonFillRow, code, lino, _end, terrno);
+    pFillInfo->pNonFillRow->key = INT64_MIN;
+    pFillInfo->pNonFillRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
+    memcpy(pFillInfo->pNonFillRow->pRowVal, pFillInfo->pResRow->pRowVal, pFillSup->rowSize);
   }
 
   pFillInfo->type = pFillSup->type;

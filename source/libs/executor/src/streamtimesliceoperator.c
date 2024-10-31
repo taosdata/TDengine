@@ -30,6 +30,8 @@
 #define STREAM_TIME_SLICE_OP_STATE_NAME      "StreamTimeSliceHistoryState"
 #define STREAM_TIME_SLICE_OP_CHECKPOINT_NAME "StreamTimeSliceOperator_Checkpoint"
 
+#define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
+
 int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap) {
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), NULL, 0);
 }
@@ -371,7 +373,17 @@ SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index) {
   return pCell;
 }
 
-static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* pResRow, TSKEY ts, SSDataBlock* pBlock,
+static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_GROUP_KEY);
+}
+
+static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_GROUP_CONST_VALUE);
+}
+
+static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* pResRow, SResultRowData* pNonFillRow, TSKEY ts, SSDataBlock* pBlock,
                                bool* pRes, bool isFilled) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -401,7 +413,12 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
-      SResultCellData* pCell = getSliceResultCell(pResRow->pRowVal, srcSlot);
+      SResultCellData* pCell =  NULL;
+      if (IS_FILL_CONST_VALUE(pFillSup->type) && (isGroupKeyFunc(pFillCol->pExpr) || isSelectGroupConstValueFunc(pFillCol->pExpr)) ) {
+        pCell = getSliceResultCell(pNonFillRow->pRowVal, srcSlot);
+      } else {
+        pCell = getSliceResultCell(pResRow->pRowVal, srcSlot);
+      }
       code = setRowCell(pDstCol, pBlock->info.rows, pCell);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -424,7 +441,7 @@ static void fillNormalRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
     // if (inWinRange(&pFillSup->winRange, &st)) {
     bool res = true;
-    code = fillPointResult(pFillSup, pFillInfo->pResRow, pFillInfo->current, pBlock, &res, true);
+    code = fillPointResult(pFillSup, pFillInfo->pResRow, pFillInfo->pNonFillRow, pFillInfo->current, pBlock, &res, true);
     QUERY_CHECK_CODE(code, lino, _end);
     // }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
@@ -533,13 +550,13 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
   int32_t lino = 0;
   bool    res = true;
   if (pFillInfo->needFill == false && pFillInfo->pos != FILL_POS_INVALID) {
-    code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
+    code = fillPointResult(pFillSup, &pFillSup->cur, pFillInfo->pNonFillRow, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     return;
   }
 
   if (pFillInfo->pos == FILL_POS_START) {
-    code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
+    code = fillPointResult(pFillSup, &pFillSup->cur, pFillInfo->pNonFillRow, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
@@ -549,7 +566,7 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
     fillNormalRange(pFillSup, pFillInfo, pRes);
 
     if (pFillInfo->pos == FILL_POS_MID) {
-      code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
+      code = fillPointResult(pFillSup, &pFillSup->cur, pFillInfo->pNonFillRow, pFillSup->cur.key, pRes, &res, false);
       QUERY_CHECK_CODE(code, lino, _end);
       if (res) {
         pFillInfo->pos = FILL_POS_INVALID;
@@ -567,7 +584,7 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
     fillLinearRange(pFillSup, pFillInfo, pRes);
 
     if (pFillInfo->pos == FILL_POS_MID) {
-      code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
+      code = fillPointResult(pFillSup, &pFillSup->cur, pFillInfo->pNonFillRow, pFillSup->cur.key, pRes, &res, false);
       QUERY_CHECK_CODE(code, lino, _end);
       if (res) {
         pFillInfo->pos = FILL_POS_INVALID;
@@ -583,7 +600,7 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
     }
   }
   if (pFillInfo->pos == FILL_POS_END) {
-    code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
+    code = fillPointResult(pFillSup, &pFillSup->cur, pFillInfo->pNonFillRow, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
@@ -929,6 +946,7 @@ _end:
   return code;
 }
 
+// partition key
 static void copyNonFillValueInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
   for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
     SFillColInfo* pFillCol = pFillSup->pAllColInfo + i;
@@ -936,7 +954,7 @@ static void copyNonFillValueInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo
         !isIsfilledPseudoColumn(pFillCol->pExpr)) {
       int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
       SResultCellData* pSrcCell = getResultCell(&pFillSup->cur, srcSlot);
-      SResultCellData* pDestCell = getResultCell(pFillInfo->pResRow, srcSlot);
+      SResultCellData* pDestCell = getResultCell(pFillInfo->pNonFillRow, srcSlot);
       pDestCell->isNull = pSrcCell->isNull;
       if (!pDestCell->isNull) {
         memcpy(pDestCell->pData, pSrcCell->pData, pSrcCell->bytes);

@@ -119,6 +119,7 @@ typedef struct SStreamFillInfo {
   int32_t                delIndex;
   uint64_t               curGroupId;
   bool                   hasNext;
+  SResultRowData*        pNonFillRow;                 
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
