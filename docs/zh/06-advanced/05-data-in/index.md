@@ -22,7 +22,7 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 | Aveva Historian | AVEVA Historian 2020 RS SP1 | 工业大数据分析软件，前身为 Wonderware Historian，专为工业环境设计，用于存储、管理和分析来自各种工业设备、传感器的实时和历史数据 |
 | OPC DA |  Matrikon OPC version: 1.7.2.7433  | OPC 是 Open Platform Communications 的缩写，是一种开放式、标准化的通信协议，用于不同厂商的自动化设备之间进行数据交换。它最初由微软公司开发，旨在解决工业控制领域中不同设备之间互操作性差的问题；OPC 协议最初于 1996 年发布，当时称为 OPC DA （Data Access），主要用于实时数据采集和控制。 |
 | OPC UA |  KeepWare KEPServerEx 6.5 | 2006 年，OPC 基金会发布了 OPC UA （Unified Architecture） 标准，它是一种基于服务的面向对象的协议，具有更高的灵活性和可扩展性，已成为 OPC 协议的主流版本 |
-| MQTT | emqx: 3.0.0 到 5.7.1<br> hivemq: 4.0.0 到 4.31.0<br> mosquitto: 1.4.4 到 2.0.18 | Message Queuing Telemetry Transport 的缩写，一种基于发布/订阅模式的轻量级通讯协议，专为低开销、低带宽占用的即时通讯设计，广泛适用于物联网、小型设备、移动应用等领域。 |
+| MQTT | emqx: 3.0.0 到 5.7.1<br/> hivemq: 4.0.0 到 4.31.0<br/> mosquitto: 1.4.4 到 2.0.18 | Message Queuing Telemetry Transport 的缩写，一种基于发布/订阅模式的轻量级通讯协议，专为低开销、低带宽占用的即时通讯设计，广泛适用于物联网、小型设备、移动应用等领域。 |
 | Kafka | 2.11 ~ 3.8.0  | 由 Apache 软件基金会开发的一个开源流处理平台，主要用于处理实时数据，并提供一个统一、高通量、低延迟的消息系统。它具备高速度、可伸缩性、持久性和分布式设计等特点，使得它能够在每秒处理数十万次的读写操作，支持上千个客户端，同时保持数据的可靠性和可用性。 |
 | InfluxDB | 1.7、1.8、2.0-2.7 | InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。|
 | OpenTSDB | 2.4.1 | 基于 HBase 的分布式、可伸缩的时序数据库。它主要用于存储、索引和提供从大规模集群（包括网络设备、操作系统、应用程序等）中收集的指标数据，使这些数据更易于访问和图形化展示。 |
