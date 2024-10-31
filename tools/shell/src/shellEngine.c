@@ -22,6 +22,8 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
+SShellObj shell = {0};
+
 typedef struct {
   const char *sql;
   bool        vertical;
