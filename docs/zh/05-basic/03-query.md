@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 
 ## 基本查询
 
-为了更好的介绍 TDengine 数据查询，使用 如下 taosBenchmark 命令，生成本章内容需要的时序数据。
+为了更好的介绍 TDengine 数据查询，使用如下 taosBenchmark 命令，生成本章内容需要的时序数据。
 
 ```shell
 taosBenchmark --start-timestamp=1600000000000 --tables=100 --records=10000000 --time-step=10000
