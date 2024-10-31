@@ -455,7 +455,6 @@ struct SStreamTask {
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
-  int32_t               refCnt;
   int32_t               transferStateAlignCnt;
   struct SStreamMeta*   pMeta;
   SSHashObj*            pNameMap;

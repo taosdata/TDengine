@@ -529,7 +529,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
     // release the ref by timer
     if (p->info.delaySchedParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
-      stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", p->id.idStr, p->refCnt);
+      stDebug("s-task:%s stop schedTimer", p->id.idStr);
       streamTmrStop(p->schedInfo.pDelayTimer);
       p->info.delaySchedParam = 0;
     }
@@ -929,7 +929,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     }
 
     if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
-      stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
+      stDebug("s-task:%s stop schedTimer", pTask->id.idStr);
       streamTmrStop(pTask->schedInfo.pDelayTimer);
       pTask->info.delaySchedParam = 0;
     }
