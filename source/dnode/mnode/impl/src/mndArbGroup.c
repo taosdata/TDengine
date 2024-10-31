@@ -629,8 +629,8 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     SArbAssignedLeader *pAssignedLeader = &arbGroupDup.assignedLeader;
     int32_t             currentAssignedDnodeId = pAssignedLeader->dnodeId;
 
-    // 1. has assigned && is sync && no response => send req
-    if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true && pAssignedLeader->acked == false) {
+    // 1. has assigned && no response => send req
+    if (currentAssignedDnodeId != 0 && pAssignedLeader->acked == false) {
       (void)mndSendArbSetAssignedLeaderReq(pMnode, currentAssignedDnodeId, vgId, arbToken, term,
                                            pAssignedLeader->token);
       mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, currentAssignedDnodeId);
