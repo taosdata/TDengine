@@ -180,6 +180,7 @@ charset 的有效值是 UTF-8。
 |   tmrDebugFlag   |                                                              定时器模块的日志开关，取值范围同上                                                              |
 |    uDebugFlag    |                                                             共用功能模块的日志开关，取值范围同上                                                             |
 |   rpcDebugFlag   |                                                               rpc 模块的日志开关，取值范围同上                                                               |
+|   cDebugFlag   |                                                               客户端模块的日志开关，取值范围同上                                                               |
 |   jniDebugFlag   |                                                               jni 模块的日志开关，取值范围同上                                                               |
 |    qDebugFlag    |                                                              query 模块的日志开关，取值范围同上                                                              |
 |    dDebugFlag    |                                                        dnode 模块的日志开关，取值范围同上，缺省值 135                                                        |
