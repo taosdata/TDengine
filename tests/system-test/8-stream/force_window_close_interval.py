@@ -281,6 +281,8 @@ class TDTestCase:
             tdCom.check_stream_task_status(
                 stream_name=stream_name, vgroups=2, stream_timeout=20,check_wal_info=False
             )
+        time.sleep(self.tdCom.dataDict["interval"])
+        time.sleep(30)
 
         # insert data
         self.tdCom.date_time = self.tdCom.genTs(precision=self.tdCom.precision)[0]
@@ -516,7 +518,7 @@ class TDTestCase:
                         tdLog.info("check data for tag and tbname filter")
                         self.tdCom.check_query_data(
                             f'select irowts, table_name, isfilled, {funciton_name_alias} from {self.stb_stream_des_where_tag_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by irowts',
-                            f'select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname}  {where_tag}  partition by {partition}  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by irowts',
+                            f'select _irowts as irowts ,tbname as table_name, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname}  {where_tag} and ts >= {start_force_ts}  partition by {partition}  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by irowts',
                             fill_value=fill_value,
                         )
                         self.tdCom.check_query_data(
@@ -531,16 +533,17 @@ class TDTestCase:
                             f'select _irowts as irowts ,tbname as table_name, t1 as t_t1, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname}  partition by {partition},t1  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by t_t1, irowts',
                             fill_value=fill_value,
                         )
-                        self.tdCom.check_query_data(
-                            f'select irowts, c_c1, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column1_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c1, irowts',
-                            f'select _irowts as irowts , c1 as c_c1, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c1  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c1, irowts',
-                            fill_value=fill_value,
-                        )    
-                        self.tdCom.check_query_data(
-                            f'select irowts, c_c2, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column2_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c2, irowts',
-                            f'select _irowts as irowts , c2 as c_c2, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c2  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c2, irowts',
-                            fill_value=fill_value,
-                        )                        
+                        if fill_value == "PREV":
+                          self.tdCom.check_query_data(
+                              f'select irowts, c_c1, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column1_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c1, irowts',
+                              f'select _irowts as irowts , c1 as c_c1, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c1  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c1, irowts',
+                              fill_value=fill_value,
+                          )    
+                          self.tdCom.check_query_data(
+                              f'select irowts, c_c2, isfilled, {funciton_name_alias} from {self.stb_stream_des_partition_column2_table} where irowts >= {start_force_ts}   and irowts <= "{end_new_ts}"  order by c_c2, irowts',
+                              f'select _irowts as irowts , c2 as c_c2, _isfilled as isfilled , {funciton_name} as  {funciton_name_alias}  from {tbname} {where_tbname} and ts >=  {start_force_ts} partition by {partition},c2  range("{start_new_ts}","{end_new_ts}")  every({self.tdCom.dataDict["interval"]}s) fill ({fill_value}) order by c_c2, irowts',
+                              fill_value=fill_value,
+                          )                        
                 else:
                     if partition == "tbname":
                         # check data for general table
@@ -622,7 +625,7 @@ class TDTestCase:
                             )
 
     def run(self):
-        for fill_value in ["PREV", "VALUE"]:
+        for fill_value in ["PREV", "VALUE","NULL"]:
             self.force_window_close(
                 interval=10,
                 partition="tbname",
