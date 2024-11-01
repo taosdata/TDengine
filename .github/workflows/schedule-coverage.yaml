@@ -5,7 +5,6 @@ name: Schedule-Workflow-Coverage
 on:
   schedule:
     - cron: '0 20 * * *'  # 每天20点（UTC时间）触发，对应北京时间上午4点
-  push:
 jobs:
   trigger:
     runs-on: ubuntu-latest
