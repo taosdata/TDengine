@@ -180,62 +180,62 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
           cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
 
-  # deploy_for_mqtt:
-  #   runs-on: [self-hosted, linux, x64, qa, rust]
-  #   needs: [build_rust, build_go, build_java]
-  #   outputs:
-  #     CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
-  #     RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
-  #     EXPLORER_PORT: ${{ steps.run_container.outputs.explorer_port }}
-  #   steps:
-  #     - name: run container
-  #       id: run_container
-  #       run: |
-  #         pwd
-  #         ls ${{ github.workspace }}
-  #         # run taosx
-  #         ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
-
-  #         for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
-
-  #         PWD=$(pwd)
-  #         echo "PWD: $PWD"
-  #         run_container_id=$(docker run  --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/$DIR_PATH_3_0:$COVERAGE_BASE_DIR/$DIR_PATH_3_0 -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
-  #         echo "container_id: $run_container_id"
-  #         echo "rpc_port: $rpc_port"
-  #         echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
-  #         echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
-  #         echo "explorer_port=$explorer_port" >> "$GITHUB_OUTPUT"
-  #         # 激活 taosd
-  #         docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
-          
-  #     - name: run taosx & taosx-agent & taos-explorer in container
-  #       run: |
-  #         echo "container_id: ${{ steps.run_container.outputs.container_id }}"
-  #         # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
-  #         echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'\""
-  #         echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'\""
-  #         docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
-  #         docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
-  #         docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer.log 2>&1 &'"
-  #         docker exec ${{ steps.run_container.outputs.container_id }} bash -c "ps -ef |grep taos"
-
-  # test_mqtt:
-  #   runs-on: [self-hosted, linux, x64, qa, rust]
-  #   needs: [deploy_for_mqtt]
-  #   steps:
-  #     - name: Run Test
-  #       continue-on-error: true
-  #       run: |
-  #         rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
-  #         docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry lock --no-update && poetry install --no-root"
-  #         docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
-  #     - name: Stop container
-  #       run: |
-  #         docker stop -t 60 ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}}
-  deploy_for_others:
+  deploy_for_mqtt:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust, build_go, build_java]
+    outputs:
+      CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
+      RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}
+      EXPLORER_PORT: ${{ steps.run_container.outputs.explorer_port }}
+    steps:
+      - name: run container
+        id: run_container
+        run: |
+          pwd
+          ls ${{ github.workspace }}
+          # run taosx
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
+
+          for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
+
+          PWD=$(pwd)
+          echo "PWD: $PWD"
+          run_container_id=$(docker run  --add-host u1-45:192.168.1.45 --privileged=true -d -v $ARTIFACT_BASE_DIR/$DIR_PATH_3_0:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0 -v $COVERAGE_BASE_DIR/$DIR_PATH_3_0:$COVERAGE_BASE_DIR/$DIR_PATH_3_0 -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          echo "container_id: $run_container_id"
+          echo "rpc_port: $rpc_port"
+          echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
+          echo "explorer_port=$explorer_port" >> "$GITHUB_OUTPUT"
+          # 激活 taosd
+          docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
+          
+      - name: run taosx & taosx-agent & taos-explorer in container
+        run: |
+          echo "container_id: ${{ steps.run_container.outputs.container_id }}"
+          # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
+          echo "docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'\""
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c \"nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'\""
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/var/lib/instantclient_19_24/  PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup sh -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taos-explorer.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "ps -ef |grep taos"
+
+  test_mqtt:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [deploy_for_mqtt]
+    steps:
+      - name: Run Test
+        continue-on-error: true
+        run: |
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && cp setenv.sh.example setenv.sh && poetry config virtualenvs.in-project true && poetry config http-basic.github ${{ secrets.TAOSX_CI_TOKEN }} '' && git config --global url.\"https://${{ secrets.TAOSX_CI_TOKEN }}:x-oauth-basic@github.com/\".insteadOf \"https://github.com/\" && poetry lock --no-update && poetry install --no-root"
+          docker exec ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest -m sanity test_function/mqtt_test.py\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity test_function/mqtt_test.py"
+      - name: Stop container
+        run: |
+          docker stop -t 60 ${{needs.deploy_for_mqtt.outputs.CONTAINER_ID}}
+  deploy_for_others:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [test_mqtt]
     steps:
       - name: Deploy taosx
         run: |
