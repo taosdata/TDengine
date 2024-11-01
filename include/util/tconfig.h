@@ -83,6 +83,7 @@ typedef struct SConfigItem {
   ECfgDataType dtype;
   int8_t       scope;
   int8_t       dynScope;
+  int8_t       category;
   char        *name;
   union {
     bool    bval;
