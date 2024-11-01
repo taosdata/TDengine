@@ -471,12 +471,12 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
     return nelements * word_length;
   }
 
-#ifdef __AVX512F__
   if (tsSIMDEnable && tsAVX512Enable && tsAVX512Supported) {
-    tsDecompressIntImpl_Hw(input, nelements, output, type);
-    return nelements * word_length;
+    int32_t cnt = tsDecompressIntImpl_Hw(input, nelements, output, type);
+    if (cnt >= 0) {
+      return cnt;
+    }
   }
-#endif
 
   // Selector value: 0    1   2   3   4   5   6   7   8  9  10  11 12  13  14  15
   char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
@@ -867,12 +867,12 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     memcpy(output, input + 1, nelements * longBytes);
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
-#ifdef __AVX512VL__
     if (tsSIMDEnable && tsAVX512Enable && tsAVX512Supported) {
-      tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
-      return nelements * longBytes;
+      int32_t cnt = tsDecompressTimestampAvx512(input, nelements, output, false);
+      if (cnt >= 0) {
+        return cnt;
+      }
     }
-#endif
 
     int64_t *ostream = (int64_t *)output;
 
@@ -1103,13 +1103,14 @@ int32_t tsDecompressDoubleImp(const char *const input, int32_t ninput, const int
     return nelements * DOUBLE_BYTES;
   }
 
-#ifdef __AVX2__
   // use AVX2 implementation when allowed and the compression ratio is not high
   double compressRatio = 1.0 * nelements * DOUBLE_BYTES / ninput;
   if (tsSIMDEnable && tsAVX2Supported && compressRatio < 2) {
-    return tsDecompressDoubleImpAvx2(input + 1, nelements, output);
+    int32_t cnt = tsDecompressDoubleImpAvx2(input + 1, nelements, output);
+    if (cnt >= 0) {
+      return cnt;
+    }
   }
-#endif
 
   // use implementation without SIMD instructions by default
   return tsDecompressDoubleImpHelper(input + 1, nelements, output);
@@ -1257,13 +1258,14 @@ int32_t tsDecompressFloatImp(const char *const input, int32_t ninput, const int3
     return nelements * FLOAT_BYTES;
   }
 
-#ifdef __AVX2__
   // use AVX2 implementation when allowed and the compression ratio is not high
   double compressRatio = 1.0 * nelements * FLOAT_BYTES / ninput;
   if (tsSIMDEnable && tsAVX2Supported && compressRatio < 2) {
-    return tsDecompressFloatImpAvx2(input + 1, nelements, output);
+    int32_t cnt =  tsDecompressFloatImpAvx2(input + 1, nelements, output);
+    if (cnt >= 0) {
+      return cnt;
+    }
   }
-#endif
 
   // use implementation without SIMD instructions by default
   return tsDecompressFloatImpHelper(input + 1, nelements, output);
@@ -1882,4 +1884,27 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
   }
 
   return update;
+}
+
+int32_t getWordLength(char type) {
+  int32_t wordLength = 0;
+  switch (type) {
+    case TSDB_DATA_TYPE_BIGINT:
+      wordLength = LONG_BYTES;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      wordLength = INT_BYTES;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      wordLength = SHORT_BYTES;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      wordLength = CHAR_BYTES;
+      break;
+    default:
+      uError("Invalid decompress integer type:%d", type);
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  return wordLength;
 }

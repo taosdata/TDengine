@@ -177,48 +177,11 @@ ELSE()
         SET(COMPILER_SUPPORT_AVX512VL false)
     ELSE()
         CHECK_C_COMPILER_FLAG("-mfma" COMPILER_SUPPORT_FMA)
+        CHECK_C_COMPILER_FLAG("-mavx" COMPILER_SUPPORT_AVX)
+        CHECK_C_COMPILER_FLAG("-mavx2" COMPILER_SUPPORT_AVX2)
         CHECK_C_COMPILER_FLAG("-mavx512f" COMPILER_SUPPORT_AVX512F)
         CHECK_C_COMPILER_FLAG("-mavx512vbmi" COMPILER_SUPPORT_AVX512BMI)
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
-
-        INCLUDE(CheckCSourceRuns)
-        SET(CMAKE_REQUIRED_FLAGS "-mavx")
-        check_c_source_runs("
-        #include <immintrin.h>
-        int main() {
-          __m256d a, b, c;
-          double buf[4] = {0};
-          a = _mm256_loadu_pd(buf);
-          b = _mm256_loadu_pd(buf);
-          c = _mm256_add_pd(a, b);
-          _mm256_storeu_pd(buf, c);
-          for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); ++i) {
-            IF (buf[i] != 0) {
-              return 1;
-            }
-          }
-          return 0;
-        }
-      " COMPILER_SUPPORT_AVX)
-
-        SET(CMAKE_REQUIRED_FLAGS "-mavx2")
-        check_c_source_runs("
-        #include <immintrin.h>
-        int main() {
-          __m256i a, b, c;
-          int buf[8] = {0};
-          a = _mm256_loadu_si256((__m256i *)buf);
-          b = _mm256_loadu_si256((__m256i *)buf);
-          c = _mm256_and_si256(a, b);
-          _mm256_storeu_si256((__m256i *)buf, c);
-          for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); ++i) {
-            IF (buf[i] != 0) {
-              return 1;
-            }
-          }
-          return 0;
-        }
-      " COMPILER_SUPPORT_AVX2)
     ENDIF()
 
     IF(COMPILER_SUPPORT_SSE42)
