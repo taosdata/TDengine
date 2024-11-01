@@ -32,6 +32,6 @@ HoltWinters有两种不同的季节性组成部分，当季节变化在该时间
 }
 ```
 
-### 算法详细解释
+### 参考文献
 - https://en.wikipedia.org/wiki/Exponential_smoothing
 - https://orangematter.solarwinds.com/2019/12/15/holt-winters-forecasting-simplified/
