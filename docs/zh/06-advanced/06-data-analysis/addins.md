@@ -67,7 +67,7 @@ return {
 ```
 
 
-### 示例代码
+## 示例代码
 
 ```python
 import numpy as np
@@ -107,7 +107,7 @@ class _IqrService(AbstractAnomalyDetectionService):
 ```
 
 
-### 单元测试
+## 单元测试
 
 在测试文件目录中的 anomaly_test.py 中增加单元测试用例。
 ```python
@@ -134,7 +134,7 @@ def test_iqr(self):
     self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
 ```
 
-### 需要模型的算法
+## 需要模型的算法
 
 针对特定数据集，进行模型训练的算法，在训练完成后。需要将训练得到的模型保存在  model 目录中。需要注意的是，针对每个算法，需要建立独立的文件夹。例如 auto_encoder 的训练算法在 model 目录下建立了， autoencoder的目录，使用该算法针对不同数据集训练得到的模型，均需要放置在该目录下。
 
