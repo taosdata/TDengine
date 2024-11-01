@@ -946,10 +946,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SArray      *dnodeList = NULL;
 
   dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
-  if (dnodeList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
+  TSDB_CHECK_NULL(dnodeList, code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 #ifdef WINDOWS
@@ -1190,6 +1187,8 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
+
+  TSDB_CHECK_NULL(pArray, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
