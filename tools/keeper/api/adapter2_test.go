@@ -14,6 +14,7 @@ import (
 )
 
 func TestAdapter2(t *testing.T) {
+	//
 	c := &config.Config{
 		InstanceID: 64,
 		Port:       6043,
