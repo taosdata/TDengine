@@ -1,8 +1,8 @@
 aux_source_directory(src CLIENT_SRC)
 
-IF (TD_ENTERPRISE)
-  LIST(APPEND CLIENT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/clientView.c)
-ENDIF ()
+if(TD_ENTERPRISE)
+    LIST(APPEND CLIENT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/clientView.c)
+endif()
 
 if(TD_WINDOWS)
     add_library(taos SHARED ${CLIENT_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/src/taos.rc.in)

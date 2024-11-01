@@ -30,9 +30,8 @@ toc_max_heading_level: 4
 目前只有 Java 连接器在 WebSocket 连接模式下支持双活，其配置示例如下
 
 ```java
-url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
+url = "jdbc:TAOS-WS://" + host + ":6041/?user=root&password=taosdata";
 Properties properties = new Properties();
-properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_HOST, "192.168.1.11");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_PORT, "6041");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
@@ -43,13 +42,13 @@ connection = DriverManager.getConnection(url, properties);
 
 其中的配置属性及含义如下表
 
-| 属性名 | 含义 | 
-| ----------------- | ------------------ |
-| PROPERTY_KEY_SLAVE_CLUSTER_HOST | 第二节点的主机名或者 ip，默认空 | 
-| PROPERTY_KEY_SLAVE_CLUSTER_PORT | 第二节点的端口号，默认空 | 
-| PROPERTY_KEY_ENABLE_AUTO_RECONNECT | 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。双活场景下请设置为 true |
-| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0， 表示立即重试；最大值不做限制 |
-| PROPERTY_KEY_RECONNECT_RETRY_COUNT | 每节点最多重试次数：默认值为 3；最小值为 0，表示不进行重试；最大值不做限制 |
+| 属性名                             | 含义                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| PROPERTY_KEY_SLAVE_CLUSTER_HOST    | 第二节点的主机名或者 ip，默认空                                                                                   |
+| PROPERTY_KEY_SLAVE_CLUSTER_PORT    | 第二节点的端口号，默认空                                                                                          |
+| PROPERTY_KEY_ENABLE_AUTO_RECONNECT | 是否启用自动重连。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。双活场景下请设置为 true |
+| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0， 表示立即重试；最大值不做限制                  |
+| PROPERTY_KEY_RECONNECT_RETRY_COUNT | 每节点最多重试次数：默认值为 3；最小值为 0，表示不进行重试；最大值不做限制                                        |
 
 ### 约束条件
 

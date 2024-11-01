@@ -368,6 +368,18 @@ spec:
       labels:
         app: "tdengine"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - tdengine
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: "tdengine"
           image: "tdengine/tdengine:3.2.3.0"

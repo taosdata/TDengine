@@ -698,7 +698,7 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
 
   int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
 
-  int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64;
+  int32_t len = (pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
   char*   buf = taosMemoryCalloc(1, len);
   if (!buf) {
     code = terrno;
@@ -777,7 +777,7 @@ _end:
 
 int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
   char keyBuf[128] = {0};
-  sprintf(keyBuf, "%s:%" PRId64 "", TASK_KEY, checkpointId);
+  TAOS_UNUSED(tsnprintf(keyBuf, sizeof(keyBuf), "%s:%" PRId64 "", TASK_KEY, checkpointId));
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
 }
 
@@ -799,14 +799,14 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     }
     memcpy(buf, val, len);
     buf[len] = 0;
-    maxCheckPointId = atol((char*)buf);
+    maxCheckPointId = taosStr2Int64((char*)buf, NULL, 10);
     taosMemoryFree(val);
   }
   for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
     void*   val = 0;
     int32_t len = 0;
-    sprintf(buf, "%s:%" PRId64 "", TASK_KEY, i);
+    TAOS_UNUSED(tsnprintf(buf, sizeof(buf), "%s:%" PRId64 "", TASK_KEY, i));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
     if (code != 0) {
       return TSDB_CODE_FAILED;
@@ -816,7 +816,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     taosMemoryFree(val);
 
     TSKEY ts;
-    ts = atol((char*)buf);
+    ts = taosStr2Int64((char*)buf, NULL, 10);
     if (ts < mark) {
       // statekey winkey.ts < mark
       int32_t tmpRes = forceRemoveCheckpoint(pFileState, i);
@@ -849,7 +849,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
-    winRes = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
+    winRes = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pFileState), pCur, &key, &pVal, &vlen);
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
@@ -903,7 +903,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    winCode = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
+    winCode = streamStateGetKVByCur_rocksdb(getStateFileStore(pFileState), pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
     if (winCode != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
@@ -912,6 +912,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       break;
     }
     if (vlen != pFileState->rowSize) {
+      qError("row size mismatch, expect:%d, actual:%d", pFileState->rowSize, vlen);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);
     }

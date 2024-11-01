@@ -1769,36 +1769,36 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = snprintf(str, strMaxLen, "null");
+      n = tsnprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = snprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
+      n = tsnprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = snprintf(str, strMaxLen, "%d", *(int8_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = snprintf(str, strMaxLen, "%d", *(int16_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = snprintf(str, strMaxLen, "%d", *(int32_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = snprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = snprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
+      n = tsnprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
+      n = tsnprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1817,19 +1817,19 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = snprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = snprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = snprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = snprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
 
     default:
@@ -1886,7 +1886,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len += snprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                           operatorTypeStr(unit->compare.optr));
         }
 
@@ -1912,7 +1912,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           (void)strncat(str, " && ", sizeof(str) - len - 1);
           len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            len += snprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId,
+            len += tsnprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId,
                             refNode->slotId, operatorTypeStr(unit->compare.optr2));
           }
 
@@ -4133,7 +4133,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
       }
       case TSDB_DATA_TYPE_BOOL: {
         datum->kind = FLT_SCL_DATUM_KIND_INT64;
-        datum->i = (valNode->datum.b) ? 0 : 1;
+        datum->i = (valNode->datum.b) ? 1 : 0;
         break;
       }
       case TSDB_DATA_TYPE_TINYINT:
@@ -4541,6 +4541,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
 
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
+    SOperatorNode *optNode = (SOperatorNode *) pNode;
     if (taosArrayGetSize(colRanges) == 1) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
       if (NULL == colRange) {
@@ -4560,7 +4561,8 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        *isStrict = true;
+        if(optNode->opType == OP_TYPE_IN) *isStrict = false;
+        else *isStrict = true;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
@@ -5023,6 +5025,34 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       }
       break;
     }
+    case OP_TYPE_IN: {
+        SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
+        SListCell *cell = listNode->pNodeList->pHead;
+        SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
+        SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
+        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
+          SValueNode *valueNode = (SValueNode *)cell->pNode;
+          SFltSclDatum valDatum;
+          FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
+          if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
+            minDatum.i = TMIN(minDatum.i, valDatum.d);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.d);
+          } else {
+            minDatum.i = TMIN(minDatum.i, valDatum.i);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+          }
+          cell = cell->pNext;
+        }
+        SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
+        SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
+        if (NULL == taosArrayPush(points, &startPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        if (NULL == taosArrayPush(points, &endPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        break;
+    }
     default: {
       qError("not supported operator type : %d when build range points", oper->type);
       break;
@@ -5075,11 +5105,13 @@ static bool fltSclIsCollectableNode(SNode *pNode) {
 
   if (!(pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
         pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
-        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
+        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL ||
+        pOper->opType == OP_TYPE_IN)) {
     return false;
   }
 
-  if (!(nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE)) {
+  if (!((nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE) ||
+        (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_NODE_LIST))) {
     return false;
   }
   return true;

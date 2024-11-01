@@ -20,7 +20,7 @@
                 "replica": 1,
                 "duration":"10d",
                 "s3_keeplocal":"30d", 
-                "s3_chunksize":"131072",
+                "s3_chunkpages":"131072",
                 "tsdb_pagesize":"1",
                 "s3_compact":"1",
                 "wal_retention_size":"1",
