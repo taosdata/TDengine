@@ -388,7 +388,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
       taosx/dev \
-      cargo build --release $@
+      cargo build --release $EXTRAS
     ;;
   "")
     export TARGET_DIR=$PWD/target/centos7

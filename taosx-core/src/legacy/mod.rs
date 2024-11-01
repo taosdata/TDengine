@@ -401,12 +401,26 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         block = block.cast_precision(precision);
     }
 
+    let mut retries = 0;
     loop {
         let ok = to.write_raw_block(&block).await;
         if let Err(err) = ok {
+            retries += 1;
             let code: i32 = err.code().into();
             let err_str = err.to_string();
             tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
+            if retries > target_opts.retry_limit {
+                return Err(err)
+                    .with_context(|| block.pretty_format().to_string())
+                    .with_context(|| {
+                        format!(
+                            "[{}:{}]write raw block of table {table} ({} rows): retry limit exceeded",
+                            std::file!(),
+                            std::line!(),
+                            block.nrows(),
+                        )
+                    })?;
+            }
             let from = &context
                 .from
                 .0
@@ -445,9 +459,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                     scheduler::sync_add_column(from, to, table, remap.as_ref()).await?;
                 }
                 continue;
-            } else if err_str.contains("0x0911") {
-                // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
-                tokio::time::sleep(Duration::from_secs(2)).await;
+            } else if matches!(code, 0x0900..=0x09FF) {
+                // Sync error codes.
+                tokio::time::sleep(target_opts.retry_sleep).await;
                 continue;
             } else if err_str.contains("0x0118") {
                 let desc = to
@@ -1738,8 +1752,8 @@ async fn sync_specified_tables_with_workers(
         if item.mtlf {
             // get breakpoints use breakpoints_get
             if let Some(breakpoints) = breakpoints {
-                const MAX_RETRIES: usize = 5;
-                let mut retries = MAX_RETRIES;
+                const RETRY_LIMIT: usize = 5;
+                let mut retries = RETRY_LIMIT;
                 loop {
                     match breakpoints.get(table).await.and_then(|bp| {
                         bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
@@ -2055,6 +2069,8 @@ pub struct TargetOpts {
     batch_size: Option<usize>,
     interval: Option<Duration>,
     max_sql_length: Option<usize>,
+    retry_limit: usize,
+    retry_sleep: Duration,
     force_stmt: bool,
     fails_to: Option<Arc<tokio::sync::Mutex<std::fs::File>>>,
     timeout_per_table: Option<Duration>,
@@ -2083,6 +2099,8 @@ impl Default for TargetOpts {
             concurrent_limit: NonZeroUsize::new(1).unwrap(),
             blocks_chunk_size: NonZeroUsize::new(1).unwrap(),
             remap: None,
+            retry_sleep: Duration::from_secs(2),
+            retry_limit: 600,
         }
     }
 }
@@ -2191,6 +2209,20 @@ impl TargetOpts {
             if v != "false" {
                 opts.update_tags = true;
             }
+        }
+
+        if let Some(value) = to_dsn.remove("retry-limit").and_then(|v| v.parse().ok()) {
+            opts.retry_limit = value;
+        }
+
+        if let Some(value) = to_dsn.remove("retry-sleep").and_then(|v| {
+            utils::parse_duration(&v)
+                .inspect_err(|err| {
+                    tracing::warn!("parse retry-sleep `{v}` error: {err}, use default 1s");
+                })
+                .ok()
+        }) {
+            opts.retry_sleep = value;
         }
 
         if let Some(value) = to_dsn.remove("remap") {
