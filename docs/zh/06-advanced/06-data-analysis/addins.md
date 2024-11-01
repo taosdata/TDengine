@@ -7,6 +7,7 @@ sidebar_label: "addins"
 
 ## 目录结构
 
+![数据分析功能架构图](./pic/dir.png)
 
 |目录|说明|
 |---|---|
