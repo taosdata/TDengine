@@ -712,6 +712,7 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
+void    streamTaskSetFailedCheckpointId(SStreamTask* pTask, int64_t failedId);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t streamQueueGetNumOfUnAccessedItems(const SStreamQueue* pQueue);

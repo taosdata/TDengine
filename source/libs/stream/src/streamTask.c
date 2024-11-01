@@ -1248,13 +1248,13 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
-//NOTE: clear the checkpoint id, and keep the failed id
+// NOTE: clear the checkpoint id, and keep the failed id
+// failedId for a task will increase as the checkpoint I.D. increases.
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
-//  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
