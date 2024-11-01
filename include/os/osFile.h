@@ -120,14 +120,29 @@ int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
 
-FILE*  taosOpenCFile(const char* filename, const char* mode);
-int    taosSeekCFile(FILE* file, int64_t offset, int whence);
-size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream );
-size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream);
-int	 taosCloseCFile(FILE *);
-int taosSetAutoDelFile(char* path);
+FILE  *taosOpenCFile(const char *filename, const char *mode);
+int    taosSeekCFile(FILE *file, int64_t offset, int whence);
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream);
+size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream);
+int    taosCloseCFile(FILE *);
+int    taosSetAutoDelFile(char *path);
 
 bool lastErrorIsFileNotExist();
+
+#ifdef BUILD_WITH_RAND_ERR
+#define STUB_RAND_NETWORK_ERR(ret)                                        \
+  do {                                                                    \
+    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) {         \
+      uint32_t r = taosRand() % tsRandErrDivisor;                         \
+      if ((r + 1) <= tsRandErrChance) {                                   \
+        ret = TSDB_CODE_RPC_NETWORK_UNAVAIL;                              \
+        uError("random network error: %s, %s", tstrerror(ret), __func__); \
+      }                                                                   \
+    }                                                                     \
+    while (0)
+#else
+#define STUB_RAND_NETWORK_ERR(status)
+#endif
 
 #ifdef __cplusplus
 }

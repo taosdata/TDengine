@@ -57,18 +57,20 @@ typedef struct SMultiwayMergeOperatorInfo {
   bool           inputWithGroupId;
 } SMultiwayMergeOperatorInfo;
 
-static SSDataBlock* doSortMerge1(SOperatorInfo* pOperator);
-static int32_t      doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator);
+static int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static SSDataBlock* doNonSortMerge1(SOperatorInfo* pOperator);
-static SSDataBlock* doColsMerge1(SOperatorInfo* pOperator);
 static int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 
-SSDataBlock* sortMergeloadNextDataBlock(void* param) {
+int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SSDataBlock*   pBlock = pOperator->fpSet.getNextFn(pOperator);
-  return pBlock;
+  int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  blockDataCheck(*ppBlock, false);
+  if (code) {
+    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
@@ -185,12 +187,6 @@ static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHand
   return code;
 }
 
-SSDataBlock* doSortMerge1(SOperatorInfo* pOperator) {
-  SSDataBlock* pBlock = NULL;
-  pOperator->pTaskInfo->code = doSortMerge(pOperator, &pBlock);
-  return pBlock;
-}
-
 int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -236,7 +232,7 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    (void)applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
 
     if (p->info.rows > 0) {
       break;
@@ -343,14 +339,8 @@ int32_t openNonSortMergeOperator(SOperatorInfo* pOperator) {
   return 0;
 }
 
-SSDataBlock* doNonSortMerge1(SOperatorInfo* pOperator) {
-  SSDataBlock* pBlock = NULL;
-  pOperator->pTaskInfo->code = doNonSortMerge(pOperator, &pBlock);
-  return pBlock;
-}
-
 int32_t doNonSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -432,14 +422,8 @@ int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock
   return code;
 }
 
-SSDataBlock* doColsMerge1(SOperatorInfo* pOperator) {
-  SSDataBlock* pBlock = NULL;
-  pOperator->pTaskInfo->code = doColsMerge(pOperator, &pBlock);
-  return pBlock;
-}
-
 int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
@@ -486,9 +470,9 @@ int32_t getColsMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
 
 SOperatorFpSet gMultiwayMergeFps[MERGE_TYPE_MAX_VALUE] = {
   {0},
-  {._openFn = openSortMergeOperator, .getNextFn = doSortMerge1, .closeFn = destroySortMergeOperatorInfo, .getExplainFn = getSortMergeExplainExecInfo},
-  {._openFn = openNonSortMergeOperator, .getNextFn = doNonSortMerge1, .closeFn = destroyNonSortMergeOperatorInfo, .getExplainFn = getNonSortMergeExplainExecInfo},
-  {._openFn = openColsMergeOperator, .getNextFn = doColsMerge1, .closeFn = destroyColsMergeOperatorInfo, .getExplainFn = getColsMergeExplainExecInfo},
+  {._openFn = openSortMergeOperator, .getNextFn = doSortMerge, .closeFn = destroySortMergeOperatorInfo, .getExplainFn = getSortMergeExplainExecInfo},
+  {._openFn = openNonSortMergeOperator, .getNextFn = doNonSortMerge, .closeFn = destroyNonSortMergeOperatorInfo, .getExplainFn = getNonSortMergeExplainExecInfo},
+  {._openFn = openColsMergeOperator, .getNextFn = doColsMerge, .closeFn = destroyColsMergeOperatorInfo, .getExplainFn = getColsMergeExplainExecInfo},
 };
 
 
@@ -511,6 +495,8 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   pOperator->status = OP_RES_TO_RETURN;
 
   if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
@@ -518,30 +504,40 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
   return code;
 }
 
-SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
+int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    return 0;
   }
 
-  SSDataBlock* pBlock = NULL;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
 
-  int32_t code = pOperator->fpSet._openFn(pOperator);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
-    pBlock = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator);
+    code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (pBlock != NULL) {
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
+
+  if ((*pResBlock) != NULL) {
+    pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
+    blockDataCheck(*pResBlock, false);
   } else {
     setOperatorCompleted(pOperator);
   }
 
-  return pBlock;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return code;
 }
 
 void destroyMultiwayMergeOperatorInfo(void* param) {
@@ -569,7 +565,7 @@ int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplai
 
 int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numStreams, SMergePhysiNode* pMergePhyNode,
                                         SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   SPhysiNode*                 pPhyNode = (SPhysiNode*)pMergePhyNode;
   int32_t                     lino = 0;
@@ -578,7 +574,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -594,9 +590,12 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       SSortMergeInfo* pSortMergeInfo = &pInfo->sortMergeInfo;
       initLimitInfo(pMergePhyNode->node.pLimit, pMergePhyNode->node.pSlimit, &pInfo->limitInfo);
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
       SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
       SSDataBlock* pInputBlock = createDataBlockFromDescNode(pChildNode->pOutputDataBlockDesc);
+      TSDB_CHECK_NULL(pInputBlock, code, lino, _error, terrno);
+      pSortMergeInfo->pInputBlock = pInputBlock;
 
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
@@ -609,7 +608,6 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       pSortMergeInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
       pSortMergeInfo->sortBufSize =
           pSortMergeInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
-      pSortMergeInfo->pInputBlock = pInputBlock;
       code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                                  &pSortMergeInfo->matchInfo);
       if (code != TSDB_CODE_SUCCESS) {
@@ -620,6 +618,8 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     case MERGE_TYPE_NON_SORT: {
       SNonSortMergeInfo* pNonSortMerge = &pInfo->nsortMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);
@@ -629,6 +629,8 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     case MERGE_TYPE_COLUMNS: {
       SColsMergeInfo* pColsMerge = &pInfo->colsMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);
@@ -656,14 +658,13 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
   }
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (pInfo != NULL) {
     destroyMultiwayMergeOperatorInfo(pInfo);
   }
-
   pTaskInfo->code = code;
-  taosMemoryFree(pOperator);
+  destroyOperatorAndDownstreams(pOperator, downStreams, numStreams);
   return code;
 }

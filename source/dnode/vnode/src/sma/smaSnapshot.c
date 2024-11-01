@@ -38,7 +38,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   // alloc
   pReader = (SRSmaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pReader->pSma = pSma;
   pReader->sver = sver;
@@ -93,27 +93,26 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pReader->pSma), __func__, lino, tstrerror(code));
-    (void)rsmaSnapReaderClose(&pReader);
+    rsmaSnapReaderClose(&pReader);
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   }
   TAOS_RETURN(code);
 }
 
-int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
-  int32_t          code = 0;
+void rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
   SRSmaSnapReader* pReader = *ppReader;
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pReader->pDataReader[i]) {
-      (void)tsdbSnapReaderClose(&pReader->pDataReader[i]);
+      tsdbSnapReaderClose(&pReader->pDataReader[i]);
     }
   }
 
   smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
   taosMemoryFreeClear(*ppReader);
-  TAOS_RETURN(code);
+  return;
 }
 
 // SRSmaSnapWriter ========================================
@@ -136,7 +135,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRang
   // alloc
   pWriter = (SRSmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (!pWriter) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
   pWriter->pSma = pSma;
   pWriter->sver = sver;
@@ -163,11 +162,11 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter, bool rollback) {
   int32_t code = 0;
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pWriter->pDataWriter[i]) {
-      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i]);
+      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i], rollback);
       if (code) {
         smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma),
                  tstrerror(code), i);

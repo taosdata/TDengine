@@ -95,6 +95,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool               accepted = false;
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
+  const STraceId*    trace = &pRpcMsg->info.traceId;
+  char               tbuf[40] = {0};
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -150,10 +152,10 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
-         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
-         pEntry->term);
+  sGTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+          ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
+          pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
+          pEntry->term);
 
   if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     pReply->fsmState = ths->fsmState;
@@ -175,11 +177,17 @@ _SEND_RESPONSE:
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
+    SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
+    sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
   }
 
+  TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
+  trace = &(rpcRsp.info.traceId);
+  sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
+          " to dest: 0x%016" PRIx64,
+          ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
   // ack, i.e. send response
-  (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 
   // commit index, i.e. leader notice me
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {

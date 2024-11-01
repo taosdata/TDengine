@@ -46,7 +46,7 @@ int32_t smaInit() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 0, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      (void)sched_yield();
+      TAOS_UNUSED(sched_yield());
       nLoops = 0;
     }
   }
@@ -69,7 +69,7 @@ int32_t smaInit() {
 
     if (!smaMgmt.refHash || !smaMgmt.tmrHandle) {
       code = terrno;
-      (void)taosCloseRef(smaMgmt.rsetId);
+      taosCloseRef(smaMgmt.rsetId);
       if (smaMgmt.refHash) {
         taosHashCleanup(smaMgmt.refHash);
         smaMgmt.refHash = NULL;
@@ -97,13 +97,13 @@ void smaCleanUp() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 1, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      (void)sched_yield();
+      TAOS_UNUSED(sched_yield());
       nLoops = 0;
     }
   }
 
   if (old == 1) {
-    (void)taosCloseRef(smaMgmt.rsetId);
+    taosCloseRef(smaMgmt.rsetId);
     taosHashCleanup(smaMgmt.refHash);
     smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);
@@ -117,10 +117,10 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
-  *ppEnv = pEnv;
   if (!pEnv) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return terrno;
   }
+  *ppEnv = pEnv;
 
   SMA_ENV_TYPE(pEnv) = smaType;
 
@@ -130,7 +130,7 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
                                         : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
 
   if ((code = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma)) != TSDB_CODE_SUCCESS) {
-    (void)tdFreeSmaEnv(pEnv);
+    TAOS_UNUSED(tdFreeSmaEnv(pEnv));
     *ppEnv = NULL;
     (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
                                           : atomic_store_ptr(&SMA_RSMA_ENV(pSma), NULL);
@@ -174,12 +174,16 @@ static void tRSmaInfoHashFreeNode(void *data) {
 
   if ((pRSmaInfo = *(SRSmaInfo **)data)) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
-      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      if (TSDB_CODE_SUCCESS != taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES)) {
+        smaError("failed to hash remove %s:%d", __FUNCTION__, __LINE__);
+      }
     }
-    (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
+    TAOS_UNUSED(tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo));
   }
 }
 
@@ -199,7 +203,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
   if (!(*pSmaStat)) {
     *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat) + sizeof(TdThread) * tsNumOfVnodeRsmaThreads);
     if (!(*pSmaStat)) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
@@ -207,13 +211,16 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
-      (void)tsem_init(&pRSmaStat->notEmpty, 0, 0);
+      if (tsem_init(&pRSmaStat->notEmpty, 0, 0) != 0) {
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
-      (void)taosArrayPush(pRSmaStat->blocks, &datablock);
+      TSDB_CHECK_NULL(taosArrayPush(pRSmaStat->blocks, &datablock), code, lino, _exit, terrno);
 
       // init smaMgmt
       TAOS_CHECK_GOTO(smaInit(), &lino, _exit);
@@ -285,20 +292,23 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     }
 
     // step 3:
-    (void)tdRsmaStopExecutor(pSma);
+    TAOS_UNUSED(tdRsmaStopExecutor(pSma));
 
     // step 4: destroy the rsma info and associated fetch tasks
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5: free pStat
-    (void)tsem_destroy(&(pStat->notEmpty));
+    if (tsem_destroy(&(pStat->notEmpty)) != 0) {
+      smaError("vgId:%d, failed to destroy notEmpty semaphore for rsma stat:%p since %s", SMA_VID(pSma), pRSmaStat,
+               tstrerror(terrno));
+    }
     taosArrayDestroy(pStat->blocks);
     taosMemoryFreeClear(pStat);
   }
 }
 
 static void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
-  (void)tdDestroySmaState(pSmaStat, smaType);
+  TAOS_UNUSED(tdDestroySmaState(pSmaStat, smaType));
   if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
     taosMemoryFreeClear(pSmaStat);
   }
@@ -378,16 +388,16 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   }
 
   // init sma env
-  (void)tdLockSma(pSma);
+  TAOS_UNUSED(tdLockSma(pSma));
   pEnv = (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_load_ptr(&SMA_TSMA_ENV(pSma))
                                                : atomic_load_ptr(&SMA_RSMA_ENV(pSma));
   if (!pEnv) {
     if ((code = tdInitSmaEnv(pSma, smaType, &pEnv)) < 0) {
-      (void)tdUnLockSma(pSma);
+      TAOS_UNUSED(tdUnLockSma(pSma));
       TAOS_RETURN(code);
     }
   }
-  (void)tdUnLockSma(pSma);
+  TAOS_UNUSED(tdUnLockSma(pSma));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -395,7 +405,9 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
 
-  (void)tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW);
+  if (tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0) {
+    smaError("vgId:%d, failed to process rsma exec", SMA_VID((SSma *)param));
+  }
   return NULL;
 }
 
@@ -438,7 +450,9 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
     pthread = (TdThread *)&pStat->data;
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
-      (void)tsem_post(&(pRSmaStat->notEmpty));
+      if (tsem_post(&(pRSmaStat->notEmpty)) != 0) {
+        smaError("vgId:%d, failed to post notEmpty semaphore for rsma since %s", SMA_VID(pSma), tstrerror(terrno));
+      }
     }
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {

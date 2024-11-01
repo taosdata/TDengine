@@ -1,0 +1,664 @@
+---
+title: REST API
+sidebar_label: REST API
+toc_max_heading_level: 4
+description: 详细介绍 TDengine 提供的 RESTful API.
+---
+
+为支持各种不同类型平台的开发，TDengine 提供符合 RESTful 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST API 的使用参见 [视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+
+:::note
+与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。
+:::
+
+## 安装
+
+RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。TDengine 的 RESTful API 由 [taosAdapter](../../components/taosadapter) 提供，在使用 RESTful API 之前需要确保 `taosAdapter` 正常运行。
+
+## 验证
+
+在已经安装 TDengine 服务器端的情况下，可以按照如下方式进行验证。
+
+下面以 Ubuntu 环境中使用 `curl` 工具（请确认已经安装）来验证 RESTful 接口是否工作正常，验证前请确认 taosAdapter 服务已开启，在 Linux 系统上此服务默认由 systemd 管理，使用命令 `systemctl start taosadapter` 启动。
+
+下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 FQDN 和端口号：
+
+```bash
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+  -d "select name, ntables, status from information_schema.ins_databases;" \
+  h1.taosdata.com:6041/rest/sql
+```
+
+返回值结果如下表示验证通过：
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
+}
+```
+
+## HTTP 请求格式
+
+```text
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
+```
+
+参数说明：
+
+- fqdn: 集群中的任一台主机 FQDN 或 IP 地址。
+- port: 配置文件中 httpPort 配置项，缺省为 6041。
+- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
+- tz: 可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
+- req_id: 可选参数，指定请求 id，可以用于 tracing。
+- row_with_meta: 可选参数，指定是否每行数据都携带列名，缺省为 false。（3.3.2.0 版本开始支持）
+
+例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
+
+HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
+
+- [自定义身份认证信息](#自定义授权码)如下所示：
+
+  ```text
+  Authorization: Taosd <TOKEN>
+  ```
+
+- Basic 身份认证信息如下所示：
+
+  ```text
+  Authorization: Basic <TOKEN>
+  ```
+
+HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 db_name.tb_name。如果表名不带数据库前缀，又没有在 URL 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
+
+使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
+
+```bash
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
+```
+
+或者，
+
+```bash
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
+```
+
+其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
+
+## HTTP 返回格式
+
+### HTTP 响应码
+
+默认情况下，`taosAdapter` 对大多数 C 接口调用出错时也会返回 200 响应码，但是 HTTP body 中包含错误信息。从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的 HTTP 响应码。无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
+
+**当 httpCodeServerError 为 false 时：**
+
+| **分类说明**             |**HTTP 响应码** |
+|--------------------|-------------------------------|
+| C 接口调用成功  | 200                           | 200   |
+| C 接口调用出错，且不是鉴权错误 | 200                   |
+| HTTP 请求 URL 参数错误               | 400    | 
+| C 接口调用鉴权错误               | 401                           |
+| 接口不存在              | 404                           |
+| 系统资源不足             | 503                          |
+
+**当 httpCodeServerError 为 true 时：**
+
+| **分类说明**             |  **HTTP 响应码**          |
+|--------------------|-------------------------------|
+| C 接口调用成功  |  200                                   |
+| HTTP 请求 URL 参数错误和 C 接口调用参数解析错误    | 400  |
+| C 接口调用鉴权错误                 |  401          |
+| 接口不存在              | 404             |   
+| C 接口调用网络不可用错误            | 502            |
+| 系统资源不足             |503                |
+| 其他 C 接口调用错误 | 500                | 
+
+ C 接口参数解析相关错误码：
+- TSDB_CODE_TSC_SQL_SYNTAX_ERROR (0x0216)
+- TSDB_CODE_TSC_LINE_SYNTAX_ERROR (0x021B)
+- TSDB_CODE_PAR_SYNTAX_ERROR (0x2600)
+- TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE (0x060B)
+- TSDB_CODE_TSC_VALUE_OUT_OF_RANGE (0x0224)
+- TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE (0x263B)
+
+C 接口鉴权相关错误码：
+
+- TSDB_CODE_MND_USER_ALREADY_EXIST (0x0350)
+- TSDB_CODE_MND_USER_NOT_EXIST (0x0351)
+- TSDB_CODE_MND_INVALID_USER_FORMAT (0x0352)
+- TSDB_CODE_MND_INVALID_PASS_FORMAT (0x0353)
+- TSDB_CODE_MND_NO_USER_FROM_CONN (0x0354)
+- TSDB_CODE_MND_TOO_MANY_USERS (0x0355)
+- TSDB_CODE_MND_INVALID_ALTER_OPER (0x0356)
+- TSDB_CODE_MND_AUTH_FAILURE (0x0357)
+
+C 接口网络不可用相关错误码：
+
+- TSDB_CODE_RPC_NETWORK_UNAVAIL (0x000B)
+
+错误码和错误描述请参考[错误码](../../../reference/error-code)
+
+### HTTP body 结构
+
+#### 正确执行插入
+
+样例：
+
+```json
+{
+  "code": 0,
+  "column_meta": [["affected_rows", "INT", 4]],
+  "data": [[0]],
+  "rows": 1
+}
+```
+
+说明：
+
+- code：（`int`）0 代表成功。
+- column_meta：（`[1][3]any`）只返回 `[["affected_rows", "INT", 4]]`。
+- rows：（`int`）只返回 `1`。
+- data：（`[][]any`）返回受影响行数。
+
+#### 正确执行查询
+
+样例：
+
+```json
+{
+  "code": 0,
+  "column_meta": [
+    ["ts", "TIMESTAMP", 8],
+    ["count", "BIGINT", 8],
+    ["endpoint", "VARCHAR", 45],
+    ["status_code", "INT", 4],
+    ["client_ip", "VARCHAR", 40],
+    ["request_method", "VARCHAR", 15],
+    ["request_uri", "VARCHAR", 128]
+  ],
+  "data": [
+    [
+      "2022-06-29T05:50:55.401Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T06:28:14.118Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      401,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ]
+  ],
+  "rows": 4
+}
+```
+
+说明：
+
+- code：（`int`）0 代表成功。
+- column_meta：（`[][3]any`） 列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
+- rows：（`int`）数据返回行数。
+- data：（`[][]any`）具体数据内容（时间格式仅支持 RFC3339，结果集为 0 时区）。
+
+列类型使用如下字符串：
+
+- "NULL"
+- "BOOL"
+- "TINYINT"
+- "SMALLINT"
+- "INT"
+- "BIGINT"
+- "FLOAT"
+- "DOUBLE"
+- "VARCHAR"
+- "TIMESTAMP"
+- "NCHAR"
+- "TINYINT UNSIGNED"
+- "SMALLINT UNSIGNED"
+- "INT UNSIGNED"
+- "BIGINT UNSIGNED"
+- "JSON"
+- "VARBINARY"
+- "GEOMETRY"
+
+`VARBINARY` 和 `GEOMETRY` 类型返回数据为 Hex 字符串，样例：
+
+准备数据
+
+```bash
+create database demo
+use demo
+create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
+insert into t values(now,'\x7f8290','point(100 100)')
+```
+
+执行查询
+
+```bash
+curl --location 'http://<fqdn>:<port>/rest/sql' \
+--header 'Content-Type: text/plain' \
+--header 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' \
+--data 'select * from demo.t'
+```
+
+返回结果
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "ts",
+            "TIMESTAMP",
+            8
+        ],
+        [
+            "c1",
+            "VARBINARY",
+            20
+        ],
+        [
+            "c2",
+            "GEOMETRY",
+            100
+        ]
+    ],
+    "data": [
+        [
+            "2023-11-01T06:28:15.210Z",
+            "7f8290",
+            "010100000000000000000059400000000000005940"
+        ]
+    ],
+    "rows": 1
+}
+```
+
+- `010100000000000000000059400000000000005940` 为 `point(100 100)` 的 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  格式
+
+#### 错误
+
+样例：
+
+```json
+{
+  "code": 9728,
+  "desc": "syntax error near \"1\""
+}
+```
+
+说明：
+
+- code：（`int`）错误码。
+- desc：（`string`）错误描述。
+
+错误码和错误描述请参考[错误码](../../../reference/error-code)
+
+#### 返回key-value形式数据
+
+当指定 url 参数 `row_with_meta=true` 时，返回的 data 中的数据会从数组的形式变成对象的形式，对象的 key 为列名，value 为数据，如下所示：
+
+插入数据返回示例
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "affected_rows",
+            "INT",
+            4
+        ]
+    ],
+    "data": [
+        {
+            "affected_rows": 1
+        }
+    ],
+    "rows": 1
+}
+```
+
+查询数据返回示例
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "ts",
+            "TIMESTAMP",
+            8
+        ],
+        [
+            "current",
+            "FLOAT",
+            4
+        ],
+        [
+            "voltage",
+            "INT",
+            4
+        ],
+        [
+            "phase",
+            "FLOAT",
+            4
+        ],
+        [
+            "groupid",
+            "INT",
+            4
+        ],
+        [
+            "location",
+            "VARCHAR",
+            24
+        ]
+    ],
+    "data": [
+        {
+            "ts": "2017-07-14T02:40:00.000Z",
+            "current": -2.498076,
+            "voltage": 0,
+            "phase": -0.846025,
+            "groupid": 8,
+            "location": "California.Sunnyvale"
+        }
+    ],
+    "rows": 1
+}
+```
+
+## 自定义授权码
+
+HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送 `HTTP GET` 请求来获取授权码，操作如下：
+
+```bash
+curl http://<fqnd>:<port>/rest/login/<username>/<password>
+```
+
+其中，`fqdn` 是 TDengine 数据库的 FQDN 或 IP 地址，`port` 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 JSON 格式，各字段含义如下：
+
+- status：请求结果的标志位。
+- code：返回值代码。
+- desc：授权码。
+
+获取授权码示例：
+
+```bash
+curl http://192.168.0.1:6041/rest/login/root/taosdata
+```
+
+返回值：
+
+```json
+{
+  "code": 0,
+  "desc": "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
+}
+```
+
+## 使用示例
+
+- 在 demo 库里查询表 d1001 的所有记录：
+
+  ```bash
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
+  ```
+
+  返回值：
+
+  ```json
+  {
+      "code": 0,
+      "column_meta": [
+          [
+              "ts",
+              "TIMESTAMP",
+              8
+          ],
+          [
+              "current",
+              "FLOAT",
+              4
+          ],
+          [
+              "voltage",
+              "INT",
+              4
+          ],
+          [
+              "phase",
+              "FLOAT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              "2022-07-30T06:44:40.32Z",
+              10.3,
+              219,
+              0.31
+          ],
+          [
+              "2022-07-30T06:44:41.32Z",
+              12.6,
+              218,
+              0.33
+          ]
+      ],
+      "rows": 2
+  }
+  ```
+
+- 创建库 demo：
+
+  ```bash
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "create database demo" 192.168.0.1:6041/rest/sql
+  ```
+
+  返回值：
+
+  ```json
+  {
+      "code": 0,
+      "column_meta": [
+          [
+              "affected_rows",
+              "INT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              0
+          ]
+      ],
+      "rows": 1
+  }
+  ```
+
+## TDengine 2.x 和 3.0 之间 REST API 的差异
+
+### URI
+
+| URI                  | TDengine 2.x         | TDengine 3.0                                         |
+| :--------------------| :------------------: | :--------------------------------------------------: |
+| /rest/sql            | 支持                 | 支持 （响应代码和消息体不同）                        |
+| /rest/sqlt           | 支持                 | 不再支持                                             |
+| /rest/sqlutc         | 支持                 | 不再支持                                             |
+
+
+### HTTP code
+
+| HTTP code            | TDengine 2.x         | TDengine 3.0 | 备注                                  |
+| :--------------------| :------------------: | :----------: | :-----------------------------------: |
+| 200                  | 支持                 | 支持         | 正确返回和 taosc 接口错误返回         |
+| 400                  | 不支持               | 支持         | 参数错误返回                          |
+| 401                  | 不支持               | 支持         | 鉴权失败                              |
+| 404                  | 支持                 | 支持         | 接口不存在                            |
+| 500                  | 不支持               | 支持         | 内部错误                              |
+| 503                  | 支持                 | 支持         | 系统资源不足                          |
+
+
+### 响应代码和消息体
+
+#### TDengine 2.x 响应代码和消息体
+
+```JSON
+{
+  "status": "succ",
+  "head": [
+    "name",
+    "created_time",
+    "ntables",
+    "vgroups",
+    "replica",
+    "quorum",
+    "days",
+    "keep1,keep2,keep(D)",
+    "cache(MB)",
+    "blocks",
+    "minrows",
+    "maxrows",
+    "wallevel",
+    "fsync",
+    "comp",
+    "precision",
+    "status"
+  ],
+  "data": [
+    [
+      "log",
+      "2020-09-02 17:23:00.039",
+      4,
+      1,
+      1,
+      1,
+      10,
+      "30,30,30",
+      1,
+      3,
+      100,
+      4096,
+      1,
+      3000,
+      2,
+      "us",
+      "ready"
+    ]
+  ],
+  "rows": 1
+}
+```
+```
+  "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+```
+
+#### TDengine 3.0 响应代码和消息体
+
+
+```JSON
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
+}
+```

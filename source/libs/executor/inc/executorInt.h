@@ -202,6 +202,7 @@ typedef struct SExchangeInfo {
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
+  SArray*             pFetchRpcHandles;
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -552,6 +553,7 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
   int64_t       limit;
@@ -620,6 +622,7 @@ typedef struct SStreamIntervalOperatorInfo {
   int32_t             midDelIndex;
   SSHashObj*          pDeletedMap;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -675,6 +678,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                recvGetAll;
   bool                destHasPrimaryKey;
   SSHashObj*          pPkDeleted;
+  struct SOperatorInfo* pOperator;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -702,6 +706,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                recvGetAll;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -731,6 +736,7 @@ typedef struct SStreamEventAggOperatorInfo {
   SFilterInfo*        pEndCondInfo;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
@@ -755,6 +761,7 @@ typedef struct SStreamCountAggOperatorInfo {
   SSDataBlock*        pCheckpointRes;
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
+  struct SOperatorInfo* pOperator;
 } SStreamCountAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -822,6 +829,13 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void    cleanupExprSupp(SExprSupp* pSup);
 
+void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup,
+                                   SGroupResInfo* pGroupResInfo);
+void     cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                          SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap);
+void     cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                      SGroupResInfo* pGroupResInfo);
+
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                    const char* pkey, void* pState, SFunctionStateStore* pStore);
 void    cleanupAggSup(SAggSupporter* pAggSup);
@@ -843,8 +857,8 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
 void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo);
 bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
-                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
+int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                        int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
@@ -855,8 +869,6 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* de
 
 extern void doDestroyExchangeOperatorInfo(void* param);
 
-int32_t doFilterImpl(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo,
-                     SColumnInfoData** pResCol);
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
@@ -917,8 +929,8 @@ SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
 SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 void         destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
-void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
-                              SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
+int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
+                                 SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 

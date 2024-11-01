@@ -24,6 +24,18 @@ extern "C" {
 #include "tsimplehash.h"
 #include "taoserror.h"
 
+
+typedef struct SPhysiPlanContext {
+  SPlanContext* pPlanCxt;
+  int32_t       errCode;
+  int16_t       nextDataBlockId;
+  SArray*       pLocationHelper;
+  SArray*       pProjIdxLocHelper;
+  bool          hasScan;
+  bool          hasSysScan;
+} SPhysiPlanContext;
+
+
 #define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
 #define planError(param, ...)  qError("PLAN: " param, ##__VA_ARGS__)
 #define planWarn(param, ...)   qWarn("PLAN: " param, ##__VA_ARGS__)
@@ -68,6 +80,8 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned);
 int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
+void rewriteTargetsWithResId(SNodeList* pTargets);
 
 
 #ifdef __cplusplus

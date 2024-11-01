@@ -54,25 +54,25 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   if (pFile == NULL) {
     sError("vgId:%d, failed to open raft store file:%s since %s", pNode->vgId, file, terrstr());
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   int64_t size = 0;
-  if (taosFStatFile(pFile, &size, NULL) < 0) {
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
     sError("vgId:%d, failed to fstat raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   if (taosReadFile(pFile, pData, size) != size) {
     sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   pData[size] = '\0';
@@ -120,22 +120,22 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   snprintf(file, sizeof(file), "%s.bak", realfile);
 
   pJson = tjsonCreateObject();
-  if (pJson == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  if (pJson == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   if (raftStoreEncode(pJson, pStore) != 0) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
 
   buffer = tjsonToString(pJson);
-  if (buffer == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  if (buffer == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+  if (pFile == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
-  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
-  (void)taosCloseFile(&pFile);
-  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
+  TAOS_CHECK_GOTO(taosCloseFile(&pFile), &lino, _OVER);
+  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
   code = 0;
   sInfo("vgId:%d, succeed to write raft store file:%s, term:%" PRId64, pNode->vgId, realfile, pStore->currentTerm);
@@ -168,21 +168,30 @@ bool raftStoreHasVoted(SSyncNode *pNode) {
 void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = *pRaftId;
-  (void)raftStoreWriteFile(pNode);
+  int32_t code = 0;
+  if ((code = raftStoreWriteFile(pNode)) != 0) {
+    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
+  }
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
 void raftStoreClearVote(SSyncNode *pNode) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = EMPTY_RAFT_ID;
-  (void)raftStoreWriteFile(pNode);
+  int32_t code = 0;
+  if ((code = raftStoreWriteFile(pNode)) != 0) {
+    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
+  }
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
 void raftStoreNextTerm(SSyncNode *pNode) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.currentTerm++;
-  (void)raftStoreWriteFile(pNode);
+  int32_t code = 0;
+  if ((code = raftStoreWriteFile(pNode)) != 0) {
+    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
+  }
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
@@ -190,7 +199,10 @@ void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   if (pNode->raftStore.currentTerm < term) {
     pNode->raftStore.currentTerm = term;
-    (void)raftStoreWriteFile(pNode);
+    int32_t code = 0;
+    if ((code = raftStoreWriteFile(pNode)) != 0) {
+      sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
+    }
   }
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }

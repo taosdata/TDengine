@@ -56,7 +56,11 @@ local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
 
-services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"x" ${PREFIX}"-explorer" ${PREFIX}"keeper")
+if [ "${verMode}" == "cluster" ]; then
+  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+else
+  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+fi
 tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
 csudo=""
@@ -202,18 +206,25 @@ function clean_log() {
 }
 
 function clean_service_on_launchctl() {
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.${clientName2}adapter.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist  || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist  || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
+
+  ${csudo}launchctl remove com.tdengine.taosd || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}adapter || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}keeper || :
+  ${csudo}launchctl remove com.tdengine.${PREFIX}-explorer || :
+
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.* > /dev/null 2>&1 || :
 }
 
 function remove_data_and_config() {
-  data_dir=`grep dataDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
+  data_dir=`grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$data_dir" == X"" ]; then
     data_dir="/var/lib/${PREFIX}"
   fi
-  log_dir=`grep logDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
+  log_dir=`grep logDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$log_dir" == X"" ]; then
     log_dir="/var/log/${PREFIX}"
   fi  
@@ -221,6 +232,36 @@ function remove_data_and_config() {
   [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
+
+echo 
+echo "Do you want to remove all the data, log and configuration files? [y/n]"
+read answer
+remove_flag=false
+if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+  echo "Please enter '${confirmMsg}' to continue"
+  read answer
+  if [ X"$answer" == X"${confirmMsg}" ]; then    
+    remove_flag=true    
+  else    
+    echo "answer doesn't match, skip this step"    
+  fi
+fi
+echo 
+
+if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
+  if [ X$remove_flag == X"true" ]; then  
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
+  else
+    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
+  fi
+fi
+
+
+if [ "$osType" = "Darwin" ]; then
+  clean_service_on_launchctl
+  ${csudo}rm -rf /Applications/TDengine.app
+fi
 
 remove_bin
 clean_header
@@ -232,6 +273,11 @@ clean_log
 clean_config
 # Remove data link directory
 ${csudo}rm -rf ${data_link_dir} || :
+
+if [ X$remove_flag == X"true" ]; then
+  remove_data_and_config
+fi
+
 ${csudo}rm -rf ${install_main_dir} || :
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
@@ -249,24 +295,7 @@ elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
-if [ "$osType" = "Darwin" ]; then
-  clean_service_on_launchctl
-  ${csudo}rm -rf /Applications/TDengine.app
-fi
 
-echo 
-echo "Do you want to remove all the data, log and configuration files? [y/n]"
-read answer
-if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
-  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
-  echo "Please enter '${confirmMsg}' to continue"
-  read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then
-    remove_data_and_config
-  else
-    echo "answer doesn't match, skip this step"
-  fi
-fi
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 

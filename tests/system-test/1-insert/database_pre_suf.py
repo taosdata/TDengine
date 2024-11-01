@@ -22,6 +22,7 @@ from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
 from util.dnodes import *
+from util.common import *
 
 class TDTestCase:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 135}
@@ -158,7 +159,8 @@ class TDTestCase:
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1)))
             
         # create stream
-        tdSql.execute('''create stream current_stream trigger at_once IGNORE EXPIRED 0 into stream_max_stable_1 as select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
+        stream_name="current_stream"
+        tdSql.execute(f'''create stream {stream_name} trigger at_once IGNORE EXPIRED 0 into stream_max_stable_1 as select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
         
         # insert data positive
         for i in range(num_random*n):        
@@ -281,14 +283,14 @@ class TDTestCase:
                         fake.random_int(min=-0, max=32767, step=1) , fake.random_int(min=-0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i, fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , 
                         fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr() , fake.pystr()))
-            
+
         tdSql.query("select count(*) from stable_1;")
         tdSql.checkData(0,0,10*num_random*n)
         tdSql.query("select count(*) from hn_table_1_r;")
         tdSql.checkData(0,0,num_random*n)
         
-        sleep(5)
         # stream data check
+        tdCom.check_stream_task_status(stream_name,vgroups,90)
         tdSql.query("select startts,wend,max_int from stream_max_stable_1 ;")
         tdSql.checkRows(20)
         tdSql.query("select sum(max_int) from stream_max_stable_1 ;")

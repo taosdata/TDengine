@@ -57,6 +57,8 @@ class TDTestCase:
 
         tdSql.query("select * from (select ts, col1 from sta partition by tbname) limit 2");
         tdSql.checkRows(2)
+        tdSql.query('select col1 > 0 and col2 > 0 from stb')
+        tdSql.checkRows(12)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -114,6 +114,7 @@ typedef struct SExHandle {
   void*    handle;
   int64_t  refId;
   void*    pThrd;
+  int8_t   pThrdIdx;
   queue    q;
   int8_t   inited;
   SRWLatch latch;
@@ -135,58 +136,33 @@ typedef struct SCvtAddr {
   bool cvt;
 } SCvtAddr;
 
-typedef struct {
-  SEpSet epSet;  // ip list provided by app
-  SEpSet origEpSet;
-  void*  ahandle;   // handle provided by app
-  tmsg_t msgType;   // message type
-  int8_t connType;  // connection type cli/srv
-
-  STransCtx      appCtx;    //
-  STransMsg*     pRsp;      // for synchronous API
-  tsem_t*        pSem;      // for synchronous API
-  STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
-  int64_t        syncMsgRef;
-  SCvtAddr       cvtAddr;
-  bool           setMaxRetry;
-
-  int32_t retryMinInterval;
-  int32_t retryMaxInterval;
-  int32_t retryStepFactor;
-  int64_t retryMaxTimeout;
-  int64_t retryInitTimestamp;
-  int64_t retryNextInterval;
-  bool    retryInit;
-  int32_t retryStep;
-  int8_t  epsetRetryCnt;
-  int32_t retryCode;
-
-  void* task;
-  int   hThrdIdx;
-} STransConnCtx;
-
 #pragma pack(push, 1)
+
+typedef struct {
+  int8_t inUse;
+  int8_t numOfEps;
+  SEp    eps[];
+} SReqEpSet;
 
 #define TRANS_VER 2
 typedef struct {
-  char version : 4;  // RPC version
-  char comp : 2;     // compression algorithm, 0:no compression 1:lz4
-  char noResp : 2;   // noResp bits, 0: resp, 1: resp
-  char persist : 2;  // persist handle,0: no persit, 1: persist handle
-  char release : 2;
+  char version : 4;       // RPC version
+  char comp : 2;          // compression algorithm, 0:no compression 1:lz4
+  char noResp : 2;        // noResp bits, 0: resp, 1: resp
+  char withUserInfo : 2;  // 0: sent user info or not
   char secured : 2;
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   uint64_t timestamp;
-  char     user[TSDB_UNI_LEN];
   int32_t  compatibilityVer;
   uint32_t magicNum;
   STraceId traceId;
-  uint64_t ahandle;  // ahandle assigned by client
-  uint32_t code;     // del later
+  int64_t  qid;
+  uint32_t code;  // del later
   uint32_t msgType;
   int32_t  msgLen;
+  int64_t  seqNum;
   uint8_t  content[0];  // message body starts from here
 } STransMsgHead;
 
@@ -207,7 +183,36 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
+int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
+int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
+
+int32_t transValidReqEpset(SReqEpSet* pReqEpSet);
+
+typedef struct {
+  SReqEpSet* epSet;  // ip list provided by app
+  SReqEpSet* origEpSet;
+  void*      ahandle;  // handle provided by app
+  tmsg_t     msgType;  // message type
+
+  STransCtx      userCtx;   //
+  STransMsg*     pRsp;      // for synchronous API
+  tsem_t*        pSem;      // for synchronous API
+  STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
+  int64_t        syncMsgRef;
+  SCvtAddr*      pCvtAddr;
+
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  int64_t retryMaxTimeout;
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int32_t retryStep;
+  int32_t retryCode;
+  int8_t  retryInit;
+  int8_t  epsetRetryCnt;
+} SReqCtx;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -241,6 +246,7 @@ typedef struct {
   void*         pThrd;
   queue         qmsg;
   TdThreadMutex mtx;  // protect qmsg;
+  int64_t       num;
 } SAsyncItem;
 
 typedef struct {
@@ -272,67 +278,59 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                \
   } while (0)
 
-#define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \
-  do {                                                                                                       \
-    if (id > 0) {                                                                                            \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
-      if (exh2 == NULL || id != exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
-               exh2 ? exh2->refId : 0, id);                                                                  \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      }                                                                                                      \
-    } else if (id == 0) {                                                                                    \
-      tTrace("handle step2");                                                                                \
-      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
-      if (exh2 == NULL || id == exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1, id, \
-               exh2 ? exh2->refId : 0);                                                                      \
-        code = terrno;                                                                                       \
-        goto _return1;                                                                                       \
-      } else {                                                                                               \
-        id = exh1->refId;                                                                                    \
-      }                                                                                                      \
-    } else if (id < 0) {                                                                                     \
-      tTrace("handle step3");                                                                                \
-      goto _return2;                                                                                         \
-    }                                                                                                        \
+#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                              \
+  do {                                                                                   \
+    if (id > 0) {                                                                        \
+      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
+      if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
+        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        code = TSDB_CODE_INVALID_MSG;                                                    \
+        goto _return1;                                                                   \
+      }                                                                                  \
+    } else {                                                                             \
+      tDebug("invalid handle to release");                                               \
+      goto _return2;                                                                     \
+    }                                                                                    \
   } while (0)
 
 int32_t transInitBuffer(SConnBuffer* buf);
 int32_t transClearBuffer(SConnBuffer* buf);
-int32_t transDestroyBuffer(SConnBuffer* buf);
+void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
-int     transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
-int     transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
-int transSetConnOption(uv_tcp_t* stream, int keepalive);
+int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
 
-void transRefCliHandle(void* handle);
-void transUnrefCliHandle(void* handle);
+void    transRefCliHandle(void* handle);
+int32_t transUnrefCliHandle(void* handle);
+int32_t transGetRefCount(void* handle);
 
-int transReleaseCliHandle(void* handle);
-int transReleaseSrvHandle(void* handle);
+int32_t transReleaseCliHandle(void* handle);
+int32_t transReleaseSrvHandle(void* handle);
 
-int     transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int     transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int     transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs);
-int     transSendResponse(const STransMsg* msg);
-int     transRegisterMsg(const STransMsg* msg);
-int     transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
-int32_t transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
+int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* pInit, int64_t transpointId);
 
-int transSockInfo2Str(struct sockaddr* sockname, char* dst);
+int32_t transSendResponse(const STransMsg* msg);
+int32_t transRegisterMsg(const STransMsg* msg);
+int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
 
-int64_t transAllocHandle();
+void transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
-void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
-void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+int32_t transAllocHandle(int64_t* refId);
+
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);
@@ -345,33 +343,30 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key);
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // request list
-typedef struct STransReq {
-  queue      q;
-  uv_write_t wreq;
-} STransReq;
-
-void  transReqQueueInit(queue* q);
-void* transReqQueuePush(queue* q);
-void* transReqQueueRemove(void* arg);
-void  transReqQueueClear(queue* q);
+typedef struct SWriteReq {
+  queue node;  // req queue node
+  void* conn;
+} SWriteReq;
 
 // queue sending msgs
 typedef struct {
-  SArray* q;
-  void (*freeFunc)(const void* arg);
+  queue node;
+  void (*freeFunc)(void* arg);
+  int32_t size;
+  int8_t  inited;
 } STransQueue;
 
 /*
  * init queue
  * note: queue'size is small, default 1
  */
-int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
+int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(void* arg));
 
 /*
  * put arg into queue
  * if queue'size > 1, return false; else return true
  */
-bool transQueuePush(STransQueue* queue, void* arg);
+void transQueuePush(STransQueue* queue, void* arg);
 /*
  * the size of queue
  */
@@ -385,9 +380,24 @@ void* transQueuePop(STransQueue* queue);
  */
 void* transQueueGet(STransQueue* queue, int i);
 /*
+ * head elm from queue
+ */
+
+void* tranQueueHead(STransQueue* q);
+/*
+ *  remove all match elm from queue
+ */
+void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size);
+/*
  * rm ith from queue
  */
+
 void* transQueueRm(STransQueue* queue, int i);
+/*
+ * remove el from queue
+ */
+
+void transQueueRemove(STransQueue* q, void* e);
 /*
  * queue empty or not
  */
@@ -427,9 +437,9 @@ void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
-bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
 
-bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
+bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b);
 /*
  * init global func
  */
@@ -441,17 +451,18 @@ void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
-int32_t transDecompressMsg(char** msg, int32_t len);
+int32_t transDecompressMsg(char** msg, int32_t* len);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);
 int64_t transAddExHandle(int32_t refMgt, void* p);
-int32_t transRemoveExHandle(int32_t refMgt, int64_t refId);
+void    transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
-int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
+void    transReleaseExHandle(int32_t refMgt, int64_t refId);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
+int32_t transGetSvrRefMgt();
 int32_t transGetInstMgt();
 int32_t transGetSyncMsgMgt();
 
@@ -473,6 +484,33 @@ int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
+enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
+
+#if defined(WINDOWS) || defined(DARWIN)
+#define BUFFER_LIMIT       1
+#define STATE_BUFFER_LIMIT 1
+#else
+#define BUFFER_LIMIT       4
+#define STATE_BUFFER_LIMIT 8
+#endif
+
+#define HEAP_MISS_HIT_LIMIT 100000
+#define READ_TIMEOUT        100000
+
+typedef struct {
+  queue      node;  // queue for write
+  queue      q;     // queue for reqs
+  uv_write_t wreq;
+  void*      arg;
+} SWReqsWrapper;
+
+int32_t     initWQ(queue* wq);
+void        destroyWQ(queue* wq);
+uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
+
+void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
+
+int32_t transSetReadOption(uv_handle_t* handle);
 #ifdef __cplusplus
 }
 #endif

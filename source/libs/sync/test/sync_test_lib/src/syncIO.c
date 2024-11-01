@@ -193,7 +193,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     io->clientRpc = rpcOpen(&rpcInit);
     if (io->clientRpc == NULL) {
       sError("failed to initialize RPC");
-      return -1;
+      return terrno;
     }
   }
 
@@ -214,7 +214,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     void *pRpc = rpcOpen(&rpcInit);
     if (pRpc == NULL) {
       sError("failed to start RPC server");
-      return -1;
+      return terrno;
     }
   }
 

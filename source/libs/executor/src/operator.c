@@ -63,7 +63,7 @@ int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num) {
   p->pDownstream = taosMemoryCalloc(1, num * POINTER_BYTES);
   if (p->pDownstream == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   memcpy(p->pDownstream, pDownstream, num * POINTER_BYTES);
@@ -180,7 +180,7 @@ ERetType extractOperatorInfo(SOperatorInfo* pOperator, STraverParam* pParam, con
 
 // QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN
 int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
@@ -240,7 +240,12 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   *order = info.order;
   *scanFlag = info.scanFlag;
 
-  ASSERT(*order == TSDB_ORDER_ASC || *order == TSDB_ORDER_DESC);
+  if (p.code == TSDB_CODE_SUCCESS) {
+    if (!(*order == TSDB_ORDER_ASC || *order == TSDB_ORDER_DESC)) {
+      qError("operator failed at: %s:%d", __func__, __LINE__);
+      p.code = TSDB_CODE_INVALID_PARA;
+    }
+  }
   return p.code;
 }
 
@@ -277,7 +282,7 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
 
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t     code = 0;
   int32_t     type = nodeType(pPhyNode);
@@ -295,6 +300,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
 
       STableListInfo* pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
 
       code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
       if (code) {
@@ -330,6 +340,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       STableListInfo*           pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
 
       code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle,
                                              pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
@@ -362,6 +377,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STableListInfo*      pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
 
       if (pHandle->vnode) {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
@@ -374,8 +394,12 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         }
       }
 
-      //pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
       code = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
@@ -385,19 +409,36 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
       STableListInfo*    pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
         code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
                                                pTagIndexCond, pTaskInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           qError("failed to getTableList, code: %s", tstrerror(code));
+          tableListDestroy(pTableListInfo);
           return code;
         }
       }
-      code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, &pOperator);
+      code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo,
+                                       &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       STableListInfo*          pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
         SArray* pList = taosArrayInit(4, sizeof(uint64_t));
@@ -405,6 +446,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           taosArrayDestroy(pList);
+          tableListDestroy(pTableListInfo);
           return code;
         }
 
@@ -412,13 +454,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         for (int32_t i = 0; i < num; ++i) {
           uint64_t* id = taosArrayGet(pList, i);
           if (id == NULL) {
-            pTaskInfo->code = terrno;
-            return terrno;
+            continue;
           }
 
           code = tableListAddTableInfo(pTableListInfo, *id, 0);
           if (code) {
             pTaskInfo->code = code;
+            tableListDestroy(pTableListInfo);
+            taosArrayDestroy(pList);
             return code;
           }
         }
@@ -428,29 +471,47 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         code = tableListAddTableInfo(pTableListInfo, pBlockNode->uid, 0);
         if (code) {
           pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
           return code;
         }
       }
 
       code = createDataBlockInfoScanOperator(pHandle, pBlockNode, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
       STableListInfo*        pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
 
-      code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                             pTagCond, pTagIndexCond, pTaskInfo);
+      code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo, pTagCond,
+                                     pTagIndexCond, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
         return code;
       }
 
       code = initQueriedTableSchemaInfo(pHandle, &pScanNode->scan, dbname, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
         return code;
       }
 
       code = createCacherowsScanOperator(pScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        tableListDestroy(pTableListInfo);
+        pTaskInfo->code = code;
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
@@ -479,6 +540,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i]);
     if (ops[i] == NULL || code != 0) {
+      for (int32_t j = 0; j < i; ++j) {
+        destroyOperator(ops[j]);
+      }
       taosMemoryFree(ops);
       return code;
     }
@@ -555,6 +619,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
+    code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
@@ -565,10 +631,16 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
+    code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
+    for (int32_t i = 0; i < size; ++i) {
+      destroyOperator(ops[i]);
+    }
     taosMemoryFree(ops);
+    qError("invalid operator type %d", type);
     return code;
   }
 
@@ -590,10 +662,6 @@ void destroyOperator(SOperatorInfo* pOperator) {
   freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
   freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
-  if (pOperator->fpSet.closeFn != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
   if (pOperator->pDownstream != NULL) {
     for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
       destroyOperator(pOperator->pDownstream[i]);
@@ -603,8 +671,29 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
+  }
+
   cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
+}
+
+void destroyOperatorAndDownstreams(SOperatorInfo* pOperator, SOperatorInfo** downstreams, int32_t num) {
+  if (downstreams != NULL) {
+    for (int i = 0; i < num; i++) {
+      destroyOperator(downstreams[i]);
+    }
+  }
+
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    if (pOperator->pDownstream != NULL) {
+      taosMemoryFreeClear(pOperator->pDownstream);
+      pOperator->pDownstream = NULL;
+    }
+    destroyOperator(pOperator);
+  }
 }
 
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
@@ -738,7 +827,7 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   if (NULL == *pppDownstramParam) {
     *pppDownstramParam = taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
     if (NULL == *pppDownstramParam) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -782,25 +871,33 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
+  blockDataCheck(p, false);
   return (code == 0)? p:NULL;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
-  QRY_OPTR_CHECK(pRes);
+  QRY_PARAM_CHECK(pRes);
 
+  int32_t lino = 0;
   int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
-  if (TSDB_CODE_SUCCESS != code) {
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = pOperator->fpSet.getNextFn(pOperator, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
 
-  *pRes = pOperator->fpSet.getNextFn(pOperator);
   return code;
 }
 

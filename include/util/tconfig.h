@@ -84,11 +84,11 @@ typedef struct SConfigItem {
   };
   union {
     int64_t imin;
-    double  fmin;
+    float   fmin;
   };
   union {
     int64_t imax;
-    double  fmax;
+    float   fmax;
   };
   SArray *array;  // SDiskCfg/SLogVar
 } SConfigItem;

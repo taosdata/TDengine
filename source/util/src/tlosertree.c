@@ -19,8 +19,11 @@
 #include "tlog.h"
 
 // Set the initial value of the multiway merge tree.
-static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
-  ASSERT((pTree->totalSources & 0x01) == 0 && (pTree->numOfSources << 1 == pTree->totalSources));
+static int32_t tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
+  if (!((pTree->totalSources & 0x01) == 0 && (pTree->numOfSources << 1 == pTree->totalSources))) {
+    uError("losertree failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   for (int32_t i = 0; i < pTree->totalSources; ++i) {
     if (i < pTree->numOfSources) {
@@ -29,6 +32,7 @@ static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
       pTree->pNode[i].index = i - pTree->numOfSources;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, void* param,
@@ -39,7 +43,7 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
       (SMultiwayMergeTreeInfo*)taosMemoryCalloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
   if (pTreeInfo == NULL) {
     uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   pTreeInfo->pNode = (STreeNode*)(((char*)pTreeInfo) + sizeof(SMultiwayMergeTreeInfo));
@@ -50,7 +54,11 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
   pTreeInfo->comparFn = compareFn;
 
   // set initial value for loser tree
-  tMergeTreeInit(pTreeInfo);
+  int32_t code = tMergeTreeInit(pTreeInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pTreeInfo);
+    return code;
+  }
 
 #ifdef _DEBUG_VIEW
   printf("the initial value of loser tree:\n");
@@ -58,7 +66,11 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
 #endif
 
   for (int32_t i = totalEntries - 1; i >= numOfSources; i--) {
-    tMergeTreeAdjust(pTreeInfo, i);
+    code = tMergeTreeAdjust(pTreeInfo, i);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pTreeInfo);
+      return code;
+    }
   }
 
 #if defined(_DEBUG_VIEW)
@@ -79,13 +91,17 @@ void tMergeTreeDestroy(SMultiwayMergeTreeInfo** pTree) {
   taosMemoryFreeClear(*pTree);
 }
 
-void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
-  ASSERT(idx <= pTree->totalSources - 1 && idx >= pTree->numOfSources && pTree->totalSources >= 2);
+int32_t tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
+  int32_t code = 0;
+  if (!(idx <= pTree->totalSources - 1 && idx >= pTree->numOfSources && pTree->totalSources >= 2)) {
+    uError("losertree failed at: %s:%d", __func__, __LINE__);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (pTree->totalSources == 2) {
     pTree->pNode[0].index = 0;
     pTree->pNode[1].index = 0;
-    return;
+    return code;
   }
 
   int32_t   parentId = idx >> 1;
@@ -95,7 +111,7 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
     STreeNode* pCur = &pTree->pNode[parentId];
     if (pCur->index == -1) {
       pTree->pNode[parentId] = kLeaf;
-      return;
+      return code;
     }
 
     int32_t ret = pTree->comparFn(pCur, &kLeaf, pTree->param);
@@ -112,13 +128,21 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
     // winner cannot be identical to the loser, which is pTreeNode[1]
     pTree->pNode[0] = kLeaf;
   }
+  return code;
 }
 
-void tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
-  tMergeTreeInit(pTree);
-  for (int32_t i = pTree->totalSources - 1; i >= pTree->numOfSources; i--) {
-    tMergeTreeAdjust(pTree, i);
+int32_t tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
+  int32_t code = tMergeTreeInit(pTree);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
+  for (int32_t i = pTree->totalSources - 1; i >= pTree->numOfSources; i--) {
+    code = tMergeTreeAdjust(pTree, i);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 /*

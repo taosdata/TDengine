@@ -4,7 +4,7 @@ sidebar_label: StatsD
 description: This document describes how to integrate TDengine with StatsD.
 ---
 
-import StatsD from "../14-reference/_statsd.mdx"
+import StatsD from "../14-reference/01-components/_statsd.mdx"
 
 StatsD is a simple daemon for aggregating application metrics, which has evolved rapidly in recent years into a unified protocol for collecting application performance metrics.
 

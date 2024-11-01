@@ -89,6 +89,10 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
   int32_t pageId = -1;
   if (*currentPageId == -1) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return NULL;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     pData = getBufPage(pResultBuf, *currentPageId);
@@ -104,9 +108,11 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
       releaseBufPage(pResultBuf, pData);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return NULL;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 
@@ -152,11 +158,16 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (isIntervalQuery) {
     if (p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
       pResult = getResultRowByPos(pResultBuf, p1, true);
-      if (NULL == pResult) {
-        T_LONG_JMP(pTaskInfo->env, terrno);
+      if (pResult == NULL) {
+        pTaskInfo->code = terrno;
+        return NULL;
       }
 
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      if (pResult->pageId != p1->pageId || pResult->offset != p1->offset) {
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
     }
   } else {
     // In case of group by column query, the required SResultRow object must be existInCurrentResusltRowInfo in the
@@ -165,10 +176,15 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
       // todo
       pResult = getResultRowByPos(pResultBuf, p1, true);
       if (NULL == pResult) {
-        T_LONG_JMP(pTaskInfo->env, terrno);
+        pTaskInfo->code = terrno;
+        return NULL;
       }
 
-      ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
+      if (pResult->pageId != p1->pageId || pResult->offset != p1->offset) {
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
     }
   }
 
@@ -178,7 +194,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     if (pPage == NULL) {
       qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      pTaskInfo->code = terrno;
+      return NULL;
     }
     releaseBufPage(pResultBuf, pPage);
   }
@@ -187,7 +204,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (pResult == NULL) {
     pResult = getNewResultRow(pResultBuf, &pSup->currentPageId, pSup->resultRowSize);
     if (pResult == NULL) {
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      pTaskInfo->code = terrno;
+      return NULL;
     }
 
     // add a new result set for a new group
@@ -196,7 +214,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
                                   sizeof(SResultRowPosition));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
+      pTaskInfo->code = code;
+      return NULL;
     }
   }
 
@@ -206,7 +225,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // too many time window in query
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
       tSimpleHashGetSize(pSup->pResultRowHashTable) > MAX_INTERVAL_TIME_WINDOW) {
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
+    pTaskInfo->code = TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW;
+    return NULL;
   }
 
   return pResult;
@@ -294,6 +314,8 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     }
   } else if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     char* tmp = taosMemoryMalloc(pFuncParam->param.nLen + VARSTR_HEADER_SIZE);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
     STR_WITH_SIZE_TO_VARSTR(tmp, pFuncParam->param.pz, pFuncParam->param.nLen);
     for (int32_t i = 0; i < numOfRows; ++i) {
       code = colDataSetVal(pColInfo, i, tmp, false);
@@ -312,6 +334,7 @@ _end:
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol) {
   int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
   SqlFunctionCtx* pCtx = pExprSup->pCtx;
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
@@ -351,7 +374,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         if (hasPk && (j == pkParamIdx)) {
           pInput->pPrimaryKey = pInput->pData[j];
         }
-        ASSERT(pInput->pData[j] != NULL);
+        QUERY_CHECK_CONDITION((pInput->pData[j] != NULL), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
@@ -362,14 +385,16 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
           pInput->blankFill = pBlock->info.blankFill;
 
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, j, pBlock->info.rows);
-          if (code != TSDB_CODE_SUCCESS) {
-            return code;
-          }
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     }
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -398,7 +423,7 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   if (pInput->pData[paramIndex] == NULL) {
     pInput->pData[paramIndex] = taosMemoryCalloc(1, sizeof(SColumnInfoData));
     if (pInput->pData[paramIndex] == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     // Set the correct column info (data type and bytes)
@@ -409,6 +434,9 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   SColumnDataAgg* da = NULL;
   if (pInput->pColumnDataAgg[paramIndex] == NULL) {
     da = taosMemoryCalloc(1, sizeof(SColumnDataAgg));
+    if (!da) {
+      return terrno;
+    }
     pInput->pColumnDataAgg[paramIndex] = da;
     if (da == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -525,6 +553,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
         if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+        } else if (code != TSDB_CODE_SUCCESS) {
+          return code;
         }
       } else {
         pResInfo->initialized = true;
@@ -574,8 +604,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
     for (int32_t i = 0; i < size; ++i) {
       SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
+      QUERY_CHECK_NULL(pInfo, code, lino, _err, terrno);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->dstSlotId);
+        QUERY_CHECK_NULL(pColData, code, lino, _err, terrno);
         if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
           code = blockDataUpdateTsWindow(pBlock, pInfo->dstSlotId);
           QUERY_CHECK_CODE(code, lino, _err);
@@ -587,6 +619,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = TSDB_CODE_SUCCESS;
 
 _err:
+  blockDataCheck(pBlock, true);
+
   colDataDestroy(p);
   taosMemoryFree(p);
   return code;
@@ -632,8 +666,8 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
   }
 }
 
-void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
-                              SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
+int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
+                                 SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t j = 0; j < numOfExprs; ++j) {
@@ -653,10 +687,10 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
       code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      int32_t winCode = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-      if (TAOS_FAILED(winCode)) {
-        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(winCode));
-        T_LONG_JMP(pTaskInfo->env, winCode);
+      code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TSDB_CODE_SUCCESS != code) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
       // do nothing
@@ -664,6 +698,7 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
       // expand the result into multiple rows. E.g., _wstart, top(k, 20)
       // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
         code = colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
@@ -675,8 +710,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
   }
+  return code;
 }
 
 // todo refactor. SResultRow has direct pointer in miainfo
@@ -712,7 +747,12 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  copyResultrowToDataBlock(pExprInfo, pSup->numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+  code = copyResultrowToDataBlock(pExprInfo, pSup->numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+  if (TAOS_FAILED(code)) {
+    releaseBufPage(pBuf, page);
+    qError("%s copy result row to datablock failed, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
@@ -783,9 +823,9 @@ void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SEx
     pGroupResInfo->iter = iter;
     pGroupResInfo->dataPos = pData;
 
-    copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
-
+    code = copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
     releaseBufPage(pBuf, page);
+    QUERY_CHECK_CODE(code, lino, _end);
     pBlock->info.rows += pRow->numOfRows;
     if (pBlock->info.rows >= threshold) {
       break;
@@ -857,9 +897,10 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
     }
 
     pGroupResInfo->index += 1;
-    copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
-
+    code = copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
     releaseBufPage(pBuf, page);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     pBlock->info.rows += pRow->numOfRows;
     if (pBlock->info.rows >= threshold) {
       break;
@@ -1043,6 +1084,10 @@ bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
   if (LIST_LENGTH(pGroupList) == 1) {
     SNode* p = nodesListGetNode(pGroupList, 0);
+    if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return false;
+    }
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname
       bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
@@ -1057,7 +1102,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SInserterParam* pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
       if (NULL == pInserterParam) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pInserterParam->readHandle = readHandle;
 
@@ -1067,12 +1112,13 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       SDeleterParam* pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
       if (NULL == pDeleterParam) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       SArray* pInfoList = NULL;
       int32_t code = getTableListInfo(pTask, &pInfoList);
-      if (code || pInfoList == NULL) {
+      if (code != TSDB_CODE_SUCCESS || pInfoList == NULL) {
+        taosMemoryFree(pDeleterParam);
         return code;
       }
 
@@ -1082,20 +1128,32 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
       pDeleterParam->suid = tableListGetSuid(pTableListInfo);
 
       // TODO extract uid list
-      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      int32_t numOfTables = 0;
+      code = tableListGetSize(pTableListInfo, &numOfTables);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        taosMemoryFree(pDeleterParam);
+        return code;
+      }
+
       pDeleterParam->pUidList = taosArrayInit(numOfTables, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       for (int32_t i = 0; i < numOfTables; ++i) {
         STableKeyInfo* pTable = tableListGetInfo(pTableListInfo, i);
+        if (!pTable) {
+          taosArrayDestroy(pDeleterParam->pUidList);
+          taosMemoryFree(pDeleterParam);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);
           taosMemoryFree(pDeleterParam);
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
 
@@ -1232,7 +1290,7 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
 
 FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                                     SSDataBlock** pResBlock) {
-  QRY_OPTR_CHECK(pResBlock);
+  QRY_PARAM_CHECK(pResBlock);
 
   int32_t code = 0;
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
@@ -1243,15 +1301,18 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }
+
+    if (code) {
+      qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, __LINE__, tstrerror(code));
+    }
     return code;
   }
 
-  *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
-  if (*pResBlock == NULL && terrno != 0) {
-    return terrno;
-  } else {
-    return code;
+  code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+  if (code) {
+    qError("failed to get next data block from upstream at %s, %d code:%s", __func__, __LINE__, tstrerror(code));
   }
+  return code;
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

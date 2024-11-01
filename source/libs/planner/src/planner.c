@@ -20,7 +20,7 @@
 #include "tglobal.h"
 
 static int32_t debugPrintNode(SNode* pNode) {
-  char* pStr = NULL;
+  char*   pStr = NULL;
   int32_t code = nodesNodeToString(pNode, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     (void)printf("%s\n", pStr);
@@ -117,11 +117,10 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   return code;
 }
 
-int32_t qContinuePlanPostQuery(void *pPostPlan) {
-  //TODO
+int32_t qContinuePlanPostQuery(void* pPostPlan) {
+  // TODO
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
   planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);

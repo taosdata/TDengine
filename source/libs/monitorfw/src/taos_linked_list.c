@@ -18,7 +18,7 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_linked_list_i.h"
 #include "taos_linked_list_t.h"
 #include "taos_log.h"
@@ -34,8 +34,7 @@ taos_linked_list_t *taos_linked_list_new(void) {
 }
 
 int taos_linked_list_purge(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   taos_linked_list_node_t *node = self->head;
   while (node != NULL) {
     taos_linked_list_node_t *next = node->next;
@@ -57,7 +56,7 @@ int taos_linked_list_purge(taos_linked_list_t *self) {
 }
 
 int taos_linked_list_destroy(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   int ret = 0;
 
@@ -69,7 +68,7 @@ int taos_linked_list_destroy(taos_linked_list_t *self) {
 }
 
 void *taos_linked_list_first(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   if (self->head) {
     return self->head->item;
   } else {
@@ -78,7 +77,7 @@ void *taos_linked_list_first(taos_linked_list_t *self) {
 }
 
 void *taos_linked_list_last(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   if (self->tail) {
     return self->tail->item;
   } else {
@@ -87,8 +86,7 @@ void *taos_linked_list_last(taos_linked_list_t *self) {
 }
 
 int taos_linked_list_append(taos_linked_list_t *self, void *item) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   taos_linked_list_node_t *node = (taos_linked_list_node_t *)taos_malloc(sizeof(taos_linked_list_node_t));
 
   node->item = item;
@@ -104,8 +102,7 @@ int taos_linked_list_append(taos_linked_list_t *self, void *item) {
 }
 
 int taos_linked_list_push(taos_linked_list_t *self, void *item) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   taos_linked_list_node_t *node = (taos_linked_list_node_t *)taos_malloc(sizeof(taos_linked_list_node_t));
 
   node->item = item;
@@ -120,7 +117,7 @@ int taos_linked_list_push(taos_linked_list_t *self, void *item) {
 
 /*
 void *taos_linked_list_pop(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return NULL;
   taos_linked_list_node_t *node = self->head;
   void *item = NULL;
@@ -146,8 +143,7 @@ void *taos_linked_list_pop(taos_linked_list_t *self) {
 */
 
 int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   taos_linked_list_node_t *node;
   taos_linked_list_node_t *prev_node = NULL;
 #ifdef TAOS_LOG_ENABLE
@@ -225,8 +221,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
 }
 
 taos_linked_list_compare_t taos_linked_list_compare(taos_linked_list_t *self, void *item_a, void *item_b) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   if (self->compare_fn) {
     return (*self->compare_fn)(item_a, item_b);
   } else {
@@ -235,20 +230,18 @@ taos_linked_list_compare_t taos_linked_list_compare(taos_linked_list_t *self, vo
 }
 
 size_t taos_linked_list_size(taos_linked_list_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   return self->size;
 }
 
 int taos_linked_list_set_free_fn(taos_linked_list_t *self, taos_linked_list_free_item_fn free_fn) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   self->free_fn = free_fn;
   return 0;
 }
 
 int taos_linked_list_set_compare_fn(taos_linked_list_t *self, taos_linked_list_compare_item_fn compare_fn) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 1;
+  TAOS_TEST_PARA(self != NULL);
   self->compare_fn = compare_fn;
   return 0;
 }

@@ -42,21 +42,21 @@ typedef enum {
 } EEncryptScope;
 
 // cluster
-extern char     tsFirst[];
-extern char     tsSecond[];
-extern char     tsLocalFqdn[];
-extern char     tsLocalEp[];
-extern char     tsVersionName[];
-extern uint16_t tsServerPort;
-extern int32_t  tsVersion;
-extern int32_t  tsStatusInterval;
-extern int32_t  tsNumOfSupportVnodes;
-extern char     tsEncryptAlgorithm[];
-extern char     tsEncryptScope[];
-extern EEncryptAlgor  tsiEncryptAlgorithm;
-extern EEncryptScope  tsiEncryptScope;
-//extern char     tsAuthCode[];
-extern char     tsEncryptKey[];
+extern char          tsFirst[];
+extern char          tsSecond[];
+extern char          tsLocalFqdn[];
+extern char          tsLocalEp[];
+extern char          tsVersionName[];
+extern uint16_t      tsServerPort;
+extern int32_t       tsVersion;
+extern int32_t       tsStatusInterval;
+extern int32_t       tsNumOfSupportVnodes;
+extern char          tsEncryptAlgorithm[];
+extern char          tsEncryptScope[];
+extern EEncryptAlgor tsiEncryptAlgorithm;
+extern EEncryptScope tsiEncryptScope;
+// extern char     tsAuthCode[];
+extern char tsEncryptKey[];
 
 // common
 extern int32_t tsMaxShellConns;
@@ -71,6 +71,8 @@ extern int32_t tsTagFilterResCacheSize;
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
+extern int32_t tsShareConnLimit;
+extern int32_t tsReadTimeout;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
@@ -86,7 +88,7 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
-extern int64_t tsRpcQueueMemoryAllowed;
+extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 // sync raft
@@ -94,6 +96,7 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
+extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -158,6 +161,7 @@ extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row lo
 
 // query client
 extern int32_t tsQueryPolicy;
+extern bool    tsQueryTbNotExistAsEmpty;
 extern int32_t tsQueryRspPolicy;
 extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;
@@ -212,7 +216,7 @@ extern int64_t  tsMinDiskFreeSize;
 // udf
 extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
-extern char tsUdfdLdLibPath[];
+extern char tsUdfdLdLibPath[512];
 
 // schemaless
 extern char tsSmlChildTableName[];
@@ -262,8 +266,8 @@ extern bool tsExperimental;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
-int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs);
+int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
+                           SArray *pArgs);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();

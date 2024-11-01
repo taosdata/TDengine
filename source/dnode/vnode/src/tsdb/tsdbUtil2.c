@@ -84,35 +84,34 @@ int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
 
 _exit:
   if (code) {
-    TAOS_UNUSED(tStatisBlockDestroy(statisBlock));
+    tStatisBlockDestroy(statisBlock);
   }
   return code;
 }
 
-int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
+void tStatisBlockDestroy(STbStatisBlock *statisBlock) {
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
-    TAOS_UNUSED(tBufferDestroy(&statisBlock->buffers[i]));
+    tBufferDestroy(&statisBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnDestroy(&statisBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnDestroy(&statisBlock->lastKeyPKs[i]));
+    tValueColumnDestroy(&statisBlock->firstKeyPKs[i]);
+    tValueColumnDestroy(&statisBlock->lastKeyPKs[i]);
   }
-  return 0;
 }
 
-int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
+void tStatisBlockClear(STbStatisBlock *statisBlock) {
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
-    TAOS_UNUSED(tBufferClear(&statisBlock->buffers[i]));
+    tBufferClear(&statisBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnClear(&statisBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnClear(&statisBlock->lastKeyPKs[i]));
+    tValueColumnClear(&statisBlock->firstKeyPKs[i]);
+    tValueColumnClear(&statisBlock->lastKeyPKs[i]);
   }
-  return 0;
+  return;
 }
 
 static int32_t tStatisBlockAppend(STbStatisBlock *block, SRowInfo *row) {
@@ -171,7 +170,7 @@ static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
     TAOS_CHECK_RETURN(tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
                                    sizeof(record.count)));
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
@@ -244,39 +243,39 @@ int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
 
 _exit:
   if (code) {
-    (void)tBrinBlockDestroy(brinBlock);
+    tBrinBlockDestroy(brinBlock);
   }
   return code;
 }
 
-int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
+void tBrinBlockDestroy(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-    TAOS_UNUSED(tBufferDestroy(&brinBlock->buffers[i]));
+    tBufferDestroy(&brinBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnDestroy(&brinBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnDestroy(&brinBlock->lastKeyPKs[i]));
+    tValueColumnDestroy(&brinBlock->firstKeyPKs[i]);
+    tValueColumnDestroy(&brinBlock->lastKeyPKs[i]);
   }
-  return 0;
 }
 
-int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
+void tBrinBlockClear(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-    TAOS_UNUSED(tBufferClear(&brinBlock->buffers[i]));
+    tBufferClear(&brinBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
-    TAOS_UNUSED(tValueColumnClear(&brinBlock->firstKeyPKs[i]));
-    TAOS_UNUSED(tValueColumnClear(&brinBlock->lastKeyPKs[i]));
+    tValueColumnClear(&brinBlock->firstKeyPKs[i]);
+    tValueColumnClear(&brinBlock->lastKeyPKs[i]);
   }
-  return 0;
 }
 
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
-  ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
+  if (record->firstKey.key.numOfPKs != record->lastKey.key.numOfPKs) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (brinBlock->numOfRecords == 0) {  // the first row
     brinBlock->numOfPKs = record->firstKey.key.numOfPKs;

@@ -159,7 +159,7 @@ static void lockTimerList(timer_list_t* list) {
 static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
-    ASSERTS(false, "%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
+    uError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 
@@ -314,7 +314,9 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.msg = NULL;
     schedMsg.ahandle = head;
     schedMsg.thandle = NULL;
-    (void)taosScheduleTask(tmrQhandle, &schedMsg);
+    if (taosScheduleTask(tmrQhandle, &schedMsg) != 0) {
+      tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to queue.", head->ctrl->label, id);
+    }
 
     tmrDebug("timer[id=%" PRIuPTR "] has been added to queue.", id);
     head = next;
@@ -492,6 +494,9 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
 
   if (timer == NULL) {
     *pTmrId = taosTmrStart(fp, mseconds, param, handle);
+    if (NULL == *pTmrId) {
+      stopped = true;
+    }
     return stopped;
   }
 
@@ -505,7 +510,9 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     }
   }
 
-  ASSERTS(timer->refCount == 1, "timer refCount=%d not expected 1", timer->refCount);
+  if (timer->refCount != 1) {
+    uError("timer refCount=%d not expected 1", timer->refCount);
+  }
   memset(timer, 0, sizeof(*timer));
   *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
 
@@ -555,7 +562,9 @@ static int32_t taosTmrModuleInit(void) {
   }
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
-  (void)taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
+  if (taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK) != 0) {
+    tmrError("failed to initialize timer");
+  }
 
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
 

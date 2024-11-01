@@ -45,9 +45,9 @@ typedef int32_t (*_state_fun_get_fn)(SStreamFileState* pFileState, void* pKey, i
 
 typedef int32_t (*range_cmpr_fn)(const SSessionKey* pWin1, const SSessionKey* pWin2);
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId,
-                                      int8_t type);
+int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
+                            void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId, int8_t type,
+                            struct SStreamFileState** ppFileState);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);
@@ -63,7 +63,7 @@ int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 void             flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
-void             recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
+int32_t          recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
 
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
@@ -89,7 +89,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
                                            const SSessionKey* pWinKey, void** ppVal, int32_t* pVLen);
 
 SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKey, void* p, int32_t* pVLen);
-void         recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
+int32_t      recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
 
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);
@@ -110,7 +110,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
 // count window
 int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
                               int32_t* pVLen, int32_t* pWinCode);
-int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
 
 // function
 int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,

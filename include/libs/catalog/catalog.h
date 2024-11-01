@@ -96,6 +96,7 @@ typedef struct SCatalogReq {
   SArray* pView;          // element is STablesReq
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
+  SArray* pTableName;     // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -414,6 +415,10 @@ int32_t catalogRemoveTSMA(SCatalog* pCtg, const STableTSMAInfo* pTsma);
 int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
 int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
+
+int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
+
+int32_t ctgHashValueComp(void const* lp, void const* rp);
 
 /**
  * Destroy catalog and relase all resources

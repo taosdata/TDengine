@@ -1,24 +1,26 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
+
 if(${TD_DARWIN})
     target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
 endif(${TD_DARWIN})
+
 set(
-  VNODE_SOURCE_FILES
-  "src/vnd/vnodeOpen.c"
-  "src/vnd/vnodeBufPool.c"
-  "src/vnd/vnodeCfg.c"
-  "src/vnd/vnodeCommit.c"
-  "src/vnd/vnodeQuery.c"
-  "src/vnd/vnodeModule.c"
-  "src/vnd/vnodeSvr.c"
-  "src/vnd/vnodeSync.c"
-  "src/vnd/vnodeSnapshot.c"
-  "src/vnd/vnodeRetention.c"
-  "src/vnd/vnodeInitApi.c"
-  "src/vnd/vnodeAsync.c"
-  "src/vnd/vnodeHash.c"
+    VNODE_SOURCE_FILES
+    "src/vnd/vnodeOpen.c"
+    "src/vnd/vnodeBufPool.c"
+    "src/vnd/vnodeCfg.c"
+    "src/vnd/vnodeCommit.c"
+    "src/vnd/vnodeQuery.c"
+    "src/vnd/vnodeModule.c"
+    "src/vnd/vnodeSvr.c"
+    "src/vnd/vnodeSync.c"
+    "src/vnd/vnodeSnapshot.c"
+    "src/vnd/vnodeRetention.c"
+    "src/vnd/vnodeInitApi.c"
+    "src/vnd/vnodeAsync.c"
+    "src/vnd/vnodeHash.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -40,23 +42,23 @@ set(
     "src/sma/smaSnapshot.c"
     "src/sma/smaTimeRange.c"
 
-  # # tsdb
-  # "src/tsdb/tsdbCommit.c"
-  # "src/tsdb/tsdbFile.c"
-  # "src/tsdb/tsdbFS.c"
-  # "src/tsdb/tsdbOpen.c"
-  # "src/tsdb/tsdbMemTable.c"
-  # "src/tsdb/tsdbRead.c"
-  # "src/tsdb/tsdbCache.c"
-  # "src/tsdb/tsdbWrite.c"
-  # "src/tsdb/tsdbReaderWriter.c"
-  # "src/tsdb/tsdbUtil.c"
-  # "src/tsdb/tsdbSnapshot.c"
-  # "src/tsdb/tsdbCacheRead.c"
-  # "src/tsdb/tsdbRetention.c"
-  # "src/tsdb/tsdbDiskData.c"
-  # "src/tsdb/tsdbMergeTree.c"
-  # "src/tsdb/tsdbDataIter.c"
+    # # tsdb
+    # "src/tsdb/tsdbCommit.c"
+    # "src/tsdb/tsdbFile.c"
+    # "src/tsdb/tsdbFS.c"
+    # "src/tsdb/tsdbOpen.c"
+    # "src/tsdb/tsdbMemTable.c"
+    # "src/tsdb/tsdbRead.c"
+    # "src/tsdb/tsdbCache.c"
+    # "src/tsdb/tsdbWrite.c"
+    # "src/tsdb/tsdbReaderWriter.c"
+    # "src/tsdb/tsdbUtil.c"
+    # "src/tsdb/tsdbSnapshot.c"
+    # "src/tsdb/tsdbCacheRead.c"
+    # "src/tsdb/tsdbRetention.c"
+    # "src/tsdb/tsdbDiskData.c"
+    # "src/tsdb/tsdbMergeTree.c"
+    # "src/tsdb/tsdbDataIter.c"
 
     # tq
     "src/tq/tq.c"
@@ -71,14 +73,13 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
-    
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
 list(
-  APPEND
-  VNODE_SOURCE_FILES
-  ${TSDB_SOURCE_FILES}
+    APPEND
+    VNODE_SOURCE_FILES
+    ${TSDB_SOURCE_FILES}
 )
 
 target_sources(
@@ -87,38 +88,38 @@ target_sources(
     ${VNODE_SOURCE_FILES}
 )
 
-IF (TD_VNODE_PLUGINS)
-  target_sources(
-    vnode
-    PRIVATE
-    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
-    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
-    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
-  )
-ENDIF ()
+if(TD_VNODE_PLUGINS)
+    target_sources(
+        vnode
+        PRIVATE
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
+    )
+endif()
 
-# IF (NOT ${TD_LINUX})
+# if (NOT ${TD_LINUX})
 # target_include_directories(
-#     vnode
-#     PUBLIC "inc"
-#     PUBLIC "src/inc"
-#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-#     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+# vnode
+# PUBLIC "inc"
+# PUBLIC "src/inc"
+# PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+# PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 # )
 # ELSE()
 # target_include_directories(
-#     vnode
-#     PUBLIC "inc"
-#     PUBLIC "src/inc"
-#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+# vnode
+# PUBLIC "inc"
+# PUBLIC "src/inc"
+# PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
 # )
-#ENDIF(NOT ${TD_LINUX})
-
-if (${BUILD_CONTRIB})
+# endif(NOT ${TD_LINUX})
+if(${BUILD_CONTRIB})
     target_include_directories(
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -129,24 +130,26 @@ else()
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
-    if (${TD_LINUX})
-    target_include_directories(
-            vnode 
+
+    if(${TD_LINUX})
+        target_include_directories(
+            vnode
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )
         target_link_directories(
-            vnode 
+            vnode
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )
     endif()
 endif()
 
 target_link_directories(
-    vnode 
+    vnode
     PUBLIC "${CMAKE_BINARY_DIR}/build/lib"
 )
 
@@ -164,10 +167,11 @@ target_link_libraries(
     PUBLIC tdb
     PUBLIC audit
     PUBLIC crypt
+    PUBLIC tcs
 
     # PUBLIC bdb
     # PUBLIC scalar
-    #PUBLIC zstd
+    # PUBLIC zstd
     PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
@@ -175,9 +179,9 @@ target_link_libraries(
     PUBLIC tqCommon
 )
 
-IF (TD_GRANT)
-  TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
-ENDIF ()
+if(TD_GRANT)
+    TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
+endif()
 
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 

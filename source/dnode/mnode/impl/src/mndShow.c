@@ -68,6 +68,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ANODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_ANODE_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -182,7 +186,11 @@ static void mndFreeShowObj(SShowObj *pShow) {
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
     if (pShow->pIter != NULL) {
+      mTrace("show:0x%" PRIx64 ", is destroying, data:%p, pIter:%p, ", pShow->id, pShow, pShow->pIter);
+
       (*freeFp)(pMnode, pShow->pIter);
+
+      pShow->pIter = NULL;
     }
   }
 
@@ -241,7 +249,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mError("failed to process show-meta req since %s", tstrerror(code));
       TAOS_RETURN(code);
     }
@@ -332,11 +340,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mndReleaseShowObj(pShow, false);
-    code = TSDB_CODE_OUT_OF_MEMORY;
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
-    blockDataDestroy(pBlock);
-    TAOS_RETURN(code);
+    code = terrno;
+    goto _exit;
   }
 
   pRsp->handle = htobe64(pShow->id);
@@ -358,6 +364,11 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
+    if(len < 0){
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+      code =  terrno;
+      return code;
+    }
   }
 
   pRsp->numOfRows = htonl(rowsRead);
@@ -376,6 +387,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
+_exit:
+  mndReleaseShowObj(pShow, false);
+  blockDataDestroy(pBlock);
+  if(pRsp) {
+    rpcFreeCont(pRsp);
+  }
+  return code;
 }
 
 static bool mndCheckRetrieveFinished(SShowObj *pShow) {

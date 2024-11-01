@@ -99,26 +99,28 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 }
 
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  int32_t       lino = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
+
   if (pState == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     streamStateDestroy(pState, true);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   SStreamTask* pStreamTask = pTask;
   pState->streamId = streamId;
   pState->taskId = taskId;
-  sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId);
+  TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId));
 
   code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -138,7 +140,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("0x%x %s failed at line %d since %s", taskId, __func__, lino, tstrerror(code));
   }
   return NULL;
 }
@@ -168,11 +170,12 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  int32_t tmpLen = len;
+  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  char*   buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  int32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
 
 _end:
@@ -186,11 +189,12 @@ int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVa
   int32_t lino = 0;
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
-  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  int32_t tmpLen = len;
+  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &tmpLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
+  char*   buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  int32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   streamStateReleaseBuf(pState, pVal, false);
 
@@ -298,7 +302,7 @@ SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  return streamStateGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  return streamStateGetKVByCur_rocksdb(getStateFileStore(pCur->pStreamFileState), pCur, pKey, pVal, pVLen);
 }
 
 int32_t streamStateFillGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
@@ -473,6 +477,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   if (!pStr) {
     if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       (*pWinCode) = TSDB_CODE_FAILED;
+      goto _end;
     }
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
@@ -483,7 +488,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   }
   *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
   if (!(*pVal)) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -524,10 +529,16 @@ void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
   }
   dst->dump = 1;
   dst->pTdbState->pOwner->pBackend = src->pTdbState->pOwner->pBackend;
+  dst->pResultRowStore.resultRowPut = src->pResultRowStore.resultRowPut;
+  dst->pResultRowStore.resultRowGet = src->pResultRowStore.resultRowGet;
+  dst->pExprSupp = src->pExprSupp;
   return;
 }
 SStreamStateCur* createStreamStateCursor() {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
   pCur->buffIndex = -1;
   return pCur;
 }
@@ -538,6 +549,6 @@ int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey
   return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen, pWinCode);
 }
 
-int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  return createCountWinResultBuff(pState->pFileState, pKey, pVal, pVLen);
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
+  return createCountWinResultBuff(pState->pFileState, pKey, winCount, pVal, pVLen);
 }

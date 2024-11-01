@@ -91,11 +91,13 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = pRpcMsg->pCont;
   bool             resetElect = false;
 
+  syncLogRecvRequestVote(ths, pMsg, -1, "", "recv");
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
-    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config");
+    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config", "process");
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
 
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
@@ -104,7 +106,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->term);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
-  ASSERT(pMsg->term <= currentTerm);
+  if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool grant = (pMsg->term == currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
@@ -130,12 +132,12 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->destId = pMsg->srcId;
   pReply->term = currentTerm;
   pReply->voteGranted = grant;
-  ASSERT(!grant || pMsg->term == pReply->term);
+  if (!(!grant || pMsg->term == pReply->term)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // trace log
-  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");
+  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed");
   syncLogSendRequestVoteReply(ths, pReply, "");
-  (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
 

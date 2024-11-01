@@ -12,7 +12,7 @@ SWalSyncInfo syncMeta = {0};
 class WalCleanEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    int code = walInit();
+    int code = walInit(NULL);
     ASSERT(code == 0);
   }
 
@@ -44,7 +44,7 @@ class WalCleanEnv : public ::testing::Test {
 class WalCleanDeleteEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    int code = walInit();
+    int code = walInit(NULL);
     ASSERT(code == 0);
   }
 
@@ -74,7 +74,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
 class WalKeepEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    int code = walInit();
+    int code = walInit(NULL);
     ASSERT(code == 0);
   }
 
@@ -111,7 +111,7 @@ class WalKeepEnv : public ::testing::Test {
 class WalRetentionEnv : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    int code = walInit();
+    int code = walInit(NULL);
     ASSERT(code == 0);
   }
 
@@ -127,6 +127,7 @@ class WalRetentionEnv : public ::testing::Test {
     SWalCfg cfg;
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
+    cfg.committed =-1;
     cfg.retentionPeriod = -1;
     cfg.retentionSize = 0;
     cfg.rollPeriod = 0;

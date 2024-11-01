@@ -24,15 +24,14 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 
-#define T_LONG_JMP(_obj, _c) \
-  do {                       \
-    ASSERT((_c) != 1);      \
-    longjmp((_obj), (_c));   \
+#define T_LONG_JMP(_obj, _c)                                                              \
+  do {                                                                                    \
+    qError("error happens at %s, line:%d, code:%s", __func__, __LINE__, tstrerror((_c))); \
+    longjmp((_obj), (_c));                                                                \
   } while (0)
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)           \
   do {                                                     \
-    assert(sizeof(_uid) == sizeof(uint64_t));              \
     *(uint64_t*)(_k) = (_uid);                             \
     (void)memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
@@ -49,6 +48,7 @@ typedef struct SGroupResInfo {
 } SGroupResInfo;
 
 typedef struct SResultRow {
+  int32_t                    version;
   int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
   int32_t                    offset : 29;  // row index in buffer page
   bool                       startInterp;  // the time window start timestamp has done the interpolation already.
@@ -126,7 +126,7 @@ uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint6
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
-uint64_t        tableListGetSize(const STableListInfo* pTableList);
+int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
@@ -153,6 +153,9 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   return pRow;
 }
 
+int32_t getResultRowFromBuf(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+int32_t putResultRowToBuf(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+
 int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
@@ -174,9 +177,9 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
 
-int32_t    createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
-int32_t    createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
-SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
+int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
+int32_t createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
+int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
                                      SFunctionStateStore* pStore);
@@ -196,9 +199,6 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
 char*   getStreamOpName(uint16_t opType);
 void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
 void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
-
-void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
-void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t delta);
@@ -221,6 +221,6 @@ uint64_t calcGroupId(char* pData, int32_t len);
 
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
-int32_t extractKeysLen(const SArray* keys);
+int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
 
 #endif  // TDENGINE_EXECUTIL_H

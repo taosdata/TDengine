@@ -131,14 +131,14 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1)
 
         tdSql.query("select * from ct3 order by c1 desc")
-        tdSql.checkRows(2)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 1, 51)
         tdSql.checkData(0, 4, 940)
         tdSql.checkData(1, 1, 23)
         tdSql.checkData(1, 4, None)
 
         tdSql.query("select * from st1 order by ts")
-        tdSql.checkRows(8)
+        tdSql.checkRows(14)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(4, 1, 4)
@@ -180,7 +180,7 @@ class TDTestCase:
         tdSql.checkData(6, 8, None)
 
         tdSql.query("select * from ct1")
-        tdSql.checkRows(4)
+        tdSql.checkRows(7)
 
         tdSql.query("select * from ct2")
         tdSql.checkRows(0)
@@ -496,6 +496,43 @@ class TDTestCase:
             consumer.close()
         print("consume_ts_4551 ok")
 
+    def consume_td_31283(self):
+        tdSql.execute(f'create database if not exists d31283')
+        tdSql.execute(f'use d31283')
+
+        tdSql.execute(f'create topic topic_31283 with meta as database d31283')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "experimental.snapshot.enable": "true",
+            # "msg.enable.batchmeta": "true"
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_31283"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.execute(f'create table stt(ts timestamp, i int) tags(t int)')
+
+        hasData = False
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+                hasData = True
+        finally:
+            consumer.close()
+
+        if not hasData:
+            tdLog.exit(f"consume_td_31283 error")
+
+        print("consume_td_31283 ok")
+
     def consume_TS_5067_Test(self):
         tdSql.execute(f'create database if not exists d1 vgroups 1')
         tdSql.execute(f'use d1')
@@ -561,12 +598,12 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
         tdSql.execute(f'drop consumer group g1 on t1')
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.query(f'show subscriptions')
         tdSql.checkRows(1)
@@ -604,7 +641,7 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.execute(f'insert into t4 using st tags(3) values(now, 1)')
         try:
@@ -632,6 +669,7 @@ class TDTestCase:
         self.consume_ts_4544()
         self.consume_ts_4551()
         self.consume_TS_4540_Test()
+        self.consume_td_31283()
 
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()

@@ -22,7 +22,7 @@
 #include "taos_collector_registry.h"
 
 // Private
-#include "taos_assert.h"
+#include "taos_test.h"
 #include "taos_collector_t.h"
 #include "taos_log.h"
 #include "taos_map_i.h"
@@ -39,18 +39,24 @@ taos_collector_t *taos_collector_new(const char *name) {
   self->name = taos_strdup(name);
   self->metrics = taos_map_new();
   if (self->metrics == NULL) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   r = taos_map_set_free_value_fn(self->metrics, &taos_metric_free_generic);
   if (r) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   self->collect_fn = &taos_collector_default_collect;
   self->string_builder = taos_string_builder_new();
   if (self->string_builder == NULL) {
-    (void)taos_collector_destroy(self);
+    if (taos_collector_destroy(self) != 0) {
+      TAOS_LOG("taos_collector_destroy failed");
+    }
     return NULL;
   }
   self->proc_limits_file_path = NULL;
@@ -59,7 +65,7 @@ taos_collector_t *taos_collector_new(const char *name) {
 }
 
 int taos_collector_destroy(taos_collector_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 0;
 
   int r = 0;
@@ -70,8 +76,7 @@ int taos_collector_destroy(taos_collector_t *self) {
   self->metrics = NULL;
 
   if(self->string_builder != NULL){
-    r = taos_string_builder_destroy(self->string_builder);
-    if (r) ret = r;
+    taos_string_builder_destroy(self->string_builder);
     self->string_builder = NULL;
   }
 
@@ -93,18 +98,20 @@ int taos_collector_destroy_generic(void *gen) {
 
 void taos_collector_free_generic(void *gen) {
   taos_collector_t *self = (taos_collector_t *)gen;
-  (void)taos_collector_destroy(self);
+  if (taos_collector_destroy(self) != 0) {
+    TAOS_LOG("taos_collector_destroy failed");
+  }
 }
 
 int taos_collector_set_collect_fn(taos_collector_t *self, taos_collect_fn *fn) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   self->collect_fn = fn;
   return 0;
 }
 
 int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   if (taos_map_get(self->metrics, metric->name) != NULL) {
     TAOS_LOG("metric already found in collector");
@@ -114,13 +121,13 @@ int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric) {
 }
 
 int taos_collector_remove_metric(taos_collector_t *self, const char* key){
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
   return taos_map_delete(self->metrics, key);
 }
 
 taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name){
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   if (self == NULL) return NULL;
   return taos_map_get(self->metrics, metric_name);
 }

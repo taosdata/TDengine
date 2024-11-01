@@ -46,7 +46,7 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
     int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
     if (TSDB_CODE_SUCCESS != code) return code;
   } else {
-    (void)toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
+    toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
   }
   pAuth->type = type;
   pAuth->isView = isView;
@@ -172,11 +172,12 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
 #ifdef TD_ENTERPRISE
-    SName       name;
+    SName name = {0};
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
-    int32_t     code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache,
-                                         toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name),
-                                         &pTableMeta, true);
+    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
+    int32_t code = getTargetMetaImpl(
+        pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
@@ -296,7 +297,10 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
 
 static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SNode*  pNode = NULL;
+  if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     code = checkAuth(pCxt, pClause->dbName, pClause->tableName, AUTH_TYPE_WRITE, NULL);
@@ -308,6 +312,9 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
 }
 
 static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
+  if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
   return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
 }
 
@@ -358,6 +365,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:

@@ -47,7 +47,7 @@ int32_t schedulerInit() {
   schMgmt.hbConnections = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == schMgmt.hbConnections) {
     qError("taosHashInit hb connections failed");
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_ERR_RET(terrno);
   }
 
   schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
@@ -56,7 +56,7 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
+  if (taosGetSystemUUIDU64(&schMgmt.sId)) {
     qError("generate schedulerId failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
   }
@@ -119,7 +119,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
         qError("failed to get task %d, total: %d", m, pLevel->taskNum);
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
+
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
@@ -179,11 +179,15 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
-  (void)schReleaseJob(*jobId); // ignore error
-  *jobId = 0;
+  int32_t released = false;
+  (void)schReleaseJobEx(*jobId, &released);  // ignore error
+  if (released) {
+    *jobId = 0;
+  }
 }
 
 void schedulerDestroy(void) {
+  int32_t code = 0;
   atomic_store_8((int8_t *)&schMgmt.exit, 1);
 
   if (schMgmt.jobRef >= 0) {
@@ -195,7 +199,10 @@ void schedulerDestroy(void) {
       if (refId == 0) {
         break;
       }
-      (void)taosRemoveRef(schMgmt.jobRef, pJob->refId); // ignore error
+      code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
+      if (code) {
+        qWarn("taosRemoveRef job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code));
+      }
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }
@@ -217,3 +224,33 @@ void schedulerDestroy(void) {
   qWorkerDestroy(&schMgmt.queryMgmt);
   schMgmt.queryMgmt = NULL;
 }
+
+int32_t schedulerValidatePlan(SQueryPlan* pPlan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
+  if (NULL == pJob) {
+    qError("QID:0x%" PRIx64 " calloc %d failed", pPlan->queryId, (int32_t)sizeof(SSchJob));
+    SCH_ERR_RET(terrno);
+  }
+
+  pJob->taskList = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+                                HASH_ENTRY_LOCK);
+  if (NULL == pJob->taskList) {
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", 100);
+    SCH_ERR_JRET(terrno);
+  }
+
+  SCH_ERR_JRET(schValidateAndBuildJob(pPlan, pJob));
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    SCH_ERR_JRET(qExecExplainBegin(pPlan, &pJob->explainCtx, 0));
+  }
+
+_return:  
+
+  schFreeJobImpl(pJob);
+  
+  return code;
+}
+
+

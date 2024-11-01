@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create database
-sql create database d0 duration 300
+sql create database d0 duration 120
 sql use d0
 
 print =============== create super table and child table
@@ -200,8 +200,9 @@ if $data02 != 2678400000 then
   return -1
 endi
 
-sql_error select  _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w) sliding(2w)
-sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+sql select  _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w) sliding(2w)
+sql select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(5w)
 
 sql select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)
 print ===> select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)

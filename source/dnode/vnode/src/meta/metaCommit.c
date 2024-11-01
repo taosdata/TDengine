@@ -66,12 +66,17 @@ int metaPrepareAsyncCommit(SMeta *pMeta) {
   int32_t lino;
 
   metaWLock(pMeta);
-  TAOS_UNUSED(ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn));
+  int32_t ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to flush ttl since %s", TD_VID(pMeta->pVnode), tstrerror(ret));
+  }
   metaULock(pMeta);
 
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
   TSDB_CHECK_CODE(code, lino, _exit);
   pMeta->changed = false;
+
+  pMeta->txn = NULL;
 
 _exit:
   if (code) {
@@ -89,12 +94,7 @@ int metaAbort(SMeta *pMeta) {
     return 0;
   }
 
-  int code = tdbAbort(pMeta->pEnv, pMeta->txn);
-  if (code) {
-    metaError("vgId:%d, failed to abort meta since %s", TD_VID(pMeta->pVnode), tstrerror(terrno));
-  } else {
-    pMeta->txn = NULL;
-  }
-
-  return code;
+  tdbAbort(pMeta->pEnv, pMeta->txn);
+  pMeta->txn = NULL;
+  return 0;
 }

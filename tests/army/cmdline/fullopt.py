@@ -60,7 +60,7 @@ class TDTestCase(TBase):
                      "enableCoreFile 1",
                      "fqdn 127.0.0.1",
                      "firstEp 127.0.0.1",
-                     "locale ENG",
+                     "locale en_US.UTF-8",
                      "metaCacheMaxSize 10000",
                      "minimalTmpDirGB 5",
                      "minimalLogDirGB 1",

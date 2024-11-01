@@ -115,7 +115,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
     int32_t code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
     ASSERT(code == 0);
 
-    //    sprintf(buf, "this is %d row", i);
+    //    tsnprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
@@ -179,7 +179,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     code = colDataSetVal(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
     ASSERT(code == 0);
 
-    //    sprintf(buf, "this is %d row", i);
+    //    tsnprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
@@ -198,6 +198,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type,
                                    int32_t numOfCols) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(taosMemoryCalloc(1, sizeof(SOperatorInfo)));
+  ASSERT(!pOperator);
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
@@ -207,6 +208,7 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   }
 
   SDummyInputInfo* pInfo = (SDummyInputInfo*)taosMemoryCalloc(1, sizeof(SDummyInputInfo));
+  ASSERT(!pInfo);
   pInfo->totalPages = numOfBlocks;
   pInfo->startVal = startVal;
   pInfo->numOfRowsPerPage = rowsPerPage;

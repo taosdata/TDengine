@@ -64,8 +64,12 @@ int32_t binarySearch(void* keyList, int num, const void* key, __session_compare_
 int64_t getSessionWindowEndkey(void* data, int32_t index) {
   SArray*       pWinInfos = (SArray*)data;
   SRowBuffPos** ppos = taosArrayGet(pWinInfos, index);
-  SSessionKey*  pWin = (SSessionKey*)((*ppos)->pKey);
-  return pWin->win.ekey;
+  if (ppos != NULL) {
+    SSessionKey* pWin = (SSessionKey*)((*ppos)->pKey);
+    return pWin->win.ekey;
+  } else {
+    return 0;
+  }
 }
 
 bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
@@ -77,6 +81,9 @@ bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
 
 SStreamStateCur* createSessionStateCursor(SStreamFileState* pFileState) {
   SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
   pCur->pStreamFileState = pFileState;
   return pCur;
 }
@@ -94,7 +101,7 @@ static int32_t addNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInf
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   void* tmp = taosArrayPush(pWinInfos, &pNewPos);
   if (!tmp) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   (*ppPos) = pNewPos;
@@ -119,7 +126,7 @@ static int32_t insertNewSessionWindow(SStreamFileState* pFileState, SArray* pWin
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   void* tmp = taosArrayInsert(pWinInfos, index, &pNewPos);
   if (!tmp) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -173,7 +180,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = tSimpleHashPut(pSessionBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
@@ -277,8 +284,7 @@ _end:
 
 int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                           int32_t* pWinCode) {
-  SWinKey* pTmpkey = pKey;
-  ASSERT(keyLen == sizeof(SWinKey));
+  SWinKey*    pTmpkey = pKey;
   SSessionKey pWinKey = {.groupId = pTmpkey->groupId, .win.skey = pTmpkey->ts, .win.ekey = pTmpkey->ts};
   return getSessionWinResultBuff(pFileState, &pWinKey, 0, pVal, pVLen, pWinCode);
 }
@@ -295,7 +301,7 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -307,7 +313,7 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
   if (size == 0) {
     void* tmp = taosArrayPush(pWinStates, &pPos);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
@@ -318,13 +324,13 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
   if (index >= 0) {
     void* tmp = taosArrayInsert(pWinStates, index, &pPos);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
     void* tmp = taosArrayInsert(pWinStates, 0, &pPos);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -337,7 +343,8 @@ _end:
   return code;
 }
 
-int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
+int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen,
+                              int32_t* pWinCode) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
@@ -347,7 +354,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   }
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
-  void*   pBuff = NULL;
+  void* pBuff = NULL;
   (*pWinCode) = streamStateSessionGet_rocksdb(getStateFileStore(pFileState), pKey, &pBuff, pVLen);
   if ((*pWinCode) != TSDB_CODE_SUCCESS) {
     goto _end;
@@ -415,7 +422,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
   if (!ppBuff) {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -451,7 +458,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
         SSessionKey pTmpKey = *pWinKey;
         int32_t     winCode = TSDB_CODE_SUCCESS;
         code = getSessionWinResultBuff(pFileState, &pTmpKey, 0, (void**)&pNewPos, pVLen, &winCode);
-        ASSERT(winCode == TSDB_CODE_FAILED);
+        QUERY_CHECK_CONDITION((winCode == TSDB_CODE_FAILED), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
@@ -530,6 +537,9 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
 
   if (index >= 0) {
     pCur = createSessionStateCursor(pFileState);
+    if (pCur == NULL) {
+      return NULL;
+    }
     pCur->buffIndex = index;
     if (pIndex) {
       *pIndex = index;
@@ -566,7 +576,7 @@ static void transformCursor(SStreamFileState* pFileState, SStreamStateCur* pCur)
 static void checkAndTransformCursor(SStreamFileState* pFileState, const uint64_t groupId, SArray* pWinStates,
                                     SStreamStateCur** ppCur) {
   SSessionKey key = {.groupId = groupId};
-  int32_t     code = streamStateSessionGetKVByCur_rocksdb(*ppCur, &key, NULL, NULL);
+  int32_t     code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pFileState), *ppCur, &key, NULL, NULL);
   if (taosArrayGetSize(pWinStates) > 0 &&
       (code == TSDB_CODE_FAILED || sessionStateKeyCompare(&key, pWinStates, 0) >= 0)) {
     if (!(*ppCur)) {
@@ -631,6 +641,9 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     pBuffCur->buffIndex = 0;
   } else if (taosArrayGetSize(pWinStates) > 0) {
     pBuffCur = createSessionStateCursor(pFileState);
+    if (pBuffCur == NULL) {
+      return NULL;
+    }
     pBuffCur->buffIndex = 0;
   }
 
@@ -641,7 +654,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     SSessionKey key = {0};
     void*       pVal = NULL;
     int         len = 0;
-    int32_t     code = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &len);
+    int32_t     code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pFileState), pCur, &key, &pVal, &len);
     if (code == TSDB_CODE_FAILED) {
       streamStateFreeCur(pCur);
       return pBuffCur;
@@ -655,7 +668,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     }
     streamStateCurPrev(pFileStore, pCur);
     while (1) {
-      code = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &len);
+      code = streamStateSessionGetKVByCur_rocksdb(NULL, pCur, &key, &pVal, &len);
       if (code == TSDB_CODE_FAILED) {
         streamStateCurNext(pFileStore, pCur);
         return pCur;
@@ -698,7 +711,7 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
     *pKey = *(SSessionKey*)(pPos->pKey);
   } else {
     void* pData = NULL;
-    code = streamStateSessionGetKVByCur_rocksdb(pCur, pKey, &pData, pVLen);
+    code = streamStateSessionGetKVByCur_rocksdb(getStateFileStore(pCur->pStreamFileState), pCur, pKey, &pData, pVLen);
     if (taosArrayGetSize(pWinStates) > 0 &&
         (code == TSDB_CODE_FAILED || sessionStateRangeKeyCompare(pKey, pWinStates, 0) >= 0)) {
       transformCursor(pCur->pStreamFileState, pCur);
@@ -792,7 +805,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -903,7 +916,7 @@ _end:
 
 int32_t getCountWinStateFromDisc(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext_rocksdb(pState, pKey);
-  int32_t          code = streamStateSessionGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  int32_t          code = streamStateSessionGetKVByCur_rocksdb(pState, pCur, pKey, pVal, pVLen);
   streamStateFreeCur(pCur);
   if (code == TSDB_CODE_SUCCESS) {
     return code;
@@ -911,7 +924,7 @@ int32_t getCountWinStateFromDisc(SStreamState* pState, SSessionKey* pKey, void**
     pCur = streamStateSessionSeekKeyPrev_rocksdb(pState, pKey);
   }
 
-  code = streamStateSessionGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  code = streamStateSessionGetKVByCur_rocksdb(pState, pCur, pKey, pVal, pVLen);
   streamStateFreeCur(pCur);
   return code;
 }
@@ -932,7 +945,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1048,7 +1061,8 @@ _end:
   return code;
 }
 
-int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                                 int32_t* pVLen) {
   SSessionKey* pWinKey = pKey;
   const TSKEY  gap = 0;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1070,21 +1084,27 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
   int32_t size = taosArrayGetSize(pWinStates);
   if (size == 0) {
     void* pFileStore = getStateFileStore(pFileState);
-    void* p = NULL;
+    void* pRockVal = NULL;
 
-    int32_t code_file = getCountWinStateFromDisc(pFileStore, pWinKey, &p, pVLen);
+    int32_t code_file = getCountWinStateFromDisc(pFileStore, pWinKey, &pRockVal, pVLen);
     if (code_file == TSDB_CODE_SUCCESS && isFlushedState(pFileState, endTs, 0)) {
-      (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
-      if (!(*pVal)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      int32_t     valSize = *pVLen;
+      COUNT_TYPE* pWinStateCount = (COUNT_TYPE*)((char*)(pRockVal) + (valSize - sizeof(COUNT_TYPE)));
+      if ((*pWinStateCount) == winCount) {
+        code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
         QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        (*pVal) = createSessionWinBuff(pFileState, pWinKey, pRockVal, pVLen);
+        if (!(*pVal)) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey,
+               pWinKey->win.ekey, code_file);
       }
-
-      qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey,
-             pWinKey->win.ekey, code_file);
     } else {
       code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
-      taosMemoryFree(p);
+      taosMemoryFree(pRockVal);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {

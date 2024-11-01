@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "mndCompactDetail.h"
-#include "mndTrans.h"
-#include "mndShow.h"
 #include "mndDb.h"
+#include "mndShow.h"
+#include "mndTrans.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
@@ -35,21 +35,20 @@ int32_t mndInitCompactDetail(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupCompactDetail(SMnode *pMnode) {
-  mDebug("mnd compact detail cleanup");
-}
+void mndCleanupCompactDetail(SMnode *pMnode) { mDebug("mnd compact detail cleanup"); }
 
-int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
-  int32_t     numOfRows = 0;
-  SCompactDetailObj   *pCompactDetail = NULL;
-  char       *sep = NULL;
-  SDbObj     *pDb = NULL;
-  
+int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode            *pMnode = pReq->info.node;
+  SSdb              *pSdb = pMnode->pSdb;
+  int32_t            numOfRows = 0;
+  SCompactDetailObj *pCompactDetail = NULL;
+  char              *sep = NULL;
+  SDbObj            *pDb = NULL;
+
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
-    if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
+    if (sep &&
+        ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
       sep++;
     } else {
       pDb = mndAcquireDb(pMnode, pShow->db);
@@ -57,7 +56,7 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
   }
 
-  while(numOfRows < rows){
+  while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT_DETAIL, pShow->pIter, (void **)&pCompactDetail);
     if (pShow->pIter == NULL) break;
 
@@ -68,22 +67,28 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false), pSdb,
+                                   pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false), pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false),
+                                   pSdb, pCompactDetail);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false),
+                                   pSdb, pCompactDetail);
 
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);
@@ -94,53 +99,60 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   return numOfRows;
 }
 
-void tFreeCompactDetailObj(SCompactDetailObj *pCompact) {
-}
+void tFreeCompactDetailObj(SCompactDetailObj *pCompact) {}
 
 int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj) {
   SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-
-  if (tEncodeI32(&encoder, pObj->compactDetailId) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->compactId) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->vgId) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->dnodeId) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->numberFileset) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->finished) < 0) return -1;
-  if (tEncodeI64(&encoder, pObj->startTime) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->newNumberFileset) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->newFinished) < 0) return -1;
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactDetailId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->vgId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->numberFileset));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->finished));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->newNumberFileset));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->newFinished));
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj) {
-  int8_t ex = 0;
+  int32_t  code = 0;
+  int32_t  lino;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_RETURN(tStartDecode(&decoder));
-
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactDetailId));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactId));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->vgId));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->dnodeId));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->numberFileset));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->finished));
-  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pObj->startTime));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->newNumberFileset));
-  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->newFinished));
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactDetailId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->vgId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->numberFileset));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->finished));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->newNumberFileset));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->newFinished));
 
   tEndDecode(&decoder);
 
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
@@ -148,7 +160,7 @@ SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
   int32_t lino = 0;
   terrno = TSDB_CODE_SUCCESS;
 
-  void *buf = NULL;
+  void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
 
   int32_t tlen = tSerializeSCompactDetailObj(NULL, 0, pCompact);
@@ -156,8 +168,8 @@ SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
   }
-  
-  int32_t  size = sizeof(int32_t) + tlen;
+
+  int32_t size = sizeof(int32_t) + tlen;
   pRaw = sdbAllocRaw(SDB_COMPACT_DETAIL, MND_COMPACT_VER_NUMBER, size);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -180,7 +192,6 @@ SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
   SDB_SET_INT32(pRaw, dataPos, tlen, OVER);
   SDB_SET_BINARY(pRaw, dataPos, buf, tlen, OVER);
   SDB_SET_DATALEN(pRaw, dataPos, OVER);
-
 
 OVER:
   taosMemoryFreeClear(buf);
@@ -263,9 +274,8 @@ int32_t mndCompactDetailActionDelete(SSdb *pSdb, SCompactDetailObj *pCompact) {
 }
 
 int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact, SCompactDetailObj *pNewCompact) {
-  mTrace("compact detail:%" PRId32 ", perform update action, old row:%p new row:%p", 
-          pOldCompact->compactId, pOldCompact, pNewCompact);
-
+  mTrace("compact detail:%" PRId32 ", perform update action, old row:%p new row:%p", pOldCompact->compactId,
+         pOldCompact, pNewCompact);
 
   pOldCompact->numberFileset = pNewCompact->numberFileset;
   pOldCompact->finished = pNewCompact->finished;
@@ -273,8 +283,8 @@ int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact,
   return 0;
 }
 
-int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup, 
-                                  SVnodeGid *pVgid, int32_t index){
+int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompact, SVgObj *pVgroup,
+                                  SVnodeGid *pVgid, int32_t index) {
   int32_t           code = 0;
   SCompactDetailObj compactDetail = {0};
   compactDetail.compactDetailId = index;
@@ -287,8 +297,8 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   compactDetail.newNumberFileset = -1;
   compactDetail.newFinished = -1;
 
-  mInfo("compact:%d, add compact detail to trans, index:%d, vgId:%d, dnodeId:%d", 
-    compactDetail.compactId, compactDetail.compactDetailId, compactDetail.vgId, compactDetail.dnodeId);
+  mInfo("compact:%d, add compact detail to trans, index:%d, vgId:%d, dnodeId:%d", compactDetail.compactId,
+        compactDetail.compactDetailId, compactDetail.vgId, compactDetail.dnodeId);
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;
@@ -298,7 +308,7 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+  code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
 
   TAOS_RETURN(code);
 }

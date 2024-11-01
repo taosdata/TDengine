@@ -92,6 +92,26 @@ extern "C" {
     }                                        \
   }
 
+#define SML_CHECK_CODE(CMD)              \
+  code = (CMD);                          \
+  if (TSDB_CODE_SUCCESS != code) {       \
+    lino = __LINE__;                     \
+    goto END;                            \
+  }
+
+#define SML_CHECK_NULL(CMD)              \
+  if (NULL == (CMD)) {                   \
+    code = terrno;                       \
+    lino = __LINE__;                     \
+    goto END;                            \
+  }
+
+#define RETURN                          \
+  if (code != 0){                       \
+    uError("%s failed code:%d line:%d", __FUNCTION__ , code, lino);     \
+  } \
+  return code;
+
 typedef enum {
   SCHEMA_ACTION_NULL,
   SCHEMA_ACTION_CREATE_STABLE,
@@ -191,7 +211,6 @@ typedef struct {
   cJSON       *root;  // for parse json
   int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
-  bool               parseJsonByLib;
   SArray      *tagJsonArray;
   SArray      *valueJsonArray;
 
@@ -199,29 +218,27 @@ typedef struct {
   SArray      *preLineTagKV;
   SArray      *maxTagKVs;
   SArray      *maxColKVs;
+  SArray      *escapedStringList;
 
   SSmlLineInfo preLine;
   STableMeta  *currSTableMeta;
   STableDataCxt *currTableDataCtx;
   bool         needModifySchema;
+  char        *tbnameKey;
 } SSmlHandle;
 
 extern int64_t smlFactorNS[];
 extern int64_t smlFactorS[];
 
-typedef int32_t (*_equal_fn_sml)(const void *, const void *);
-
 int32_t       smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle);
 void          smlDestroyInfo(SSmlHandle *info);
-int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
-int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
-int32_t       smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen, SSmlTableInfo** tInfo);
+
+int32_t           smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen, SSmlTableInfo** tInfo);
 int32_t           smlBuildSTableMeta(bool isDataFormat, SSmlSTableMeta** sMeta);
-int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
+int32_t           smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey);
 int32_t           getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
 int32_t           smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen, STableMeta **pTableMeta);
 int32_t           is_same_child_table_telnet(const void *a, const void *b);
@@ -234,7 +251,7 @@ void              smlDestroyTableInfo(void *para);
 void    freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
-int32_t smlParseJSON(SSmlHandle *info, char *payload);
+int32_t smlParseJSONExt(SSmlHandle *info, char *payload);
 
 int32_t         smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement, SSmlSTableMeta** sMeta);
 bool            isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
@@ -243,7 +260,8 @@ int32_t         smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements);
 int32_t         smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements);
 int32_t         smlJoinMeasureTag(SSmlLineInfo *elements);
 void            smlBuildTsKv(SSmlKv *kv, int64_t ts);
-int32_t         smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
+int32_t         smlParseEndTelnetJsonFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
+int32_t         smlParseEndTelnetJsonUnFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
 int32_t         smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs);
 
 static inline bool smlDoubleToInt64OverFlow(double num) {

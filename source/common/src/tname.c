@@ -33,7 +33,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     }
     struct tm tm;
     time_t t = (time_t)start;
-    taosLocalTime(&t, &tm);
+    taosLocalTime(&t, &tm, NULL, 0);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -87,12 +87,14 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
-SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  if (pName == NULL){
+    return;
+  }
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
   snprintf(pName->dbname, sizeof(pName->dbname), "%s", pDbName);
   snprintf(pName->tname, sizeof(pName->tname), "%s", pTableName);
-  return pName;
 }
 
 int32_t tNameExtractFullName(const SName* name, char* dst) {
@@ -101,11 +103,10 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = tsnprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    /*ASSERT(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -142,7 +143,7 @@ bool tNameIsValid(const SName* name) {
 
 SName* tNameDup(const SName* name) {
   SName* p = taosMemoryMalloc(sizeof(SName));
-  memcpy(p, name, sizeof(SName));
+  if (p) TAOS_MEMCPY(p, name, sizeof(SName));
   return p;
 }
 
@@ -154,13 +155,20 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  return snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  return 0;
 }
 
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
-  ASSERT(name != NULL && name->type == TSDB_TABLE_NAME_T);
+  if (!(name != NULL && name->type == TSDB_TABLE_NAME_T)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   return &name->tname[0];
 }
 
@@ -169,7 +177,7 @@ void tNameAssign(SName* dst, const SName* src) { memcpy(dst, src, sizeof(SName))
 int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
   // too long account id or too long db name
   if (nameLen <= 0 || nameLen >= tListLen(dst->dbname)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->type = TSDB_DB_NAME_T;

@@ -27,19 +27,113 @@ static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int k
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaInitLock(SMeta *pMeta) {
+static void metaInitLock(SMeta *pMeta) {
   TdThreadRwlockAttr attr;
   (void)taosThreadRwlockAttrInit(&attr);
   (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
   (void)taosThreadRwlockInit(&pMeta->lock, &attr);
   (void)taosThreadRwlockAttrDestroy(&attr);
-  return 0;
+  return;
 }
-static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
+static void metaDestroyLock(SMeta *pMeta) { (void)taosThreadRwlockDestroy(&pMeta->lock); }
 
 static void metaCleanup(SMeta **ppMeta);
 
-int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
+static void doScan(SMeta *pMeta) {
+  TBC    *cursor = NULL;
+  int32_t code;
+
+  // open file to write
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
+  TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (fp == NULL) {
+    metaError("failed to open file:%s, reason:%s", path, tstrerror(terrno));
+    return;
+  }
+
+  code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
+  if (code) {
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
+    metaError("failed to open table.db cursor, reason:%s", tstrerror(terrno));
+    return;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    if (taosCloseFile(&fp) != 0) {
+      metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+    }
+    tdbTbcClose(cursor);
+    metaError("failed to move to first, reason:%s", tstrerror(terrno));
+    return;
+  }
+
+  for (;;) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    // decode entry
+    SDecoder   dc = {0};
+    SMetaEntry me = {0};
+
+    tDecoderInit(&dc, (uint8_t *)pVal, vLen);
+
+    if (metaDecodeEntry(&dc, &me) < 0) {
+      tDecoderClear(&dc);
+      break;
+    }
+
+    // skip deleted entry
+    if (tdbTbGet(pMeta->pUidIdx, &me.uid, sizeof(me.uid), NULL, NULL) == 0) {
+      // print entry
+      char buf[1024] = {0};
+      if (me.type == TSDB_SUPER_TABLE) {
+        snprintf(buf, sizeof(buf) - 1, "type: super table, version:%" PRId64 " uid: %" PRId64 " name: %s\n", me.version,
+                 me.uid, me.name);
+
+      } else if (me.type == TSDB_CHILD_TABLE) {
+        snprintf(buf, sizeof(buf) - 1,
+                 "type: child table, version:%" PRId64 " uid: %" PRId64 " name: %s suid:%" PRId64 "\n", me.version,
+                 me.uid, me.name, me.ctbEntry.suid);
+      } else {
+        snprintf(buf, sizeof(buf) - 1, "type: normal table, version:%" PRId64 " uid: %" PRId64 " name: %s\n",
+                 me.version, me.uid, me.name);
+      }
+
+      if (taosWriteFile(fp, buf, strlen(buf)) < 0) {
+        metaError("failed to write file:%s, reason:%s", path, tstrerror(terrno));
+        tDecoderClear(&dc);
+        break;
+      }
+    }
+
+    tDecoderClear(&dc);
+
+    if (tdbTbcMoveToNext(cursor) < 0) {
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+  // close file
+  if (taosFsyncFile(fp) < 0) {
+    metaError("failed to fsync file:%s, reason:%s", path, tstrerror(terrno));
+  }
+  if (taosCloseFile(&fp) < 0) {
+    metaError("failed to close file:%s, reason:%s", path, tstrerror(terrno));
+  }
+}
+
+static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
   int32_t lino;
@@ -48,24 +142,29 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   char    indexFullPath[128] = {0};
 
   // create handle
-  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 
-  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  if (strncmp(metaDir, VNODE_META_TMP_DIR, strlen(VNODE_META_TMP_DIR)) == 0) {
+    taosRemoveDir(path);
   }
 
-  (void)metaInitLock(pMeta);
+  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
+
+  metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
-  (void)taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+  int32_t ret = taosRealPath(pMeta->path, NULL, strlen(path) + 1);
 
   pMeta->pVnode = pVnode;
 
   // create path if not created yet
-  (void)taosMkDir(pMeta->path);
+  code = taosMkDir(pMeta->path);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open env
   code = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback,
@@ -97,7 +196,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
-  TAOS_UNUSED(taosMkDir(indexFullPath));
+  ret = taosMkDir(indexFullPath);
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
   code = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
@@ -133,6 +232,11 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   code = metaInitTbFilterCache(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+#if 0
+  // Do NOT remove this code, it is used to do debug stuff
+  doScan(pMeta);
+#endif
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
@@ -143,6 +247,188 @@ _exit:
     *ppMeta = pMeta;
   }
   return code;
+}
+
+bool generateNewMeta = false;
+
+static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
+  SMeta  *pNewMeta = NULL;
+  SMeta  *pMeta = *ppMeta;
+  SVnode *pVnode = pMeta->pVnode;
+
+  metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
+
+  // Open a new meta for orgainzation
+  int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
+  if (code) {
+    return code;
+  }
+
+  code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL);
+  if (code) {
+    return code;
+  }
+
+  // i == 0, scan super table
+  // i == 1, scan normal table and child table
+  for (int i = 0; i < 2; i++) {
+    TBC    *uidCursor = NULL;
+    int32_t counter = 0;
+
+    code = tdbTbcOpen(pMeta->pUidIdx, &uidCursor, NULL);
+    if (code) {
+      metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+      return code;
+    }
+
+    code = tdbTbcMoveToFirst(uidCursor);
+    if (code) {
+      metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+      tdbTbcClose(uidCursor);
+      return code;
+    }
+
+    for (;;) {
+      const void *pKey;
+      int         kLen;
+      const void *pVal;
+      int         vLen;
+
+      if (tdbTbcGet(uidCursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+        break;
+      }
+
+      tb_uid_t    uid = *(tb_uid_t *)pKey;
+      SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+      if ((i == 0 && (pUidIdxVal->suid && pUidIdxVal->suid == uid))          // super table
+          || (i == 1 && (pUidIdxVal->suid == 0 || pUidIdxVal->suid != uid))  // normal table and child table
+      ) {
+        counter++;
+        if (i == 0) {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter, "super", uid);
+        } else {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter,
+                   pUidIdxVal->suid == 0 ? "normal" : "child", uid);
+        }
+
+        // fetch table entry
+        void *value = NULL;
+        int   valueSize = 0;
+        if (tdbTbGet(pMeta->pTbDb,
+                     &(STbDbKey){
+                         .version = pUidIdxVal->version,
+                         .uid = uid,
+                     },
+                     sizeof(uid), &value, &valueSize) == 0) {
+          SDecoder   dc = {0};
+          SMetaEntry me = {0};
+          tDecoderInit(&dc, value, valueSize);
+          if (metaDecodeEntry(&dc, &me) == 0) {
+            if (metaHandleEntry(pNewMeta, &me) != 0) {
+              metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
+            }
+          }
+          tDecoderClear(&dc);
+        }
+        tdbFree(value);
+      }
+
+      code = tdbTbcMoveToNext(uidCursor);
+      if (code) {
+        metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
+        return code;
+      }
+    }
+
+    tdbTbcClose(uidCursor);
+  }
+
+  code = metaCommit(pNewMeta, pNewMeta->txn);
+  if (code) {
+    metaError("vgId:%d failed to commit, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = metaFinishCommit(pNewMeta, pNewMeta->txn);
+  if (code) {
+    metaError("vgId:%d failed to finish commit, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  if ((code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL)) != 0) {
+    metaError("vgId:%d failed to begin new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+  }
+  metaClose(&pNewMeta);
+  metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
+  return 0;
+}
+
+int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
+  if (generateNewMeta) {
+    char path[TSDB_FILENAME_LEN] = {0};
+    char oldMetaPath[TSDB_FILENAME_LEN] = {0};
+    char newMetaPath[TSDB_FILENAME_LEN] = {0};
+    char backupMetaPath[TSDB_FILENAME_LEN] = {0};
+
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+    snprintf(oldMetaPath, sizeof(oldMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_DIR);
+    snprintf(newMetaPath, sizeof(newMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_TMP_DIR);
+    snprintf(backupMetaPath, sizeof(backupMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_BACKUP_DIR);
+
+    bool oldMetaExist = taosCheckExistFile(oldMetaPath);
+    bool newMetaExist = taosCheckExistFile(newMetaPath);
+    bool backupMetaExist = taosCheckExistFile(backupMetaPath);
+
+    if ((!backupMetaExist && !oldMetaExist && newMetaExist)     // case 2
+        || (backupMetaExist && !oldMetaExist && !newMetaExist)  // case 4
+        || (backupMetaExist && oldMetaExist && newMetaExist)    // case 8
+    ) {
+      metaError("vgId:%d invalid meta state, please check", TD_VID(pVnode));
+      return TSDB_CODE_FAILED;
+    } else if ((backupMetaExist && oldMetaExist && !newMetaExist)       // case 7
+               || (!backupMetaExist && !oldMetaExist && !newMetaExist)  // case 1
+    ) {
+      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+    } else if (backupMetaExist && !oldMetaExist && newMetaExist) {
+      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
+        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+        return terrno;
+      }
+      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+    } else {
+      int32_t code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+      if (code) {
+        return code;
+      }
+
+      code = metaGenerateNewMeta(ppMeta);
+      if (code) {
+        metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+      }
+
+      metaClose(ppMeta);
+      if (taosRenameFile(oldMetaPath, backupMetaPath) != 0) {
+        metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+        return terrno;
+      }
+
+      // rename the new meta to old meta
+      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
+        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+        return terrno;
+      }
+      code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
+      if (code) {
+        metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+        return code;
+      }
+    }
+
+  } else {
+    return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
@@ -169,9 +455,9 @@ _exit:
   return code;
 }
 
-int metaClose(SMeta **ppMeta) {
+void metaClose(SMeta **ppMeta) {
   metaCleanup(ppMeta);
-  return 0;
+  return;
 }
 
 int metaAlterCache(SMeta *pMeta, int32_t nPage) {
@@ -188,22 +474,29 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 
 void metaRLock(SMeta *pMeta) {
   metaTrace("meta rlock %p", &pMeta->lock);
-  (void)taosThreadRwlockRdlock(&pMeta->lock);
+  if (taosThreadRwlockRdlock(&pMeta->lock) != 0) {
+    metaError("vgId:%d failed to lock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
+  }
 }
 
 void metaWLock(SMeta *pMeta) {
   metaTrace("meta wlock %p", &pMeta->lock);
-  (void)taosThreadRwlockWrlock(&pMeta->lock);
+  if (taosThreadRwlockWrlock(&pMeta->lock) != 0) {
+    metaError("vgId:%d failed to lock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
+  }
 }
 
 void metaULock(SMeta *pMeta) {
   metaTrace("meta ulock %p", &pMeta->lock);
-  (void)taosThreadRwlockUnlock(&pMeta->lock);
+  if (taosThreadRwlockUnlock(&pMeta->lock) != 0) {
+    metaError("vgId:%d failed to unlock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
+  }
 }
 
 static void metaCleanup(SMeta **ppMeta) {
   SMeta *pMeta = *ppMeta;
   if (pMeta) {
+    metaInfo("vgId:%d meta clean up, path:%s", TD_VID(pMeta->pVnode), pMeta->path);
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
 #ifdef BUILD_NO_CALL
@@ -223,7 +516,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-    (void)metaDestroyLock(pMeta);
+    metaDestroyLock(pMeta);
 
     taosMemoryFreeClear(*ppMeta);
   }
@@ -332,6 +625,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
     __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    if (func == NULL) {
+      metaError("meta/open: %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
     c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }

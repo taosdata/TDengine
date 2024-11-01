@@ -92,7 +92,9 @@ rangeCompFunc gRangeCompare[] = {filterRangeCompee, filterRangeCompei, filterRan
 
 int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
   if (optr2) {
-    ASSERT(optr2 == OP_TYPE_LOWER_THAN || optr2 == OP_TYPE_LOWER_EQUAL);
+    if (optr2 != OP_TYPE_LOWER_THAN && optr2 != OP_TYPE_LOWER_EQUAL) {
+      return -1;
+    }
 
     if (optr == OP_TYPE_GREATER_THAN) {
       if (optr2 == OP_TYPE_LOWER_THAN) {
@@ -466,20 +468,20 @@ int32_t filterInitUnitsFields(SFilterInfo *info) {
   info->unitSize = FILTER_DEFAULT_UNIT_SIZE;
   info->units = taosMemoryCalloc(info->unitSize, sizeof(SFilterUnit));
   if (info->units == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   info->fields[FLD_TYPE_COLUMN].num = 0;
   info->fields[FLD_TYPE_COLUMN].size = FILTER_DEFAULT_FIELD_SIZE;
   info->fields[FLD_TYPE_COLUMN].fields = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].size, sizeof(SFilterField));
   if (info->fields[FLD_TYPE_COLUMN].fields == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   info->fields[FLD_TYPE_VALUE].num = 0;
   info->fields[FLD_TYPE_VALUE].size = FILTER_DEFAULT_FIELD_SIZE;
   info->fields[FLD_TYPE_VALUE].fields = taosMemoryCalloc(info->fields[FLD_TYPE_VALUE].size, sizeof(SFilterField));
   if (info->fields[FLD_TYPE_VALUE].fields == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -495,7 +497,7 @@ static FORCE_INLINE int32_t filterNewRange(SFilterRangeCtx *ctx, SFilterRange *r
   } else {
     *r = taosMemoryCalloc(1, sizeof(SFilterRangeNode));
     if (*r == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -514,11 +516,15 @@ int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx)
 
   *ctx = taosMemoryCalloc(1, sizeof(SFilterRangeCtx));
   if (*ctx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*ctx)->type = type;
   (*ctx)->options = options;
   (*ctx)->pCompareFunc = getComparFunc(type, 0);
+  if ((*ctx)->pCompareFunc == NULL) {
+    taosMemoryFree(*ctx);
+    return terrno;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -554,6 +560,9 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
   ctx->options = options;
   ctx->pCompareFunc = getComparFunc(type, 0);
 
+  if (ctx->pCompareFunc == NULL) {
+    return terrno;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -763,7 +772,10 @@ int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
   SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
   SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
-  ASSERT(optr == LOGIC_COND_TYPE_OR);
+  if (optr != LOGIC_COND_TYPE_OR) {
+    fltError("filterAddRangeCtx get invalid optr:%d", optr);
+    return TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE;
+  }
 
   if (sctx->rs == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -949,7 +961,7 @@ int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray *group
   gp.unitNum = gp1->unitNum + gp2->unitNum;
   gp.unitIdxs = taosMemoryCalloc(gp.unitNum, sizeof(*gp.unitIdxs));
   if (NULL == gp.unitIdxs) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
   (void)memcpy(gp.unitIdxs, gp1->unitIdxs, gp1->unitNum * sizeof(*gp.unitIdxs));
   (void)memcpy(gp.unitIdxs + gp1->unitNum, gp2->unitIdxs, gp2->unitNum * sizeof(*gp.unitIdxs));
@@ -958,7 +970,7 @@ int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray *group
 
   if (NULL == taosArrayPush(group, &gp)) {
     taosMemoryFreeClear(gp.unitIdxs);
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -977,7 +989,7 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
     SFilterGroup *gp = NULL;
     while ((gp = (SFilterGroup *)taosArrayPop(right)) != NULL) {
       if (NULL == taosArrayPush(group, gp)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
     }
 
@@ -988,7 +1000,7 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
     SFilterGroup *gp = NULL;
     while ((gp = (SFilterGroup *)taosArrayPop(left)) != NULL) {
       if (NULL == taosArrayPush(group, gp)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
     }
 
@@ -1066,7 +1078,9 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       info->fields[type].fields =
           taosMemoryRealloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
       if (info->fields[type].fields == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        *num = 0;
+        fltError("taosMemoryRealloc failed, size:%d", (int32_t)(info->fields[type].size * sizeof(SFilterField)));
+        FLT_ERR_RET(terrno);
       }
     }
 
@@ -1086,14 +1100,20 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
                                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
         if (NULL == info->pctx.valHash) {
           fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE);
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          if (srcFlag) {
+            FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
+          }
+          FLT_ERR_RET(terrno);
         }
       }
 
       SFilterDataInfo dInfo = {idx, *data};
       if (taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo))) {
         fltError("taosHashPut to set failed");
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        if (srcFlag) {
+          FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
+        }
+        FLT_ERR_RET(terrno);
       }
       if (srcFlag) {
         FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
@@ -1102,7 +1122,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
   } else if (type != FLD_TYPE_COLUMN && data) {
     if (freeIfExists) {
       taosMemoryFreeClear(*data);
-    } else if (sameBuf) {
+    } else if (sameBuf && srcFlag) {
       FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
     }
   }
@@ -1114,11 +1134,11 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
 }
 
 static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilterField *field, SFilterFieldId *fid) {
-  FLT_ERR_RET(filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL));
+  int32_t code = filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL);
 
   FILTER_SET_FLAG(field->flag, FLD_DATA_NO_FREE);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *fid) {
@@ -1157,7 +1177,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, false);
       if (NULL == info->pctx.unitHash) {
         fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE);
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
     } else {
       char v[14] = {0};
@@ -1176,7 +1196,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
 
     void *tmp = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     info->units = (SFilterUnit *)tmp;
     (void)memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
@@ -1196,7 +1216,10 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
 
   if (u->right.type == FLD_TYPE_VALUE) {
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);
-    ASSERT(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
+    if (!FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE)) {
+      fltError("filterAddUnitImpl get invalid flag : %d in val", val->flag);
+      return TSDB_CODE_APP_ERROR;
+    }
   } else {
     int32_t paramNum = scalarGetOperatorParamNum(optr);
     if (1 != paramNum) {
@@ -1206,7 +1229,10 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   }
 
   SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, u);
-  ASSERT(FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN));
+  if (!FILTER_GET_FLAG(col->flag, FLD_TYPE_COLUMN)) {
+    fltError("filterAddUnitImpl get invalid flag : %d in col", col->flag);
+    return TSDB_CODE_APP_ERROR;
+  }
 
   info->units[info->unitNum].compare.type = FILTER_GET_COL_FIELD_TYPE(col);
   info->units[info->unitNum].compare.precision = FILTER_GET_COL_FIELD_PRECISION(col);
@@ -1238,7 +1264,7 @@ int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
 
     void *tmp = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     group->unitIdxs = tmp;
   }
@@ -1246,6 +1272,16 @@ int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   group->unitIdxs[group->unitNum++] = unitIdx;
 
   return TSDB_CODE_SUCCESS;
+}
+
+static void filterFreeGroup(void *pItem) {
+  if (pItem == NULL) {
+    return;
+  }
+
+  SFilterGroup *p = (SFilterGroup *)pItem;
+  taosMemoryFreeClear(p->unitIdxs);
+  taosMemoryFreeClear(p->unitFlags);
 }
 
 int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
@@ -1264,7 +1300,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
     if (out.columnData == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
@@ -1294,7 +1330,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       } else {
         void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);  // reserved space for simple_copy
         if (NULL == data) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           break;
         }
         (void)memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
@@ -1310,10 +1346,12 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
       SFilterGroup fgroup = {0};
       code = filterAddUnitToGroup(&fgroup, uidx);
       if (TSDB_CODE_SUCCESS != code) {
+        filterFreeGroup((void*)&fgroup);
         break;
       }
       if (NULL == taosArrayPush(group, &fgroup)) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        filterFreeGroup((void*)&fgroup);
+        code = terrno;
         break;
       }
 
@@ -1330,7 +1368,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
     FLT_ERR_RET(filterAddUnitToGroup(&fgroup, uidx));
 
     if (NULL == taosArrayPush(group, &fgroup)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 
@@ -1390,36 +1428,58 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
   if (optr == LOGIC_COND_TYPE_AND) {
     if (ctx->isnull) {
-      ASSERT(ctx->notnull == false && ctx->isrange == false);
+      if (ctx->notnull || ctx->isrange) {
+        fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+                 ctx->isnull, ctx->notnull, ctx->isrange);
+        FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+      }
       FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx));
       FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
       return TSDB_CODE_SUCCESS;
     }
 
     if (ctx->notnull) {
-      ASSERT(ctx->isnull == false && ctx->isrange == false);
+      if (ctx->isnull || ctx->isrange) {
+        fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+                 ctx->isnull, ctx->notnull, ctx->isrange);
+        FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+      }
       FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx));
       FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
       return TSDB_CODE_SUCCESS;
     }
 
     if (!ctx->isrange) {
-      ASSERT(ctx->isnull || ctx->notnull);
+      if (!ctx->isnull && !ctx->notnull) {
+        fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+                 ctx->isnull, ctx->notnull, ctx->isrange);
+        FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+      }
       return TSDB_CODE_SUCCESS;
     }
 
-    ASSERT(ctx->rs && ctx->rs->next == NULL);
+    if (!ctx->rs || ctx->rs->next != NULL) {
+      fltError("filterAddGroupUnitFromCtx get invalid range node with rs:%p", ctx->rs);
+      FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+    }
 
     SFilterRange *ra = &ctx->rs->ra;
 
-    ASSERT(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
+    if (((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)))) {
+      fltError("filterAddGroupUnitFromCtx get invalid range with sflag:%d, eflag:%d",
+               FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL), FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL));
+      FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+    }
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
+      if (func == NULL) {
+        FLT_ERR_RET(terrno);
+      }
       if (func(&ra->s, &ra->e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data, &ra->s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1429,13 +1489,13 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       } else {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data, &ra->s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         void *data2 = taosMemoryMalloc(sizeof(int64_t));
         if (data2 == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data2, &ra->e);
         FLT_ERR_RET(filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true, NULL));
@@ -1452,7 +1512,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
       if (data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       SIMPLE_COPY_VALUES(data, &ra->s);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1464,7 +1524,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
       if (data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       SIMPLE_COPY_VALUES(data, &ra->e);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1481,29 +1541,41 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   SFilterGroup ng = {0};
   g = &ng;
 
-  ASSERT(ctx->isnull || ctx->notnull || ctx->isrange);
+  if (!ctx->isnull && !ctx->notnull && !ctx->isrange) {
+    fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+             ctx->isnull, ctx->notnull, ctx->isrange);
+    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+  }
 
   if (ctx->isnull) {
     FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx));
     FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
     if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 
   if (ctx->notnull) {
-    ASSERT(!ctx->isrange);
+    if (ctx->isrange) {
+      fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+               ctx->isnull, ctx->notnull, ctx->isrange);
+      FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+    }
     (void)memset(g, 0, sizeof(*g));
 
     FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx));
     FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
     if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 
   if (!ctx->isrange) {
-    ASSERT(ctx->isnull || ctx->notnull);
+    if (!ctx->isnull && !ctx->notnull) {
+      fltError("filterAddGroupUnitFromCtx get invalid ctx : isnull %d, notnull %d, isrange %d",
+               ctx->isnull, ctx->notnull, ctx->isrange);
+      FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+    }
     g->unitNum = 0;
     return TSDB_CODE_SUCCESS;
   }
@@ -1515,10 +1587,13 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if ((!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
+      if (func == NULL) {
+        FLT_ERR_RET(terrno);
+      }
       if (func(&r->ra.s, &r->ra.e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1527,13 +1602,13 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       } else {
         void *data = taosMemoryMalloc(sizeof(int64_t));
         if (data == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         void *data2 = taosMemoryMalloc(sizeof(int64_t));
         if (data2 == NULL) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         SIMPLE_COPY_VALUES(data2, &r->ra.e);
         FLT_ERR_RET(filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true, NULL));
@@ -1546,7 +1621,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       }
 
       if (NULL == taosArrayPush(res,g)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
 
       r = r->next;
@@ -1557,7 +1632,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
       if (data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       SIMPLE_COPY_VALUES(data, &r->ra.s);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1569,7 +1644,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
       if (data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       SIMPLE_COPY_VALUES(data, &r->ra.e);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
@@ -1578,10 +1653,13 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
     }
 
-    ASSERT(g->unitNum > 0);
+    if (g->unitNum <= 0) {
+      fltError("filterAddGroupUnitFromCtx get invalid filter group unit num %d", g->unitNum);
+      FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
+    }
 
     if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
 
     r = r->next;
@@ -1590,16 +1668,6 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   g->unitNum = 0;
 
   return TSDB_CODE_SUCCESS;
-}
-
-static void filterFreeGroup(void *pItem) {
-  if (pItem == NULL) {
-    return;
-  }
-
-  SFilterGroup *p = (SFilterGroup *)pItem;
-  taosMemoryFreeClear(p->unitIdxs);
-  taosMemoryFreeClear(p->unitFlags);
 }
 
 EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
@@ -1640,7 +1708,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
         cell = cell->pNext;
       }
 
-      (void)taosArrayAddAll(ctx->group, preGroup);
+      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
+        FLT_ERR_JRET(terrno);
+      }
 
       taosArrayDestroy(preGroup);
 
@@ -1659,11 +1729,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
 
-    ctx->code = TSDB_CODE_APP_ERROR;
-
     fltError("invalid condition type, type:%d", node->condType);
 
-    return DEAL_RES_ERROR;
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   if (QUERY_NODE_OPERATOR == nType) {
@@ -1696,41 +1764,41 @@ _return:
   return DEAL_RES_ERROR;
 }
 
-int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_t bufSize, int32_t *len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = tsnprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t *)buf) ? "true" : "false");
+      n = tsnprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      n = tsnprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      n = tsnprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1749,19 +1817,19 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t *)buf);
+      n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
 
     default:
@@ -1818,8 +1886,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
-                        operatorTypeStr(unit->compare.optr));
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+                          operatorTypeStr(unit->compare.optr));
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1830,18 +1898,22 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             data += VARSTR_HEADER_SIZE;
           }
           if (data) {
-            FLT_ERR_RET(fltConverToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            len += tlen;
           }
         } else {
-          (void)strcat(str, "NULL");
+          (void)strncat(str, "NULL", sizeof(str) - len - 1);
+          len += 4;
         }
-        (void)strcat(str, "]");
+        (void)strncat(str, "]", sizeof(str) - len - 1);
+        len += 1;
 
         if (unit->compare.optr2) {
-          (void)strcat(str, " && ");
+          (void)strncat(str, " && ", sizeof(str) - len - 1);
+          len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            (void)sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
-                          operatorTypeStr(unit->compare.optr2));
+            len += tsnprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId,
+                            refNode->slotId, operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1851,11 +1923,14 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
               tlen = varDataLen(data);
               data += VARSTR_HEADER_SIZE;
             }
-            FLT_ERR_RET(fltConverToStr(str + strlen(str), type, data, tlen > 32 ? 32 : tlen, &tlen));
+            FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, type, data, tlen > 32 ? 32 : tlen, &tlen));
+            len += tlen;
           } else {
-            (void)strcat(str, "NULL");
+            (void)strncat(str, "NULL", sizeof(str) - len - 1);
+            len += 4;
           }
-          (void)strcat(str, "]");
+          (void)strncat(str, "]", sizeof(str) - len - 1);
+          len += 1;
         }
 
         qDebug("%s", str);  // TODO
@@ -1887,21 +1962,39 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           SFilterRangeNode *r = ctx->rs;
           int32_t           tlen = 0;
           while (r) {
-            char str[256] = {0};
+            char    str[256] = {0};
+            int32_t len = 0;
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", sizeof(str) - len - 1);
+              len += 6;
             } else {
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
-              FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, "(", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "[", sizeof(str) - len - 1);
+              len += 1;
+              FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
+              len += tlen;
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, ")", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "]", sizeof(str) - len - 1);
+              len += 1;
             }
-            (void)strcat(str, " - ");
+            (void)strncat(str, " - ", sizeof(str) - len - 1);
+            len += 3;
             if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-              (void)strcat(str, "(NULL)");
+              (void)strncat(str, "(NULL)", sizeof(str) - len - 1);
+              len += 6;
             } else {
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
-              FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
-              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, "(", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "[", sizeof(str) - len - 1);
+              len += 1;
+              FLT_ERR_RET(fltConverToStr(str + len, sizeof(str) - len, ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
+              len += tlen;
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ?
+                                                              (void)strncat(str, ")", sizeof(str) - len - 1) :
+                                                              (void)strncat(str, "]", sizeof(str) - len - 1);
+              len += 1;
             }
             qDebug("range: %s", str);
 
@@ -2058,7 +2151,10 @@ void filterFreeInfo(SFilterInfo *info) {
 }
 
 int32_t filterHandleValueExtInfo(SFilterUnit *unit, char extInfo) {
-  ASSERT(extInfo > 0 || extInfo < 0);
+  if (extInfo == 0) {
+    fltError("filterHandleValueExtInfo get invalid extInfo : %d", extInfo);
+    return TSDB_CODE_APP_ERROR;
+  }
 
   uint8_t optr = FILTER_UNIT_OPTR(unit);
   switch (optr) {
@@ -2085,13 +2181,20 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
     if (unit->right.type != FLD_TYPE_VALUE) {
-      ASSERT(unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR || scalarGetOperatorParamNum(unit->compare.optr) == 1);
+      if (unit->compare.optr != FILTER_DUMMY_EMPTY_OPTR && scalarGetOperatorParamNum(unit->compare.optr) != 1) {
+        fltError("filterInitValFieldData get invalid operator param num : %d and invalid compare optr %d",
+                 scalarGetOperatorParamNum(unit->compare.optr), unit->compare.optr);
+        return TSDB_CODE_APP_ERROR;
+      }
       continue;
     }
 
     SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
 
-    ASSERT(FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE));
+    if (!FILTER_GET_FLAG(right->flag, FLD_TYPE_VALUE)) {
+      fltError("filterInitValFieldData get invalid field flag : %d", right->flag);
+      return TSDB_CODE_APP_ERROR;
+    }
 
     uint32_t      type = FILTER_UNIT_DATA_TYPE(unit);
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
@@ -2099,7 +2202,10 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     SValueNode *var = (SValueNode *)fi->desc;
     if (var == NULL) {
-      ASSERT(fi->data != NULL);
+      if (!fi->data) {
+        fltError("filterInitValFieldData get invalid field data : NULL");
+        return TSDB_CODE_APP_ERROR;
+      }
       continue;
     }
 
@@ -2120,13 +2226,13 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       size_t bufBytes = TMAX(dType->bytes, sizeof(int64_t));
       fi->data = taosMemoryCalloc(1, bufBytes);
       if (fi->data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
     } else {
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
       if (out.columnData == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       out.columnData->info.type = type;
       out.columnData->info.precision = precision;
@@ -2147,7 +2253,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
                                             : TMAX(out.columnData->info.bytes, sizeof(int64_t));
       fi->data = taosMemoryCalloc(1, bufBytes);
       if (fi->data== NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
 
       size_t valBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData) : out.columnData->info.bytes;
@@ -2166,7 +2272,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         return TSDB_CODE_SCALAR_CONVERT_ERROR;
       }
       varDataSetLen(newValData, len);
-      (void)varDataCopy(fi->data, newValData);
+      varDataCopy(fi->data, newValData);
     }
   }
 
@@ -2249,7 +2355,10 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *c
       FILTER_SET_FLAG(ra.sflag, RANGE_FLG_NULL);
       break;
     case OP_TYPE_NOT_EQUAL:
-      ASSERT(type == TSDB_DATA_TYPE_BOOL);
+      if (type != TSDB_DATA_TYPE_BOOL) {
+        fltError("filterAddUnitRange get invalid type : %d", type);
+        return TSDB_CODE_QRY_FILTER_INVALID_TYPE;
+      }
       if (GET_INT8_VAL(val)) {
         SIMPLE_COPY_VALUES(&ra.s, &tmp);
         SIMPLE_COPY_VALUES(&ra.e, &tmp);
@@ -2265,7 +2374,7 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *c
       break;
     default:
       fltError("unsupported operator type");
-      return TSDB_CODE_APP_ERROR;
+      return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
   }
 
   FLT_ERR_RET(filterAddRange(ctx, &ra, optr));
@@ -2343,7 +2452,7 @@ _return:
 
   (void)filterFreeRangeCtx(ctx);  // No need to handle the return value.
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
@@ -2353,18 +2462,18 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
   uint32_t  gResIdx = 0;
   uint32_t *colIdx = taosMemoryMalloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
   if (colIdx == NULL) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup *g = info->groups + i;
 
     gRes[gResIdx] = taosMemoryCalloc(1, sizeof(SFilterGroupCtx));
     if (gRes[gResIdx] == NULL) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_JRET(terrno);
     }
     gRes[gResIdx]->colInfo = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
     if (gRes[gResIdx]->colInfo == NULL) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_JRET(terrno);
     }
     colIdxi = 0;
     empty = false;
@@ -2390,7 +2499,11 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      __compar_fn_t cmpFn = getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0);
+      if (cmpFn == NULL) {
+        FLT_ERR_JRET(terrno);
+      }
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), cmpFn);
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2399,8 +2512,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
       if (FILTER_NO_MERGE_DATA_TYPE(type)) {
         continue;
       }
-
-      FLT_ERR_JRET(filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty));
+      SCL_ERR_JRET(filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty));
 
       if (empty) {
         break;
@@ -2418,15 +2530,17 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
     gRes[gResIdx]->colNum = colIdxi;
     FILTER_COPY_IDX(&gRes[gResIdx]->colIdx, colIdx, colIdxi);
     ++gResIdx;
+    *gResNum = gResIdx;
   }
-
-  *gResNum = gResIdx;
 
   if (gResIdx == 0) {
     FILTER_SET_FLAG(info->status, FI_STATUS_EMPTY);
   }
 
 _return:
+  if (code) {
+    filterFreeGroupCtx(gRes[gResIdx]);
+  }
   taosMemoryFreeClear(colIdx);
   FLT_RET(code);
 }
@@ -2534,8 +2648,11 @@ int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, SFilterRangeCtx **ctx, int32
     FLT_ERR_RET(filterReuseRangeCtx(*ctx, type, 0));
   }
 
-  ASSERT(gRes2->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
-  ASSERT(gRes1->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
+  if (gRes2->colInfo[cidx].type != RANGE_TYPE_MR_CTX || gRes1->colInfo[cidx].type != RANGE_TYPE_MR_CTX) {
+    fltError("filterMergeTwoGroupsImpl get invalid col type : %d and %d",
+             gRes2->colInfo[cidx].type, gRes1->colInfo[cidx].type);
+    return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
+  }
 
   FLT_ERR_RET(filterCopyRangeCtx(*ctx, gRes2->colInfo[cidx].info));
   FLT_ERR_RET(filterSourceRangeFromCtx(*ctx, gRes1->colInfo[cidx].info, optr, empty, all));
@@ -2575,7 +2692,10 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
         continue;
       }
 
-      ASSERT(idx1 == idx2);
+      if (idx1 != idx2) {
+        fltError("filterMergeTwoGroups get invalid idx : %d and %d", idx1, idx2);
+        FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+      }
 
       ++merNum;
 
@@ -2589,7 +2709,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
           colCtx.colIdx = idx1;
           colCtx.ctx = ctx;
           if (NULL == taosArrayPush(colCtxs, &colCtx)) {
-            FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+            FLT_ERR_JRET(terrno);
           }
           break;
         } else {
@@ -2608,7 +2728,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
           colCtx.ctx = ctx;
           ctx = NULL;
           if (NULL == taosArrayPush(colCtxs, &colCtx)) {
-            FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+            FLT_ERR_JRET(terrno);
           }
         }
       } else {
@@ -2622,7 +2742,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
         colCtx.ctx = ctx;
         ctx = NULL;
         if (NULL == taosArrayPush(colCtxs, &colCtx)) {
-          FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_JRET(terrno);
         }
       }
 
@@ -2631,16 +2751,19 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
     }
   }
 
-  ASSERT(merNum > 0);
-
-  SFilterColInfo *colInfo = NULL;
-  ASSERT(merNum == equal1 || merNum == equal2);
+  if (merNum == 0 || (equal1 != merNum && equal2 != merNum)) {
+    fltError("filterMergeTwoGroups get invalid merge num : %d, equal1 : %d, equal2 : %d", merNum, equal1, equal2);
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+  }
 
   filterFreeGroupCtx(*gRes2);
   *gRes2 = NULL;
 
-  ASSERT(colCtxs && taosArrayGetSize(colCtxs) > 0);
-
+  if (!colCtxs || taosArrayGetSize(colCtxs) <= 0) {
+    fltError("filterMergeTwoGroups get invalid colCtxs with size %zu", taosArrayGetSize(colCtxs));
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+  }
+  SFilterColInfo *colInfo = NULL;
   int32_t        ctxSize = (int32_t)taosArrayGetSize(colCtxs);
   SFilterColCtx *pctx = NULL;
 
@@ -2671,7 +2794,7 @@ _return:
 
   (void)filterFreeRangeCtx(ctx);  // No need to handle the return value.
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
@@ -2700,7 +2823,10 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
     if (pColNum > 0) {
       for (int32_t m = 0; m <= pEnd; ++m) {
         for (int32_t n = cStart; n <= cEnd; ++n) {
-          ASSERT(m < n);
+          if (m >= n) {
+            fltError("filterMergeGroups get invalid m : %d and n : %d", m, n);
+            FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+          }
           FLT_ERR_JRET(filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all));
 
           FLT_CHK_JMP(all);
@@ -2721,7 +2847,10 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
 
     for (int32_t m = cStart; m < cEnd; ++m) {
       for (int32_t n = m + 1; n <= cEnd; ++n) {
-        ASSERT(m < n);
+        if (m >= n) {
+          fltError("filterMergeGroups get invalid m : %d and n : %d", m, n);
+          FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+        }
         FLT_ERR_JRET(filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all));
 
         FLT_CHK_JMP(all);
@@ -2758,34 +2887,39 @@ _return:
 
   FILTER_SET_FLAG(info->status, FI_STATUS_ALL);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
-  size_t groupSize = taosArrayGetSize(group);
+  size_t  groupSize = taosArrayGetSize(group);
+  int32_t code = TSDB_CODE_SUCCESS;
 
   info->groupNum = (uint32_t)groupSize;
 
   if (info->groupNum > 0) {
     info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
     if (info->groups == NULL) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_JRET(terrno);
     }
   }
 
   for (size_t i = 0; i < groupSize; ++i) {
     SFilterGroup *pg = taosArrayGet(group, i);
     if (NULL == pg) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
     }
     pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     if (pg->unitFlags == NULL) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      pg->unitNum = 0;
+      FLT_ERR_JRET(terrno);
     }
     info->groups[i] = *pg;
   }
-
   return TSDB_CODE_SUCCESS;
+
+_return:
+  info->groupNum = 0;
+  return code;
 }
 
 int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum) {
@@ -2798,17 +2932,19 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
 
   FILTER_SET_FLAG(oinfo.status, FI_STATUS_CLONED);
 
+  (void)memset(info, 0, sizeof(*info));
+
   SFilterGroupCtx *res = NULL;
   SFilterColInfo  *colInfo = NULL;
   int32_t          optr = 0;
   uint32_t         uidx = 0;
   uint32_t         code = TSDB_CODE_SUCCESS;
   SArray          *group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
+  SFilterGroup     ng = {0};
+
   if (group == NULL) {
     FLT_ERR_JRET(terrno);
   }
-
-  (void)memset(info, 0, sizeof(*info));
 
   info->colRangeNum = oinfo.colRangeNum;
   info->colRange = oinfo.colRange;
@@ -2821,15 +2957,15 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
 
   for (int32_t i = 0; i < gResNum; ++i) {
     res = gRes[i];
-
     optr = (res->colNum > 1) ? LOGIC_COND_TYPE_AND : LOGIC_COND_TYPE_OR;
-
-    SFilterGroup ng = {0};
 
     for (uint32_t m = 0; m < res->colNum; ++m) {
       colInfo = &res->colInfo[res->colIdx[m]];
       if (FILTER_NO_MERGE_DATA_TYPE(colInfo->dataType)) {
-        ASSERT(colInfo->type == RANGE_TYPE_UNIT);
+        if (colInfo->type != RANGE_TYPE_UNIT) {
+          fltError("filterRewrite get invalid col type : %d", colInfo->type);
+          FLT_ERR_JRET(TSDB_CODE_QRY_FILTER_INVALID_TYPE);
+        }
         int32_t usize = (int32_t)taosArrayGetSize((SArray *)colInfo->info);
 
         for (int32_t n = 0; n < usize; ++n) {
@@ -2837,29 +2973,42 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
           if (NULL == u) {
             FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
           }
-          FLT_ERR_JRET(filterAddUnitFromUnit(info, &oinfo, u, &uidx));
-          FLT_ERR_JRET(filterAddUnitToGroup(&ng, uidx));
+          code = filterAddUnitFromUnit(info, &oinfo, u, &uidx);
+          FLT_ERR_JRET(code);
+          code = filterAddUnitToGroup(&ng, uidx);
+          FLT_ERR_JRET(code);
         }
 
         continue;
       }
 
-      ASSERT(colInfo->type == RANGE_TYPE_MR_CTX);
+      if (colInfo->type != RANGE_TYPE_MR_CTX) {
+        fltError("filterRewrite get invalid col type : %d", colInfo->type);
+        FLT_ERR_JRET(TSDB_CODE_QRY_FILTER_INVALID_TYPE);
+      }
 
-      FLT_ERR_JRET(filterAddGroupUnitFromCtx(info, &oinfo, colInfo->info, res->colIdx[m], &ng, optr, group));
+      code = filterAddGroupUnitFromCtx(info, &oinfo, colInfo->info, res->colIdx[m], &ng, optr, group);
+      FLT_ERR_JRET(code);
     }
 
     if (ng.unitNum > 0) {
       if (NULL == taosArrayPush(group, &ng)) {
-        FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_JRET(terrno);
       }
+      ng = (SFilterGroup){0};
     }
   }
-
-_return:
-  FLT_ERR_RET(filterConvertGroupFromArray(info, group));
+  FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
 
   taosArrayDestroy(group);
+
+  filterFreeInfo(&oinfo);
+  return 0;
+
+_return:
+  filterFreeGroup((void*)&ng);
+
+  taosArrayDestroyEx(group, filterFreeGroup);
 
   filterFreeInfo(&oinfo);
 
@@ -2873,7 +3022,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
   int32_t         code = TSDB_CODE_SUCCESS;
   uint32_t        *idxNum = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxNum));
   if (idxNum == NULL) {
-    FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_JRET(terrno);
   }
   for (int32_t i = 0; i < gResNum; ++i) {
     for (uint32_t m = 0; m < gRes[i]->colNum; ++m) {
@@ -2891,12 +3040,15 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
       continue;
     }
 
-    ASSERT(idxNum[i] == gResNum);
+    if (idxNum[i] != gResNum) {
+      fltError("filterGenerateColRange get invalid idxNum : %d and gResNum : %d", idxNum[i], gResNum);
+      FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+    }
 
     if (idxs == NULL) {
       idxs = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxs));
       if (idxs == NULL) {
-        FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_JRET(terrno);
       }
     }
 
@@ -2908,7 +3060,8 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
   info->colRangeNum = colNum;
   info->colRange = taosMemoryCalloc(colNum, POINTER_BYTES);
   if (info->colRange == NULL) {
-    FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    info->colRangeNum = 0;
+    FLT_ERR_JRET(terrno);
   }
 
   for (int32_t i = 0; i < gResNum; ++i) {
@@ -2921,7 +3074,10 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
           continue;
         }
 
-        ASSERT(res->colIdx[n] == idxs[m]);
+        if (res->colIdx[n] != idxs[m]) {
+          fltError("filterGenerateColRange get invalid colIdx : %d and idxs : %d", res->colIdx[n], idxs[m]);
+          SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
+        }
 
         SFilterColInfo *colInfo = &res->colInfo[res->colIdx[n]];
         if (info->colRange[m] == NULL) {
@@ -2930,7 +3086,10 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
           info->colRange[m]->colId = FILTER_GET_COL_FIELD_ID(fi);
         }
 
-        ASSERT(colInfo->type == RANGE_TYPE_MR_CTX);
+        if (colInfo->type != RANGE_TYPE_MR_CTX) {
+          fltError("filterGenerateColRange get invalid col type : %d", colInfo->type);
+          FLT_ERR_JRET(TSDB_CODE_QRY_FILTER_INVALID_TYPE);
+        }
 
         bool all = false;
         FLT_ERR_JRET(filterSourceRangeFromCtx(info->colRange[m], colInfo->info, LOGIC_COND_TYPE_OR, NULL, &all));
@@ -2958,7 +3117,7 @@ _return:
   taosMemoryFreeClear(idxNum);
   taosMemoryFreeClear(idxs);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterPostProcessRange(SFilterInfo *info) {
@@ -2979,7 +3138,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
   info->blkUnitRes = taosMemoryMalloc(sizeof(*info->blkUnitRes) * info->unitNum);
   info->blkUnits = taosMemoryMalloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
   if (NULL == info->cunits || NULL == info->blkUnitRes || NULL == info->blkUnits) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (uint32_t i = 0; i < info->unitNum; ++i) {
@@ -3180,7 +3339,10 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
       unitIdx = pGroupIdx;
 
       --info->blkGroupNum;
-      ASSERT(empty || all);
+      if (!empty && !all) {
+        fltError("filterRmUnitByRange get invalid empty and all : %d and %d", empty, all);
+        FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+      }
 
       if (empty) {
         FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
@@ -3288,7 +3450,10 @@ int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumn
         goto _return;
       }
 
-      ASSERT(info->unitNum > 1);
+      if (info->unitNum <= 1) {
+        fltError("filterExecuteBasedOnStatis get invalid unit num : %d", info->unitNum);
+        FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
+      }
 
       *all = filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols);
       goto _return;
@@ -3436,7 +3601,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
       char   *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       if (newColData == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0) {
@@ -3511,7 +3676,7 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
                 (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
               char   *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
               if (newColData == NULL) {
-                FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+                FLT_ERR_RET(terrno);
               }
               int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
               if (len < 0) {
@@ -3592,7 +3757,7 @@ int32_t filterPreprocess(SFilterInfo *info) {
   int32_t           gResNum = 0;
   SFilterGroupCtx **gRes = taosMemoryCalloc(info->groupNum, sizeof(SFilterGroupCtx *));
   if (gRes == NULL) {
-    FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_JRET(terrno);
   }
 
   FLT_ERR_JRET(filterMergeGroupUnits(info, gRes, &gResNum));
@@ -3601,12 +3766,12 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_ALL)) {
     fltInfo("Final - FilterInfo: [ALL]");
-    goto _return;
+    goto _return1;
   }
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
     fltInfo("Final - FilterInfo: [EMPTY]");
-    goto _return;
+    goto _return1;
   }
 
   FLT_ERR_JRET(filterGenerateColRange(info, gRes, gResNum));
@@ -3619,10 +3784,10 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   FLT_ERR_JRET(filterGenerateComInfo(info));
 
+_return1:
+  FLT_ERR_JRET(filterSetExecFunc(info));
+
 _return:
-
-  FLT_ERR_RET(filterSetExecFunc(info));
-
   for (int32_t i = 0; i < gResNum; ++i) {
     filterFreeGroupCtx(gRes[i]);
   }
@@ -3660,15 +3825,25 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
     FLT_ERR_JRET(terrno);
   }
 
-  FLT_ERR_JRET(filterInitUnitsFields(info));
+  code = filterInitUnitsFields(info);
+  if(TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(group);
+    goto _return;
+  }
 
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
-  FLT_ERR_JRET(tctx.code);
-
-  FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
+  if (TSDB_CODE_SUCCESS != tctx.code) {
+    taosArrayDestroyEx(group, filterFreeGroup);
+    code = tctx.code;
+    goto _return;
+  }
+  code = filterConvertGroupFromArray(info, group);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroyEx(group, filterFreeGroup);
+    goto _return;
+  }
   taosArrayDestroy(group);
-
   FLT_ERR_JRET(fltInitValFieldData(info));
 
   if (!FILTER_GET_FLAG(info->options, FLT_OPTION_NO_REWRITE)) {
@@ -3685,11 +3860,11 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
 
   info->unitRes = taosMemoryMalloc(info->unitNum * sizeof(*info->unitRes));
   if (info->unitRes == NULL) {
-    FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_JRET(terrno);
   }
   info->unitFlags = taosMemoryMalloc(info->unitNum * sizeof(*info->unitFlags));
   if (info->unitFlags == NULL) {
-    FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_JRET(terrno);
   }
   FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 0));
   return code;
@@ -3837,12 +4012,12 @@ int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
     bool          less = fltSclLessPoint(pt1, pt2);
     if (less) {
       if (NULL == taosArrayPush(result, pt1)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       ++i;
     } else {
       if (NULL == taosArrayPush(result, pt2)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       ++j;
     }
@@ -3854,7 +4029,7 @@ int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
         FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
       }
       if (NULL == taosArrayPush(result, pt1)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
     }
   }
@@ -3865,7 +4040,7 @@ int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
         FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
       }
       if (NULL == taosArrayPush(result, pt2)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
     }
   }
@@ -3892,13 +4067,13 @@ int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
       ++count;
       if (count == countRequired) {
         if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
       }
     } else {
       if (count == countRequired) {
         if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
       }
       --count;
@@ -3939,7 +4114,7 @@ int32_t fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList,
     FLT_ERR_RET(terrno);
   }
   if (NULL == taosArrayPush(colRangeList, &newColRange)) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
   *colRange = taosArrayGetLast(colRangeList);
   return TSDB_CODE_SUCCESS;
@@ -3958,7 +4133,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
       }
       case TSDB_DATA_TYPE_BOOL: {
         datum->kind = FLT_SCL_DATUM_KIND_INT64;
-        datum->i = (valNode->datum.b) ? 0 : 1;
+        datum->i = (valNode->datum.b) ? 1 : 0;
         break;
       }
       case TSDB_DATA_TYPE_TINYINT:
@@ -4038,10 +4213,10 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
     SFltSclPoint startPt = {.start = true, .excl = false, .val = datum};
     SFltSclPoint endPt = {.start = false, .excl = false, .val = datum};
     if (NULL == taosArrayPush(points, &startPt)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
     if (NULL == taosArrayPush(points, &endPt)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -4050,10 +4225,10 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
     SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
     SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
     if (NULL == taosArrayPush(points, &startPt)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
     if (NULL == taosArrayPush(points, &endPt)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
   SFltSclDatum min = {0};
@@ -4063,10 +4238,10 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&max, colRange->colNode->node.resType.type, pAgg->max));
   SFltSclPoint maxPt = {.excl = false, .start = false, .val = max};
   if (NULL == taosArrayPush(points, &minPt)) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
   if (NULL == taosArrayPush(points, &maxPt)) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4092,7 +4267,7 @@ int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32
         SColumnDataAgg *pAgg = &pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         if (NULL == points) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         FLT_ERR_RET(fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points));
         qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows,
@@ -4100,7 +4275,7 @@ int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32
 
         SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
         if (NULL == merged) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         FLT_ERR_RET(fltSclIntersect(points, colRange->points, merged));
         bool isIntersect = taosArrayGetSize(merged) != 0;
@@ -4366,6 +4541,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
 
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
+    SOperatorNode *optNode = (SOperatorNode *) pNode;
     if (taosArrayGetSize(colRanges) == 1) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
       if (NULL == colRange) {
@@ -4385,7 +4561,8 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
         win->skey = start.i;
         win->ekey = end.i;
-        *isStrict = true;
+        if(optNode->opType == OP_TYPE_IN) *isStrict = false;
+        else *isStrict = true;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
         *win = TSWINDOW_DESC_INITIALIZER;
@@ -4420,7 +4597,7 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
       int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
       nfi.data = taosMemoryMalloc(rows * bytes);
       if (nfi.data == NULL) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
       for (int32_t j = 0; j < rows; ++j) {
@@ -4434,7 +4611,7 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         if (k == varSrcLen) {
           /* NULL */
           varDataLen(dst) = (VarDataLenT)varSrcLen;
-          (void)varDataCopy(dst, src);
+          varDataCopy(dst, src);
           continue;
         }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len);
@@ -4479,7 +4656,7 @@ int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
   }
 
   if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(terrno);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4503,6 +4680,9 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
 
       cell = cell->pNext;
+    }
+    if (node->condType == LOGIC_COND_TYPE_NOT) {
+      stat->scalarMode = true;
     }
 
     return DEAL_RES_CONTINUE;
@@ -4731,10 +4911,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4745,10 +4925,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4759,10 +4939,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4773,10 +4953,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4786,10 +4966,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint startPt = {.start = true, .excl = false, .val = valDatum};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = valDatum};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4801,10 +4981,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
         SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
         SFltSclPoint endPt = {.start = false, .excl = true, .val = valDatum};
         if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
       }
       {
@@ -4812,10 +4992,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
         SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
         SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
         if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
         if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          FLT_ERR_RET(terrno);
         }
       }
       break;
@@ -4825,10 +5005,10 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
     }
@@ -4838,12 +5018,40 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
       if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       break;
+    }
+    case OP_TYPE_IN: {
+        SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
+        SListCell *cell = listNode->pNodeList->pHead;
+        SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
+        SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
+        for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
+          SValueNode *valueNode = (SValueNode *)cell->pNode;
+          SFltSclDatum valDatum;
+          FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
+          if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
+            minDatum.i = TMIN(minDatum.i, valDatum.d);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.d);
+          } else {
+            minDatum.i = TMIN(minDatum.i, valDatum.i);
+            maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+          }
+          cell = cell->pNext;
+        }
+        SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
+        SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
+        if (NULL == taosArrayPush(points, &startPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        if (NULL == taosArrayPush(points, &endPt)) {
+          FLT_ERR_RET(terrno);
+        }
+        break;
     }
     default: {
       qError("not supported operator type : %d when build range points", oper->type);
@@ -4897,11 +5105,13 @@ static bool fltSclIsCollectableNode(SNode *pNode) {
 
   if (!(pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
         pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
-        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
+        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL ||
+        pOper->opType == OP_TYPE_IN)) {
     return false;
   }
 
-  if (!(nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE)) {
+  if (!((nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE) ||
+        (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_NODE_LIST))) {
     return false;
   }
   return true;
@@ -4932,7 +5142,7 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
     if (NULL == taosArrayPush(sclOpList, &sclOp)) {
       nodesDestroyNode(pLeft);
       nodesDestroyNode(pRight);
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 
@@ -4978,7 +5188,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   FLT_ERR_JRET(fltSclCollectOperators(*pNode, sclOpList));
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   if (NULL == colRangeList) {
-    FLT_ERR_RET(terrno);
+    FLT_ERR_JRET(terrno);
   }
   FLT_ERR_JRET(fltSclProcessCNF(sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
@@ -4993,7 +5203,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   }
 _return:
   taosArrayDestroy(sclOpList);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t fltGetDataFromColId(void *param, int32_t id, void **data) {
@@ -5060,7 +5270,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
     *pInfo = taosMemoryCalloc(1, sizeof(SFilterInfo));
     if (NULL == *pInfo) {
       fltError("taosMemoryCalloc %d failed", (int32_t)sizeof(SFilterInfo));
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 
@@ -5086,7 +5296,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
     FLT_ERR_JRET(fltOptimizeNodes(info, &info->sclCtx.node, &stat));
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _return:
 
@@ -5101,22 +5311,20 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
     *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
     return TSDB_CODE_SUCCESS;
   }
-
+  int32_t      code = TSDB_CODE_SUCCESS;
   SScalarParam output = {0};
   SDataType    type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
-  int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  FLT_ERR_JRET(sclCreateColumnInfoData(&type, pSrc->info.rows, &output));
 
   if (info->scalarMode) {
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     if (NULL == pList) {
-      FLT_ERR_RET(terrno);
+      FLT_ERR_JRET(terrno);
     }
     if (NULL == taosArrayPush(pList, &pSrc)) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      taosArrayDestroy(pList);
+      FLT_ERR_JRET(terrno);
     }
 
     code = scalarCalculate(info->sclCtx.node, pList, &output);
@@ -5124,7 +5332,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
 
     *p = output.columnData;
 
-    FLT_ERR_RET(code);
+    FLT_ERR_JRET(code);
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
@@ -5136,16 +5344,16 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
     return TSDB_CODE_SUCCESS;
   }
 
-  ASSERT(false == info->scalarMode);
   *p = output.columnData;
   output.numOfRows = pSrc->info.rows;
 
   if (*p == NULL) {
-    return TSDB_CODE_APP_ERROR;
+    fltError("filterExecute failed, column data is NULL");
+    FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   bool keepAll = false;
-  FLT_ERR_RET((info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified, &keepAll));
+  FLT_ERR_JRET((info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified, &keepAll));
 
   // todo this should be return during filter procedure
   if (keepAll) {
@@ -5168,6 +5376,10 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
   }
 
   return TSDB_CODE_SUCCESS;
+_return:
+  sclFreeParam(&output);
+  *p = NULL;
+  return code;
 }
 
 typedef struct SClassifyConditionCxt {

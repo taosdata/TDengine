@@ -4,7 +4,6 @@ import jenkins.model.CauseOfInterruption
 docs_only=0
 node {
 }
-
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -71,6 +70,7 @@ def check_docs() {
         } else {
             echo file_changed
         }
+        env.FILE_CHANGED = file_changed
     }
 }
 def pre_test(){
@@ -137,7 +137,7 @@ def pre_test(){
         '''
     } else {
         sh '''
-            echo "unmatched reposiotry ${CHANGE_URL}"
+            echo "unmatched repository ${CHANGE_URL}"
         '''
     }
     sh '''
@@ -247,7 +247,7 @@ def pre_test_win(){
             '''
         } else {
             bat '''
-                echo "unmatched reposiotry %CHANGE_URL%"
+                echo "unmatched repository %CHANGE_URL%"
             '''
         }
     }
@@ -306,10 +306,10 @@ def pre_test_build_win() {
         cd %WIN_CONNECTOR_ROOT%
         python.exe -m pip install --upgrade pip
         python -m pip uninstall taospy -y 
-        python -m pip install taospy==2.7.13
+        python -m pip install taospy==2.7.16
         python -m pip uninstall taos-ws-py -y 
-        python -m pip install taos-ws-py==0.3.1
-	xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        python -m pip install taos-ws-py==0.3.3
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
 }
@@ -350,7 +350,6 @@ pipeline {
             when {
                 allOf {
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                    not { expression { env.CHANGE_URL =~ /\/TDinternal\// }}
                 }
             }
             parallel {
@@ -420,6 +419,18 @@ pipeline {
                                 pre_test()
                                 script {
                                     sh '''
+                                    mkdir -p ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}
+                                    echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                                    '''
+                                    sh '''
+                                       cd ${WKC}/tests/parallel_test
+                                       ./run_check_assert_container.sh -d ${WKDIR}
+                                    '''
+                                    sh '''
+                                       cd ${WKC}/tests/parallel_test
+                                       ./run_check_void_container.sh -d ${WKDIR}
+                                    '''
+                                    sh '''
                                         date
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
@@ -450,6 +461,10 @@ pipeline {
                                             }
                                         }
                                     }
+                                    sh '''
+                                       cd ${WKC}/tests/parallel_test
+                                       ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
+                                    '''
                                     sh '''
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2

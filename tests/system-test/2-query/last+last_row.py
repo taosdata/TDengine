@@ -56,26 +56,33 @@ class TDTestCase(TDTestCase):
 
             
     def check_sql_result_include(self, sql,include_result):
-        result = os.popen("taos -s 'reset query cache; %s'" %sql)
+        result = os.popen(f"taos -s \"reset query cache; {sql}\"" )
         res = result.read()
-        #tdLog.info(res)
-        if (include_result in res):
-            tdLog.info(f"check_sql_result_include : checkEqual success")
-        else :
-            tdLog.info(res)
+        if  res is None or res == '':
             tdLog.info(sql)  
-            tdLog.exit(f"check_sql_result_include : checkEqual error")            
+            tdLog.exit(f"check_sql_result_include :  taos -s return null")
+        else:
+            if (include_result in res):
+                tdLog.info(f"check_sql_result_include : checkEqual success")
+            else :
+                tdLog.info(res)
+                tdLog.info(sql)  
+                tdLog.exit(f"check_sql_result_include : checkEqual error")            
             
     def check_sql_result_not_include(self, sql,not_include_result):  
-        result = os.popen("taos -s 'reset query cache; %s'" %sql)
+        result = os.popen(f"taos -s \"reset query cache; {sql}\"" )
         res = result.read()
         #tdLog.info(res)
-        if (not_include_result in res):
-            tdLog.info(res)
+        if  res is None or res == '':
             tdLog.info(sql)  
-            tdLog.exit(f"check_sql_result_not_include : checkEqual error") 
-        else :
-            tdLog.info(f"check_sql_result_not_include : checkEqual success") 
+            tdLog.exit(f"check_sql_result_not_include :  taos -s return null")
+        else:
+            if (not_include_result in res):
+                tdLog.info(res)
+                tdLog.info(sql)  
+                tdLog.exit(f"check_sql_result_not_include : checkEqual error") 
+            else :
+                tdLog.info(f"check_sql_result_not_include : checkEqual success") 
             
     def cachemodel_none(self, dbname="nested"):
 
@@ -325,6 +332,7 @@ class TDTestCase(TDTestCase):
                
         for i in range(2):
             self.cachemodel_none() 
+            tdLog.info("last_row")
             tdSql.query("alter database nested cachemodel 'last_row' ")  
             tdSql.query("reset query cache;")  
             self.cachemodel_last_row() 

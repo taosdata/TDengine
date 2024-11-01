@@ -106,8 +106,7 @@ _exit:
 #endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  ASSERT(idx >= 0 && idx < pMapData->nItem);
-  (void)tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
+  int32_t r = tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
 #ifdef BUILD_NO_CALL
@@ -117,7 +116,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 
   SArray *pArray = taosArrayInit(pMapData->nItem, itemSize);
   if (pArray == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -404,8 +403,6 @@ static const int32_t BLOCK_WITH_ALG_VER = 2;
 int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver, uint32_t defaultCmprAlg) {
   int32_t code;
 
-  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
-
   if ((code = tBufferPutI16v(buffer, pBlockCol->cid))) return code;
   if ((code = tBufferPutI8(buffer, pBlockCol->type))) return code;
   if ((code = tBufferPutI8(buffer, pBlockCol->cflag))) return code;
@@ -443,8 +440,6 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint3
   if ((code = tBufferGetI8(br, &pBlockCol->cflag))) return code;
   if ((code = tBufferGetI8(br, &pBlockCol->flag))) return code;
   if ((code = tBufferGetI32v(br, &pBlockCol->szOrigin))) return code;
-
-  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   pBlockCol->szBitmap = 0;
   pBlockCol->szOffset = 0;
@@ -584,7 +579,8 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     nowSec = nowSec * 1000000000l;
   } else {
-    ASSERT(0);
+    tsdbError("invalid time precision:%d", pKeepCfg->precision);
+    return 0;
   }
 
   nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];
@@ -613,7 +609,10 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   SValue    value;
 
   if (pRow->type == TSDBROW_ROW_FMT) {
-    (void)tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    int32_t ret = tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    if (ret != 0) {
+      tsdbError("failed to get column value, code:%d", ret);
+    }
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
       *pColVal =
@@ -628,8 +627,6 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
         *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
       }
     }
-  } else {
-    ASSERT(0);
   }
 }
 
@@ -649,7 +646,6 @@ void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
     if (pColData->cflag & COL_IS_KEY) {
       SColVal cv;
       tColDataGetValue(pColData, irow, &cv);
-      ASSERT(COL_VAL_IS_VALUE(&cv));
       key->pks[key->numOfPKs] = cv.value;
       key->numOfPKs++;
     } else {
@@ -697,8 +693,6 @@ int32_t tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) 
     if (code) return code;
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pIter->iColData = 0;
-  } else {
-    ASSERT(0);
   }
 
   return 0;
@@ -730,8 +724,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
       return NULL;
     }
   } else {
-    ASSERT(0);
-    return NULL;  // suppress error report by compiler
+    tsdbError("invalid row type:%d", pIter->pRow->type);
+    return NULL;
   }
 }
 
@@ -751,8 +745,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     // ts
     jCol = 0;
     pTColumn = &pTSchema->columns[jCol++];
-
-    ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
     *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
@@ -804,8 +796,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     pMerger->version = key.version;
     return 0;
   } else {
-    ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
-
     for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
       pTColumn = &pMerger->pTSchema->columns[iCol];
       if (pTSchema->columns[jCol].colId < pTColumn->colId) {
@@ -822,6 +812,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
         if (!COL_VAL_IS_NONE(pColVal)) {
           if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
+            if (!pTColVal) return terrno;
             if (!COL_VAL_IS_NULL(pColVal)) {
               code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
               if (code) return code;
@@ -856,7 +847,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           }
         }
       } else {
-        ASSERT(0 && "dup versions not allowed");
+        return TSDB_CODE_INVALID_PARA;
       }
     }
 
@@ -902,76 +893,6 @@ int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
   return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
-/*
-// delete skyline ======================================================
-static int32_t tsdbMergeSkyline2(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
-  int32_t  code = 0;
-  int32_t  i1 = 0;
-  int32_t  n1 = taosArrayGetSize(aSkyline1);
-  int32_t  i2 = 0;
-  int32_t  n2 = taosArrayGetSize(aSkyline2);
-  TSDBKEY *pSkyline1;
-  TSDBKEY *pSkyline2;
-  TSDBKEY  item;
-  int64_t  version1 = 0;
-  int64_t  version2 = 0;
-
-  ASSERT(n1 > 0 && n2 > 0);
-
-  taosArrayClear(aSkyline);
-
-  while (i1 < n1 && i2 < n2) {
-    pSkyline1 = (TSDBKEY *)taosArrayGet(aSkyline1, i1);
-    pSkyline2 = (TSDBKEY *)taosArrayGet(aSkyline2, i2);
-
-    if (pSkyline1->ts < pSkyline2->ts) {
-      version1 = pSkyline1->version;
-      i1++;
-    } else if (pSkyline1->ts > pSkyline2->ts) {
-      version2 = pSkyline2->version;
-      i2++;
-    } else {
-      version1 = pSkyline1->version;
-      version2 = pSkyline2->version;
-      i1++;
-      i2++;
-    }
-
-    item.ts = TMIN(pSkyline1->ts, pSkyline2->ts);
-    item.version = TMAX(version1, version2);
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-  }
-
-  while (i1 < n1) {
-    pSkyline1 = (TSDBKEY *)taosArrayGet(aSkyline1, i1);
-    item.ts = pSkyline1->ts;
-    item.version = pSkyline1->version;
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    i1++;
-  }
-
-  while (i2 < n2) {
-    pSkyline2 = (TSDBKEY *)taosArrayGet(aSkyline2, i2);
-    item.ts = pSkyline2->ts;
-    item.version = pSkyline2->version;
-    if (taosArrayPush(aSkyline, &item) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    i2++;
-  }
-
-_exit:
-  return code;
-}
-*/
-
 // delete skyline ======================================================
 static void tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyline) {
   int32_t  i1 = 0;
@@ -982,8 +903,6 @@ static void tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyl
   TSDBKEY *pKey2;
   int64_t  version1 = 0;
   int64_t  version2 = 0;
-
-  ASSERT(n1 > 0 && n2 > 0);
 
   taosArrayClear(pSkyline);
   TSDBKEY **pItem = TARRAY_GET_ELEM(pSkyline, 0);
@@ -1217,7 +1136,9 @@ _exit:
 int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
   int32_t code = 0;
 
-  ASSERT(pId->suid || pId->uid);
+  if (!pId->suid && !pId->uid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   pBlockData->suid = pId->suid;
   pBlockData->uid = pId->uid;
@@ -1238,7 +1159,9 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
 
       while (pTColumn->colId < aCid[iCid]) {
         iColumn++;
-        ASSERT(iColumn < pTSchema->numOfCols);
+        if (!(iColumn < pTSchema->numOfCols)) {
+          return TSDB_CODE_INVALID_PARA;
+        }
         pTColumn = &pTSchema->columns[iColumn];
       }
 
@@ -1277,8 +1200,6 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
-  ASSERT(pBlockData->suid || pBlockData->uid);
-
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     tColDataClear(tBlockDataGetColDataByIdx(pBlockData, iColData));
@@ -1286,7 +1207,9 @@ void tBlockDataClear(SBlockData *pBlockData) {
 }
 
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData) {
-  ASSERT(pBlockData->nColData == 0 || pBlockData->aColData[pBlockData->nColData - 1].cid < cid);
+  if (pBlockData->nColData != 0 && pBlockData->aColData[pBlockData->nColData - 1].cid >= cid) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   SColData *newColData = taosMemoryRealloc(pBlockData->aColData, sizeof(SColData) * (pBlockData->nColData + 1));
   if (newColData == NULL) {
@@ -1346,11 +1269,15 @@ _exit:
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
   int32_t code = 0;
 
-  ASSERT(pBlockData->suid || pBlockData->uid);
+  if (!(pBlockData->suid || pBlockData->uid)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   // uid
   if (pBlockData->uid == 0) {
-    ASSERT(uid);
+    if (!uid) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
     if (code) goto _exit;
     pBlockData->aUid[pBlockData->nRow] = uid;
@@ -1371,7 +1298,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, 0 /* append */);
     if (code) goto _exit;
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
   pBlockData->nRow++;
 
@@ -1384,7 +1311,9 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   // version
   int64_t lversion = pBlockData->aVersion[pBlockData->nRow - 1];
   int64_t rversion = TSDBROW_VERSION(pRow);
-  ASSERT(lversion != rversion);
+  if (lversion == rversion) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (rversion > lversion) {
     pBlockData->aVersion[pBlockData->nRow - 1] = rversion;
   }
@@ -1398,7 +1327,8 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataUpsertBlockRow(pBlockData, pRow->pBlockData, pRow->iRow, (rversion > lversion) ? 1 : -1);
     if (code) goto _exit;
   } else {
-    ASSERT(0);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
   }
 
 _exit:
@@ -1426,7 +1356,6 @@ int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 #endif
 
 SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
-  ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
   int32_t lidx = 0;
   int32_t ridx = pBlockData->nColData - 1;
 
@@ -1696,7 +1625,9 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
 
   // primary keys
   for (hdr->numOfPKs = 0; hdr->numOfPKs < bData->nColData; hdr->numOfPKs++) {
-    ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
+    if (!(hdr->numOfPKs <= TD_MAX_PK_COLS)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
     SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
@@ -1744,8 +1675,6 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
 
   code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  // ASSERT(blockCol->flag != HAS_NONE);
 
   SColDataCompressInfo info = {
       .cmprAlg = blockCol->alg,
@@ -1833,8 +1762,12 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
   for (int i = 0; i < hdr->numOfPKs; i++) {
     const SBlockCol *blockCol = &hdr->primaryBlockCols[i];
 
-    ASSERT(blockCol->flag == HAS_VALUE);
-    ASSERT(blockCol->cflag & COL_IS_KEY);
+    if (!(blockCol->flag == HAS_VALUE)) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
+    if (!(blockCol->cflag & COL_IS_KEY)) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
 
     code = tBlockDataDecompressColData(hdr, blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);

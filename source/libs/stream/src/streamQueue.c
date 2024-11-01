@@ -51,7 +51,7 @@ int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ) {
 
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
   if (pQueue == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = taosOpenQueue(&pQueue->pQueue);
@@ -90,7 +90,6 @@ void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
   int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
 
   if (flag == STREAM_QUEUE__FAILED) {
-    ASSERT(pQueue->qItem != NULL);
     *pItem = streamQueueCurItem(pQueue);
   } else {
     pQueue->qItem = NULL;
@@ -105,13 +104,20 @@ void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
 }
 
 void streamQueueProcessSuccess(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  if (atomic_load_8(&queue->status) != STREAM_QUEUE__PROCESSING) {
+    stError("invalid queue status:%d, expect:%d", atomic_load_8(&queue->status), STREAM_QUEUE__PROCESSING);
+    return;
+  }
+
   queue->qItem = NULL;
   atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
 }
 
 void streamQueueProcessFail(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  if (atomic_load_8(&queue->status) != STREAM_QUEUE__PROCESSING) {
+    stError("invalid queue status:%d, expect:%d", atomic_load_8(&queue->status), STREAM_QUEUE__PROCESSING);
+    return;
+  }
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
@@ -229,13 +235,12 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
       }
     } else {
       if (*pInput == NULL) {
-        ASSERT((*numOfBlocks) == 0);
         *pInput = qItem;
       } else { // merge current block failed, let's handle the already merged blocks.
         void*   newRet = NULL;
         int32_t code = streamQueueMergeQueueItem(*pInput, qItem, (SStreamQueueItem**)&newRet);
         if (newRet == NULL) {
-          if (code) {
+          if (code != -1) {
             stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
                     tstrerror(code));
           }
@@ -282,7 +287,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
           "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
           pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamDataSubmitDestroy(px);
-      return -1;
+      return TSDB_CODE_STREAM_INPUTQ_FULL;
     }
 
     int32_t msgLen = px->submit.msgLen;
@@ -307,7 +312,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       stTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
               pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamFreeQitem(pItem);
-      return -1;
+      return TSDB_CODE_STREAM_INPUTQ_FULL;
     }
 
     int32_t code = taosWriteQitem(pQueue, pItem);
@@ -340,7 +345,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     stDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   } else {
-    ASSERT(0);
+    stError("s-task:%s invalid type:%d to put in inputQ", pTask->id.idStr, type);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && type != STREAM_INPUT__CHECKPOINT_TRIGGER &&
@@ -366,7 +372,7 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
@@ -378,13 +384,13 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
   if (pTranstate->blocks == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
   void* p = taosArrayPush(pTranstate->blocks, pBlock);
   if (p == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
 
@@ -452,7 +458,9 @@ static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   int64_t now = taosGetTimestampMs();
 
   int64_t deltaToken = now - pBucket->tokenFillTimestamp;
-  ASSERT(pBucket->numOfToken >= 0);
+  if (pBucket->numOfToken < 0) {
+    return;
+  }
 
   int32_t incNum = (deltaToken / 1000.0) * pBucket->numRate;
   if (incNum > 0) {

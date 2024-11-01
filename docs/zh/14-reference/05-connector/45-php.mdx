@@ -1,0 +1,153 @@
+---
+sidebar_label: PHP
+title: PHP Connector
+toc_max_heading_level: 4
+---
+
+`php-tdengine` 是由社区贡献的 PHP 连接器扩展，还特别支持了 Swoole 协程化。
+
+PHP 连接器依赖 TDengine 客户端驱动。
+
+项目地址：[https://github.com/Yurunsoft/php-tdengine](https://github.com/Yurunsoft/php-tdengine)
+
+TDengine 服务端或客户端安装后，`taos.h` 位于：
+
+- Linux：`/usr/local/taos/include`
+- Windows：`C:\TDengine\include`
+- macOS：`/usr/local/include`
+
+TDengine 客户端驱动的动态库位于：
+
+- Linux: `/usr/local/taos/driver/libtaos.so`
+- Windows: `C:\TDengine\taos.dll`
+- macOS：`/usr/local/lib/libtaos.dylib`
+
+## 支持的平台
+
+* Windows、Linux、MacOS
+
+* PHP >= 7.4
+
+* TDengine >= 2.0
+
+* Swoole >= 4.8 (可选)
+
+## 支持的版本
+
+TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一对应的强对应关系，建议使用与 TDengine 服务端完全相同的客户端驱动。虽然低版本的客户端驱动在前三段版本号一致（即仅第四段版本号不同）的情况下也能够与高版本的服务端相兼容，但这并非推荐用法。强烈不建议使用高版本的客户端驱动访问低版本的服务端。
+
+## 安装步骤
+
+### 安装 TDengine 客户端驱动
+
+TDengine 客户端驱动的安装请参考 [安装指南](../#安装步骤)
+
+### 编译安装 php-tdengine
+
+**下载代码并解压：**
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+> 版本 `v1.0.2` 可替换为任意更新的版本，可在 [TDengine PHP Connector 发布历史](https://github.com/Yurunsoft/php-tdengine/releases)。
+
+**非 Swoole 环境：**
+
+```shell
+phpize && ./configure && make -j && make install
+```
+
+**手动指定 tdengine 目录：**
+
+```shell
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
+```
+
+> `--with-tdengine-dir=` 后跟上 tdengine 目录。
+> 适用于默认找不到的情况，或者 MacOS 系统用户。
+
+**Swoole 环境：**
+
+```shell
+phpize && ./configure --enable-swoole && make -j && make install
+```
+
+**启用扩展：**
+
+方法一：在 `php.ini` 中加入 `extension=tdengine`
+
+方法二：运行带参数 `php -dextension=tdengine test.php`
+
+## 示例程序
+
+本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
+
+> 所有错误都会抛出异常: `TDengine\Exception\TDengineException`
+
+### 建立连接
+
+<details>
+<summary>建立连接</summary>
+
+```c
+{{#include docs/examples/php/connect.php}}
+```
+
+</details>
+
+### 插入数据
+
+<details>
+<summary>插入数据</summary>
+
+```c
+{{#include docs/examples/php/insert.php}}
+```
+
+</details>
+
+### 同步查询
+
+<details>
+<summary>同步查询</summary>
+
+```c
+{{#include docs/examples/php/query.php}}
+```
+
+</details>
+
+### 参数绑定
+
+<details>
+<summary>参数绑定</summary>
+
+```c
+{{#include docs/examples/php/insert_stmt.php}}
+```
+
+</details>
+
+## 常量
+
+| 常量 | 说明 |
+| ------------ | ------------ 
+| `TDengine\TSDB_DATA_TYPE_NULL` | null |
+| `TDengine\TSDB_DATA_TYPE_BOOL` | bool |
+| `TDengine\TSDB_DATA_TYPE_TINYINT` | tinyint |
+| `TDengine\TSDB_DATA_TYPE_SMALLINT` | smallint |
+| `TDengine\TSDB_DATA_TYPE_INT` | int |
+| `TDengine\TSDB_DATA_TYPE_BIGINT` | bigint |
+| `TDengine\TSDB_DATA_TYPE_FLOAT` | float |
+| `TDengine\TSDB_DATA_TYPE_DOUBLE` | double |
+| `TDengine\TSDB_DATA_TYPE_BINARY` | binary |
+| `TDengine\TSDB_DATA_TYPE_VARBINARY` | varbinary |
+| `TDengine\TSDB_DATA_TYPE_TIMESTAMP` | timestamp |
+| `TDengine\TSDB_DATA_TYPE_NCHAR` | nchar |
+| `TDengine\TSDB_DATA_TYPE_UTINYINT` | utinyint |
+| `TDengine\TSDB_DATA_TYPE_USMALLINT` | usmallint |
+| `TDengine\TSDB_DATA_TYPE_UINT` | uint |
+| `TDengine\TSDB_DATA_TYPE_UBIGINT` | ubigint |

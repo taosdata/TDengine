@@ -81,9 +81,9 @@ void scltInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, PATH_MAX);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     (void)printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -115,9 +115,14 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     res->info.capacity = rows;
     res->info.rows = rows;
     SColumnInfoData *p = static_cast<SColumnInfoData *>(taosArrayGet(res->pDataBlock, 0));
-    ASSERT(p->pData != NULL && p->nullbitmap != NULL);
+    if (p->pData == NULL || p->nullbitmap == NULL) {
+      sclError("data block is not initialized since pData or nullbitmap is NULL");
+      SCL_ERR_RET(TSDB_CODE_APP_ERROR);
+    }
 
-    (void)taosArrayPush(pBlockList, &res);
+    if (NULL == taosArrayPush(pBlockList, &res)) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
     res->info.id.blockId = *dataBlockId;
     *slotId = 0;
@@ -158,7 +163,7 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
     if (NULL == vnode->datum.p) {
       SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    (void)varDataCopy(vnode->datum.p, value);
+    varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
@@ -189,8 +194,7 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
   if (NULL == *block) {
     SSDataBlock *res = NULL;
 
-    int32_t code = createDataBlock(&res);
-    ASSERT(code == 0);
+    SCL_ERR_RET(createDataBlock(&res));
 
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
@@ -1380,7 +1384,9 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
   SNode       *opNode = NULL;
 
   SCL_ERR_RET(makeJsonArrow(&src, &opNode, json, (char *)key));
-  (void)taosArrayPush(blockList, &src);
+  if (NULL == taosArrayPush(blockList, &src)) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
 
@@ -1422,8 +1428,10 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
              opType == OP_TYPE_NMATCH) {
     (void)printf("op:%s,3result:%d,except:%f\n", operatorTypeStr(opType), *((bool *)colDataGetData(column, 0)),
                  exceptValue);
-    assert(*(bool *)colDataGetData(column, 0) == exceptValue);
-//    ASSERT_EQ((int) *((bool *)colDataGetData(column, 0)), (int)exceptValue);
+    if(*(bool *)colDataGetData(column, 0) != exceptValue) {
+      (void)printf("expect value %d, but got %d\n", *((bool *)colDataGetData(column, 0)), exceptValue);
+      SCL_ERR_RET(TSDB_CODE_FAILED);
+    }
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -1905,7 +1913,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
 
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   ASSERT_NE(blockList, nullptr);
-  (void)taosArrayPush(blockList, &src);
+  ASSERT_NE(taosArrayPush(blockList, &src), nullptr);
 
   SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   int16_t     dataBlockId = 0, slotId = 0;

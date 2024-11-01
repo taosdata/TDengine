@@ -50,6 +50,7 @@ typedef struct {
   int32_t  rollPeriod;       // secs
   int64_t  retentionSize;
   int64_t  segSize;
+  int64_t  committed;
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
@@ -95,6 +96,7 @@ typedef struct {
 } SWalCkHead;
 #pragma pack(pop)
 
+typedef void (*stopDnodeFn)();
 typedef struct SWal {
   // cfg
   SWalCfg cfg;
@@ -111,12 +113,15 @@ typedef struct SWal {
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t       refId;
-  TdThreadMutex mutex;
+  int64_t        refId;
+  TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
   // path
   char path[WAL_PATH_LEN];
+
+  stopDnodeFn stopDnode;
+
   // reusable write head
   SWalCkHead writeHead;
 } SWal;
@@ -152,7 +157,7 @@ typedef struct SWalReader {
 } SWalReader;
 
 // module initialization
-int32_t walInit();
+int32_t walInit(stopDnodeFn stopDnode);
 void    walCleanUp();
 
 // handle open and ctl
@@ -173,7 +178,7 @@ int32_t walRollback(SWal *, int64_t ver);
 int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
-int32_t walApplyVer(SWal *, int64_t ver);
+void    walApplyVer(SWal *, int64_t ver);
 
 // wal reader
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
