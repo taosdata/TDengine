@@ -675,11 +675,13 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
                         .pData = taosMemoryCalloc(1, pExprInfo->base.resSchema.bytes)};
       if (!key.pData) {
         taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+        pInfo->pPrevGroupKeys = NULL;
         return terrno;
       }
       if (NULL == taosArrayPush(pInfo->pPrevGroupKeys, &key)) {
         taosMemoryFree(key.pData);
         taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+        pInfo->pPrevGroupKeys = NULL;
         return terrno;
       }
     }
