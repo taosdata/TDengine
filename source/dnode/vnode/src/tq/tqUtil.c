@@ -742,3 +742,54 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
+  int32_t          code = 0;
+  int32_t          lino = 0;
+  SDecoder         dc = {0};
+  SVDropTbBatchReq batchReq = {0};
+  tDecoderInit(&dc, (uint8_t*)data, len);
+  code = tDecodeSVDropTbBatchReq(&dc, &batchReq);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  if (batchReq.nReqs <= 0) goto _exit;
+
+  SSDataBlock* pBlock = NULL;
+  code = createSpecialDataBlock(STREAM_DROP_CHILD_TABLE, &pBlock);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = blockDataEnsureCapacity(pBlock, batchReq.nReqs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  pBlock->info.rows = batchReq.nReqs;
+  pBlock->info.version = ver;
+  for (int32_t i = 0; i < batchReq.nReqs; ++i) {
+    SVDropTbReq* pReq = batchReq.pReqs + i;
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+    TSDB_CHECK_NULL(pCol, code, lino, _exit, terrno);
+    code = colDataSetVal(pCol, i, (const char* )&pReq->uid, false);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    /*
+    pCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+    TSDB_CHECK_NULL(pCol, code, lino, _exit, terrno);
+    char varTbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    varDataSetLen(varTbName, strlen(pReq->name));
+    tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pReq->name);
+    code = colDataSetVal(pCol, i, varTbName, false);
+    */
+  }
+
+  code = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0, pRefBlock);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  ((SStreamRefDataBlock*)(*pRefBlock))->type = STREAM_INPUT__REF_DATA_BLOCK;
+  ((SStreamRefDataBlock*)(*pRefBlock))->pBlock = pBlock;
+
+_exit:
+  tDecoderClear(&dc);
+  if (TSDB_CODE_SUCCESS != code) {
+    tqError("faled to extract drop ctb data block, line:%d code:%s", lino, tstrerror(code));
+    blockDataCleanup(pBlock);
+    taosMemoryFree(pBlock);
+  }
+  return code;
+}

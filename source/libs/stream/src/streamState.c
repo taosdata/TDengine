@@ -457,6 +457,7 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
     if (tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+      qInfo("wjm put group id into parnamemap: %"PRId64 " cur mapsize: %d", groupId, tSimpleHashGetSize(pState->parNameMap));
       QUERY_CHECK_CODE(code, lino, _end);
     }
     code = streamStatePutParName_rocksdb(pState, groupId, tbname);
@@ -482,6 +483,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
+      qInfo("wjm put group id into parnamemap: %"PRId64 " cur mapsize: %d", groupId, tSimpleHashGetSize(pState->parNameMap));
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
@@ -503,6 +505,7 @@ _end:
 }
 
 int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
+  qTrace("wjm delete par for group:%"PRId64 " parnameMapsize: %d", groupId, tSimpleHashGetSize(pState->parNameMap));
   int32_t code = tSimpleHashRemove(pState->parNameMap, &groupId, sizeof(int64_t));
   qTrace("catche %s at line %d res %d", __func__, __LINE__, code);
   code = streamStateDeleteParName_rocksdb(pState, groupId);

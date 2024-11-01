@@ -10205,6 +10205,7 @@ static int32_t tEncodeSVDropTbReq(SEncoder *pCoder, const SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tStartEncode(pCoder));
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pReq->name));
   TAOS_CHECK_RETURN(tEncodeU64(pCoder, pReq->suid));
+  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pReq->uid));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->igNotExists));
 
   tEndEncode(pCoder);
@@ -10215,6 +10216,7 @@ static int32_t tDecodeSVDropTbReq(SDecoder *pCoder, SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pReq->name));
   TAOS_CHECK_RETURN(tDecodeU64(pCoder, &pReq->suid));
+  TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->uid));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pReq->igNotExists));
 
   tEndDecode(pCoder);

@@ -53,6 +53,7 @@ static int32_t checkTagSchema(SStreamTask* pTask, SVnode* pVnode);
 static void reubuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs);
 static int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_t index, SVnode* pVnode,
                                     int64_t earlyTs);
+static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName, int64_t uid);
 
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr, bool newSubTableRule) {
@@ -138,7 +139,7 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
   return 0;
 }
 
-static int32_t encodeCreateChildTableForRPC(SVCreateTbBatchReq* pReqs, int32_t vgId, void** pBuf, int32_t* contLen) {
+static int32_t encodeCreateChildTableForRPC(void* pReqs, int32_t vgId, void** pBuf, int32_t* contLen) {
   int32_t ret = 0;
 
   tEncodeSize(tEncodeSVCreateTbBatchReq, pReqs, *contLen, ret);
@@ -170,17 +171,50 @@ end:
   return ret;
 }
 
-static int32_t tqPutReqToQueue(SVnode* pVnode, SVCreateTbBatchReq* pReqs) {
+static int32_t encodeDropChildTableForRPC(void* pReqs, int32_t vgId, void** ppBuf, int32_t *contLen) {
+  int32_t  code = 0;
+  SEncoder ec = {0};
+  tEncodeSize(tEncodeSVDropTbBatchReq, pReqs, *contLen, code);
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+  *contLen += sizeof(SMsgHead);
+  *ppBuf = rpcMallocCont(*contLen);
+
+  if (!*ppBuf) {
+    code = terrno;
+    goto end;
+  }
+
+  ((SMsgHead*)(*ppBuf))->vgId = vgId;
+  ((SMsgHead*)(*ppBuf))->contLen = htonl(*contLen);
+
+  tEncoderInit(&ec, POINTER_SHIFT(*ppBuf, sizeof(SMsgHead)), (*contLen) - sizeof(SMsgHead));
+  code = tEncodeSVDropTbBatchReq(&ec, pReqs);
+  tEncoderClear(&ec);
+  if (code < 0) {
+    rpcFreeCont(*ppBuf);
+    *ppBuf = NULL;
+    *contLen = 0;
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+end:
+  return code;
+}
+
+static int32_t tqPutReqToQueue(SVnode* pVnode, void* pReqs, int32_t(*encoder)(void* pReqs, int32_t vgId, void** ppBuf, int32_t *contLen), tmsg_t msgType) {
   void*   buf = NULL;
   int32_t tlen = 0;
 
-  int32_t code = encodeCreateChildTableForRPC(pReqs, TD_VID(pVnode), &buf, &tlen);
+  int32_t code = encoder(pReqs, TD_VID(pVnode), &buf, &tlen);
   if (code) {
     tqError("vgId:%d failed to encode create table msg, create table failed, code:%s", TD_VID(pVnode), tstrerror(code));
     return code;
   }
 
-  SRpcMsg msg = {.msgType = TDMT_VND_CREATE_TABLE, .pCont = buf, .contLen = tlen};
+  SRpcMsg msg = {.msgType = msgType, .pCont = buf, .contLen = tlen};
   code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg);
   if (code) {
     tqError("failed to put into write-queue since %s", terrstr());
@@ -388,7 +422,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
   }
 
   reqs.nReqs = taosArrayGetSize(reqs.pArray);
-  code = tqPutReqToQueue(pVnode, &reqs);
+  code = tqPutReqToQueue(pVnode, &reqs, encodeCreateChildTableForRPC, TDMT_VND_CREATE_TABLE);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("s-task:%s failed to send create table msg", id);
   }
@@ -396,6 +430,58 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
 _end:
   taosArrayDestroy(tagArray);
   taosArrayDestroyEx(crTblArray, (FDelete)tdDestroySVCreateTbReq);
+  return code;
+}
+
+static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SSDataBlock* pDataBlock,
+                                          SStreamTask* pTask, int64_t suid) {
+  int32_t          lino = 0;
+  int32_t          code = 0;
+  int32_t          rows = pDataBlock->info.rows;
+  const char*      id = pTask->id.idStr;
+  SVDropTbBatchReq batchReq = {0};
+  SVDropTbReq      req = {0};
+
+  if (rows <= 0 || pTask->subtableWithoutMd5 == 0) return TSDB_CODE_SUCCESS;
+
+  batchReq.pArray = taosArrayInit(rows, sizeof(SVDropTbReq));
+  if (!batchReq.pArray) return terrno;
+  batchReq.nReqs = rows;
+  req.suid = suid;
+  req.igNotExists = true;
+
+  SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+  SColumnInfoData* pUidCol = taosArrayGet(pDataBlock->pDataBlock, UID_COLUMN_INDEX);
+  char tbName[TSDB_TABLE_NAME_LEN + 1] = {0};
+  for (int32_t i = 0; i < rows; ++i) {
+    void* pData = colDataGetVarData(pTbNameCol, i);
+    memcpy(tbName, varDataVal(pData), varDataLen(pData));
+    tbName[varDataLen(pData) + 1] = 0;
+    req.name = tbName;
+    // TODO wjm remove uid, it's not my uid
+    req.uid = *(int64_t*)colDataGetData(pUidCol, i);
+    if (taosArrayPush(batchReq.pArray, &req) == NULL) {
+      TSDB_CHECK_CODE(terrno, lino, _exit);
+    }
+  }
+  tqDebug("s-task:%s build drop %d table(s) msg", id, rows);
+  code = tqPutReqToQueue(pVnode, &batchReq, encodeDropChildTableForRPC, TDMT_VND_DROP_TABLE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  for (int32_t i = 0; i < rows; ++i) {
+    void* pData = colDataGetVarData(pTbNameCol, i);
+    memcpy(tbName, varDataVal(pData), varDataLen(pData));
+    tbName[varDataLen(pData) + 1] = 0;
+    int64_t uid = *(int64_t*)colDataGetData(pUidCol, i);
+    code = doWaitForDstTableDropped(pVnode, pTask, tbName, uid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  return code;
+
+_exit:
+  if (batchReq.pArray) {
+    taosArrayDestroy(batchReq.pArray);
+  }
   return code;
 }
 
@@ -807,6 +893,42 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName, int64_t uid) {
+  int32_t vgId = TD_VID(pVnode);
+  int64_t suid = pTask->outputInfo.tbSink.stbUid;
+  const char* id = pTask->id.idStr;
+
+  while (1) {
+    if (streamTaskShouldStop(pTask)) {
+      tqDebug("s-task:%s task will stop, quit from waiting for table:%s drop", id, dstTableName);
+      return TSDB_CODE_STREAM_EXEC_CANCELLED;
+    }
+    SMetaReader mr = {0};
+    metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+    int32_t code = metaGetTableEntryByName(&mr, dstTableName);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      tqDebug("wjm s-task:%s table:%s has been dropped", id, dstTableName);
+      metaReaderClear(&mr);
+      break;
+    } else if (TSDB_CODE_SUCCESS == code) {
+      if (isValidDstChildTable(&mr, vgId, dstTableName, suid)) {
+        metaReaderClear(&mr);
+        taosMsleep(100);
+        tqDebug("s-task:%s wait 100ms for table:%s drop", id, dstTableName);
+      } else {
+        tqDebug("wjm s-task:%s table:%s exist, but not mine", id, dstTableName);
+        metaReaderClear(&mr);
+        break;
+      }
+    } else {
+      tqError("s-task:%s failed to wait for table:%s drop", id, dstTableName);
+      metaReaderClear(&mr);
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t doCreateSinkTableInfo(const char* pDstTableName, STableSinkInfo** pInfo) {
   int32_t nameLen = strlen(pDstTableName);
   (*pInfo) = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen + 1);
@@ -1052,6 +1174,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         code = doBuildAndSendCreateTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
       } else if (pDataBlock->info.type == STREAM_CHECKPOINT) {
         continue;
+      } else if (pDataBlock->info.type == STREAM_DROP_CHILD_TABLE && pTask->subtableWithoutMd5) {
+        code = doBuildAndSendDropTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
       } else {
         code = handleResultBlockMsg(pTask, pDataBlock, i, pVnode, earlyTs);
       }

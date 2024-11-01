@@ -3090,7 +3090,9 @@ static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock)
   int32_t          rows = pBlock->info.rows;
   if (!pInfo->partitionSup.needCalc) {
     for (int32_t i = 0; i < rows; i++) {
+      qInfo("wjm, get uid: %"PRIu64, uidCol[i]);
       uint64_t groupId = getGroupIdByUid(pInfo, uidCol[i]);
+      qInfo("wjm, get groupid: %"PRIu64, groupId);
       code = colDataSetVal(pGpCol, i, (const char*)&groupId, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -3218,12 +3220,32 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
   return isIntervalWindow(pInfo) || isSessionWindow(pInfo) || isStateWindow(pInfo) || isCountWindow(pInfo);
 }
 
-static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+    SColumnInfoData* pTbnameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
     int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
+    void*            pParName = NULL;
+    int32_t          winCode = 0;
+    // TODO wjm test remove non stream child tables
+    code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i],
+                                                   &pParName, false, &winCode);
+    if (TSDB_CODE_SUCCESS == code && winCode != 0) {
+      qInfo("delete stream part Name for:%"PRId64 " not found", gpIdCol[i]);
+      colDataSetNULL(pTbnameCol, i);
+      continue;
+    }
+    (*deleteNum)++;
+    QUERY_CHECK_CODE(code, lino, _end);
+    char varTbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    varDataSetLen(varTbName, strlen(pParName));
+    tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pParName);
+    code = colDataSetVal(pTbnameCol, i, varTbName, false);
+    qDebug("delete stream part for:%"PRId64 " res tb: %s", gpIdCol[i], (char*)pParName);
+    pInfo->stateStore.streamStateFreeVal(pParName);
+    QUERY_CHECK_CODE(code, lino, _end);
     code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -3460,15 +3482,13 @@ FETCH_NEXT_BLOCK:
           }
         }
       } break;
-      case STREAM_DELETE_GROUP_DATA: {
-        printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "delete group recv",
-                           GET_TASKID(pTaskInfo));
+      case STREAM_DROP_CHILD_TABLE: {
+        int32_t deleteNum = 0;
         code = setBlockGroupIdByUid(pInfo, pBlock);
         QUERY_CHECK_CODE(code, lino, _end);
-
-        code = deletePartName(pInfo, pBlock);
+        code = deletePartName(pInfo, pBlock, &deleteNum);
         QUERY_CHECK_CODE(code, lino, _end);
-        goto FETCH_NEXT_BLOCK;
+        if (deleteNum == 0) goto FETCH_NEXT_BLOCK;
       } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");

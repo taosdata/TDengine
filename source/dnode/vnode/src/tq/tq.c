@@ -756,7 +756,8 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
   }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
+    bool scanDropCtb = pTask->subtableWithoutMd5 ? true : false;
+    SWalFilterCond cond = {.deleteMsg = 1, .scanDropCtb = scanDropCtb};  // delete msg also extract from wal files
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
     if (pTask->exec.pWalReader == NULL) {
       tqError("vgId:%d failed init wal reader, code:%s", vgId, tstrerror(terrno));
