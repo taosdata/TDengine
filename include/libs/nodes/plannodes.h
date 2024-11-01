@@ -204,6 +204,11 @@ typedef struct SInterpFuncLogicNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncLogicNode;
 
+typedef struct SForecastFuncLogicNode {
+  SLogicNode node;
+  SNodeList* pFuncs;
+} SForecastFuncLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode  node;
   bool        grpColsMayBeNull;  
@@ -275,6 +280,7 @@ typedef enum EWindowType {
   WINDOW_TYPE_STATE,
   WINDOW_TYPE_EVENT,
   WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -315,6 +321,8 @@ typedef struct SWindowLogicNode {
   int64_t          windowCount;
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
+  SNode*           pAnomalyExpr;
+  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -325,6 +333,7 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
+  SNodeList*  pFillNullExprs;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -507,6 +516,12 @@ typedef struct SInterpFuncPhysiNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
 
+typedef struct SForecastFuncPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pFuncs;
+} SForecastFuncPhysiNode;
+
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
   EJoinType    joinType;
@@ -663,6 +678,7 @@ typedef struct SFillPhysiNode {
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
   STimeWindow timeRange;
+  SNodeList* pFillNullExprs;
 } SFillPhysiNode;
 
 typedef SFillPhysiNode SStreamFillPhysiNode;
@@ -703,6 +719,12 @@ typedef struct SCountWinodwPhysiNode {
 } SCountWinodwPhysiNode;
 
 typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
+
+typedef struct SAnomalyWindowPhysiNode {
+  SWindowPhysiNode window;
+  SNode*           pAnomalyKey;
+  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+} SAnomalyWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;
@@ -766,9 +788,9 @@ typedef struct SDataDeleterNode {
   char          tableFName[TSDB_TABLE_NAME_LEN];
   char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
-  SNode*        pAffectedRows;
-  SNode*        pStartTs;
-  SNode*        pEndTs;
+  SNode*        pAffectedRows; // usless
+  SNode*        pStartTs;      // usless
+  SNode*        pEndTs;        // usless
 } SDataDeleterNode;
 
 typedef struct SSubplan {

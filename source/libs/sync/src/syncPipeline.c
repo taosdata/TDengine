@@ -1026,6 +1026,14 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
   int32_t         code = 0;
   if (pMgr->restored != false) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
+  sTrace("vgId:%d, begin to recover sync log repl. peer: dnode:%d (%" PRIx64 "), repl-mgr:[%" PRId64 ", %" PRId64
+         ", %" PRId64 ") restore:%d, buffer: [%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64
+         "), msg: {lastSendIndex:%" PRId64 ", matchIndex:%" PRId64 ", fsmState:%d, success:%d, lastMatchTerm:%" PRId64
+         "}",
+         pNode->vgId, DID(&destId), destId.addr, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pMgr->restored,
+         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, pMsg->lastSendIndex, pMsg->matchIndex,
+         pMsg->fsmState, pMsg->success, pMsg->lastMatchTerm);
+
   if (pMgr->endIndex == 0) {
     if (pMgr->startIndex != 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
     if (pMgr->matchIndex != 0) return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -1171,6 +1179,11 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   int64_t nowMs = taosGetMonoTimestampMs();
   int32_t code = 0;
 
+  sTrace("vgId:%d, begin to probe peer:%" PRIx64 " with msg of index:%" PRId64 ". repl-mgr:[%" PRId64 ", %" PRId64
+         ", %" PRId64 "), restored:%d",
+         pNode->vgId, pNode->replicasId[pMgr->peerId].addr, index, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+         pMgr->restored);
+
   if (pMgr->endIndex > pMgr->startIndex &&
       nowMs < pMgr->states[pMgr->startIndex % pMgr->size].timeMs + retryMaxWaitMs) {
     return 0;
@@ -1205,6 +1218,10 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
 
 int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (!pMgr->restored) return TSDB_CODE_SYN_INTERNAL_ERROR;
+
+  sTrace("vgId:%d, begin to attempt replicate log entries from end to match. repl-mgr:[%" PRId64 ", %" PRId64
+         ", %" PRId64 "), restore:%d",
+         pNode->vgId, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pMgr->restored);
 
   SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
   int32_t   batchSize = TMAX(1, pMgr->size >> (4 + pMgr->retryBackoff));
@@ -1527,10 +1544,11 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
     goto _err;
   }
 
+  TRACE_SET_MSGID(&(msgOut.info.traceId), tGenIdPI64());
+  STraceId* trace = &(msgOut.info.traceId);
+  sGTrace("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest: 0x%016" PRIx64,
+          pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
-
-  sTrace("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest: 0x%016" PRIx64,
-         pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
 
   if (!inBuf) {
     syncEntryDestroy(pEntry);

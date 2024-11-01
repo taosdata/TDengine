@@ -42,21 +42,21 @@ typedef enum {
 } EEncryptScope;
 
 // cluster
-extern char     tsFirst[];
-extern char     tsSecond[];
-extern char     tsLocalFqdn[];
-extern char     tsLocalEp[];
-extern char     tsVersionName[];
-extern uint16_t tsServerPort;
-extern int32_t  tsVersion;
-extern int32_t  tsStatusInterval;
-extern int32_t  tsNumOfSupportVnodes;
-extern char     tsEncryptAlgorithm[];
-extern char     tsEncryptScope[];
-extern EEncryptAlgor  tsiEncryptAlgorithm;
-extern EEncryptScope  tsiEncryptScope;
-//extern char     tsAuthCode[];
-extern char     tsEncryptKey[];
+extern char          tsFirst[];
+extern char          tsSecond[];
+extern char          tsLocalFqdn[];
+extern char          tsLocalEp[];
+extern char          tsVersionName[];
+extern uint16_t      tsServerPort;
+extern int32_t       tsVersion;
+extern int32_t       tsStatusInterval;
+extern int32_t       tsNumOfSupportVnodes;
+extern char          tsEncryptAlgorithm[];
+extern char          tsEncryptScope[];
+extern EEncryptAlgor tsiEncryptAlgorithm;
+extern EEncryptScope tsiEncryptScope;
+// extern char     tsAuthCode[];
+extern char tsEncryptKey[];
 
 // common
 extern int32_t tsMaxShellConns;
@@ -71,6 +71,8 @@ extern int32_t tsTagFilterResCacheSize;
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
+extern int32_t tsShareConnLimit;
+extern int32_t tsReadTimeout;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
@@ -265,8 +267,8 @@ extern bool tsExperimental;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
-int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs);
+int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
+                           SArray *pArgs);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();

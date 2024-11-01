@@ -76,8 +76,6 @@ int32_t schedulerExecJob(SSchedulerReq* pReq, int64_t* pJob);
 
 int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq* pReq);
 
-void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param);
-
 int32_t schedulerGetTasksStatus(int64_t job, SArray* pSub);
 
 void schedulerStopQueryHb(void* pTrans);
@@ -99,6 +97,8 @@ int32_t schedulerEnableReSchedule(bool enableResche);
 void schedulerFreeJob(int64_t* job, int32_t errCode);
 
 void schedulerDestroy(void);
+
+int32_t schedulerValidatePlan(SQueryPlan* pPlan);
 
 #ifdef __cplusplus
 }

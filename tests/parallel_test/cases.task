@@ -47,7 +47,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
-
+,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py 
 #
 # system test
 #
@@ -223,6 +223,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -1254,7 +1255,7 @@
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
-,,y,script,./test.sh -f tsim/query/sort-pre-cols.sim 
+,,y,script,./test.sh -f tsim/query/sort-pre-cols.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/query/groupby_distinct.sim
 ,,y,script,./test.sh -f tsim/query/event.sim
@@ -1262,7 +1263,7 @@
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange_scl.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
-,,y,script,./test.sh -f tsim/query/tableCount.sim 
+,,y,script,./test.sh -f tsim/query/tableCount.sim
 ,,y,script,./test.sh -f tsim/query/show_db_table_kind.sim
 ,,y,script,./test.sh -f tsim/query/bi_star_table.sim
 ,,y,script,./test.sh -f tsim/query/bi_tag_scan.sim
@@ -1316,6 +1317,7 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
 ,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
 ,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
@@ -1532,8 +1534,8 @@
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
-,,y,script,./test.sh -f tsim/query/cache_last.sim 
-,,y,script,./test.sh -f tsim/query/const.sim 
+,,y,script,./test.sh -f tsim/query/cache_last.sim
+,,y,script,./test.sh -f tsim/query/const.sim
 ,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
 
 
@@ -1566,4 +1568,3 @@
 ,,n,docs-examples-test,bash rust.sh
 ,,n,docs-examples-test,bash go.sh
 ,,n,docs-examples-test,bash test_R.sh
-

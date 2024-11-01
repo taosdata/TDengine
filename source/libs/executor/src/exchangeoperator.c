@@ -226,7 +226,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
     if (TSDB_CODE_SUCCESS != pOperator->pTaskInfo->code) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
       T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
     }
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
@@ -320,7 +320,7 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
   if (!pInfo->pTaskId) {
     return terrno;
   }
-  strncpy(pInfo->pTaskId, id, len);
+  tstrncpy(pInfo->pTaskId, id, len);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
@@ -530,6 +530,16 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   int32_t          index = pWrapper->sourceIndex;
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
+
+  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
+  if (pRpcHandle != NULL) {
+    int32_t ret = asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+    if (ret != 0) {
+      qDebug("failed to free rpc handle, code:%s, %p", tstrerror(ret), pExchangeInfo);
+    }
+    *pRpcHandle = -1;
+  }
+
   if (!pSourceDataInfo) {
     return terrno;
   }

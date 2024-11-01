@@ -3,11 +3,14 @@ sidebar_label: ODBC
 title: TDengine ODBC
 ---
 
-TDengine ODBC  是为 TDengine 实现的 ODBC 驱动程序，支持 Windows 系统的应用（如 [PowerBI](https://powerbi.microsoft.com/zh-cn/) 等）通过 ODBC 标准接口访问本地、远程和云服务的 TDengine 数据库的数据表/视图。
+TDengine ODBC 是为 TDengine 实现的 ODBC 驱动程序，支持 Windows 系统的应用（如 [PowerBI](https://powerbi.microsoft.com/zh-cn/) 等）以及用户自定义开发的应用程序，通过 ODBC 标准接口访问本地、远程和云服务的 TDengine 数据库。
 
-TDengine ODBC  提供基于 WebSocket（推荐）和 原生连接两种方式连接 TDengine 数据库，使用时可以为 TDengine 数据源设置不同的连接方式。访问云服务时必须使用 WebSocket 连接方式。
+TDengine ODBC 提供基于 WebSocket（推荐）和 原生连接两种方式连接 TDengine 数据库，使用时可以为 TDengine 数据源设置不同的连接方式。访问云服务时必须使用 WebSocket 连接方式。
 
-注意：TDengine ODBC 支持 32/64 位 Windows 系统，调用 TDengine ODBC 需要通过相应位数的 ODBC 驱动管理器进行。在 32 位 Windows 系统或者 64 位 Windows 系统的 32 位应用程序中，仅支持使用 WebSocket 连接方式访问 TDengine 数据库。
+TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。  
+**注意：**
+- 驱动管理器：确保使用与应用程序架构匹配的 ODBC 驱动管理器。32 位应用程序需要使用 32 位 ODBC 驱动管理器，64 位应用程序需要使用 64 位 ODBC 驱动管理器。
+- 数据源名称（DSN）：32 位和 64 位 ODBC 驱动管理器都可以看到所有 DSN，用户 DSN 标签页下的 DSN 如果名字相同会共用，因此需要在 DSN 名称上去区分。
 
 想更多了解 TDengine 时序时序数据库的使用，可访问 [TDengine官方文档](https://docs.taosdata.com/intro/)。
 
@@ -24,17 +27,17 @@ TDengine ODBC  提供基于 WebSocket（推荐）和 原生连接两种方式连
 
 ### 数据源连接类型与区别
 
-TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 Native 连接，其区别如下：
+TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 Native 连接，其区别如下：
 
-1. 访问云服务仅支持使用 Websocket 连接方式。
+1. 访问云服务仅支持使用 WebSocket 连接方式。
 
 2. 32 位应用程序仅支持使用 WebSocket 连接方式。
 
-3. Websocket 连接的兼容性更好，一般不需要随着 TDengine 数据库服务端升级而升级客户端的库。
+3. WebSocket 连接的兼容性更好，一般不需要随着 TDengine 数据库服务端升级而升级客户端的库。
 
 4. Native 连接通常性能更好一点，但是必须与 TDengine 数据库服务端的版本保持一致。
 
-5. 对于一般用户，建议使用 **Websocket** 连接方式，性能与 Native 差别不大，兼容性更好。
+5. 对于一般用户，建议使用 **WebSocket** 连接方式，性能与 Native 差别不大，兼容性更好。
 
 ### WebSocket 连接
 
@@ -46,11 +49,11 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：Websocket 连接与 
 
 4. 点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息 
 
-    ![ODBC websocket connection config](./assets/odbc-ws-config-zh.webp)
+    ![ODBC WebSocket connection config](./assets/odbc-ws-config-zh.webp)
 
     4.1 【DSN】:Data Source Name 必填，为新添加的 ODBC 数据源命名
 
-    4.2【连接类型】 : 必选，选择连接类型，这里选择 【Websocket】
+    4.2【连接类型】 : 必选，选择连接类型，这里选择 【WebSocket】
 
     4.3【URL】必填，ODBC 数据源 URL，示例: `http://localhost:6041`， 云服务的 url 示例: `https://gw.cloud.taosdata.com?token=your_token`
 
@@ -109,9 +112,9 @@ WebSocket 连接方式除此之外还支持 Windows X64系统上运行的 32 位
 
 ## 版本历史
 
-| taos_odbc版本 | 主要变化                                                                                              |   TDengine 版本    |
+| taos_odbc 版本 | 主要变化                                                                                             |   TDengine 版本    |
 | :-----------  | :--------------------------------------------------------------------------------------------------  | :----------------  |
-|      v1.1.0   | 1. 支持视图功能；<br/>2. 支持 VARBINARY/GEOMETRY 数据类型；                                             | 3.3.3.0及更高版本 |
+|      v1.1.0   | 1. 支持视图功能；<br/>2. 支持 VARBINARY/GEOMETRY 数据类型；<br/>3. 支持 ODBC 32 位 WebSocket 连接方式（仅企业版支持）；<br/>4. 支持 ODBC 数据源配置对话框设置对工业软件 KingSCADA、Kepware 等的兼容性适配选项（仅企业版支持）； | 3.3.3.0及更高版本 |
 |      v1.0.2   | 支持 CP1252 字符编码；                                                                                 | 3.2.3.0及更高版本 |
 |      v1.0.1   | 1. 支持 DSN 设置 BI 模式，在 BI 模式下 TDengine 数据库不返回系统数据库和超级表子表信息；<br/>2. 重构字符集转换模块，提升读写性能；<br/>3. ODBC 数据源配置对话框中默认修改默认连接方式为“WebSocket”；<br/>4. ODBC 数据源配置对话框增加“测试连接”控件；<br/>5. ODBC 数据源配置支持中文/英文界面； |         -          |
 |    v1.0.0.0   | 发布初始版本，支持与Tdengine数据库交互以读写数据，具体请参考“API 参考”一节                                | 3.2.2.0及更高版本 |
@@ -145,7 +148,7 @@ WebSocket 连接方式除此之外还支持 Windows X64系统上运行的 32 位
 
 ## API 参考
 
-本节按功能分类汇总了 ODBC API，关于完整的 ODBC API 参考，请访问 http://msdn.microsoft.com/en-us/library/ms714177.aspx 的ODBC程序员参考页面。
+本节按功能分类汇总了 ODBC API，关于完整的 ODBC API 参考，请访问 http://msdn.microsoft.com/en-us/library/ms714177.aspx 的 ODBC 程序员参考页面。
 
 ### 数据源和驱动程序管理
 

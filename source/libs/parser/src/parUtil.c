@@ -185,6 +185,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s is not supported in system table query";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
+    case TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE:
+      return "Invalid usage of forecast clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
       return "No valid function in window query";
     case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
