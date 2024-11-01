@@ -3220,6 +3220,7 @@ int tDecodeSVCreateTbBatchRsp(SDecoder* pCoder, SVCreateTbBatchRsp* pRsp);
 typedef struct {
   char*    name;
   uint64_t suid;  // for tmq in wal format
+  int64_t  uid;
   int8_t   igNotExists;
 } SVDropTbReq;
 

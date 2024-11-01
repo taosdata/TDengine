@@ -552,6 +552,61 @@ _exit:
   return code;
 }
 
+int32_t vnodePreProcessDropTbMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          size = 0;
+  SDecoder         dc = {0};
+  SEncoder         ec = {0};
+  SVDropTbBatchReq receivedBatchReqs = {0};
+  SVDropTbBatchReq sentBatchReqs = {0};
+
+  tDecoderInit(&dc, pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
+
+  code = tDecodeSVDropTbBatchReq(&dc, &receivedBatchReqs);
+  if (code < 0) {
+    terrno = code;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  sentBatchReqs.pArray = taosArrayInit(receivedBatchReqs.nReqs, sizeof(SVDropTbReq));
+  if (!sentBatchReqs.pArray) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < receivedBatchReqs.nReqs; ++i) {
+    SVDropTbReq* pReq = receivedBatchReqs.pReqs + i;
+    tb_uid_t uid = metaGetTableEntryUidByName(pVnode->pMeta, pReq->name);
+    if (uid == 0) {
+      vWarn("vgId:%d, preprocess drop ctb: %s not found", TD_VID(pVnode), pReq->name);
+      continue;
+    }
+    pReq->uid = uid;
+    vDebug("vgId:%d %s for: %s, uid: %"PRId64, TD_VID(pVnode), __func__, pReq->name, pReq->uid);
+    if (taosArrayPush(sentBatchReqs.pArray, pReq) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  sentBatchReqs.nReqs = sentBatchReqs.pArray->size;
+
+  tEncodeSize(tEncodeSVDropTbBatchReq, &sentBatchReqs, size, code);
+  tEncoderInit(&ec, pMsg->pCont + sizeof(SMsgHead), size);
+  code = tEncodeSVDropTbBatchReq(&ec, &sentBatchReqs);
+  tEncoderClear(&ec);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d %s failed to encode drop tb batch req: %s", TD_VID(pVnode), __func__, tstrerror(code));
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  tDecoderClear(&dc);
+  if (sentBatchReqs.pArray) {
+    taosArrayDestroy(sentBatchReqs.pArray);
+  }
+  return code;
+}
+
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -580,6 +635,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     } break;
     case TDMT_VND_DROP_TSMA_CTB: {
       code = vnodePreProcessDropTSmaCtbMsg(pVnode, pMsg);
+    } break;
+    case TDMT_VND_DROP_TABLE: {
+      code = vnodePreProcessDropTbMsg(pVnode, pMsg);
     } break;
     default:
       break;
@@ -1189,7 +1247,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   STbUidStore       *pStore = NULL;
   SArray            *tbUids = NULL;
   SArray            *tbNames = NULL;
-
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -1245,9 +1302,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       continue;
     }
 
+    vInfo("wjm process create tb req:%s, uid: %"PRId64, pCreateReq->name, pCreateReq->uid);
     // do create table
     if (metaCreateTable(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
       if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+        vInfo("wjm already exists-----------------");
         cRsp.code = TSDB_CODE_SUCCESS;
       } else {
         cRsp.code = terrno;
@@ -1324,6 +1383,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
 _exit:
+  vInfo("wjm process create table request exit");
   tDeleteSVCreateTbBatchReq(&req);
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);

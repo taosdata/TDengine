@@ -158,6 +158,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
 
 int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
                                 SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
+int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \

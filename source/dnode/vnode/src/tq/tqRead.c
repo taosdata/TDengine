@@ -382,6 +382,20 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
         return code;
       }
 
+    } else if (pCont->msgType == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
+      void* pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
+      int32_t len = pCont->bodyLen - sizeof(SMsgHead);
+      code = tqExtractDropCtbDataBlock(pBody, len, ver, (void**)pItem, 0);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (!*pItem) {
+          continue;
+        } else {
+          tqDebug("s-task:%s drop ctb msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+        }
+      } else {
+        terrno = code;
+        return code;
+      }
     } else {
       tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
