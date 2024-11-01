@@ -242,9 +242,9 @@ jobs:
           pwd
           ls ${{ github.workspace }}
           # run taosx
-          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
           
-          ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
+          ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
 
       - name: Deploy taosx-agent
         run: |
@@ -252,7 +252,7 @@ jobs:
           ls ${{ github.workspace }}
           # run taosx-agent
 
-          ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
+          ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent.log 2>&1 &'"
 
       - name: Deploy windows agent    
         id: deploy_windows_agent
@@ -282,9 +282,9 @@ jobs:
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
-          ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity opcua_test.py
+          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
+          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
 
       - name: Stop taosx-agent & taosx
         shell: bash {0}
