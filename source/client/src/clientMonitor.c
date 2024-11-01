@@ -984,9 +984,9 @@ static void reportDeleteSql(SRequestObj* pRequest) {
   SAuditReq       req;
   req.pSql = pRequest->sqlstr;
   req.sqlLen = pRequest->sqlLen;
-  tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName);
-  tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName);
-  tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete");
+  TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
+  TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
+  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete"));
   int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
   void*   pReq = taosMemoryCalloc(1, tlen);
   if (pReq == NULL) {
