@@ -583,14 +583,7 @@ static int32_t mndSendArbSetAssignedLeaderReq(SMnode *pMnode, int32_t dnodeId, i
   return code;
 }
 
-typedef enum {
-  CHECK_SYNC_NONE = 0,
-  CHECK_SYNC_SET_ASSIGNED_LEADER = 1,
-  CHECK_SYNC_CHECK_SYNC = 2,
-  CHECK_SYNC_UPDATE = 3
-} ECheckSyncOp;
-
-static void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SArbGroup *pNewGroup) {
+void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SArbGroup *pNewGroup) {
   *pOp = CHECK_SYNC_NONE;
   int32_t code = 0;
 

@@ -80,17 +80,17 @@ TEST_F(ArbgroupTest, 01_encode_decode_sdb) {
 
   SArbGroup* pNewGroup = (SArbGroup*)sdbGetRowObj(pRow);
 
-  EXPECT_EQ(group.vgId, pNewGroup->vgId);
-  EXPECT_EQ(group.dbUid, pNewGroup->dbUid);
-  EXPECT_EQ(group.members[0].info.dnodeId, pNewGroup->members[0].info.dnodeId);
-  EXPECT_EQ(group.members[1].info.dnodeId, pNewGroup->members[1].info.dnodeId);
-  EXPECT_EQ(group.isSync, pNewGroup->isSync);
-  EXPECT_EQ(group.assignedLeader.dnodeId, pNewGroup->assignedLeader.dnodeId);
+  ASSERT_EQ(group.vgId, pNewGroup->vgId);
+  ASSERT_EQ(group.dbUid, pNewGroup->dbUid);
+  ASSERT_EQ(group.members[0].info.dnodeId, pNewGroup->members[0].info.dnodeId);
+  ASSERT_EQ(group.members[1].info.dnodeId, pNewGroup->members[1].info.dnodeId);
+  ASSERT_EQ(group.isSync, pNewGroup->isSync);
+  ASSERT_EQ(group.assignedLeader.dnodeId, pNewGroup->assignedLeader.dnodeId);
 
-  EXPECT_EQ(std::string(group.members[0].state.token), std::string(pNewGroup->members[0].state.token));
-  EXPECT_EQ(std::string(group.members[1].state.token), std::string(pNewGroup->members[1].state.token));
-  EXPECT_EQ(std::string(group.assignedLeader.token), std::string(pNewGroup->assignedLeader.token));
-  EXPECT_EQ(group.version, pNewGroup->version);
+  ASSERT_EQ(std::string(group.members[0].state.token), std::string(pNewGroup->members[0].state.token));
+  ASSERT_EQ(std::string(group.members[1].state.token), std::string(pNewGroup->members[1].state.token));
+  ASSERT_EQ(std::string(group.assignedLeader.token), std::string(pNewGroup->assignedLeader.token));
+  ASSERT_EQ(group.version, pNewGroup->version);
 
   taosMemoryFree(pRow);
   taosMemoryFree(pRaw);
@@ -129,9 +129,9 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     SArbGroup newGroup = {0};
     bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
-    EXPECT_FALSE(updateToken);
-    EXPECT_NE(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
-    EXPECT_NE(group.members[0].state.lastHbMs, nowMs);
+    ASSERT_EQ(updateToken, false);
+    ASSERT_NE(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
+    ASSERT_NE(group.members[0].state.lastHbMs, nowMs);
   }
 
   {  // old token
@@ -144,9 +144,9 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     SArbGroup newGroup = {0};
     bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
-    EXPECT_FALSE(updateToken);
-    EXPECT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
-    EXPECT_EQ(group.members[0].state.lastHbMs, nowMs);
+    ASSERT_EQ(updateToken, false);
+    ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
+    ASSERT_EQ(group.members[0].state.lastHbMs, nowMs);
   }
 
   {  // new token
@@ -159,14 +159,14 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     SArbGroup newGroup = {0};
     bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
-    EXPECT_TRUE(updateToken);
-    EXPECT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
-    EXPECT_EQ(group.members[0].state.lastHbMs, nowMs);
+    ASSERT_EQ(updateToken, true);
+    ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
+    ASSERT_EQ(group.members[0].state.lastHbMs, nowMs);
 
-    EXPECT_EQ(std::string(newGroup.members[0].state.token), std::string(rspMember.memberToken));
-    EXPECT_FALSE(newGroup.isSync);
-    EXPECT_EQ(newGroup.assignedLeader.dnodeId, 0);
-    EXPECT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
+    ASSERT_EQ(std::string(newGroup.members[0].state.token), std::string(rspMember.memberToken));
+    ASSERT_EQ(newGroup.isSync, false);
+    ASSERT_EQ(newGroup.assignedLeader.dnodeId, 0);
+    ASSERT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
   }
 
   taosThreadMutexDestroy(&group.mutex);
@@ -203,7 +203,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     SArbGroup newGroup = {0};
     bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
 
-    EXPECT_FALSE(updateIsSync);
+    ASSERT_EQ(updateIsSync, false);
   }
 
   {  // newIsSync
@@ -216,8 +216,8 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     SArbGroup newGroup = {0};
     bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
 
-    EXPECT_TRUE(updateIsSync);
-    EXPECT_TRUE(newGroup.isSync);
+    ASSERT_EQ(updateIsSync, true);
+    ASSERT_EQ(newGroup.isSync, true);
   }
 
   taosThreadMutexDestroy(&group.mutex);
@@ -254,7 +254,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     SArbGroup newGroup = {0};
     bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
-    EXPECT_FALSE(updateAssigned);
+    ASSERT_EQ(updateAssigned, false);
   }
 
   {  // errcode != TSDB_CODE_SUCCESS
@@ -265,7 +265,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     SArbGroup newGroup = {0};
     bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
-    EXPECT_FALSE(updateAssigned);
+    ASSERT_EQ(updateAssigned, false);
   }
 
   {  // errcode == TSDB_CODE_SUCCESS
@@ -276,11 +276,77 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     SArbGroup newGroup = {0};
     bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
-    EXPECT_TRUE(updateAssigned);
-    EXPECT_FALSE(newGroup.isSync);
+    ASSERT_EQ(updateAssigned, true);
+    ASSERT_EQ(newGroup.isSync, false);
   }
 
   taosThreadMutexDestroy(&group.mutex);
+}
+
+TEST_F(ArbgroupTest, 05_check_sync_timer) {
+  const int32_t assgndDnodeId = 1;
+  const int32_t vgId = 5;
+  const int64_t nowMs = 173044838300;
+
+  SArbGroup group = {0};
+  group.vgId = vgId;
+  group.dbUid = 1234;
+  group.members[0].info.dnodeId = assgndDnodeId;
+  group.members[0].state.lastHbMs = nowMs - 10;
+
+  group.members[1].info.dnodeId = 2;
+  group.members[1].state.lastHbMs = nowMs - 10;
+
+  group.isSync = 1;
+  taosThreadMutexInit(&group.mutex, NULL);
+
+  SArbAssignedLeader assgnedLeader = {.dnodeId = assgndDnodeId, .acked = false};
+  strncpy(assgnedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
+
+  SArbAssignedLeader nonoAsgndLeader = {.dnodeId = 0, .acked = false};
+
+  ECheckSyncOp op = CHECK_SYNC_NONE;
+  SArbGroup    newGroup = {0};
+
+  // 1. asgnd,sync,noAck --> send set assigned
+  group.assignedLeader = assgnedLeader;
+  group.assignedLeader.acked = false;
+  group.isSync = true;
+  mndArbCheckSync(&group, nowMs, &op, &newGroup);
+
+  ASSERT_EQ(op, CHECK_SYNC_SET_ASSIGNED_LEADER);
+
+  // 2. asgnd,notSync,noAck --> send set assgnd
+  newGroup = {0};
+  group.assignedLeader = assgnedLeader;
+  group.isSync = false;
+  group.assignedLeader.acked = false;
+  mndArbCheckSync(&group, nowMs, &op, &newGroup);
+
+  ASSERT_EQ(op, CHECK_SYNC_SET_ASSIGNED_LEADER);
+
+  // 3. noAsgnd,notSync,noAck(init) --> check sync
+  newGroup = {0};
+  group.assignedLeader = nonoAsgndLeader;
+  group.isSync = false;
+  group.assignedLeader.acked = false;
+  mndArbCheckSync(&group, nowMs, &op, &newGroup);
+
+  ASSERT_EQ(op, CHECK_SYNC_CHECK_SYNC);
+
+  // 4. noAsgnd,sync,noAck,one timeout--> update arbgroup (asgnd,sync,noAck)
+  newGroup = {0};
+  group.assignedLeader = nonoAsgndLeader;
+  group.isSync = true;
+  group.assignedLeader.acked = false;
+  group.members[1].state.lastHbMs = nowMs - 2 * tsArbSetAssignedTimeoutSec * 1000; // member1 timeout
+  mndArbCheckSync(&group, nowMs, &op, &newGroup);
+
+  ASSERT_EQ(op, CHECK_SYNC_UPDATE);
+  ASSERT_EQ(newGroup.assignedLeader.dnodeId, assgndDnodeId);
+  ASSERT_EQ(std::string(newGroup.assignedLeader.token), std::string(group.members[0].state.token));
+  ASSERT_EQ(newGroup.isSync, true);
+  ASSERT_EQ(newGroup.assignedLeader.acked, false);
 }
 
 #pragma GCC diagnostic pop
