@@ -295,7 +295,7 @@ static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTas
   return code;
 }
 
-static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
+static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t chkptId) {
   SVResetStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamTaskReq));
   if (pReq == NULL) {
     mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
@@ -306,6 +306,7 @@ static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
+  pReq->chkptId = chkptId;
 
   SEpSet  epset = {0};
   bool    hasEpset = false;
@@ -544,7 +545,7 @@ int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray* p
   return 0;
 }
 
-int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t chkptId) {
   SStreamTaskIter *pIter = NULL;
 
   taosWLockLatch(&pStream->lock);
@@ -564,7 +565,7 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
       return code;
     }
 
-    code = doSetResetAction(pMnode, pTrans, pTask);
+    code = doSetResetAction(pMnode, pTrans, pTask, chkptId);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
