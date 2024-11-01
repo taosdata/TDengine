@@ -38,7 +38,7 @@ sql alter table $tb modify column b level 'm'
 sql_error alter table $tb modify column b level 'l' # already exist 
 
 
-sql_error alter table $tb modify column b compress 'lz4'
+sql alter table $tb modify column b compress 'lz4'
 sql alter table $tb modify column b compress 'xz'
 sql alter table $tb modify column b compress 'zstd'
 sql_error alter table $tb modify column b compress 'tsz'
@@ -147,7 +147,7 @@ sql alter table $stb modify column b level 'm'
 sql_error alter table $stb modify column b level 'l' # already exist 
 sql desc $stb
 
-sql_error alter table $stb modify column b compress 'lz4'
+sql alter table $stb modify column b compress 'lz4'
 sql alter table $stb modify column b compress 'xz'
 sql alter table $stb modify column b compress 'zstd'
 sql_error alter table $stb modify column b compress 'tsz'
