@@ -48,7 +48,7 @@ jobs:
         working-directory: tools/keeper
         run: |
           go mod tidy
-          go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'"  -coverpkg=./... -coverprofile=coverage.out ./...
+          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'"  -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
 
       - name: Clean up
