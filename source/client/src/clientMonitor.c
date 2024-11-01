@@ -17,6 +17,7 @@ STaosQueue* monitorQueue;
 SHashObj*   monitorSlowLogHash;
 char        tmpSlowLogPath[PATH_MAX] = {0};
 TdThread    monitorThread;
+extern bool tsEnableAuditDelete;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
   int ret = tsnprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
@@ -1014,7 +1015,7 @@ void clientOperateReport(SRequestObj* pRequest) {
     return;
   }
 
-  if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
+  if (tsEnableAuditDelete && QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
     reportDeleteSql(pRequest);
   }
 }
