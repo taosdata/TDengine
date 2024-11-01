@@ -2085,7 +2085,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           (void)memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
-          int32_t outputSize = TMIN(outputLen - VARSTR_HEADER_SIZE, bufSize);
+          int32_t outputSize = (outputLen - VARSTR_HEADER_SIZE) < bufSize ? (outputLen - VARSTR_HEADER_SIZE + 1): bufSize;
           NUM_TO_STRING(inputType, input, outputSize, buf);
           int32_t len = (int32_t)strlen(buf);
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
