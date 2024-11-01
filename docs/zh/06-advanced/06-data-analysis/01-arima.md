@@ -44,6 +44,6 @@ ARIMA模型是一种自回归模型，只需要自变量即可预测后续的值
 }
 ```
 
-### 算法详细解释
+### 参考文献
 - https://en.wikipedia.org/wiki/Autoregressive_moving-average_model
 - https://baike.baidu.com/item/%E8%87%AA%E5%9B%9E%E5%BD%92%E6%BB%91%E5%8A%A8%E5%B9%B3%E5%9D%87%E6%A8%A1%E5%9E%8B/5023931?fromtitle=ARMA%E6%A8%A1%E5%9E%8B&fromid=8048415
