@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	//
 	maxLocationSize = 32
 	//maxSqlBufSize   = 65480
 )
