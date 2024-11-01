@@ -2836,6 +2836,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
+    clientOperateReport(pParam->pRequest);
   }
 
   if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
@@ -2944,8 +2945,6 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   taosMemoryFree(param);
 
   tscDebug("taos_query end with sql:%s", sql);
-
-  clientOperateReport(pRequest);
 
   return pRequest;
 }

@@ -939,6 +939,75 @@ int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
+int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len) {
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    tscError("[del report]failed to allocate memory for sendInfo");
+    return terrno;
+  }
+
+  sendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = len, .handle = NULL};
+
+  sendInfo->requestId = generateRequestId();
+  sendInfo->requestObjRefId = 0;
+  sendInfo->param = NULL;
+  sendInfo->fp = reportCB;
+  sendInfo->msgType = TDMT_MND_AUDIT;
+
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  int32_t code = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
+  if (code != 0) {
+    tscError("[del report]failed to send msg to server, code:%d", code);
+    taosMemoryFree(sendInfo);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void reportDeleteSql(SRequestObj* pRequest) {
+  SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
+  STscObj*     pTscObj = pRequest->pTscObj;
+
+  if (pRequest->code != TSDB_CODE_SUCCESS) {
+    tscDebug("[del report]delete request result code:%d", pRequest->code);
+    return;
+  }
+
+  if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
+    tscError("[del report]invalid from table node type:%d", nodeType(pStmt->pFromTable));
+    return;
+  }
+
+  SRealTableNode* pTable = (SRealTableNode*)pStmt->pFromTable;
+  SAuditReq       req;
+  req.pSql = pRequest->sqlstr;
+  req.sqlLen = pRequest->sqlLen;
+  tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName);
+  tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName);
+  tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete");
+  int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
+  void*   pReq = taosMemoryCalloc(1, tlen);
+  if (pReq == NULL) {
+    tscError("[del report]failed to allocate memory for req");
+    return;
+  }
+
+  if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
+    tscError("[del report]failed to serialize req");
+    taosMemoryFree(pReq);
+    return;
+  }
+
+  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen);
+  if (code != 0) {
+    tscError("[del report]failed to send audit info, code:%d", code);
+    taosMemoryFree(pReq);
+    return;
+  }
+  tscDebug("[del report]delete data, sql:%s", req.pSql);
+}
+
 void clientOperateReport(SRequestObj* pRequest) {
   if (pRequest == NULL || pRequest->pQuery == NULL) {
     tscError("[del report]invalid request");
@@ -946,55 +1015,6 @@ void clientOperateReport(SRequestObj* pRequest) {
   }
 
   if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
-    SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
-    STscObj* pTscObj = pRequest->pTscObj;
-
-    if(nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
-      tscError("[del report]invalid from table node type:%d", nodeType(pStmt->pFromTable));
-      return;
-    }
-    SRealTableNode* pTable = (SRealTableNode*)pStmt->pFromTable;
-    SAuditReq req;
-    req.pSql = pRequest->sqlstr;
-    req.sqlLen = pRequest->sqlLen;
-    tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName);
-    tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName);
-    tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete");
-    int32_t   tlen = tSerializeSAuditReq(NULL, 0, &req);
-    void*     pReq = taosMemoryCalloc(1, tlen);
-    if (pReq == NULL) {
-      tscError("[del report]failed to allocate memory for req");
-      return;
-    }
-
-    if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
-      tscError("[del report]failed to serialize req");
-      taosMemoryFree(pReq);
-      return;
-    }
-
-    SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-    if (sendInfo == NULL) {
-      tscError("[del report]failed to allocate memory for sendInfo");
-      taosMemoryFree(pReq);
-      return;
-    }
-
-    sendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = tlen, .handle = NULL};
-
-    sendInfo->requestId = generateRequestId();
-    sendInfo->requestObjRefId = 0;
-    sendInfo->param = NULL;
-    sendInfo->fp = reportCB;
-    sendInfo->msgType = TDMT_MND_AUDIT;
-
-    SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-    int32_t code = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
-    if (code != 0) {
-      tscError("[del report]failed to send msg to server, code:%d", code);
-      taosMemoryFree(sendInfo);
-    }
-    tscDebug("[del report]delete data, sql:%s", req.pSql);
+    reportDeleteSql(pRequest);
   }
 }
