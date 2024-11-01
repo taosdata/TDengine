@@ -703,6 +703,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SGroupSortPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       code = makeNode(type, sizeof(SIntervalPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      code = makeNode(type, sizeof(SMergeIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
@@ -1608,10 +1610,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
       SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pWindowOffset);
+      nodesDestroyNode(pPhyNode->pJLimit);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->leftPrimExpr);
       nodesDestroyNode(pPhyNode->rightPrimExpr);
+      nodesDestroyNode(pPhyNode->pLeftOnCond);
+      nodesDestroyNode(pPhyNode->pRightOnCond);
       nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 
@@ -1619,8 +1625,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
 
-      nodesDestroyNode(pPhyNode->pLeftOnCond);
-      nodesDestroyNode(pPhyNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
@@ -1654,6 +1658,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -2059,6 +2064,8 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
 
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
     case TSDB_DATA_TYPE_BOOL:
       pNode->datum.b = *(bool*)value;
       *(bool*)&pNode->typeData = pNode->datum.b;
@@ -2110,7 +2117,10 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
       pNode->datum.p = (char*)value;
       break;

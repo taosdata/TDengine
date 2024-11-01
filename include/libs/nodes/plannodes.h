@@ -804,9 +804,9 @@ typedef struct SDataDeleterNode {
   char          tableFName[TSDB_TABLE_NAME_LEN];
   char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
-  SNode*        pAffectedRows;
-  SNode*        pStartTs;
-  SNode*        pEndTs;
+  SNode*        pAffectedRows; // usless
+  SNode*        pStartTs;      // usless
+  SNode*        pEndTs;        // usless
 } SDataDeleterNode;
 
 typedef struct SSubplan {
