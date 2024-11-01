@@ -31,7 +31,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
   int32_t len = strlen(dnodeListStr);
   for (int32_t i = 0; i < len; ++i) {
     if ((dnodeListStr[i] < '0' || dnodeListStr[i] > '9') && dnodeListStr[i] != ',') {
-      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
       return terrno;
     }
   }
@@ -39,7 +39,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
   char *pos = dnodeListStr;
   while (pos != NULL) {
     if (pos[0] < '0' || pos[0] > '9') {
-      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+      terrno = TSDB_CODE_MND_INVALID_DNODE_LIST_FMT;
       return terrno;
     }
 
@@ -67,7 +67,7 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
   for (int32_t i = 0; i < dnodeSize; ++i) {
     for (int32_t j = i + 1; j < dnodeSize; ++j) {
       if (((int32_t *)TARRAY_DATA(dnodeList))[i] == ((int32_t *)TARRAY_DATA(dnodeList))[j]) {
-        terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+        terrno = TSDB_CODE_MND_DNODE_LIST_REPEAT;
         return terrno;
       }
     }
