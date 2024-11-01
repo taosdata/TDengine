@@ -1628,8 +1628,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
       }                                                                                                               \
     } else if (l1 == L1_DISABLED && l2 != L2_DISABLED) {                                                              \
       if (compress) {                                                                                                 \
-        uTrace("encode:%s, compress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,                 \
-               tDataTypes[type].name);                                                                                \
+        uTrace("encode:%s, compress:%s, level:%d, type:%s", "disabled", "disable", lvl, tDataTypes[type].name);       \
         int8_t alvl = tsGetCompressL2Level(l2, lvl);                                                                  \
         return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, alvl);                                          \
       } else {                                                                                                        \
