@@ -1617,7 +1617,10 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
         uTrace("encode:%s, compress:%s, level:%d, type:%s, l1:%d", compressL1Dict[l1].name, compressL2Dict[l2].name,  \
                lvl, tDataTypes[type].name, l1);                                                                       \
         int32_t len = compressL1Dict[l1].comprFn(pIn, nEle, pBuf, type);                                              \
-        int8_t  alvl = tsGetCompressL2Level(l2, lvl);                                                                 \
+        if (len < 0) {                                                                                                \
+          return len;                                                                                                 \
+        }                                                                                                             \
+        int8_t alvl = tsGetCompressL2Level(l2, lvl);                                                                  \
         return compressL2Dict[l2].comprFn(pBuf, len, pOut, nOut, type, alvl);                                         \
       } else {                                                                                                        \
         uTrace("dencode:%s, decompress:%s, level:%d, type:%s", compressL1Dict[l1].name, compressL2Dict[l2].name, lvl, \
