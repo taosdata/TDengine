@@ -148,7 +148,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("invalid timestamp", res.text)
+        self.tdSql.checkIn("SML telnet parse timestamp failed", res.text)
 
     def date_format_check(self):
         """
@@ -158,7 +158,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("invalid timestamp", res.text)
+        self.tdSql.checkIn("SML telnet parse timestamp failed", res.text)
 
     def illegal_ts_check(self):
         """
@@ -168,7 +168,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("invalid timestamp", res.text)
+        self.tdSql.checkIn("SML telnet parse timestamp failed", res.text)
 
     def tbname_check(self):
         """
@@ -194,7 +194,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1), tb_name=self.tdCom.get_long_name(length=5))[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("invalid data", res.text)
+            self.tdSql.checkIn("SML telnet invalid measure", res.text)
             input_sql = 'Abcdffgg 1626006833640 False T1=127i8'
         stb_name = f'`{input_sql.split(" ")[0]}`'
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -473,7 +473,7 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
                 {stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns'
         res = self.tdRest.schemalessApiPost(sql=lines, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("invalid timestamp", res.text)
+        self.tdSql.checkIn("SML telnet parse timestamp failed", res.text)
 
     def multi_cols_insert_check(self):
         """
