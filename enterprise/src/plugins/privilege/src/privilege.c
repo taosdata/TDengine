@@ -41,7 +41,7 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
     case MND_OPER_CONNECT:
     case MND_OPER_CREATE_FUNC:
     case MND_OPER_DROP_FUNC:
-    case MND_OPER_SHOW_VARIBALES:
+    case MND_OPER_SHOW_VARIABLES:
       break;
     default:
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
