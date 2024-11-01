@@ -70,7 +70,7 @@ def get_release_note(user: str, passwd: str, release_version: str):
     # jql = "\"Epic Link\" = TD-27435 and status = DONE  AND (assignee in membersof(\"application group 1\") or assignee in membersOf(\"application group 2\"))"
     # jql = "project = \"Taos Support\" and type = Bug and status = DONE  and created >= 2024-7-1 and created  < 2024-9-30"
 
-    jql = f' project in ("Taos Support","Taos Development") AND fixVersion = {release_version}   ORDER BY priority DESC, key ASC'
+    jql = f' status in ("Releasing","Checking","Verifying","Done")  and  project in ("Taos Support","Taos Development") AND fixVersion = {release_version}   ORDER BY priority DESC, key ASC'
     # print(f"jql:{jql}")
     logger.info(f"generate release_version-{release_version} release note")
     # jql = "key in (TS-4785,TS-5383,TS-5384,TS-5532,TS-5537,TS-5529,TS-5531,TS-5540,TS-4785)"
