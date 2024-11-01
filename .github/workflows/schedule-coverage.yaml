@@ -1,0 +1,18 @@
+# .github/workflows/trigger-workflow.yml
+
+name: Schedule-Workflow-Coverage
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # 每天20点（UTC时间）触发，对应北京时间上午4点
+  push:
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: run job action
+        uses: benc-uk/workflow-dispatch@v1.1
+        with:
+          workflow: 3.0 QA-workflow     # 触发另一个工作流 Workflow on Specific Branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: refs/heads/3.0                      # 指定该工作流执行的分支为3.0分支
