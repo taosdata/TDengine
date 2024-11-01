@@ -239,16 +239,22 @@ typedef struct {
         snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input)); \
         break;                                                                         \
       case TSDB_DATA_TYPE_FLOAT: {                                                     \
-        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));               \
-        if (n >= (_outputBytes)) {                                                                      \
-          snprintf(_output, (int32_t)(_outputBytes), "%.7e", *(float *)(_input));  \
+        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
+        if (n >= (_outputBytes)) {                                                     \
+          n = snprintf(_output, (int32_t)(_outputBytes), "%.7e", *(float *)(_input));  \
+          if (n >= (_outputBytes)) {                                                   \
+            snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));      \
+          }                                                                            \
         }                                                                              \
         break;                                                                         \
       }                                                                                \
       case TSDB_DATA_TYPE_DOUBLE: {                                                    \
-        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));              \
-        if (n >= (_outputBytes)) {                                                                      \
-          snprintf(_output, (int32_t)(_outputBytes), "%.15e", *(double *)(_input)); \
+        int32_t n = snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));   \
+        if (n >= (_outputBytes)) {                                                     \
+          snprintf(_output, (int32_t)(_outputBytes), "%.15e", *(double *)(_input));    \
+          if (n >= (_outputBytes)) {                                                   \
+            snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
+          }                                                                            \
         }                                                                              \
         break;                                                                         \
       }                                                                                \
