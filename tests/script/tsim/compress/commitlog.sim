@@ -20,7 +20,7 @@ sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bi
 $count = 0
 while $count < $N
    $ms = 1591200000000 + $count
-   sql insert into $tb values(  $ms , $count/256, 0, $count , $count , $count ,'it is a string')
+   sql insert into $tb values(  $ms , 10, 0, $count , $count , $count ,'it is a string')
    $count = $count + 1
 endw
 
