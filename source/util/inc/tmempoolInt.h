@@ -153,12 +153,41 @@ typedef struct SMPStatSession {
   int64_t destroyNum;
 } SMPStatSession;
 
+typedef struct SMPAllocStat {
+  int64_t allocTimes;
+  int64_t allocBytes;
+  //int64_t freeIDs[]; // TODO
+} SMPAllocStat;
+
+typedef struct SMPFreeStat {
+  int64_t freeTimes;
+  int64_t freeBytes;
+} SMPFreeStat;
+
+typedef struct SMPFileLineId {
+  uint32_t  fileId;
+  int32_t   line;
+} SMPFileLineId;
+
+typedef struct SMPFileLine {
+  SMPFileLineId fl;
+  int64_t size;
+} SMPFileLine;
+
+typedef struct SMPStatPos {
+  int64_t        logErrTimes;   
+  SHashObj*      fileHash;      // fileId  => fileName
+  SHashObj*      remainHash;    // pointer  => SMPFileLine
+  SHashObj*      allocHash;     // alloc fl => SMPAllocStat
+  SHashObj*      freeHash;      // free fl => SMPFreeStat
+} SMPStatPos;
+
 typedef struct SMPStatInfo {
   SMPStatDetail  statDetail;
   SMPStatSession statSession;
   SHashObj*      sessStat;
   SHashObj*      nodeStat;
-  SHashObj*      posStat;
+  SMPStatPos     posStat;
 } SMPStatInfo;
 
 
@@ -316,6 +345,8 @@ enum {
 #define MP_STAT_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail
 #define MP_STAT_ORIG_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail, (_item).origExec, (_item).origSucc, (_item).origFail
 
+#define MP_API_ENTER() void* _pPoolHandle = NULL; taosSaveDisableMemoryPoolUsage(_pPoolHandle)
+#define MP_API_LEAVE() taosRestoreEnableMemoryPoolUsage(_pPoolHandle)
 
 #define MP_INIT_MEM_HEADER(_header, _size, _nsChunk)                      \
   do {                                                                    \
