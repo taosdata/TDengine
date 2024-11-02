@@ -319,6 +319,7 @@ SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt);
 SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
+SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
 
 #ifdef __cplusplus
 }

@@ -1974,7 +1974,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_S3_COMPACT:
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_KEEP_TIME_OFFSET: 
+    case DB_OPTION_KEEP_TIME_OFFSET:
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
@@ -3868,6 +3868,19 @@ SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
 
   SShowStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_TSMAS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->pDbName = dbName;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(dbName);
+  return NULL;
+}
+SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
   pStmt->pDbName = dbName;
