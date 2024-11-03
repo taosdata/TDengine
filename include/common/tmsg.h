@@ -421,7 +421,7 @@ typedef enum ENodeType {
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
-  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,    // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
@@ -435,7 +435,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
-  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,         // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
@@ -1337,6 +1337,7 @@ typedef struct {
   char*   sql;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  char    dnodeListStr[TSDB_DNODE_LIST_LEN];
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -4104,18 +4105,16 @@ void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 #define MQ_DATA_RSP_VERSION 100
 
 typedef struct {
-  struct {
-    SMqRspHead   head;
-    STqOffsetVal rspOffset;
-    STqOffsetVal reqOffset;
-    int32_t      blockNum;
-    int8_t       withTbName;
-    int8_t       withSchema;
-    SArray*      blockDataLen;
-    SArray*      blockData;
-    SArray*      blockTbName;
-    SArray*      blockSchema;
-  };
+  SMqRspHead   head;
+  STqOffsetVal rspOffset;
+  STqOffsetVal reqOffset;
+  int32_t      blockNum;
+  int8_t       withTbName;
+  int8_t       withSchema;
+  SArray*      blockDataLen;
+  SArray*      blockData;
+  SArray*      blockTbName;
+  SArray*      blockSchema;
 
   union{
     struct{

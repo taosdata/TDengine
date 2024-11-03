@@ -57,7 +57,7 @@ TDengine 利用这些日志文件实现故障前的状态恢复。在写入 WAL 
 - wal_fsync_period：当 wal_level 设置为 2 时，这个参数控制执行 fsync 的频率。设置为 0 表示每次写入后立即执行 fsync，这可以确保数据的安全性，但可能会牺牲一些性能。当设置为大于 0 的数值时，表示 fsync 周期，默认为 3000，范围是[1， 180000]，单位毫秒。
 
 ```sql
-CREATE DATABASE POWER WAL_LEVEL 1 WAL_FSYNC_PERIOD 3000;
+CREATE DATABASE POWER WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
 ```
 
 在创建数据库时可以选择不同的参数类型，来选择性能优先或者可靠性优先。

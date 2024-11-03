@@ -353,6 +353,7 @@ typedef struct {
   queue node;
   void (*freeFunc)(void* arg);
   int32_t size;
+  int8_t  inited;
 } STransQueue;
 
 /*

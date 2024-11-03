@@ -364,6 +364,9 @@ The configuration parameters for specifying super table tag columns and data col
 - **min**: The minimum value of the column/label of the data type. The generated value will equal or large than the minimum value.
 
 - **max**: The maximum value of the column/label of the data type. The generated value will less than the maximum value.
+
+- **scalingFactor**: Floating-point precision enhancement factor, which takes effect only when the data type is float/double. It has a valid range of positive integers from 1 to 1,000,000. It is used to enhance the precision of generated floating-point numbers, particularly when the min or max values are small. This property enhances the precision after the decimal point by powers of 10: scalingFactor of 10 indicates an enhancement of 1 decimal precision, 100 indicates an enhancement of 2 decimal precision, and so on.
+
 - **fun**: This column of data is filled with functions. Currently, only the sin and cos functions are supported. The input parameter is the timestamp and converted to an angle value. The conversion formula is: angle x=input time column ts value % 360. At the same time, it supports coefficient adjustment and random fluctuation factor adjustment, presented in a fixed format expression, such as fun="10\*sin(x)+100\*random(5)", where x represents the angle, ranging from 0 to 360 degrees, and the growth step size is consistent with the time column step size. 10 represents the coefficient of multiplication, 100 represents the coefficient of addition or subtraction, and 5 represents the fluctuation range within a random range of 5%. The currently supported data types are int, bigint, float, and double. Note: The expression is fixed and cannot be reversed.
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.

@@ -1928,7 +1928,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   }
 
   if (pOld->numOfColumns == 2) {
-    code = TSDB_CODE_MND_INVALID_STB_ALTER_OPTION;
+    code = TSDB_CODE_PAR_INVALID_DROP_COL;
     TAOS_RETURN(code);
   }
 
@@ -4295,9 +4295,9 @@ static int32_t mndDropTbAdd(SMnode *pMnode, SHashObj *pVgHashMap, const SVgroupI
   return 0;
 }
 
-int vgInfoCmp(const void* lp, const void* rp) {
-  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
-  SVgroupInfo* pRight = (SVgroupInfo*)rp;
+int vgInfoCmp(const void *lp, const void *rp) {
+  SVgroupInfo *pLeft = (SVgroupInfo *)lp;
+  SVgroupInfo *pRight = (SVgroupInfo *)rp;
   if (pLeft->hashBegin < pRight->hashBegin) {
     return -1;
   } else if (pLeft->hashBegin > pRight->hashBegin) {

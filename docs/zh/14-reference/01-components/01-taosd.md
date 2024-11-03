@@ -33,7 +33,7 @@ taosd 命令行参数如下
 |        secondEp        | taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，缺省值：无 |
 |          fqdn          |        启动 taosd 后所监听的服务地址，缺省值：所在服务器上配置的第一个 hostname         |
 |       serverPort       |                         启动 taosd 后所监听的端口，缺省值：6030                         |
-|    numOfRpcSessions    |          允许一个客户端能创建的最大连接数，取值范围 100-100000，缺省值：30000           |
+|    numOfRpcSessions    |          允许一个 dnode 能发起的最大连接数，取值范围 100-100000，缺省值：30000           |
 | timeToGetAvailableConn |      获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值：500000       |
 
 ### 监控相关
@@ -180,6 +180,7 @@ charset 的有效值是 UTF-8。
 |   tmrDebugFlag   |                                                              定时器模块的日志开关，取值范围同上                                                              |
 |    uDebugFlag    |                                                             共用功能模块的日志开关，取值范围同上                                                             |
 |   rpcDebugFlag   |                                                               rpc 模块的日志开关，取值范围同上                                                               |
+|   cDebugFlag   |                                                               客户端模块的日志开关，取值范围同上                                                               |
 |   jniDebugFlag   |                                                               jni 模块的日志开关，取值范围同上                                                               |
 |    qDebugFlag    |                                                              query 模块的日志开关，取值范围同上                                                              |
 |    dDebugFlag    |                                                        dnode 模块的日志开关，取值范围同上，缺省值 135                                                        |
@@ -458,3 +459,4 @@ TDengine 的日志文件主要包括普通日志和慢日志两种类型。
         3. 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
         4. 慢日志文件不自动删除，不压缩。
         5. 使用和普通日志文件相同的三个参数 logDir,  minimalLogDirGB,  asyncLog。另外两个参数 numOfLogLines，logKeepDays 不适用于慢日志。
+

@@ -35,9 +35,9 @@ void     mndSortVnodeGid(SVgObj *pVgroup);
 int64_t  mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId);
 int64_t  mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup);
 
-SArray *mndBuildDnodesArray(SMnode *, int32_t exceptDnodeId);
+SArray *mndBuildDnodesArray(SMnode *, int32_t exceptDnodeId, SArray *dnodeList);
 int32_t mndAllocSmaVgroup(SMnode *, SDbObj *pDb, SVgObj *pVgroup);
-int32_t mndAllocVgroup(SMnode *, SDbObj *pDb, SVgObj **ppVgroups);
+int32_t mndAllocVgroup(SMnode *, SDbObj *pDb, SVgObj **ppVgroups, SArray *dnodeList);
 int32_t mndAddNewVgPrepareAction(SMnode *, STrans *pTrans, SVgObj *pVg);
 int32_t mndAddCreateVnodeAction(SMnode *, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid);
 int32_t mndAddAlterVnodeConfirmAction(SMnode *, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
