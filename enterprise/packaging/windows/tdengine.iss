@@ -42,6 +42,8 @@ CloseApplications=force
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
@@ -161,7 +163,7 @@ var
   CustomFinishedLabel1: TLabel;
   CustomFinishedLabel2: TLabel;
   CustomFinishedLabel3: TLabel;
-
+  SilentMode: Boolean;
 
 function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
 var
@@ -445,6 +447,50 @@ begin
     end;
 end;
 
+function IsSilentMode: Boolean;
+var
+  I: Integer;
+  Param: String;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+  begin
+    Param := ParamStr(I);
+    if (Param = '/SILENT') or (Param = '-SILENT') then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+procedure DeleteDirectory(const DirPath: string; const Recursive: Boolean; const Confirm: Boolean; const ErrorDialogs: Boolean);
+begin
+  if DirExists(ExpandConstant(DirPath)) then
+    DelTree(ExpandConstant(DirPath), Recursive, Confirm, ErrorDialogs);
+end;
+
+procedure DeleteDirectoriesIfConfirmed;
+begin
+  SilentMode := IsSilentMode;
+  if  not SilentMode then
+    begin
+      if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      begin
+        DeleteDirectory('{app}\cfg', True, True, True);
+        DeleteDirectory('{app}\log', True, True, True);
+        DeleteDirectory('{app}\data', True, True, True);
+      end;
+    end
+  else
+    begin
+      // silent mode, no confirm dialog, delete directory directly
+      DeleteDirectory('{app}\cfg', True, True, True);
+      DeleteDirectory('{app}\log', True, True, True);
+      DeleteDirectory('{app}\data', True, True, True);
+    end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   case CurUninstallStep of
@@ -453,7 +499,7 @@ begin
         if FileExists(ExpandConstant('{app}\taosd.exe')) then
           begin            
             DelayDeleteFile(ExpandConstant('{app}\taosd.exe'), 10);
-          end;
+          end; 
         
         if FileExists(ExpandConstant('{app}\taosx.exe')) then
           begin            
@@ -469,23 +515,8 @@ begin
           begin            
             DelayDeleteFile(ExpandConstant('{app}\output.txt'), 5);
           end;
-
-        if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
-          begin
-            if DirExists(ExpandConstant('{app}\cfg')) then
-              begin
-                DelTree(ExpandConstant('{app}\cfg'), True, True, True);
-              end;
-            if DirExists(ExpandConstant('{app}\log')) then  
-              begin
-                DelTree(ExpandConstant('{app}\log'), True, True, True);
-              end;
-            if DirExists(ExpandConstant('{app}\data')) then  
-              begin
-                DelTree(ExpandConstant('{app}\data'), True, True, True);
-              end;
-          end;        
-      end;    
+        DeleteDirectoriesIfConfirmed
+    end;    
   end;
 end;
 
