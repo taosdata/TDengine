@@ -189,7 +189,11 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 
 int32_t getJsonValueLen(const char* data);
 
+// For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
+// If the same row is inserted repeatedly, data holes will result.
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+// For the VAR_DATA_TYPE type, if a row already has data before inserting it (judged by offset != -1),
+// it will be inserted at the original position and the old data will be overwritten.
 int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,

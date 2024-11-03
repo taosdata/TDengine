@@ -70,20 +70,14 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
 
   SNode*  pNode;
   int32_t numOfCols = 0;
-  int32_t realOutputRowSize = 0;
   FOREACH(pNode, pHandle->pSchema->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
-      realOutputRowSize += pSlotDesc->dataType.bytes;
       ++numOfCols;
     } else {
       // Slots must be sorted, and slots with 'output' set to true must come first
       break;
     }
-  }
-  if (realOutputRowSize !=  pSchema->outputRowSize) {
-    qError("invalid schema, realOutputRowSize:%d, outputRowSize:%d", realOutputRowSize, pSchema->outputRowSize);
-    return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
   if (numOfCols > taosArrayGetSize(pInput->pData->pDataBlock)) {
@@ -397,8 +391,41 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t blockDescNodeCheck(SDataBlockDescNode* pInputDataBlockDesc)  {
+  if(tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInputDataBlockDesc == NULL) {
+    qError("invalid schema");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SNode*  pNode;
+  int32_t realOutputRowSize = 0;
+  FOREACH(pNode, pInputDataBlockDesc->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      realOutputRowSize += pSlotDesc->dataType.bytes;
+    } else {
+      // Slots must be sorted, and slots with 'output' set to true must come first
+      break;
+    }
+  }
+  if (realOutputRowSize !=  pInputDataBlockDesc->outputRowSize) {
+    qError("invalid schema, realOutputRowSize:%d, outputRowSize:%d", realOutputRowSize, pInputDataBlockDesc->outputRowSize);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   int32_t code;
+  code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
+  if (code) {
+    qError("failed to check input data block desc, code:%d", code);
+    return code;
+  }
 
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
