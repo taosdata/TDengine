@@ -34,7 +34,7 @@ class DbConn:
     # class variables
     lastSqlFromThreads : dict[int, str] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
     spendThreads : dict[int, float] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
-    current_time : dict[int, float] = {}  # save current time 
+    current_time : dict[int, float] = {}  # save current time
     @classmethod
     def saveSqlForCurrentThread(cls, sql: str):
         '''
@@ -155,7 +155,7 @@ class DbConn:
         nRows = self.query(sql)
         if nRows != 1:
             raise CrashGenError(
-                "Unexpected result for query: {}, rows = {}".format(sql, nRows), 
+                "Unexpected result for query: {}, rows = {}".format(sql, nRows),
                 (CrashGenError.INVALID_EMPTY_RESULT if nRows==0 else CrashGenError.INVALID_MULTIPLE_RESULT)
             )
         if self.getResultRows() != 1 or self.getResultCols() != 1:
@@ -603,8 +603,8 @@ class MyTDSql:
         try:
             ret = self._cursor.execute(sql)
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            Logging.warning("Taos SQL execution error: {}:{}, SQL: {}".format(errno2, err.msg, sql))
+            # errno2 = Helper.convertErrno(err.errno)
+            # Logging.warning("Taos SQL execution error: {}:{}, SQL: {}".format(errno2, err.msg, sql))
             raise
         #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
         #     raise CrashGenError(err.msg)

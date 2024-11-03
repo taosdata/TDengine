@@ -389,7 +389,6 @@ enable = true
         self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
 
     def stop(self):
-        print("self._subProcess----", self._subProcess)
         self._subProcess.stop()
         if Config.getConfig().connector_type != "native":
             if os.path.exists(self.getTaosadapterExecFile()):
@@ -517,7 +516,6 @@ class TdeSubProcess:
         # self._popen should always be valid.
 
         Logging.info("Terminating TDengine service running as the sub process...")
-        print("self.getStatus()---", self.getStatus())
         if self.getStatus().isStopped():
             Logging.info("Service already stopped")
             return
@@ -763,17 +761,15 @@ class ServiceManager:
         return True
 
     def _procIpcAll(self):
-        id_out = 1 
-        id_in = 1 
+        id_out = 1
+        id_in = 1
         while self.isActive():
-            print(f"outer loop: {id_out}")
             id_out += 1
             Progress.emit(Progress.SERVICE_HEART_BEAT)
             for ti in self._tInsts: # all thread objects should always be valid
             # while self.isRunning() or self.isRestarting() :  # for as long as the svc mgr thread is still here
                 status = ti.getStatus()
                 if  status.isRunning():
-                    print(f"in loop: {id_in}")
                     id_in += 1
                     # th = ti.getSmThread()
                     ti.procIpcBatch()  # regular processing,

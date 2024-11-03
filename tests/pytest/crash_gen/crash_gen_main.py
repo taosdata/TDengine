@@ -68,7 +68,7 @@ if sys.version_info[0] < 3:
 
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
-# gConfig:    argparse.Namespace 
+# gConfig:    argparse.Namespace
 gSvcMgr: Optional[ServiceManager]  # TODO: refactor this hack, use dep injection
 # logger:     logging.Logger
 gContainer: Container
@@ -92,7 +92,6 @@ class WorkerThread:
         # self._thread = threading.Thread(target=runThread, args=(self,))
         self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
-        print("====WorkerThread dbname:", self.dbName)
 
         # Let us have a DB connection of our own
         if (Config.getConfig().per_thread_db_connection):  # type: ignore
@@ -192,7 +191,7 @@ class WorkerThread:
                     dummy = 0
                 else:
                     print("\nCaught programming error. errno=0x{:X}, msg={} ".format(errno, err.msg))
-                    self.logError("func _doTaskLoop error")
+                    self.logError(f"func _doTaskLoop error-{err}")
                     raise
 
             # Fetch a task from the Thread Coordinator
@@ -321,10 +320,8 @@ class ThreadCoordinator:
         return False
 
     def _hasAbortedTask(self):  # from execution of previous step
-        # print("------- self._executedTasks: {}".format(self._executedTasks))
         for task in self._executedTasks:
             if task.isAborted():
-                print("------- Task aborted: {}".format(task))
                 # hasAbortedTask = True
                 return True
         return False
@@ -1251,7 +1248,7 @@ class Database:
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     @classmethod
     def setupLastTick(cls):
-        # start time will be auto generated , start at 10 years ago  local time 
+        # start time will be auto generated , start at 10 years ago  local time
         local_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
         local_epoch_time = [int(i) for i in local_time.split("-")]
         # local_epoch_time will be such as : [2022, 7, 18]
@@ -1538,14 +1535,10 @@ class Task():
         except (taos.error.ProgrammingError, taos.error.StatementError, taos.error.SchemalessError, taosrest.errors.Error, taosrest.errors.ConnectError) as err:
             errno2 = Helper.convertErrno(err.errno)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
-                self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
-                self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
+                # self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                #     errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
             elif self._isErrAcceptable(errno2, err.__str__()):
-                self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
                 self.logError("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
                 # print("_", end="", flush=True)
@@ -1574,14 +1567,10 @@ class Task():
             errmsg = err.args[0].split()[0]
             errno2 = int(errmsg[1:-1], 16)
             if (Config.getConfig().continue_on_exception):  # user choose to continue
-                self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
-                self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
+                # self.logError("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                #     errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
             elif self._isErrAcceptable(errno2, err.__str__()):
-                self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
-                    errno2, err, wt.getDbConn().getLastSql()))
                 self.logError("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                     errno2, err, wt.getDbConn().getLastSql()))
                 # print("_", end="", flush=True)
@@ -1736,7 +1725,6 @@ class ExecutionStats:
                     self._failureReason) if self._failed else "SUCCEEDED"))
         Logging.info("| Task Execution Times (success/total):")
         execTimesAny = 0.0
-        print("----self._execTimes:", self._execTimes)
         for k, n in self._execTimes.items():
             execTimesAny += n[0]
             errStr = None
@@ -1980,8 +1968,7 @@ class TaskCompactDb(StateTransitionTask):
             self.queryWtSql(wt, "COMPACT DATABASE {}".format(
                 self._db.getName()))  # compact database maybe failed
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskCompactDb error: {errno2}-{err}")
+            self.logError(f"func TaskCompactDb error: {err}")
             raise
 
         Logging.debug("[OPS] Compacting database at {}".format(time.time()))
@@ -2064,8 +2051,7 @@ class TaskBalanceVgroup(StateTransitionTask):
             self.execWtSql(wt, balanceSql)
             Logging.debug("[OPS] balancing vgroup at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskBalanceVgroup error: {errno2}-{err}")
+            self.logError(f"func TaskBalanceVgroup error: {err}")
             raise
 
 class TaskSplitVgroup(StateTransitionTask):
@@ -2097,8 +2083,7 @@ class TaskSplitVgroup(StateTransitionTask):
             self.execWtSql(wt, splitSql)
             Logging.debug("[OPS] split vgroup at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskSplitVgroup error: {errno2}-{err}")
+            self.logError(f"func TaskSplitVgroup error: {err}")
             raise
 
 class TaskAlterRep(StateTransitionTask):
@@ -2122,12 +2107,12 @@ class TaskAlterRep(StateTransitionTask):
             if Config.getConfig().num_replicas == 1:
                 Logging.debug("Skipping task, replicas must > 1")
                 return
-            
+
             # ! it's not allowed to compact database when it has replication transaction because TS-5251
             if self._db.getFixedSuperTable().hasCompactTrans(dbc):
                 Logging.debug("Skipping task, compact and alter-reps conflict")
                 return
-            
+
             dbc.query(f'select `replica` from information_schema.ins_databases where name = "{dbname}";')
             replica = dbc.getQueryResult()[0][0]
             destRep = 1 if replica == 3 else 1
@@ -2135,8 +2120,7 @@ class TaskAlterRep(StateTransitionTask):
             self.execWtSql(wt, splitSql)
             Logging.debug("[OPS] alter replica at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskAlterRep error: {errno2}-{err}")
+            self.logError(f"func TaskAlterRep error: {err}")
             raise
 
 class TaskRedistribute(StateTransitionTask):
@@ -2177,8 +2161,7 @@ class TaskRedistribute(StateTransitionTask):
             self.execWtSql(wt, redSql)
             Logging.debug("[OPS] alter replica at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskRedistribute error: {errno2}-{err}")
+            self.logError(f"func TaskRedistribute error: {err}")
             raise
 
 class TaskCreateStream(StateTransitionTask):
@@ -2323,30 +2306,18 @@ class TaskCreateStream(StateTransitionTask):
             if not sTable.ensureSuperTable(self, wt.getDbConn()):  # Ensure the super table exists
                 return
             tags = sTable._getTags(dbc)
-            # print("stream tags------", tags)
             cols = sTable._getCols(dbc)
-            # print("stream cols------", cols)
-            # if not tags or not cols:
-            #     return "no table exists"
             tagCols = {**tags, **cols}
-            # print("stream tagCols------", tagCols)
             selectCnt = random.randint(1, len(tagCols))
-            # print("stream selectCnt------", selectCnt)
             selectKeys = random.sample(list(tagCols.keys()), selectCnt)
-            # print("stream selectKeys------", selectKeys)
             selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
-            # print("stream selectItems------", selectItems)
-
-
             # wt.execSql("use db")    # should always be in place
             stbname = sTable.getName()
             streamSql = self.genCreateStreamSql(sTable, selectItems, stbname)
-            # print("streamSql------", streamSql)
             self.execWtSql(wt, streamSql)
             Logging.debug("[OPS] stream is creating at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskCreateStream error: {errno2}-{err}")
+            self.logError(f"func TaskCreateStream error: {err}")
             raise
 
 
@@ -2508,8 +2479,7 @@ class TaskCreateTsma(StateTransitionTask):
                 self.execWtSql(wt, createTsmaSql)
             Logging.debug("[OPS] db tsma is creating at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskCreateTsma error: {errno2}-{err}")
+            self.logError(f"func TaskCreateTsma error: {err}")
             raise
 
 class TaskCreateView(StateTransitionTask):
@@ -2541,14 +2511,11 @@ class TaskCreateView(StateTransitionTask):
             stbname = sTable.getName()
             subQuerySql = sTable.generateRandomSql(selectItems, stbname)
             nextInt = self._db.getNextInt()
-            print("nextTick------", nextInt)
             viewSql = f'CREATE VIEW {dbname}_{stbname}_view_{nextInt} AS {subQuerySql};'
-            print("viewSql------", viewSql)
             self.execWtSql(wt, viewSql)
             Logging.debug("[OPS] view is creating at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskCreateView error: {errno2}-{err}")
+            self.logError(f"func TaskCreateView error: {err}")
             raise
 
 class TaskCreateIndex(StateTransitionTask):
@@ -2575,14 +2542,11 @@ class TaskCreateIndex(StateTransitionTask):
             tagName = random.choice(tagNames[1:])
             stbname = sTable.getName()
             nextInt = self._db.getNextInt()
-            print("nextTick------", nextInt)
             indexSql = f'CREATE INDEX IF NOT EXISTS {dbname}_{stbname}_idx_{nextInt} ON {dbname}.{stbname} ({tagName});'
-            print("indexSql------", indexSql)
             self.execWtSql(wt, indexSql)
             Logging.debug("[OPS] index is creating at {}".format(time.time()))
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func TaskCreateIndex error: {errno2}-{err}")
+            self.logError(f"func TaskCreateIndex error: {err}")
             raise
 
 class TaskDropTopics(StateTransitionTask):
@@ -2718,7 +2682,7 @@ class TaskCreateConsumers(StateTransitionTask):
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         if Config.getConfig().connector_type == 'rest':
-            print(" Restful not support tmq consumers")
+            Logging.info("Restful not support tmq consumers")
             return
         else:
             sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
@@ -3121,7 +3085,6 @@ class TdSuperTable:
         views = dbc.getQueryResult()
         for view in views:
             if view[0].startswith(self._dbName):
-                print('drop view {}.{}'.format(dbname, view[0]))
                 dbc.execute('drop view {}.{}'.format(dbname, view[0]))
 
         return not dbc.query(f"show {dbname}.views;") > 0
@@ -3131,7 +3094,6 @@ class TdSuperTable:
         indexes = dbc.getQueryResult()
         for idx in indexes:
             if idx[0].startswith(self._dbName):
-                print('drop index {}.{}'.format(dbname, idx[0]))
                 dbc.execute('drop index {}.{}'.format(dbname, idx[0]))
         # TODO confirm
         return not dbc.query(f'select * from information_schema.ins_indexes where db_name = "{dbname}";') > 1
@@ -3812,12 +3774,8 @@ class TdSuperTable:
         else:
             return
         funcList = list()
-        # print("----categoryList", categoryList)
-        # print("----fm", fm)
-
         for category in categoryList:
             funcList += fm[category]
-        # print("----funcList", funcList)
         if subquery:
             funcList = [func for func in funcList if func not in fm['streamUnsupported']]
         if tsma:
@@ -3825,13 +3783,8 @@ class TdSuperTable:
         selectItems = random.sample(funcList, random.randint(1, len(funcList))) if len(funcList) > 0 else list()
         funcStrList = list()
         for func in selectItems:
-            # print("----func", func)
             funcStr = self.formatFunc(func, colname, fm["castTypes"])
-            # print("----funcStr", funcStr)
             funcStrList.append(funcStr)
-        # print("-------funcStrList:", funcStrList)
-        # print("-------funcStr:", ",".join(funcStrList))
-        # print("----selectItems", selectItems)
 
         if "INT" in column_type:
             groupKey = colname if self.setGroupTag(fm, funcList) else ""
@@ -3968,9 +3921,9 @@ class TdSuperTable:
         Parameters:
         - tbname (str): The name of the table.
         - tsCol (str): The name of the timestamp column.
-        - rand (bool, optional): If True, a random time range filter will be generated. 
-                                    If False, an empty string will be returned. 
-                                    If None, a random choice will be made between generating a time range filter or returning an empty string. 
+        - rand (bool, optional): If True, a random time range filter will be generated.
+                                    If False, an empty string will be returned.
+                                    If None, a random choice will be made between generating a time range filter or returning an empty string.
                                     Default is None.
 
         Returns:
@@ -4102,8 +4055,6 @@ class TdSuperTable:
         selectPartList = []
         groupKeyList = []
         colTypes = [member.name for member in FunctionMap]
-        # print("-----colDict", colDict)
-        # print("-----colTypes", colTypes)
         doAggr = random.choice([0, 1, 2, 3, 4, 5])
         if doAggr == 4:
             return self.getShowSql("test", "stb", "ctb1")
@@ -4116,10 +4067,8 @@ class TdSuperTable:
             for fm in FunctionMap:
                 if column_type in fm.value['types']:
                     selectStrs, groupKey = self.selectFuncsFromType(fm.value, column_name, column_type, doAggr)
-                    # print("-----selectStrs", selectStrs)
                     if len(selectStrs) > 0:
                         selectPartList.append(selectStrs)
-                    # print("-----selectPartList", selectPartList)
                     if len(groupKey) > 0:
                         groupKeyList.append(f'`{groupKey}`')
         if doAggr == 2:
@@ -4500,8 +4449,7 @@ class TaskAddData(StateTransitionTask):
         try:
             dbc.execute(sql)
         except taos.error.ProgrammingError as err:
-            errno2 = Helper.convertErrno(err.errno)
-            self.logError(f"func _addDataInBatch_n error: {errno2}-{sql}")
+            self.logError(f"func _addDataInBatch_n error: {sql}")
             raise
         finally:
             self._unlockTableIfNeeded(fullTableName)
@@ -4664,7 +4612,6 @@ class TaskAddData(StateTransitionTask):
         # if not tagCols:
         #     return "No table exists"
         # self.cols = self._getCols(db, dbc, regTableName)
-        # print("-----tagCols:",tagCols)
         tagColStrs = []
         record_str_idx_lst = list()
         start_idx = 0
@@ -5369,10 +5316,10 @@ class TaskAddData(StateTransitionTask):
                 if Config.getConfig().connector_type == 'native':
                     self._addDataByMultiTable_n(db, dbc)
                 elif Config.getConfig().connector_type == 'rest':
-                    print("stmt is not supported by restapi")
+                    Logging.info("stmt is not supported by restapi")
                     return
                 elif Config.getConfig().connector_type == 'ws':
-                    print("stmt by websocket todo supported")
+                    Logging.info("stmt by websocket todo supported")
                     return
 
             elif Dice.throw(6) == 4:
@@ -5456,9 +5403,6 @@ class TaskDeleteData(StateTransitionTask):
                         # ds.getFixedSuperTableName(),
                         # ds.getNextBinary(), ds.getNextFloat(),
                         nextTick)
-
-                    # print(sql)
-                    # Logging.info("Adding data: {}".format(sql))
                     dbc.execute(sql)
                     intWrote = intToWrite
 
@@ -5563,7 +5507,7 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            self.logError(f"func _deleteData error: {sql}")
+                            self.logError(f"func _deleteData error: {err}-{sql}")
                             raise
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
@@ -5639,7 +5583,6 @@ class ThreadStacks:  # stack info for all threads
                                                                                                 lastSqlForThread))
             stackFrame = 0
             for frame in stack:  # was using: reversed(stack)
-                # print(frame)
                 print("[{sf}] File {filename}, line {lineno}, in {name}".format(
                     sf=stackFrame, filename=frame.filename, lineno=frame.lineno, name=frame.name))
                 print("    {}".format(frame.line))
@@ -5783,7 +5726,7 @@ class ClientManager:
 
         gc.collect()  # force garbage collection
         # h = hpy()
-        # print("\n----- Final Python Heap -----\n")        
+        # print("\n----- Final Python Heap -----\n")
         # print(h.heap())
 
         return ret
@@ -5838,8 +5781,8 @@ class MainExec:
         # commit out by jayden at 10.16
         # gSvcMgr.run()  # run to some end state
         # gSvcMgr = self._svcMgr = None
-        
-        
+
+
         # TODO Confirm new add by jayden at 10.16
         gSvcMgr.startTaosServices()  # we start, don't run
 
