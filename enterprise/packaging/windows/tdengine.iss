@@ -456,7 +456,7 @@ begin
   for I := 1 to ParamCount do
   begin
     Param := ParamStr(I);
-    if (Param = '/SILENT') or (Param = '-SILENT') then
+    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/silent') or (Param = '-SILENT')  then
     begin
       Result := True;
       Break;
