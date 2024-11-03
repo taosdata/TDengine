@@ -9,17 +9,18 @@ import datetime
 import time
 import git
 import re
-from multiprocessing import Process
+from threading import Thread
 
 current_os = platform.system()
 test_process = ''
 scrip_dir = os.getcwd()
 directory = "D:\\workspace"
-branch = "3.0"
+branch = "main"
 internal_dir = os.path.join(directory, branch, "TDinternal")
 community_dir = os.path.join(internal_dir, "community")
 build_dir = os.path.join(community_dir, "debug")
 release_dir = os.path.join(community_dir, "release")
+odbc_build_type = "Release"
 
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -56,6 +57,8 @@ class InstallInfo:
         self.release_dir = ""
         self.packagServerName = ""
         self.packagClientName = ""
+
+
 install_info = InstallInfo(directory, branch, internal_dir, community_dir, release_dir, "C:\\TDengine") 
 
 def setLog(loglevel='info',log_persist=True):
@@ -130,9 +133,9 @@ def industry_options():
     TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
     if industry_name == "Power" and td_version.verType == "industry":
         options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_DATAIN_CSV=false -DTD_FUNC_VIEW=false "
+            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
             "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
-            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false -DTD_FUNC_DATA_SYNC=false"
+            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
             "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
             "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
             "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
@@ -144,7 +147,7 @@ def parse_arguments():
     
     parser = argparse.ArgumentParser(description='Release TDengine on Windows')
     parser.add_argument('-D', '--directory', type=str, help='set packaging script directory (default: D:\\workspace)', default="D:\\workspace")
-    parser.add_argument('-B', '--branch', type=str, help='set branch of the package (default: 3.0)', default="3.0")
+    parser.add_argument('-B', '--branch', type=str, help='set branch of the package (default: main)', default="main")
     parser.add_argument('-v', '--version', type=str, help='Set version type (default: community)', default="enterprise")
     parser.add_argument('-n', '--number', type=str, help='Set version number (default: 1.0.0)', default="")
     parser.add_argument('-N', '--customer-name', type=str, help='Set customer name', default="TDengine")
@@ -198,7 +201,7 @@ def git_pull(repo_dir, source_branch, target):
         repo.git.checkout("--", ".")
         logging.info(f"{repo_dir}: restore changed files")
         repo.git.reset("--hard")
-        logging.info(f"{repo_dir}: reset to HEAD done")        
+        logging.info(f"{repo_dir}: reset to HEAD done")
     except:
         pass
     
@@ -283,7 +286,7 @@ def process_cmake():
         if td_version.verType == "industry":
             cmd += industry_options()
     else:
-        cmd = (f'cmake ..\..\ -G "NMake Makefiles JOM" '
+        cmd = (f'cmake ..\ -G "NMake Makefiles JOM" '
             f'-DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true '
             f'-DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false '
             f'-DVERNUMBER={td_version.version} -DCPUTYPE=x64')
@@ -301,7 +304,7 @@ def process_build():
     logging.info("current dir: {0}".format(os.getcwd()))
     logging.info("start building ....")
     try:
-        subprocess.check_call("cmake --build .", shell=True)
+        subprocess.check_call("jom -j8 ", shell=True)
     except:
         logging.error("build failed")
         sys.exit(1)
@@ -319,8 +322,8 @@ def process_install():
         except OSError as error:
             logging.error(f"install directory {install_info.install_dir} directory: {error}")
             raise Exception(f"install directory {install_info.install_dir} directory: {error}")    
-    logging.info("start make install ....")
-    subprocess.check_call("cmake --install .", shell=True)
+    logging.info("start jom install ....")
+    subprocess.check_call("jom -j9 install", shell=True)
     logging.info("make install done")
     bin_dir = os.path.join(install_info.release_dir, "build", "bin")
     verify_commit_id(bin_dir, "taosd.exe", community_dir)
@@ -344,8 +347,6 @@ def process_build_taosx():
         taosx_dir = os.path.join(install_info.directory, install_info.branch, "taosx")    
         git_pull(taosx_dir, "main", f"ver-{td_version.version}")
         
-        explorer_dir = os.path.join(install_info.directory, install_info.branch, "explorer")
-        git_pull(explorer_dir, "main", f"ver-{td_version.version}")
         
         # remove unnecessary files
         taosx_release_dir = os.path.join(taosx_dir, "release", "taosx")
@@ -430,13 +431,13 @@ def process_build_taosws_32bit():
     
     print("copy {}\\taosws.dll.lib to {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
     os.system("copy /Y {}\\taosws.dll.lib {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
-    print("copy {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
+    print("copy  {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
     os.system("copy /Y {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
     
     print("32bit taosws build done")
 
 def process_build_odbc():
-    odbc_dir = os.path.join(directory, branch, "taos_odbc")
+    odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
@@ -447,9 +448,9 @@ def process_build_odbc():
     print("vcvarsall.bat amd64_x86")
     os.system("rm -rf .externals && rm -rf build32")
     os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
-    os.system("cmake --build build32 --config Debug -j 8")
+    os.system(f"cmake --build build32 --config {odbc_build_type} -j 8")
     
-    x86_dll_dir = os.path.join(odbc_dir, "build32", "src", "Debug")           
+    x86_dll_dir = os.path.join(odbc_dir, "build32", "src", f"{odbc_build_type}")           
     x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
     x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
     os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
@@ -470,9 +471,9 @@ def process_build_odbc():
     os.system("vcvarsall.bat x64")
     os.system("rm .externals -rf && rm build64 -rf")
     subprocess.call("cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030 -B build64 -G \"Visual Studio 17 2022\" -A x64")
-    subprocess.call("cmake --build build64 --config Debug -j 8")
+    subprocess.call(f"cmake --build build64 --config {odbc_build_type} -j 8")
     
-    x64_dll_dir = os.path.join(odbc_dir, "build64", "src", "Debug")
+    x64_dll_dir = os.path.join(odbc_dir, "build64", "src", f"{odbc_build_type}")
     x64_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x64", "bin")
     if not os.path.exists(x64_target_bin_dir):
         os.makedirs(x64_target_bin_dir)            
@@ -618,15 +619,22 @@ def process_package_server():
     print("OEM prompt is :" + tdCustomer.Prompt)
     print("OEM email is :" + tdCustomer.Email)
     
+    # odbc_dir = os.path.join(install_info.install_dir, "taos_odbc")
+    # if os.path.exists(odbc_dir):
+    #     shutil.rmtree(odbc_dir)
+    
     try:
-        subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
+        package_process_cmd = f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
                 /DMyAppIco=\"{ico_path}\" \
                 /DMyAppInstallDir=\"C:\{tdCustomer.Name}\" \
                 /DMyAppVersion=\"{td_version.version}\" \
                 /DMyAppExcludeSource=\"tmq*.exe,tsim.exe, create_table.exe, runUdf.exe, dumper.exe\" \
                 /DCusName=\"{tdCustomer.Name}\" \
                 /DCusPrompt=\"{tdCustomer.Prompt}\" \
-                {iss_path} /O{install_info.directory}\\{install_info.branch}\\release", shell=True)
+                {iss_path} /O{install_info.directory}\\{install_info.branch}\\release"
+        logging.info(f"start to package process:\n{package_process_cmd}")
+
+        subprocess.check_call(package_process_cmd, shell=True)
         logging.info(f"packaging {install_info.packagServerName} server done")
     except:
         logging.error(f"packaging {install_info.packagServerName} server failed")
@@ -892,17 +900,21 @@ if __name__ == "__main__":
 
     init_release_dir()
 
-    p1 = Process(target=process_build_TD)
-    p2 = Process(target=process_build_taosx)
-    p3 = Process(target=process_build_keeper)
+    # p1 = Thread(target=process_build_TD)
+    # p2 = Thread(target=process_build_taosx)
+    # p3 = Thread(target=process_build_keeper)
 
-    p1.start()
-    p2.start()
-    p3.start()
+    # p1.start()
+    # p2.start()
+    # p3.start()
     
-    p1.join()
-    p2.join()
-    p3.join()
+    # p1.join()
+    # p2.join()
+    # p3.join()
+
+    process_build_TD()
+    process_build_taosx()
+    process_build_keeper()
     
     process_install()    
     process_build_taosws_32bit()
