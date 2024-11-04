@@ -24,14 +24,15 @@ IF (NOT EXISTS ${TD_SOURCE_DIR}/community/source)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/community_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
 
-# grant-lib
-# IF (NOT BUILD_WITH_CFG_GRANTS)
-        cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-# ENDIF ()
 
 IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/taosx)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
+
+# grant-lib
+# IF (NOT BUILD_WITH_CFG_GRANTS)
+        cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+# ENDIF ()
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_SOURCE_DIR}/enterprise/contrib/deps-download/CMakeLists.txt")

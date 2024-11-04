@@ -91,10 +91,10 @@ add_library(api INTERFACE)
 target_include_directories(api INTERFACE "community/include/client")
 
 # src
-if(${BUILD_TEST})
+# if(${BUILD_TEST})
     include(CTest)
     enable_testing()
-endif(${BUILD_TEST})
+# endif(${BUILD_TEST})
 
 ADD_DEFINITIONS(-DTD_ENTERPRISE)
 

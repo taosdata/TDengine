@@ -279,8 +279,6 @@ static int32_t grantSecondsToString(int64_t seconds, char *ts);
 static void    grantRetrieveGrantInfo(SMnode *pMnode);
 static void    grantResetMaster(SMnode *pMnode, int64_t upgradeSec);
 static void    grantSetClusterInfo(SMnode *pMnode);
-static void    grantObjInit(SGrantUniqObj *pObj, bool official);
-static void    grantStatusInit(SGrantStatus *pStatus);
 static void    grantDataInsSetDefault(SGrantDataIn *pDataIns, int32_t num, int64_t expireSec);
 static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel);
 static int64_t grantGetClusterCreateTime(SMnode *pMnode);
@@ -481,7 +479,7 @@ static void grantInitShowFlags() {
   // add future datains here ...
 }
 
-static void grantStatusInit(SGrantStatus *pStatus) {
+void grantStatusInit(SGrantStatus *pStatus) {
   grantInitShowFlags();
 
   GRANT_OPT_EXPIRE_INIT(pStatus->basicExpireSec, pStatus->expired, GRANT_OPT_BASIC);
@@ -522,7 +520,7 @@ void mndCleanupGrant() {
   tDestroyGrantStatus(&gStatus);
 }
 
-static void grantObjInit(SGrantUniqObj *pObj, bool official) {
+void grantObjInit(SGrantUniqObj *pObj, bool official) {
   pObj->flags = 0;
   for (int32_t i = 0; i < GRANT_UNIQ_TOKEN_NUM; ++i) {
     pObj->token[i] = 0;
