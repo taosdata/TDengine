@@ -5065,7 +5065,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
   memset(dstBuf, 0, cap);
-  nBytes = snprintf(dstDir, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
