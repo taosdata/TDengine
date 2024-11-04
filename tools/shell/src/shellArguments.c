@@ -102,7 +102,7 @@ void shellPrintHelp() {
 #include <termio.h>
 #endif
 
-const char *argp_program_version = version;
+const char *argp_program_version = td_version;
 #ifdef CUS_EMAIL
 const char *argp_program_bug_address = CUS_EMAIL;
 #else
