@@ -607,11 +607,14 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
+  mTrace("process audit req:%p", pReq);
   if (tsEnableAudit && tsEnableAuditDelete) {
     SMnode   *pMnode = pReq->info.node;
     SAuditReq auditReq = {0};
 
     TAOS_CHECK_RETURN(tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+
+    mDebug("received audit req:%s, %s, %s, %s", auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql);
 
     auditAddRecord(pReq, pMnode->clusterId, auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql,
                    auditReq.sqlLen);
