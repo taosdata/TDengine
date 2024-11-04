@@ -411,7 +411,11 @@ typedef struct {
     struct {
       int64_t csvExpireSec : 40;
       int64_t curSubscriptions : 16;
-      int64_t reserve4 : 8;
+      int64_t checkUpTime : 1;
+      int64_t checkMachineCode : 1;
+      int64_t checkHistoricalActive : 1;
+      int64_t skipOldActiveIfParseFail : 1;
+      int64_t reserve4 : 4;
     };
   };
   union {

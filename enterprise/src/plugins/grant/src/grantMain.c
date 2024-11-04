@@ -845,6 +845,10 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   grantUniqAdjustSubscribeByDataSync(&grantObj);
 
   gStatus.officialVersion = grantObj.officialVersion;
+  gStatus.checkUpTime = (grantObj.flags & GRANT_ACTIVE_FLG_CHECK_UPTIME) ? 1 : 0;
+  gStatus.checkMachineCode = (grantObj.flags & GRANT_ACTIVE_FLG_CHECK_MACHINE) ? 1 : 0;
+  gStatus.skipOldActiveIfParseFail = (grantObj.flags & GRANT_ACTIVE_FLG_SKIP_FAIL_OLD) ? 1 : 0;
+  gStatus.checkHistoricalActive = grantObj.token[0] ? 1 : 0;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireSec);
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, grantClusterEpoch,
                        true);
@@ -2556,7 +2560,6 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t cols = 0;
   char   *pBuf = NULL;
   char   *qBuf = NULL;
-  char    tmp[70];
   char    ts[GRANT_TS_SEC_LEN];
   int32_t tmpLen = 0;
   int32_t bufLen = 0;
@@ -2578,9 +2581,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(code);
   }
 
-  bufLen += VARSTR_HEADER_SIZE;
-
-  if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
+  if (!(pBuf = taosMemoryCalloc(1, bufLen + VARSTR_HEADER_SIZE))) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -2591,18 +2592,16 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       SGrantState *pState = &pGrant->states[i];
       TAOS_UNUSED(grantSecondsToString(pState->ts, ts));
       if (i == 0) {
-        (void)snprintf(tmp, 70, "%s,%s,%s,%s", ts, gGrantReason[pState->reason], gGrantState[pState->lastState],
-                       gGrantState[pState->state]);
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), "%s,%s,%s,%s", ts, gGrantReason[pState->reason],
+                           gGrantState[pState->lastState], gGrantState[pState->state]);
       } else {
-        (void)snprintf(tmp, 70, ";%s,%s,%s,%s", ts, gGrantReason[pState->reason], gGrantState[pState->lastState],
-                       gGrantState[pState->state]);
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), ";%s,%s,%s,%s", ts,
+                           gGrantReason[pState->reason], gGrantState[pState->lastState], gGrantState[pState->state]);
       }
-      tmpLen = strlen(tmp);
-      (void)memcpy(qBuf, tmp, tmpLen);
       qBuf += tmpLen;
     }
     qBuf[0] = 0;
-    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
     COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++cols;
@@ -2612,16 +2611,14 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       SGrantActive *pActive = &pGrant->actives[i];
       TAOS_UNUSED(grantSecondsToString(pActive->ts, ts));
       if (i == 0) {
-        (void)snprintf(tmp, 70, "%s,%s", ts, pActive->active);
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), "%s,%s", ts, pActive->active);
       } else {
-        (void)snprintf(tmp, 70, ";%s,%s", ts, pActive->active);
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), ";%s,%s", ts, pActive->active);
       }
-      tmpLen = strlen(tmp);
-      (void)memcpy(qBuf, tmp, tmpLen);
       qBuf += tmpLen;
     }
     qBuf[0] = 0;
-    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
     COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++cols;
@@ -2631,19 +2628,36 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
       TAOS_UNUSED(grantSecondsToString(pMachine->ts, ts));
       if (i == 0) {
-        (void)snprintf(tmp, 70, "%s,%d,%s,%" PRIu8, ts, pMachine->id, pMachine->machine,
-                       grantGetMachineFlag(pMachine->machine));
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), "%s,%d,%s,%" PRIu8, ts, pMachine->id,
+                           pMachine->machine, grantGetMachineFlag(pMachine->machine));
       } else {
-        (void)snprintf(tmp, 70, ";%s,%d,%s,%" PRIu8, ts, pMachine->id, pMachine->machine,
-                       grantGetMachineFlag(pMachine->machine));
+        tmpLen = tsnprintf(qBuf, bufLen - POINTER_DISTANCE(qBuf, pBuf), ";%s,%d,%s,%" PRIu8, ts, pMachine->id,
+                           pMachine->machine, grantGetMachineFlag(pMachine->machine));
       }
-      tmpLen = strlen(tmp);
-      (void)memcpy(qBuf, tmp, tmpLen);
       qBuf += tmpLen;
     }
     qBuf[0] = 0;
-    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
     COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (pColInfo) {
+      qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+      if (gStatus.grantState == GRANT_STATE_INIT || gStatus.grantState == GRANT_STATE_UNGRANTED) {
+        tmpLen = 0;
+      } else {
+        tmpLen = tsnprintf(qBuf, bufLen,
+                           "checkUpTime:%" PRIi8 ",checkMachineCode:%" PRIi8 ",checkHistoricalActive:%" PRIi8
+                           ",skipOldActiveIfParseFail:%" PRIi8,
+                           gStatus.checkUpTime ? 1 : 0, gStatus.checkMachineCode ? 1 : 0,
+                           gStatus.checkHistoricalActive ? 1 : 0, gStatus.skipOldActiveIfParseFail ? 1 : 0);
+      }
+      qBuf += tmpLen;
+      qBuf[0] = 0;
+      varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    }
 
     ++numOfRows;
   }
