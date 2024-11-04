@@ -2902,7 +2902,7 @@ static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t rewriteClentVersionFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pVer = taosStrdup((void*)version);
+  char* pVer = taosStrdup((void*)td_version);
   if (NULL == pVer) {
     return terrno;
   }
