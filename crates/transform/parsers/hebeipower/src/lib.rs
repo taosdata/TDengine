@@ -69,7 +69,10 @@ impl ParserConfig {
             .unwrap_or("");
 
         let mut arr_data = Vec::new();
-        let date_date = object.get("DATA_DATE").unwrap().as_str().unwrap();
+        let data_date = object
+            .get("DATA_DATE")
+            .map(|v| v.as_str().unwrap_or(""))
+            .unwrap_or("");
         let mut share_object = Map::new();
 
         for (k, v) in object.iter() {
@@ -79,7 +82,7 @@ impl ParserConfig {
 
                 let dt = format!(
                     "{}T{}:{}:00+08:00",
-                    date_date,
+                    data_date,
                     k[1..3].to_string(),
                     k[3..].to_string()
                 );
@@ -150,11 +153,10 @@ pub unsafe extern "C" fn parser_mutate(
             Ok(JsonValue::Object(object)) => {
                 let parsed_data = parser_config.parse_object(object);
                 let r = serde_json::to_string(&parsed_data);
-                if r.is_err() {
-                    tracing::error!("Failed to serialize parsed data: {:?}", r.err());
-                    return "[]".to_string();
-                }
-                r.unwrap()
+                r.unwrap_or_else(|err| {
+                    tracing::error!("Failed to serialize parsed data: {:?}", err);
+                    "[]".to_string()
+                })
             }
             Ok(JsonValue::Array(objs)) => {
                 let mut result_array = Vec::new();
@@ -167,14 +169,13 @@ pub unsafe extern "C" fn parser_mutate(
                 }
 
                 let r = serde_json::to_string(&result_array);
-                if r.is_err() {
-                    tracing::error!("Failed to serialize parsed data: {:?}", r.err());
-                    return "[]".to_string();
-                }
-                r.unwrap()
+                r.unwrap_or_else(|err| {
+                    tracing::error!("Failed to serialize parsed data: {:?}", err);
+                    "[]".to_string()
+                })
             }
             Ok(_) => {
-                tracing::error!("raw data is not a json object");
+                tracing::error!("raw data is not a json object or array");
                 "[]".to_string()
             }
             Err(err) => {
@@ -305,5 +306,30 @@ mod tests {
             parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
             "2021-01-01T00:03:00+08:00"
         );
+    }
+
+    #[test]
+    fn test_parse_object_exception_missing_data_date() {
+        let parser_config = ParserConfig::new("U,DATA_TYPE").unwrap();
+
+        let object = json!({
+            "U0001": 1.0,
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 1);
+        assert_eq!(
+            parsed_data[0].get("_ts").unwrap().as_str().unwrap(),
+            "T00:01:00+08:00"
+        );
+
+        let object = json!({
+            "DATA_DATE": "2021-01-01",
+            "DEV_ID": "8100000888",
+        });
+        let object = object.as_object().unwrap();
+        let parsed_data = parser_config.parse_object(object.clone());
+        assert_eq!(parsed_data.len(), 0);
     }
 }
