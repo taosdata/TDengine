@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "tconfig.h"
@@ -26,6 +27,9 @@
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
 #endif
+
+#define CONFIG_PATH_LEN (TSDB_FILENAME_LEN + 12)
+#define CONFIG_FILE_LEN (CONFIG_PATH_LEN + 32)
 
 // GRANT_CFG_DECLARE;
 
@@ -1927,7 +1931,11 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
 
   cfgDumpCfg(tsCfg, tsc, false);
-
+  if (!tsc) {
+    if ((code = persistLocalConfig(tsCfg)) != 0) {
+      goto _exit;
+    }
+  }
   TAOS_CHECK_GOTO(taosCheckGlobalCfg(), &lino, _exit);
 
 _exit:
@@ -2472,4 +2480,92 @@ int8_t taosGranted(int8_t type) {
       break;
   }
   return 0;
+}
+
+int32_t persistLocalConfig(SConfig *pCfg) {
+  // TODO: just tmp ,refactor later
+  int32_t   code = 0;
+  char     *buffer = NULL;
+  TdFilePtr pFile = NULL;
+  char      filepath[CONFIG_FILE_LEN] = {0};
+  char      filename[CONFIG_FILE_LEN] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%sconfig", tsDataDir, TD_DIRSEP);
+  snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  // TODO(beryl) need to check if the file is existed
+  if (taosMkDir(filepath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to create dir:%s since %s", filepath, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TdFilePtr pConfigFile =
+      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+
+  if (pConfigFile == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to open file:%s since %s", filename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  char *serialized = NULL;
+  code = localConfigSerialize(cfgGetLocalCfg(pCfg), &serialized);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to serialize local config since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  taosWriteFile(pConfigFile, serialized, strlen(serialized));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t localConfigSerialize(SArray *array, char **serialized) {
+  char   buf[30];
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int sz = taosArrayGetSize(array);
+
+  cJSON *cField = cJSON_CreateArray();
+  if (array == NULL) {
+    cJSON_Delete(json);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  // cjson only support int32_t or double
+  // string are used to prohibit the loss of precision
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          cJSON_AddBoolToObject(cField, item->name, item->bval);
+          break;
+        case CFG_DTYPE_INT32:
+          cJSON_AddNumberToObject(cField, item->name, item->i32);
+          break;
+        case CFG_DTYPE_INT64:
+          (void)sprintf(buf, "%" PRId64, item->i64);
+          cJSON_AddStringToObject(cField, item->name, buf);
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          (void)sprintf(buf, "%f", item->fval);
+          cJSON_AddStringToObject(cField, item->name, buf);
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          cJSON_AddStringToObject(cField, item->name, item->str);
+          break;
+      }
+    }
+  }
+  cJSON_AddItemToObject(json, "pArray", cField);
+  *serialized = cJSON_Print(json);
+  cJSON_Delete(json);
+  return TSDB_CODE_SUCCESS;
 }

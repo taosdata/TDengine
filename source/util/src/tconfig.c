@@ -1536,3 +1536,6 @@ void cfgDestroyIter(SConfigIter *pIter) {
 
   taosMemoryFree(pIter);
 }
+
+SArray *cfgGetLocalCfg(SConfig *pCfg) { return pCfg->localArray; }
+SArray *cfgGetGlobalCfg(SConfig *pCfg) { return pCfg->globalArray; }

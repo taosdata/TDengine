@@ -17,10 +17,10 @@
 #define _TD_MND_H_
 
 #include "monitor.h"
+#include "sync.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
-#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +40,12 @@ typedef struct {
   SMsgCb   msgCb;
   int64_t  lastIndex;
 } SMnodeOpt;
+
+typedef struct {
+  int32_t       version;
+  SArray        *pArray;
+  TdThreadMutex mutex;
+} SMnodeConfig;
 
 /* ------------------------ SMnode ------------------------ */
 /**
@@ -73,7 +79,7 @@ int32_t mndStart(SMnode *pMnode);
  */
 void mndStop(SMnode *pMnode);
 
-int32_t mndIsCatchUp(SMnode *pMnode);
+int32_t   mndIsCatchUp(SMnode *pMnode);
 ESyncRole mndGetRole(SMnode *pMnode);
 int64_t   mndGetTerm(SMnode *pMnode);
 
@@ -109,7 +115,7 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode);
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo* pQueueInfo);
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);

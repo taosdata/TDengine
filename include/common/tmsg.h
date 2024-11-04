@@ -421,7 +421,7 @@ typedef enum ENodeType {
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
-  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,    // INACTIVE
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,  // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
@@ -435,7 +435,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
-  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,         // INACTIVE
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,  // INACTIVE
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
@@ -982,7 +982,6 @@ typedef struct SEpSet {
   int8_t numOfEps;
   SEp    eps[TSDB_MAX_REPLICA];
 } SEpSet;
-
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
@@ -4115,20 +4114,20 @@ typedef struct {
   SArray*      blockTbName;
   SArray*      blockSchema;
 
-  union{
-    struct{
-      int64_t          sleepTime;
+  union {
+    struct {
+      int64_t sleepTime;
     };
-    struct{
-      int32_t          createTableNum;
-      SArray*          createTableLen;
-      SArray*          createTableReq;
+    struct {
+      int32_t createTableNum;
+      SArray* createTableLen;
+      SArray* createTableReq;
     };
   };
 
 } SMqDataRsp;
 
-int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pObj);
+int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);
 int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 

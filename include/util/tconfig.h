@@ -148,7 +148,8 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl);
-
+SArray *cfgGetLocalCfg(SConfig *pCfg);
+SArray *cfgGetGlobalCfg(SConfig *pCfg);
 #ifdef __cplusplus
 }
 #endif
