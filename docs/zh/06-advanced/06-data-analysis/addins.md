@@ -143,7 +143,7 @@ def test_iqr(self):
 
 并在 model 目录下建立对应的文件夹存放该模型。
 
-保存模型的调用，可参考  encoder.py 的方式，用户通过调用  set_params 方法，并指定参数  {"model": "ad_encoder_keras"} 的方式，可以调用该模型进行计算。
+保存模型的调用，可参考  encoder.py 的方式，用户通过调用  set_params 方法，并指定参数 `{"model": "ad_encoder_keras"}` 的方式，可以调用该模型进行计算。
 
 具体的调用方式如下：
 
