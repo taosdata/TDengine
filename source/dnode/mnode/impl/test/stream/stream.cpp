@@ -246,7 +246,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   px = taosArrayPush(pStream->tasks, &pLevel);
   ASSERT(px != NULL);
 
-  code = mndCreateStreamResetStatusTrans(pMnode, pStream);
+  code = mndCreateStreamResetStatusTrans(pMnode, pStream, 1);
   ASSERT(code != 0);
 
   tFreeStreamObj(pStream);
