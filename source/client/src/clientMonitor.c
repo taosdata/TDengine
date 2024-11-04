@@ -215,7 +215,7 @@ static void reportSendProcess(void* param, void* tmrId) {
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
   bool reset =
-      taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+      taosTmrReset(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
   tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
@@ -288,7 +288,7 @@ void monitorCreateClient(int64_t clusterId) {
       goto fail;
     }
     pMonitor->timer =
-        taosTmrStart(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
+        taosTmrStart(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
     if (pMonitor->timer == NULL) {
       tscError("failed to start timer");
       goto fail;
@@ -659,7 +659,7 @@ static void monitorSendAllSlowLog() {
       taosHashCancelIterate(monitorSlowLogHash, pIter);
       return;
     }
-    if (t - pClient->lastCheckTime > pInst->monitorParas.tsMonitorInterval * 1000) {
+    if (t - pClient->lastCheckTime > pInst->serverCfg.monitorParas.tsMonitorInterval * 1000) {
       pClient->lastCheckTime = t;
     } else {
       continue;
@@ -685,7 +685,7 @@ static void monitorSendAllSlowLog() {
 static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
   SAppInstInfo* pInst = getAppInstByClusterId((int64_t)clusterId);
 
-  if (pInst == NULL || !pInst->monitorParas.tsEnableMonitor) {
+  if (pInst == NULL || !pInst->serverCfg.monitorParas.tsEnableMonitor) {
     tscInfo("[monitor] monitor is disabled, skip send slow log");
     return;
   }
@@ -970,6 +970,16 @@ static void reportDeleteSql(SRequestObj* pRequest) {
   SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
   STscObj*     pTscObj = pRequest->pTscObj;
 
+  if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
+    tscError("[del report]invalid tsc obj");
+    return;
+  }
+
+  if(pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0) {
+    tscDebug("[del report]audit delete is disabled");
+    return;
+  }
+
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     tscDebug("[del report]delete request result code:%d", pRequest->code);
     return;
@@ -1015,7 +1025,7 @@ void clientOperateReport(SRequestObj* pRequest) {
     return;
   }
 
-  if (tsEnableAuditDelete && QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
+  if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
     reportDeleteSql(pRequest);
   }
 }

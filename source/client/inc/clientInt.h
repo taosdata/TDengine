@@ -108,6 +108,10 @@ typedef struct SQueryExecMetric {
   int64_t execCostUs;
 } SQueryExecMetric;
 
+typedef struct {
+  SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
+} SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
@@ -121,7 +125,7 @@ struct SAppInstInfo {
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
-  SMonitorParas      monitorParas;
+  SAppInstServerCFG  serverCfg;
 };
 
 typedef struct SAppInfo {
