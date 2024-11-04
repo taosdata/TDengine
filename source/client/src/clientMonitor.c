@@ -940,7 +940,7 @@ int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len) {
+int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t requestId) {
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     tscError("[del report]failed to allocate memory for sendInfo");
@@ -949,7 +949,7 @@ int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len) {
 
   sendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = len, .handle = NULL};
 
-  sendInfo->requestId = generateRequestId();
+  sendInfo->requestId = requestId;
   sendInfo->requestObjRefId = 0;
   sendInfo->param = NULL;
   sendInfo->fp = reportCB;
@@ -1010,7 +1010,7 @@ static void reportDeleteSql(SRequestObj* pRequest) {
     return;
   }
 
-  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen);
+  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
   if (code != 0) {
     tscError("[del report]failed to send audit info, code:%d", code);
     taosMemoryFree(pReq);
@@ -1020,7 +1020,7 @@ static void reportDeleteSql(SRequestObj* pRequest) {
 }
 
 void clientOperateReport(SRequestObj* pRequest) {
-  if (pRequest == NULL || pRequest->pQuery == NULL) {
+  if (pRequest == NULL || pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
     tscError("[del report]invalid request");
     return;
   }
