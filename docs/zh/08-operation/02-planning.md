@@ -146,11 +146,17 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 
 下表列出了 TDengine 的一些接口或组件的常用端口，这些端口均可以通过配置文件中的参数进行修改。
 
-|    接口或组件     |    端口    |
-| :---------------: | :--------: |
-| 原生接口（taosc） |    6030    |
-|   RESTful 接口    |    6041    |
-|  WebSocket 接口   |    6041    |
-|    taosKeeper     |    6043    |
-|       taosX       | 6050, 6055 |
-|   taosExplorer    |    6060    |
+|               接口/组件名称                |     端口     |   协议    |
+|:------------------------------------:|:----------:|:-------:|
+|             原生接口（taosc）              |    6030    |   TCP   |
+|              RESTful 接口              |    6041    |   TCP   |
+|             WebSocket 接口             |    6041    |   TCP   |
+|            statsd 格式写入接口             |    6044    | TCP/UDP |
+|           collectd 格式写入接口            |    6045    | TCP/UDP |
+|        openTSDB Telnet 格式写入接口        |    6046    |   TCP   |
+|  collectd 使用 openTSDB Telnet 格式写入接口  |    6047    |   TCP   |
+|  icinga2 使用 openTSDB Telnet 格式写入接口   |    6048    |   TCP   |
+| tcollector 使用 openTSDB Telnet 格式写入接口 |    6049    |   TCP   |
+|              taosKeeper              |    6043    |   TCP   |
+|                taosX                 | 6050, 6055 |   TCP   |
+|             taosExplorer             |    6060    |   TCP   |
