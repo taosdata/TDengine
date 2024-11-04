@@ -2255,8 +2255,8 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     if (machineChksum != newObj.token[1]) {
       TAOS_CHECK_EXIT(TSDB_CODE_GRANT_MACHINES_MISMATCH);
     }
-    // cleanup pGrant->pMachines in revoked state
-    if (revoked) taosArrayClear(pObj->pMachines);
+    // cleanup pGrant->pMachines if there is machines' token
+    taosArrayClear(pObj->pMachines);
   } else if (revoked) {
     TAOS_CHECK_EXIT(TSDB_CODE_GRANT_UNLICENSED_CLUSTER);
   }
