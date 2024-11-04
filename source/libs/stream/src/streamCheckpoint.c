@@ -222,14 +222,14 @@ static int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t check
     stError("s-task:%s vgId:%d current checkpointId:%" PRId64
             " recv expired checkpoint-trigger block, checkpointId:%" PRId64 " transId:%d, discard",
             id, vgId, pTask->chkInfo.checkpointId, checkpointId, transId);
-    return code;
+    return TSDB_CODE_STREAM_INVLD_CHKPT;
   }
 
   if (pActiveInfo->failedId >= checkpointId) {
     stError("s-task:%s vgId:%d checkpointId:%" PRId64 " transId:%d, has been marked failed, failedId:%" PRId64
             " discard the checkpoint-trigger block",
             id, vgId, checkpointId, transId, pActiveInfo->failedId);
-    return code;
+    return TSDB_CODE_STREAM_INVLD_CHKPT;
   }
 
   if (pTask->chkInfo.checkpointId == checkpointId) {
@@ -370,6 +370,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     }
+
+#if 0
+    chkptFailedByRetrieveReqToSource(pTask, checkpointId);
+#endif
 
     if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
