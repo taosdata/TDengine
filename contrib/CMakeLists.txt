@@ -184,6 +184,9 @@ if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+# lemon
+cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .

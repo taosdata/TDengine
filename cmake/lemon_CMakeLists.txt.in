@@ -1,0 +1,10 @@
+# lemon
+    ExternalProject_Add(
+        lemon
+        URL https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=release
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ${CMAKE_C_COMPILER} -o ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon-build/lemon ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon.c 
+        INSTALL_COMMAND cp ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon-build/lemon  ${CMAKE_BINARY_DIR}/bin/lemon
+        INSTALL_COMMAND cp ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lempar.c  ${CMAKE_BINARY_DIR}/bin/lempar.c
+        BUILD_IN_SOURCE 1
+    )
