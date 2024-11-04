@@ -1904,7 +1904,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
 
   if (pCxt->pParseCxt->biMode) {
     SNode** ppNode = (SNode**)pCol;
-    bool ret;
+    bool    ret;
     pCxt->errCode = biRewriteToTbnameFunc(pCxt, ppNode, &ret);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
     if (ret) {
@@ -10041,7 +10041,7 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
 
 static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt) {
   SMDropSmaReq dropSmaReq = {0};
-  SName name = {0};
+  SName        name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name);
   int32_t code = tNameExtractFullName(&name, dropSmaReq.name);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -11788,7 +11788,7 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
 #endif
 
   SCMDropViewReq dropReq = {0};
-  SName name = {0};
+  SName          name = {0};
   int32_t        code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS == code) {
     (void)tNameGetFullDbName(&name, dropReq.dbFName);
