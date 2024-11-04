@@ -16,6 +16,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
@@ -1083,6 +1084,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_table.sim
 ,,y,script,./test.sh -f tsim/user/privilege_create_db.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
+,,y,script,./test.sh -f tsim/db/dnodelist.sim
 # ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
 ,,y,script,./test.sh -f tsim/db/basic2.sim
