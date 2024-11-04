@@ -22,7 +22,7 @@ extern "C" {
 
 typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
-#if !defined(DISALLOW_NCHAR_WITHOUT_ICONV) && defined(DARWIN)
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
 #include "iconv.h"
 #else
 typedef void   *iconv_t;
