@@ -316,12 +316,13 @@ int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
     return terrno;
   }
 
-  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer, &pInfo->hbTmr, 0, "stream-hb");
   pInfo->tickCounter = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;
 
   *pRes = pInfo;
+
+  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer, &pInfo->hbTmr, 0, "stream-hb");
   return TSDB_CODE_SUCCESS;
 }
 
