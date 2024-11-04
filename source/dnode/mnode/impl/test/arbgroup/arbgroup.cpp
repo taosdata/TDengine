@@ -300,10 +300,14 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   group.isSync = 1;
   taosThreadMutexInit(&group.mutex, NULL);
 
-  SArbAssignedLeader assgnedLeader = {.dnodeId = assgndDnodeId, .acked = false};
+  SArbAssignedLeader assgnedLeader = {0};
+  assgnedLeader.dnodeId = assgndDnodeId;
+  assgnedLeader.acked = false;
   strncpy(assgnedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
 
-  SArbAssignedLeader nonoAsgndLeader = {.dnodeId = 0, .acked = false};
+  SArbAssignedLeader noneAsgndLeader = {0};
+  noneAsgndLeader.dnodeId = 0;
+  noneAsgndLeader.acked = false;
 
   ECheckSyncOp op = CHECK_SYNC_NONE;
   SArbGroup    newGroup = {0};
@@ -327,7 +331,7 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
 
   // 3. noAsgnd,notSync,noAck(init) --> check sync
   newGroup = {0};
-  group.assignedLeader = nonoAsgndLeader;
+  group.assignedLeader = noneAsgndLeader;
   group.isSync = false;
   group.assignedLeader.acked = false;
   mndArbCheckSync(&group, nowMs, &op, &newGroup);
@@ -336,7 +340,7 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
 
   // 4. noAsgnd,sync,noAck,one timeout--> update arbgroup (asgnd,sync,noAck)
   newGroup = {0};
-  group.assignedLeader = nonoAsgndLeader;
+  group.assignedLeader = noneAsgndLeader;
   group.isSync = true;
   group.assignedLeader.acked = false;
   group.members[1].state.lastHbMs = nowMs - 2 * tsArbSetAssignedTimeoutSec * 1000; // member1 timeout
