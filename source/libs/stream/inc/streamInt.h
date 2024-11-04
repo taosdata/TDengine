@@ -244,6 +244,9 @@ int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
 
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
+
 #ifdef __cplusplus
 }
 #endif
