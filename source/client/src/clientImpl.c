@@ -1770,7 +1770,7 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-int32_t doProcessMsFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
+int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
@@ -1843,7 +1843,7 @@ int32_t doProcessMsFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
 }
 int32_t doProcessMsgFromServer(void* param) {
   AsyncArg* arg = (AsyncArg*)param;
-  int32_t   code = doProcessMsFromServerImpl(&arg->msg, arg->pEpset);
+  int32_t   code = doProcessMsgFromServerImpl(&arg->msg, arg->pEpset);
   taosMemoryFree(arg);
   return code;
 }
@@ -1881,7 +1881,6 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     code = terrno;
     pMsg->code = code;
     goto _exit;
-    return;
   }
 
   arg->msg = *pMsg;
@@ -1897,7 +1896,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   return;
 _exit:
   tscError("failed to sched msg to tsc since %s", tstrerror(code));
-  code = doProcessMsFromServerImpl(pMsg, tEpSet);
+  code = doProcessMsgFromServerImpl(pMsg, tEpSet);
   if (code != 0) {
     tscError("failed to sched msg to tsc, tsc ready quit");
   }
