@@ -1,5 +1,9 @@
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 aux_source_directory(src UTIL_SRC)
+IF(COMPILER_SUPPORT_AVX2)
+    MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
+    set_source_files_properties(src/tdecompressavx.c PROPERTIES COMPILE_FLAGS -mavx2)
+ENDIF()
 add_library(util STATIC ${UTIL_SRC})
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

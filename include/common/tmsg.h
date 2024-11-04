@@ -1339,6 +1339,7 @@ typedef struct {
   char*   sql;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  char    dnodeListStr[TSDB_DNODE_LIST_LEN];
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);

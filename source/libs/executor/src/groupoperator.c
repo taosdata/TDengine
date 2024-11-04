@@ -1263,7 +1263,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   QUERY_CHECK_CONDITION((hasRemainPartion(pInfo)), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->parIte;
   blockDataCleanup(pDest);
-  int32_t      rows = taosArrayGetSize(pParInfo->rowIds);
+  int32_t rows = taosArrayGetSize(pParInfo->rowIds);
+  code = blockDataEnsureCapacity(pDest, rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   SSDataBlock* pSrc = pInfo->pInputDataBlock;
   for (int32_t i = 0; i < rows; i++) {
     int32_t rowIndex = *(int32_t*)taosArrayGet(pParInfo->rowIds, i);
