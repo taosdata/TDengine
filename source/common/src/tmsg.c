@@ -3874,6 +3874,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3ChunkSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dnodeListStr));
 
   tEndEncode(&encoder);
 
@@ -3960,6 +3961,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3ChunkSize));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dnodeListStr));
   }
 
   tEndDecode(&decoder);
@@ -10983,6 +10988,7 @@ _exit:
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeMqDataRspCommon(pEncoder, pRsp));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->sleepTime));
+
   return 0;
 }
 
@@ -11094,6 +11100,7 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, createTableReq, createTableLen));
     }
   }
+
 _exit:
   return code;
 }

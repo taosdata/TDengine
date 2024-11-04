@@ -46,7 +46,7 @@ For more details on features, please read through the entire documentation.
 
 By making full use of [characteristics of time series data](https://tdengine.com/characteristics-of-time-series-data/), TDengine differentiates itself from other time series databases with the following advantages.
 
-- **[High-Performance](https://tdengine.com/high-performance/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
+- **[High-Performance](https://tdengine.com/high-performance/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while outperforming other time-series databases for data ingestion, querying and data compression.
 
 - **[Simplified Solution](https://tdengine.com/comprehensive-industrial-data-solution/)**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 

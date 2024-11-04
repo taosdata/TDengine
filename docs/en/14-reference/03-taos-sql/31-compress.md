@@ -41,7 +41,7 @@ In this article, it specifically refers to the level within the secondary compre
 ### Create Table with Compression
 
 ```sql
-CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
+CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
 **Parameter Description**
@@ -58,7 +58,7 @@ CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compr
 ### Change Compression Method
 
 ```sql
-ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
+ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
 ```
 
 **Parameter Description**
