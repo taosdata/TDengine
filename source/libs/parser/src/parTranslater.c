@@ -10396,27 +10396,28 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return code;
 }
 
-static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {
+static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName, SNode* pStart, SNode* pEnd,
+                                     STimeWindow* timeRange) {
   SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pStart) {
-    ((SValueNode*)pStmt->pStart)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pStart);
+  int32_t    code = getDBCfg(pCxt, dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStart) {
+    ((SValueNode*)pStart)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStart);
   }
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pEnd) {
-    ((SValueNode*)pStmt->pEnd)->node.resType.precision = dbCfg.precision;
-    ((SValueNode*)pStmt->pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pEnd);
+  if (TSDB_CODE_SUCCESS == code && NULL != pEnd) {
+    ((SValueNode*)pEnd)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pEnd);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->timeRange.skey = NULL != pStmt->pStart ? ((SValueNode*)pStmt->pStart)->datum.i : INT64_MIN;
-    pReq->timeRange.ekey = NULL != pStmt->pEnd ? ((SValueNode*)pStmt->pEnd)->datum.i : INT64_MAX;
+    timeRange->skey = NULL != pStart ? ((SValueNode*)pStart)->datum.i : INT64_MIN;
+    timeRange->ekey = NULL != pEnd ? ((SValueNode*)pEnd)->datum.i : INT64_MAX;
   }
   return code;
 }
 
-static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
+static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {0};
   SName         name;
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -10424,11 +10425,40 @@ static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* p
   if (TSDB_CODE_SUCCESS != code) return code;
 
   (void)tNameGetFullDbName(&name, compactReq.db);
-  code = translateCompactRange(pCxt, pStmt, &compactReq);
+  code = translateCompactRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &compactReq.timeRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
   tFreeSCompactDbReq(&compactReq);
+  return code;
+}
+
+static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupList, SArray** ppVgroups) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // TODO
+  ASSERT(0);
+
+  return code;
+}
+
+static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SCompactVgroupsReq req = {0};
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateCompactRange(pCxt, NULL /* TODO */, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_VGROUPS, (FSerializeFunc)tSerializeSCompactVgroupsReq, &req);
+  }
+
+  tFreeSCompactVgroupsReq(&req);
   return code;
 }
 
@@ -12720,8 +12750,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDescribe(pCxt, (SDescribeStmt*)pNode);
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
-      code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
+      code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
       break;
@@ -13039,6 +13071,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     default:
       break;
@@ -16222,6 +16255,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {
