@@ -2134,7 +2134,8 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     if (tSimpleHashGet(pScanRange, &checkKey, sizeof(SSessionKey)) != NULL) {
       continue;
     }
-    tSimpleHashPut(pScanRange, &checkKey, sizeof(SSessionKey), NULL, 0);
+    code = tSimpleHashPut(pScanRange, &checkKey, sizeof(SSessionKey), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pDestStartCol, i, (const char*)&startWin.win.skey, false);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2310,7 +2311,8 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
     if (tSimpleHashGet(pScanRange, &checkKey, sizeof(SSessionKey)) != NULL) {
       continue;
     }
-    tSimpleHashPut(pScanRange, &checkKey, sizeof(SSessionKey), NULL, 0);
+    code = tSimpleHashPut(pScanRange, &checkKey, sizeof(SSessionKey), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pStartTsCol, pDestBlock->info.rows, (const char*)(&win.skey), false);
     QUERY_CHECK_CODE(code, lino, _end);
