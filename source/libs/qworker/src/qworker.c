@@ -751,7 +751,7 @@ _return:
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
