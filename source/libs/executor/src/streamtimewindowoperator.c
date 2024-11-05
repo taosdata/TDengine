@@ -377,8 +377,12 @@ static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp
       }
 
       if (pTwSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-        code = saveWinResult(pWinKey, *(SRowBuffPos**)pIte, closeWins);
-        QUERY_CHECK_CODE(code, lino, _end);
+        SRowBuffPos* pPos = *(SRowBuffPos**)pIte;
+        if (pPos->beUpdated) {
+          pPos->beUpdated = false;
+          code = saveWinResult(pWinKey, pPos, closeWins);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       }
       int32_t tmpRes = tSimpleHashIterateRemove(pHashMap, pWinKey, sizeof(SWinKey), &pIte, &iter);
       qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
