@@ -324,19 +324,15 @@ class TDTestCase(TBase):
         tdSql.query("select case when ts='2024-10-01 00:00:04.000' then 456646546 when ts>'2024-10-01 00:00:04.000' then 'after today' else 'before today or unknow date' end from st1;")
         assert(tdSql.checkRows(10) and tdSql.res == [('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('456646546',), ('after today',), ('after today',), ('after today',), ('after today',), ('after today',)])
 
-        tdSql.query("select case when c_geometry is null then c_geometry else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
-        
-        # tdSql.error("select case when c_geometry is not null then c_geometry else c_null end from st1;")
-        # tdSql.error("select case when c_geometry='POINT(2 2)' then c_geometry else c_bool end from st1;")
-        # tdSql.error("select case when c_geometry!='POINT(2 2)' then c_geometry else c_bool end from st1;")
+        tdSql.error("select case when c_geometry is null then c_geometry else c_null end from st1;")
+        tdSql.error("select case when c_geometry is not null then c_geometry else c_null end from st1;")
+        tdSql.error("select case when c_geometry='POINT(2 2)' then c_geometry else c_bool end from st1;")
+        tdSql.error("select case when c_geometry!='POINT(2 2)' then c_geometry else c_bool end from st1;")
 
-        tdSql.query("select case when t is null then t else c_null end from st2;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
-        
-        # tdSql.error("select case when t is not null then t else c_null end from st2;")
-        # tdSql.error("select case when t->'location'='beijing' then t->'location' else c_bool end from st2;")
-        # tdSql.error("select case when t->'location'!='beijing' then t->'location' else c_bool end from st1;")
+        tdSql.error("select case when t is null then t else c_null end from st2;")
+        tdSql.error("select case when t is not null then t else c_null end from st2;")
+        tdSql.error("select case when t->'location'='beijing' then t->'location' else c_bool end from st2;")
+        tdSql.error("select case when t->'location'!='beijing' then t->'location' else c_bool end from st1;")
 
         tdSql.query("select case when c_float!=2.2 then 387897 else 'test message' end from st1;")
         assert(tdSql.checkRows(10) and tdSql.res == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
@@ -344,9 +340,15 @@ class TDTestCase(TBase):
         tdSql.query("select case when c_double!=2.22 then 387897 else 'test message' end from st1;")
         assert(tdSql.checkRows(10) and tdSql.res == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
 
-        # tdSql.query("select case c_tinyint when 2 then -2147483648 when 3 then 'three' else '4294967295' end from st1;")
-        # tdSql.query("select case c_float when 2.2 then 9.2233720e+18 when 3.3 then -9.2233720e+18 else 'aa' end from st1;")
-        # tdSql.query("select case t1.c_int when 2 then 'run' when t1.c_int is null then 'other' else t2.c_varchar end from st1 t1, st2 t2 where t1.ts=t2.ts;")
+        tdSql.query("select case c_tinyint when 2 then -2147483648 when 3 then 'three' else '4294967295' end from st1;")
+        assert(tdSql.checkRows(10) and tdSql.res == [('-2147483648',), ('three',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',)])
+
+        tdSql.query("select case c_float when 2.2 then 9.2233720e+18 when 3.3 then -9.2233720e+18 else 'aa' end from st1;")
+        assert(tdSql.checkRows(10) and tdSql.res == [('9223372000000000000.000000',), ('-9223372000000000000.000000',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',)])
+
+        tdSql.query("select case t1.c_int when 2 then 'run' when t1.c_int is null then 'other' else t2.c_varchar end from st1 t1, st2 t2 where t1.ts=t2.ts;")
+        print(tdSql.res)
+        assert(tdSql.checkRows(10) and tdSql.res == [('run',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
 
         tdSql.query("select avg(case when c_tinyint>=2 then c_tinyint else c_null end) from st1;")
         assert(tdSql.checkRows(1) and tdSql.res == [(6.0,)])
@@ -365,7 +367,7 @@ class TDTestCase(TBase):
         self.test_case_when_statements()
 
     def stop(self):
-        # tdSql.execute("drop database test_case_when;")
+        tdSql.execute("drop database test_case_when;")
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
