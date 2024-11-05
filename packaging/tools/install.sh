@@ -185,7 +185,14 @@ function kill_process() {
 
 function install_main_path() {
   #create install main dir and all sub dir
-  ${csudo}rm -rf ${install_main_dir} || :
+  ${csudo}rm -rf ${install_main_dir}/cfg || :
+  ${csudo}rm -rf ${install_main_dir}/bin || :
+  ${csudo}rm -rf ${install_main_dir}/driver || :
+  ${csudo}rm -rf ${install_main_dir}/examples || :
+  ${csudo}rm -rf ${install_main_dir}/include || :
+  ${csudo}rm -rf ${install_main_dir}/share || :
+  ${csudo}rm -rf ${install_main_dir}/log || :
+
   ${csudo}mkdir -p ${install_main_dir}
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
