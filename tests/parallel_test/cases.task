@@ -22,6 +22,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
