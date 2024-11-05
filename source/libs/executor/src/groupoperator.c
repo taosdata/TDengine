@@ -1326,7 +1326,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
-
+  qInfo("wjm group id: %"PRId64 " winCode: %d, block type: %d", groupId, winCode, pSrcBlock->info.type);
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = NULL;
     code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
@@ -1335,6 +1335,8 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;
     char* tbName = pSrcBlock->info.parTbName;
+    printSpecDataBlock(pSrcBlock, "wjm", "recv", "wjm");
+    printSpecDataBlock(pTmpBlock, "wjm", "recv", "wjm");
     if (pTableSup->numOfExprs > 0) {
       code = projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs,
                                    NULL);
@@ -1342,15 +1344,19 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
 
       SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
       QUERY_CHECK_NULL(pTbCol, code, lino, _end, terrno);
+    printSpecDataBlock(pSrcBlock, "wjm", "recv", "wjm");
+    printSpecDataBlock(pTmpBlock, "wjm", "recv", "wjm");
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
       int32_t len = 0;
       if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
+        qInfo("wjm calculated tbnameis null");
         len = 1;
         tbName[0] = 0;
       } else {
         void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
+        qInfo("wjm calculated tbname: %s", tbName);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
         QUERY_CHECK_CODE(code, lino, _end);
       }

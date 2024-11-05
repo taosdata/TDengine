@@ -777,15 +777,6 @@ int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, vo
     TSDB_CHECK_NULL(pCol, code, lino, _exit, terrno);
     code = colDataSetVal(pCol, i, (const char* )&pReq->uid, false);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    /*
-    pCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-    TSDB_CHECK_NULL(pCol, code, lino, _exit, terrno);
-    char varTbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
-    varDataSetLen(varTbName, strlen(pReq->name));
-    tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pReq->name);
-    code = colDataSetVal(pCol, i, varTbName, false);
-    */
   }
 
   code = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0, pRefBlock);

@@ -805,9 +805,8 @@ class TDTestCase:
 
     def test_query_with_tsma(self):
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'], '5m')
-        #self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'], '30m')
-        #self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
-        return
+        self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'], '30m')
+        self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
 
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
@@ -1228,10 +1227,10 @@ class TDTestCase:
     
     def run(self):
         self.init_data()
-        #self.test_ddl()
+        self.test_ddl()
         self.test_query_with_tsma()
         # bug to fix
-        #self.test_flush_query()
+        self.test_flush_query()
         
         #cluster test
         cluster_dnode_list = tdSql.get_cluseter_dnodes()
@@ -1241,14 +1240,35 @@ class TDTestCase:
         self.test_td_32519()
 
     def test_td_32519(self):
-        tdSql.execute('INSERT INTO t1 VALUES("2024-10-24 11:45:00", 1,1,1,1,1,1,1, "a", "a")', queryTimes=1)
-        tdSql.execute('INSERT INTO t1 VALUES("2024-10-24 11:55:00", 2,1,1,1,1,1,1, "a", "a")', queryTimes=1)
-        tdSql.execute('DROP TABLE t1', queryTimes=1)
-        tdSql.execute('CREATE TABLE t1 USING meters TAGS(1, "a", "b", 1,1,1)')
-        tdSql.execute('INSERT INTO t1 VALUES("2024-10-24 11:59:00", 3,1,1,1,1,1,1, "a", "a")', queryTimes=1)
-        tdSql.execute('INSERT INTO t1 VALUES("2024-10-24 12:10:00", 4,1,1,1,1,1,1, "a", "a")', queryTimes=1)
-        tdSql.execute('INSERT INTO t1 VALUES("2024-10-24 12:20:00", 5,1,1,1,1,1,1, "a", "a")', queryTimes=1)
+        tdSql.execute("drop tsma test.tsma5")
+        self.create_recursive_tsma('tsma1', 'tsma_r', 'test', '1h', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'])
+        tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 11:45:00", 1,1,1,1,1,1,1, "a", "a")', queryTimes=1)
+        tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 11:55:00", 2,1,1,1,1,1,1, "a", "a")', queryTimes=1)
+        tdSql.execute('DROP TABLE test.t1', queryTimes=1)
+        self.wait_query_err('desc test.`404e15422d96c8b5de9603c2296681b1`', 10, -2147473917)
+        self.wait_query_err('desc test.`82b56f091c4346369da0af777c3e580d`', 10, -2147473917)
+        self.wait_query_err('desc test.`163b7c69922cf6d83a98bfa44e52dade`', 10, -2147473917)
+        tdSql.execute('CREATE TABLE test.t1 USING test.meters TAGS(1, "a", "b", 1,1,1)')
+        tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 11:59:00", 3,1,1,1,1,1,1, "a", "a")', queryTimes=1)
+        tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 12:10:00", 4,1,1,1,1,1,1, "a", "a")', queryTimes=1)
+        tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 12:20:00", 5,1,1,1,1,1,1, "a", "a")', queryTimes=1)
         tdSql.execute('FLUSH DATABASE test', queryTimes=1)
+        tdSql.query('SELECT * FROM test.t1', queryTimes=1)
+        tdSql.checkRows(3)
+        sql = 'SELECT * FROM test.`404e15422d96c8b5de9603c2296681b1`'
+        self.wait_query(sql, 3, 20) ## tsma1 output ctb for t1
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0,1, 1)
+        tdSql.checkData(1,1, 1)
+        tdSql.checkData(2,1, 1)
+        #sql = 'select * from test.`82b56f091c4346369da0af777c3e580d`'
+        #self.wait_query(sql, 2, 10) ## tsma2 output ctb for t1
+        #tdSql.query(sql, queryTimes=1)
+        #tdSql.checkData(0, 1, 1)
+        #tdSql.checkData(1, 1, 2)
+        sql = 'select * from test.`163b7c69922cf6d83a98bfa44e52dade`'
+        self.wait_query(sql, 2, 20) ## tsma_r output ctb for t1
+        tdSql.checkData(0, 1, 1)
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name

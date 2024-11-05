@@ -155,7 +155,6 @@ typedef enum EStreamType {
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
   STREAM_GET_RESULT,
-  STREAM_DELETE_GROUP_DATA,
   STREAM_DROP_CHILD_TABLE,
 } EStreamType;
 
@@ -403,7 +402,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 #define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
-  return false;
+  static bool showTsmaTables = false;
+  if (showTsmaTables) return false;
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
   if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {
     return true;

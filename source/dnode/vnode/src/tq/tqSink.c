@@ -464,6 +464,19 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
       TSDB_CHECK_CODE(terrno, lino, _exit);
     }
   }
+
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+  // TODO wjm handle only one table
+  code = metaGetTableEntryByName(&mr, tbName);
+  if (isValidDstChildTable(&mr, TD_VID(pVnode), tbName, pTask->outputInfo.tbSink.stbUid)) {
+    STableSinkInfo* pTableSinkInfo = NULL;
+    bool alreadyCached = doGetSinkTableInfoFromCache(pTask->outputInfo.tbSink.pTbInfo, pDataBlock->info.id.groupId, &pTableSinkInfo);
+    if (alreadyCached) {
+      pTableSinkInfo->uid = mr.me.uid;
+    }
+  }
+  metaReaderClear(&mr);
   tqDebug("s-task:%s build drop %d table(s) msg", id, rows);
   code = tqPutReqToQueue(pVnode, &batchReq, encodeDropChildTableForRPC, TDMT_VND_DROP_TABLE);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -473,10 +486,10 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
     memcpy(tbName, varDataVal(pData), varDataLen(pData));
     tbName[varDataLen(pData) + 1] = 0;
     int64_t uid = *(int64_t*)colDataGetData(pUidCol, i);
+    // TODO wjm remove uid it's not my uid
     code = doWaitForDstTableDropped(pVnode, pTask, tbName, uid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  return code;
 
 _exit:
   if (batchReq.pArray) {

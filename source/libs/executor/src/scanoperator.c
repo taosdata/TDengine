@@ -289,6 +289,7 @@ static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* p
                                   pTaskInfo, &pTableScanInfo->metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (pTaskInfo->streamInfo.pState) blockDataCleanup(pBlock);
       code = 0;
     }
   }
@@ -3038,10 +3039,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      code = 0;
-    }
-
     if (code) {
       blockDataFreeRes((SSDataBlock*)pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -3312,7 +3309,7 @@ static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock)
       qInfo("wjm, get uid: %"PRIu64, uidCol[i]);
       uint64_t groupId = getGroupIdByUid(pInfo, uidCol[i]);
       qInfo("wjm, get groupid: %"PRIu64, groupId);
-      code = colDataSetVal(pGpCol, i, (const char*)&groupId, false);
+      code = colDataSetVal(pGpCol, i, (const char*)(uidCol + i), false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -3541,7 +3538,7 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
-    SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+    SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
     SColumnInfoData* pTbnameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
     int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
     void*            pParName = NULL;
@@ -3558,13 +3555,15 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     QUERY_CHECK_CODE(code, lino, _end);
     char varTbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
     varDataSetLen(varTbName, strlen(pParName));
-    tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pParName);
+    int64_t len = tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pParName);
     code = colDataSetVal(pTbnameCol, i, varTbName, false);
     qDebug("delete stream part for:%"PRId64 " res tb: %s", gpIdCol[i], (char*)pParName);
     pInfo->stateStore.streamStateFreeVal(pParName);
     QUERY_CHECK_CODE(code, lino, _end);
     code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
     QUERY_CHECK_CODE(code, lino, _end);
+    pBlock->info.id.groupId = gpIdCol[i];
+    memcpy(pBlock->info.parTbName, varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1);
   }
 
 _end:
@@ -3962,7 +3961,13 @@ FETCH_NEXT_BLOCK:
         }
 
         code = setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+          pInfo->pRes->info.rows = 0;
+          code = TSDB_CODE_SUCCESS;
+        } else {
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+
         if (pInfo->pRes->info.rows == 0) {
           continue;
         }

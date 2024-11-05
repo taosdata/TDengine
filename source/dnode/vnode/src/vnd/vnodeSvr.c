@@ -633,9 +633,6 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_ARB_CHECK_SYNC: {
       code = vnodePreProcessArbCheckSyncMsg(pVnode, pMsg);
     } break;
-    case TDMT_VND_DROP_TSMA_CTB: {
-      code = vnodePreProcessDropTSmaCtbMsg(pVnode, pMsg);
-    } break;
     case TDMT_VND_DROP_TABLE: {
       code = vnodePreProcessDropTbMsg(pVnode, pMsg);
     } break;
@@ -842,11 +839,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
-      break;
-    case TDMT_VND_DROP_TSMA_CTB:
-      if (vnodeProcessDropTSmaCtbReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) {
-        goto _err;
-      }
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
@@ -2652,9 +2644,3 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, 
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) { return 0; }
 #endif
 
-static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
-                                          SRpcMsg *pOriginalMsg) {
-  pRsp->msgType = TDMT_VND_DROP_TSMA_CTB_RSP;
-  pRsp->code = TSDB_CODE_SUCCESS;
-  return pRsp->code;
-}

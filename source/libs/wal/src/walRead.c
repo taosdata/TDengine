@@ -87,7 +87,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
 
     int32_t type = pReader->pHead->head.msgType;
     if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
-        (type == TDMT_VND_DROP_TSMA_CTB) || (IS_META_MSG(type) && pReader->cond.scanMeta)) {
+        (IS_META_MSG(type) && pReader->cond.scanMeta)) {
       TAOS_RETURN(walFetchBody(pReader));
     } else if (type == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
       TAOS_RETURN(walFetchBody(pReader));

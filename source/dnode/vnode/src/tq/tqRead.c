@@ -363,10 +363,10 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
         tqError("%s failed to create data submit for stream since out of memory", id);
         return code;
       }
-    } else if (pCont->msgType == TDMT_VND_DELETE || pCont->msgType == TDMT_VND_DROP_TSMA_CTB) {
+    } else if (pCont->msgType == TDMT_VND_DELETE) {
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-      EStreamType blockType = pCont->msgType == TDMT_VND_DELETE ? STREAM_DELETE_DATA : STREAM_DELETE_GROUP_DATA;
+      EStreamType blockType = pCont->msgType == STREAM_DELETE_DATA;
       code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
