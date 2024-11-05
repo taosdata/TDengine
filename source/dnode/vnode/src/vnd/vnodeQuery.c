@@ -884,8 +884,8 @@ int32_t vnodeGetDBSize(void *pVnode, int64_t *dataSize, int64_t *walSize, int64_
   vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
-  SDiskSize size = {0};
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
+    SDiskSize size = {0};
     (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDiskSize(path, &size);
     if (code != 0) {
@@ -893,7 +893,6 @@ int32_t vnodeGetDBSize(void *pVnode, int64_t *dataSize, int64_t *walSize, int64_
     }
     path[offset] = 0;
     dirSize[i] = size.used;
-    memset(&size, 0, sizeof(size));
   }
 
   *dataSize = dirSize[0];
