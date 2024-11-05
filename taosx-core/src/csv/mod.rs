@@ -165,6 +165,8 @@ async fn csv_to_taos_with_channel(
     // load metrics
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
 
+    tracing::info!("CSV to Taos, from: {from}, to: {to}");
+
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();
@@ -186,7 +188,6 @@ async fn csv_to_taos_with_channel(
     let worker = tokio::spawn({
         let cancel_clone = cancel.clone();
         let from_clone = from.clone();
-        let msg_clone = msg.clone();
         async move {
             info!(
                 "Reading CSV with config(concurrent: {}, batch_size: {})",
@@ -197,53 +198,63 @@ async fn csv_to_taos_with_channel(
                 tokio::task::yield_now().await;
                 handler.await??;
             }
-            // processing new files
-            let _ = tokio::spawn({
-                let cancel_clone = cancel_clone.clone();
-                let from_clone = from_clone.clone();
-                let msg_clone = msg_clone.clone();
-                async move {
-                    while !cancel_clone.is_cancelled() {
-                        // iterate over each path, find the update_time exceeds notify_interval
-                        let now = Utc::now();
-                        let mut files = Vec::new();
-                        NOTIFY_NEW_FILES.scan(|path, update_time| {
-                            let time_delta = (now - *update_time).num_seconds() as u64;
-                            if Duration::from_secs(time_delta) > source.option.notify_interval {
-                                files.push(path.clone());
-                            }
-                        });
-                        // process the files
-                        for path in files {
-                            let mut from_clone = from_clone.clone();
-                            from_clone.path = Some(path.clone());
-                            let mut source = CsvSource::new(
-                                task_id,
-                                &mut from_clone,
-                                msg_clone.clone(),
-                                metrics_arc.clone(),
-                            )?;
-                            let handlers = source.read(metrics_arc.clone()).await?;
-                            for handler in handlers {
-                                tokio::task::yield_now().await;
-                                handler.await??;
-                            }
-                            // remove the file from notify list
-                            NOTIFY_NEW_FILES.remove(&path);
-                        }
-                        sleep(Duration::from_secs(2)).await;
-                    }
-                    Ok::<(), anyhow::Error>(())
-                }
-            })
-            .instrument(Span::current());
             // notify new files
             if source.option.new_file_notify {
+                // processing new files
+                let _ = tokio::spawn({
+                    let cancel_clone = cancel_clone.clone();
+                    let from_clone = from_clone.clone();
+                    async move {
+                        while !cancel_clone.is_cancelled() {
+                            // iterate over each path, find the update_time exceeds notify_interval
+                            let now = Utc::now();
+                            let mut files = Vec::new();
+                            if let Some(files_map) =
+                                NOTIFY_NEW_FILES.get(&task_id.unwrap_or_default())
+                            {
+                                files_map.scan(|path, update_time| {
+                                    let time_delta = (now - *update_time).num_seconds() as u64;
+                                    if Duration::from_secs(time_delta)
+                                        > source.option.notify_interval
+                                    {
+                                        files.push(path.clone());
+                                    }
+                                });
+                            }
+                            // process the files
+                            for path in files {
+                                let mut from_clone = from_clone.clone();
+                                from_clone.path = Some(path.clone());
+                                let mut source = CsvSource::new(
+                                    task_id,
+                                    &mut from_clone,
+                                    msg.clone(),
+                                    metrics_arc.clone(),
+                                )?;
+                                let handlers = source.read(metrics_arc.clone()).await?;
+                                for handler in handlers {
+                                    tokio::task::yield_now().await;
+                                    handler.await??;
+                                }
+                                // remove the file from notify list
+                                let _ = NOTIFY_NEW_FILES
+                                    .entry(task_id.unwrap_or_default())
+                                    .and_modify(|files_map| {
+                                        files_map.remove(&path);
+                                    });
+                            }
+                            sleep(Duration::from_secs(2)).await;
+                        }
+                        Ok::<(), anyhow::Error>(())
+                    }
+                })
+                .instrument(Span::current());
+                // add a watcher to monitor the new files
                 let mut watcher = notify::recommended_watcher({
                     move |event: notify::Result<notify::Event>| {
                         let _ = match event {
                             Ok(event) => {
-                                process_notify_event(event);
+                                process_notify_event(task_id, event);
                             }
                             Err(e) => {
                                 tracing::error!("CSV source, notify event error: {e}");
@@ -302,14 +313,14 @@ async fn csv_to_taos_with_channel(
     Ok(())
 }
 
-static NOTIFY_NEW_FILES: LazyLock<scc::HashMap<String, DateTime<Utc>>> =
+static NOTIFY_NEW_FILES: LazyLock<scc::HashMap<i64, scc::HashMap<String, DateTime<Utc>>>> =
     LazyLock::new(scc::HashMap::new);
 
 /// process the notify event
 ///
 /// if the event is access(close) or create(file) or modify(data)
 /// or modify(name(to)), continue to process the path.
-fn process_notify_event(event: Event) {
+fn process_notify_event(task_id: Option<i64>, event: Event) {
     match event.kind {
         notify::EventKind::Access(kind) => match kind {
             notify::event::AccessKind::Read => {
@@ -320,7 +331,7 @@ fn process_notify_event(event: Event) {
             }
             notify::event::AccessKind::Close(_) => {
                 tracing::info!("notify event(access(close)): {:?}", event.paths);
-                process_new_file(event.paths);
+                process_new_file(task_id, event.paths);
             }
             _ => tracing::debug!(
                 "notify event-(access({:?})), ignore: {:?}",
@@ -331,7 +342,7 @@ fn process_notify_event(event: Event) {
         notify::EventKind::Create(kind) => match kind {
             notify::event::CreateKind::File => {
                 tracing::info!("notify event(create(file)): {:?}", event.paths);
-                process_new_file(event.paths);
+                process_new_file(task_id, event.paths);
             }
             notify::event::CreateKind::Folder => {
                 tracing::debug!("notify event(create(folder)), ignore: {:?}", event.paths);
@@ -345,7 +356,7 @@ fn process_notify_event(event: Event) {
         notify::EventKind::Modify(kind) => match kind {
             notify::event::ModifyKind::Data(_) => {
                 tracing::info!("notify event(modify(data)): {:?}", event.paths);
-                process_new_file(event.paths);
+                process_new_file(task_id, event.paths);
             }
             notify::event::ModifyKind::Metadata(_) => {
                 tracing::debug!("notify event(modify(metadata)), ignore: {:?}", event.paths);
@@ -353,7 +364,7 @@ fn process_notify_event(event: Event) {
             notify::event::ModifyKind::Name(mode) => match mode {
                 notify::event::RenameMode::To => {
                     tracing::info!("notify event(modify(name(to))): {:?}", event.paths);
-                    process_new_file(event.paths);
+                    process_new_file(task_id, event.paths);
                 }
                 _ => tracing::debug!(
                     "notify event(modify(name({:?}))), ignore: {:?}",
@@ -390,7 +401,7 @@ fn process_notify_event(event: Event) {
 /// otherwise, add it.
 ///
 /// ignore temporary files.
-fn process_new_file(paths: Vec<PathBuf>) {
+fn process_new_file(task_id: Option<i64>, paths: Vec<PathBuf>) {
     let now = Utc::now();
     paths.iter().for_each(|path| {
         let path = path.to_str().unwrap_or_default();
@@ -400,11 +411,20 @@ fn process_new_file(paths: Vec<PathBuf>) {
         }
         // record the last notify time
         NOTIFY_NEW_FILES
-            .entry(path.to_string())
-            .and_modify(|update_time| {
-                *update_time = now;
+            .entry(task_id.unwrap_or_default())
+            .and_modify(|file_map| {
+                file_map
+                    .entry(path.to_string())
+                    .and_modify(|update_time| {
+                        *update_time = now;
+                    })
+                    .or_insert(now);
             })
-            .or_insert(now);
+            .or_insert({
+                let file_map = scc::HashMap::new();
+                let _ = file_map.insert(path.to_string(), now);
+                file_map
+            });
     });
 }
 
@@ -919,22 +939,6 @@ impl CsvSource {
             })
             .collect_vec();
 
-        // extra metrics
-        let total_csv_files = breakpoints.len() + paths.len();
-        let total_csv_files_completed = breakpoints.len();
-        let total_csv_files_completed_rows = breakpoints.values().map(|v| v).sum::<usize>();
-
-        let metrics = metrics_arc.ipc();
-        metrics.set_extra_metric(&TOTAL_CSV_FILES, total_csv_files as u64);
-        metrics.set_extra_metric(&TOTAL_CSV_FILES_COMPLETED, total_csv_files_completed as u64);
-        metrics.set_extra_metric(
-            &TOTAL_CSV_FILES_COMPLETED_ROWS,
-            total_csv_files_completed_rows as u64,
-        );
-        metrics.set_extra_metric(&CSV_FILES, total_csv_files as u64);
-        metrics.add_extra_metric(&CSV_FILES_COMPLETED, 0);
-        metrics.add_extra_metric(&CSV_FILES_COMPLETED_ROWS, 0);
-
         let has_header: bool = dsn
             .get("has_header")
             .and_then(|v| v.parse().ok())
@@ -1050,7 +1054,7 @@ impl CsvSource {
             .get("new_file_notify")
             .and_then(|v| {
                 if v.trim().is_empty() {
-                    Some(true)
+                    Some(false)
                 } else {
                     v.parse().ok()
                 }
@@ -1106,7 +1110,10 @@ impl CsvSource {
             let re = Regex::new(file_pattern)?;
             paths
                 .into_iter()
-                .filter(|path| re.is_match(path))
+                .filter(|path| {
+                    let file_name = Path::new(path).file_name().unwrap().to_str().unwrap();
+                    re.is_match(file_name)
+                })
                 .collect_vec()
         } else {
             paths
@@ -1152,6 +1159,22 @@ impl CsvSource {
         if !skip_validate {
             option.validate(&paths)?;
         }
+
+        // extra metrics
+        let total_csv_files = breakpoints.len() + paths.len();
+        let total_csv_files_completed = breakpoints.len();
+        let total_csv_files_completed_rows = breakpoints.values().map(|v| v).sum::<usize>();
+
+        let metrics = metrics_arc.ipc();
+        metrics.set_extra_metric(&TOTAL_CSV_FILES, total_csv_files as u64);
+        metrics.set_extra_metric(&TOTAL_CSV_FILES_COMPLETED, total_csv_files_completed as u64);
+        metrics.set_extra_metric(
+            &TOTAL_CSV_FILES_COMPLETED_ROWS,
+            total_csv_files_completed_rows as u64,
+        );
+        metrics.set_extra_metric(&CSV_FILES, total_csv_files as u64);
+        metrics.add_extra_metric(&CSV_FILES_COMPLETED, 0);
+        metrics.add_extra_metric(&CSV_FILES_COMPLETED_ROWS, 0);
 
         let readers = option.open_many(paths.as_slice())?;
         Ok(CsvSource {
@@ -1533,7 +1556,7 @@ pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, us
     }
 }
 
-#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub enum FileStatus {
     #[default]
     NotStarted,
@@ -1546,6 +1569,8 @@ pub struct TaskFile {
     path: String,
     status: FileStatus,
     amount: usize,
+    start_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
 }
 
 static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new(scc::HashMap::new);
@@ -1561,6 +1586,12 @@ pub async fn get_csv_files_from_task(task_id: Option<i64>) -> anyhow::Result<Vec
 
 fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, amount: usize) {
     let task_id = format!("{}", task_id.unwrap_or(0));
+    let start_time = Some(Utc::now());
+    let end_time = if status.eq(&FileStatus::Completed) {
+        Some(Utc::now())
+    } else {
+        None
+    };
     TASK_FILES
         .entry(task_id)
         .and_modify(|files| {
@@ -1569,6 +1600,7 @@ fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, am
                     // update status and amount
                     file.status = status;
                     file.amount = amount;
+                    file.end_time = end_time;
                     return;
                 }
             }
@@ -1576,12 +1608,16 @@ fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, am
                 path: path.to_string(),
                 status,
                 amount,
+                start_time,
+                end_time,
             });
         })
         .or_insert(vec![TaskFile {
             path: path.to_string(),
             status,
             amount,
+            start_time,
+            end_time,
         }]);
 }
 
@@ -1896,6 +1932,28 @@ mod tests {
                 .then_with(|| b.to_lowercase().cmp(&a.to_lowercase()))
                 .then_with(|| b.len().cmp(&a.len()))
         });
+        dbg!(&paths);
+    }
+
+    #[test]
+    fn test_file_pattern() {
+        let paths = vec![
+            "/data/test-csv/?-*-[-]-a-c-1-123.csv".to_string(),
+            "/data/test-csv/x-*-[-]-a-c-1-123.csv".to_string(),
+            "/data/test-csv/?-x-[-]-a-c-1-123.csv".to_string(),
+            "/data/test-csv/?-*-x-]-a-c-1-123.csv".to_string(),
+            "/data/test-csv/?-*-[-x-a-c-1-123.csv".to_string(),
+            "/data/test-csv/?-*-[-]-x-c-1-123.csv".to_string(),
+            "/data/test-csv/?-*-[-]-a-e-1-123.csv".to_string(),
+            "/data/test-csv/?-*-[-]-a-c-12-123.csv".to_string(),
+            "/data/test-csv/xxxx?-*-[-]-a-c-1-123.csv".to_string(),
+            "/data/test-csv/?-*-[-]-a-c-1-123.csvxxxx".to_string(),
+        ];
+        let re = Regex::new(r"^\?\-\*\-\[\-\]\-[ab]\-[^ef]\-.\-.*\.csv$").unwrap();
+        let paths = paths
+            .into_iter()
+            .filter(|path| re.is_match(path))
+            .collect_vec();
         dbg!(&paths);
     }
 
