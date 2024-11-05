@@ -289,7 +289,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
-    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tSimpleHashCleanup(pTask->outputInfo.tbSink.pTbInfo);
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
@@ -887,7 +887,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
 }
 
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  int32_t                code;
+  int32_t                code = 0;
   int32_t                tlen = 0;
   int32_t                vgId = pTask->pMeta->vgId;
   const char*            id = pTask->id.idStr;

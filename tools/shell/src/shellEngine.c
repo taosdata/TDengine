@@ -22,6 +22,8 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
+SShellObj shell = {0};
+
 typedef struct {
   const char *sql;
   bool        vertical;
@@ -56,7 +58,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static bool    shellGetGrantInfo(char *buf);
+static bool    shellGetGrantInfo(char* buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);

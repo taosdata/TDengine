@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create database
-sql create database db  duration 300 keep 365000d,365000d,365000d
+sql create database db  duration 120 keep 365000d,365000d,365000d
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1

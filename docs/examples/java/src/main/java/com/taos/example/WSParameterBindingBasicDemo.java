@@ -15,7 +15,7 @@ public class WSParameterBindingBasicDemo {
 
     public static void main(String[] args) throws SQLException {
 
-        String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
+        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041";
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
             init(conn);
 
@@ -40,7 +40,7 @@ public class WSParameterBindingBasicDemo {
                         pstmt.setFloat(4, random.nextFloat());
                         pstmt.addBatch();
                     }
-                    int [] exeResult = pstmt.executeBatch();
+                    int[] exeResult = pstmt.executeBatch();
                     // you can check exeResult here
                     System.out.println("Successfully inserted " + exeResult.length + " rows to power.meters.");
                 }
@@ -60,7 +60,8 @@ public class WSParameterBindingBasicDemo {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE DATABASE IF NOT EXISTS power");
             stmt.execute("USE power");
-            stmt.execute("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
+            stmt.execute(
+                    "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
         }
     }
 }

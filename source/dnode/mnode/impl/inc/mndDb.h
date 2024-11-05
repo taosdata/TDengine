@@ -37,6 +37,7 @@ const char *mndGetDbStr(const char *src);
 const char *mndGetStableStr(const char *src);
 
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq);
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList);
 
 #ifdef __cplusplus
 }

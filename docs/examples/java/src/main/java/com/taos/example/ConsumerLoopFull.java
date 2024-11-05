@@ -1,8 +1,9 @@
 package com.taos.example;
 
-import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.tmq.*;
+import com.taosdata.jdbc.utils.JsonUtil;
 
 import java.sql.*;
 import java.time.Duration;
@@ -60,7 +61,7 @@ public class ConsumerLoopFull {
 // ANCHOR_END: create_consumer
     }
 
-    public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException {
+    public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
 // ANCHOR: poll_data_code_piece
         List<String> topics = Collections.singletonList("topic_meters");
         try {
@@ -73,7 +74,7 @@ public class ConsumerLoopFull {
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
                     // Add your data processing logic here
-                    System.out.println("data: " + JSON.toJSONString(bean));
+                    System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
                 }
             }
         } catch (Exception ex) {
@@ -91,7 +92,7 @@ public class ConsumerLoopFull {
 // ANCHOR_END: poll_data_code_piece
     }
 
-    public static void seekExample(TaosConsumer<ResultBean> consumer) throws SQLException {
+    public static void seekExample(TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
 // ANCHOR: consumer_seek
         List<String> topics = Collections.singletonList("topic_meters");
         try {
@@ -99,7 +100,7 @@ public class ConsumerLoopFull {
             consumer.subscribe(topics);
             System.out.println("Subscribe topics successfully.");
             Set<TopicPartition> assignment = consumer.assignment();
-            System.out.println("Now assignment: " + JSON.toJSONString(assignment));
+            System.out.println("Now assignment: " + JsonUtil.getObjectMapper().writeValueAsString(assignment));
 
             ConsumerRecords<ResultBean> records = ConsumerRecords.emptyRecord();
             // make sure we have got some data
@@ -125,7 +126,7 @@ public class ConsumerLoopFull {
     }
 
 
-    public static void commitExample(TaosConsumer<ResultBean> consumer) throws SQLException {
+    public static void commitExample(TaosConsumer<ResultBean> consumer) throws SQLException, JsonProcessingException {
 // ANCHOR: commit_code_piece
         List<String> topics = Collections.singletonList("topic_meters");
         try {
@@ -135,7 +136,7 @@ public class ConsumerLoopFull {
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
                     // Add your data processing logic here
-                    System.out.println("data: " + JSON.toJSONString(bean));
+                    System.out.println("data: " + JsonUtil.getObjectMapper().writeValueAsString(bean));
                 }
                 if (!records.isEmpty()) {
                     // after processing the data, commit the offset manually
