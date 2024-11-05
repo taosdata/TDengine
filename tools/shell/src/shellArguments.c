@@ -102,7 +102,7 @@ void shellPrintHelp() {
 #include <termio.h>
 #endif
 
-const char *argp_program_version = version;
+const char *argp_program_version = td_version;
 #ifdef CUS_EMAIL
 const char *argp_program_bug_address = CUS_EMAIL;
 #else
@@ -440,11 +440,11 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\n%s version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
-           CUS_PROMPT, version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+           CUS_PROMPT, td_version, td_compatible_version, td_gitinfo, td_gitinfoOfInternal, td_buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, version,
-           compatible_version, gitinfo, buildinfo);
+           "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
+           td_compatible_version, td_gitinfo, td_buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
