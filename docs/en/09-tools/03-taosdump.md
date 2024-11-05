@@ -18,7 +18,7 @@ Users should not use taosdump to back up raw data, environment settings, hardwar
 
 ## Installation
 
-Please refer to [Install taosTools](https://docs.tdengine.com/cloud/tools/taosdump/#installation).
+Please refer to [Install CLI](https://docs.tdengine.com/cloud/tools/cli/#installation).
 
 ## Common usage scenarios
 
