@@ -442,6 +442,21 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
     // pTrans->startFunc = 0;
   }
 
+  if (pTrans->stage == TRN_STAGE_COMMIT) {
+    pTrans->stage = TRN_STAGE_COMMIT_ACTION;
+    mInfo("trans:%d, stage from commit to commitAction since perform update action", pTrans->id);
+  }
+
+  if (pTrans->stage == TRN_STAGE_ROLLBACK) {
+    pTrans->stage = TRN_STAGE_UNDO_ACTION;
+    mInfo("trans:%d, stage from rollback to undoAction since perform update action", pTrans->id);
+  }
+
+  if (pTrans->stage == TRN_STAGE_PRE_FINISH) {
+    pTrans->stage = TRN_STAGE_FINISH;
+    mInfo("trans:%d, stage from pre-finish to finished since perform update action", pTrans->id);
+  }
+
   return 0;
 }
 
@@ -529,17 +544,17 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
 
   if (pOld->stage == TRN_STAGE_COMMIT) {
     pOld->stage = TRN_STAGE_COMMIT_ACTION;
-    mTrace("trans:%d, stage from commit to commitAction since perform update action", pNew->id);
+    mInfo("trans:%d, stage from commit to commitAction since perform update action", pNew->id);
   }
 
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
     pOld->stage = TRN_STAGE_UNDO_ACTION;
-    mTrace("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
+    mInfo("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
   }
 
   if (pOld->stage == TRN_STAGE_PRE_FINISH) {
     pOld->stage = TRN_STAGE_FINISH;
-    mTrace("trans:%d, stage from pre-finish to finished since perform update action", pNew->id);
+    mInfo("trans:%d, stage from pre-finish to finished since perform update action", pNew->id);
   }
 
   return 0;
@@ -1202,6 +1217,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
   }
 }
 
+// execute in sync context
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
   if (topHalf) {
@@ -1228,6 +1244,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
   return code;
 }
 
+// execute in trans context
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTransAction(pMnode, topHalf)) {
@@ -1578,6 +1595,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
   return continueExec;
 }
 
+// in trans context
 static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   if (mndCannotExecuteTransAction(pMnode, topHalf)) return false;
 
@@ -1647,6 +1665,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool 
   return continueExec;
 }
 
+// in trans context
 static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   if (mndCannotExecuteTransAction(pMnode, topHalf)) return false;
 
