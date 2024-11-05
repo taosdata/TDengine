@@ -3306,10 +3306,8 @@ static int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock)
   int32_t          rows = pBlock->info.rows;
   if (!pInfo->partitionSup.needCalc) {
     for (int32_t i = 0; i < rows; i++) {
-      qInfo("wjm, get uid: %"PRIu64, uidCol[i]);
       uint64_t groupId = getGroupIdByUid(pInfo, uidCol[i]);
-      qInfo("wjm, get groupid: %"PRIu64, groupId);
-      code = colDataSetVal(pGpCol, i, (const char*)(uidCol + i), false);
+      code = colDataSetVal(pGpCol, i, (const char*)&groupId, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -3538,6 +3536,7 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    // uid is the same as gid
     SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
     SColumnInfoData* pTbnameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
     int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
@@ -3563,6 +3562,7 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
     QUERY_CHECK_CODE(code, lino, _end);
     pBlock->info.id.groupId = gpIdCol[i];
+    // currently, only one valid row in pBlock
     memcpy(pBlock->info.parTbName, varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1);
   }
 
@@ -3814,8 +3814,6 @@ FETCH_NEXT_BLOCK:
       } break;
       case STREAM_DROP_CHILD_TABLE: {
         int32_t deleteNum = 0;
-        code = setBlockGroupIdByUid(pInfo, pBlock);
-        QUERY_CHECK_CODE(code, lino, _end);
         code = deletePartName(pInfo, pBlock, &deleteNum);
         QUERY_CHECK_CODE(code, lino, _end);
         if (deleteNum == 0) goto FETCH_NEXT_BLOCK;
