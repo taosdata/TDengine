@@ -80,8 +80,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
-    tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
+  if ((code = taosCheckVersionCompatibleFromStr(td_version, connectRsp.sVer, 3)) != 0) {
+    tscError("version not compatible. client version: %s, server version: %s", td_version, connectRsp.sVer);
     goto End;
   }
 
