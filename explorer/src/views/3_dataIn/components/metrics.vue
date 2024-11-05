@@ -144,6 +144,9 @@
           ></el-table-column>
         </el-table>
       </el-tab-pane>
+      <el-tab-pane v-if="type == 'csv'" :label="$t('dataIn.csvFileProgress')" name="4" :lazy="true">
+        <metrics-CSV v-if="$store.state.dialogVisible" :task-id="taskId" />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -152,6 +155,7 @@
 import { parseTime, parsinginZone } from "@/utils";
 import moment from 'moment';
 import { getTableProgress, getVgroupProgress } from '@/api/explorer/datain';
+import MetricsCSV from './metricsCSV.vue'
 export default {
   props: {
     data: {
@@ -169,7 +173,7 @@ export default {
       type: String
     }
   },
-  components: {},
+  components: { MetricsCSV },
   data() {
     return { 
       parseTime,
@@ -390,7 +394,6 @@ export default {
 
     disconnect() {
       if (this.socket) {
-        console.log("Disconnecting...");
         this.datas = []
         this.socket.close();
         this.socket = null;

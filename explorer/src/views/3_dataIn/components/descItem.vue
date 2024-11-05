@@ -120,9 +120,7 @@ export default {
       return this.sourceParent.editId
     }
   },
-  watch: {},
-  created() {console.log('taskId',this.taskId);},
-  mounted() {},
+
   methods: {
     parseMarked(desc) {
       return marked.parse(desc);

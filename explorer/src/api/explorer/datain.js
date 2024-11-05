@@ -254,7 +254,6 @@ export async function refreshTask(id) {
         }
     }
     taskDetail.from_detail = dsConfig;
-    console.log("taskDetail.from_detail:", dsConfig)
     return taskDetail;
 }
 
@@ -487,6 +486,16 @@ export function getVgroupProgress(id) {
         method: 'get',
     })
 }
+
+//  获取 csv 文件处理进度
+export function getCSVProgress(id) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/csv_files`,
+        method: 'get',
+    })
+}
+
 // 校验 opc 点位合法性
 export function validOpcFile(dsn) {
     return request({

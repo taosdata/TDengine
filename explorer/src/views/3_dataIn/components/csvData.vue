@@ -2,7 +2,7 @@
   <div class="csv-data">
     <div class="file-settings">
       <el-tabs v-model="fileForm.file_or_dir">
-        <el-tab-pane :label="$t('datasource.uploadcsv')" name="1">
+        <el-tab-pane :label="$t('datasource.uploadcsv')" name="1" :disabled="isModifying && fileForm.file_or_dir === '2'">
           <div class="upload-file">
             <el-tooltip
               placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
@@ -22,9 +22,10 @@
                 :before-upload="checkFileName"
                 :file-list="fileList"
                 :auto-upload="true"
+                :disabled="isModifying"
                 size="small"
               >
-                <el-button slot="trigger" size="small" type="primary" plain :disabled="$COMMUNITY">{{
+                <el-button slot="trigger" size="small" type="primary" plain :disabled="$COMMUNITY || isModifying">{{
                   $t("datasource.selectfile")
                 }}</el-button>
               </el-upload>
@@ -44,12 +45,12 @@
           >
             <el-switch
               v-model="fileForm.keep_processed_files"
-              active-text="保留已完成的文件">
+              :active-text="$t('datasource.keepProcessedFile')">
             </el-switch>
             </el-form>
           </div>
         </el-tab-pane>
-        <el-tab-pane :label="$t('datasource.configcsv')" name="2">
+        <el-tab-pane :label="$t('datasource.configcsv')" name="2" :disabled="isModifying && fileForm.file_or_dir === '1'">
           <el-form
             :model="fileForm"
             ref="fileform"
@@ -72,7 +73,7 @@
                   </span>
                 </el-tooltip>
               </template>
-              <el-input size="small" id="fileurl" v-model="fileForm.fileurl"></el-input>
+              <el-input size="small" id="fileurl" v-model="fileForm.fileurl" :disabled="isModifying"></el-input>
             </el-form-item>
             <el-form-item prop="filepattern">
               <template slot="label">
@@ -90,7 +91,7 @@
                   </span>
                 </el-tooltip>
               </template>
-              <el-input size="small" id="filepattern" v-model="fileForm.file_pattern"></el-input>
+              <el-input size="small" id="filepattern" v-model="fileForm.file_pattern" :disabled="isModifying"></el-input>
             </el-form-item>
             <el-form-item prop="filenotify">
               <template slot="label">
@@ -191,7 +192,7 @@ import { deepClone } from "@/utils";
 import { getCSVOptions } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
-import { Message, MessageBox } from "element-ui";
+import { Message } from "element-ui";
 import CommonTransformer from "./commonTransformer.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 export default {
@@ -228,6 +229,7 @@ export default {
   },
   data() {
     return {
+      isModifying: false,
       showfiletip: false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       showTransformer: false,
@@ -245,7 +247,7 @@ export default {
         fileurl: "",
         file_pattern: "",
         new_file_notify: false,
-        notify_interval: 30,
+        notify_interval: "30",
         sort: "1",
         keep_processed_files: false,
       },
@@ -276,6 +278,8 @@ export default {
     if (!this.isEditable && !this.isViewable) {
       return;
     }
+
+    this.isModifying = this.$store.state.app.currentEditID > 0;
 
     let csvFileConfig = this.$store.state.app.csvFileListener;
     for (let configItem in csvFileConfig) {

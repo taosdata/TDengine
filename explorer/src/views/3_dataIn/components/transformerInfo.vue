@@ -993,7 +993,6 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;
       } else {
-        console.log('this.$store.state.app.csvTransformerParser',this.$store.state.app.csvTransformerParser);
         let csvechoTransData = null;
         this.currentPage = value?.format?.currentPage;
         if (this.$store.state.app.currentDBType == "csv") {
