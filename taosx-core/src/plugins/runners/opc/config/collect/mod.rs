@@ -1,6 +1,8 @@
-use std::str::FromStr;
-
+use csv_lib::ReaderBuilder;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::io::BufRead;
+use std::str::FromStr;
 use taos::Dsn;
 
 use crate::runners::opc::config::collect::da::DaCollectConfig;
@@ -91,9 +93,77 @@ impl CollectConfig {
     }
 }
 
+pub fn get_string_vec_from_param_or_file_for_opc(
+    dsn: &mut Dsn,
+    key: &str,
+) -> Result<Vec<String>, String> {
+    if let Some(nodes) = dsn.remove(key) {
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b',')
+            .from_reader(nodes.as_bytes());
+        let header = rdr.headers().map_err(|err| err.to_string())?;
+        let (files, mut node_config): (Vec<_>, Vec<_>) = header
+            .into_iter()
+            // .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        // dbg!(&files, &node_config);
+        for file in files {
+            tracing::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                tracing::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
+                continue;
+                // return Err("file read error".to_string());
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                tracing::warn!("file: {} content length < 1", file);
+            }
+
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
+        }
+        if node_config.is_empty() {
+            tracing::warn!("node config is empty");
+            // return Err(format!("node config set but is empty: {nodes}"));
+        }
+        return Ok(node_config);
+    }
+    // tracing::warn!("node config is empty");
+    Err("Nodes not set".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taos::IntoDsn;
+
+    #[test]
+    fn test_parse_special_nodes() {
+        let mut dsn = format!(
+            "opcua://?ua.nodes={}",
+            r#""ns=3;s=Special_""!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_""!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}","a::b""#
+        ).into_dsn().unwrap();
+
+        let config = get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes").unwrap();
+        assert_eq!(config[0], "ns=3;s=Special_\"!§$%");
+    }
 
     #[test]
     fn test_parse_interval() {

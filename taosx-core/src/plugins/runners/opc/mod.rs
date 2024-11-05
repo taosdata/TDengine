@@ -1,9 +1,8 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::str::FromStr;
@@ -12,6 +11,7 @@ use taos::{Dsn, DsnError};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
+use tokio::io::AsyncWriteExt;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
@@ -21,7 +21,7 @@ use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::utils::monitor::send_sub_process_info;
@@ -143,7 +143,7 @@ pub async fn opc_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
-        bail!(
+        anyhow::bail!(
             "Database name is required in OPC dsn: {}",
             to.clone().to_string()
         );
@@ -303,17 +303,17 @@ pub async fn opc_to_taos(
                     safe_exit!();
                     use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
-                    bail!("OPC exit with {}\n{error}", status);
+                    anyhow::bail!("OPC exit with {}\n{error}", status);
                 } else {
                     safe_exit!();
-                    bail!("OPC process was killed by signal");
+                   anyhow:: bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     safe_exit!();
-                    bail!("OPC writer error: {err}");
+                    anyhow::bail!("OPC writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
@@ -342,10 +342,8 @@ where
     String::from_utf8_lossy(&writer).trim().to_string()
 }
 
-/// TODO: should support more complicated pattern
-/// a expression like d00{point_id}_{tag1}_{tag2}
-/// for now only support <table_prfix>_{ns}_{id}_<table_suffix> for opcua
-/// <table_prfix>_{TagName}_<table_suffix> for opcda
+/// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
+/// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
 fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
     let tbname = if ty == "opcua" {
         // ns=13;i=1003
@@ -428,7 +426,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     })?;
 
     if req.categories.is_empty() {
-        bail!("categories is empty");
+        anyhow::bail!("categories is empty");
     }
 
     opc_datasets_impl(from).await
@@ -475,6 +473,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
     Ok(opc_points)
 }
 
+/// 从 model_config 中提取所有 OPC 点位
 async fn to_opc_dataset_vec(model_config: &OpcModelConfig) -> anyhow::Result<Vec<DataSet>> {
     let mut datasets = vec![];
     for (point_id, point_config) in model_config.point_config_map.iter() {
@@ -558,6 +557,7 @@ async fn opc_datasets_by_csv(
     Ok(datasets)
 }
 
+/// 通过执行 taosx-opc points 命令获取 opc 点位
 async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataSet>> {
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
@@ -608,9 +608,9 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
             regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
         let matches = pattern.captures(&error);
         if let Some(matches) = matches {
-            bail!("{}: {}", &matches["msg"], &matches["error"]);
+            anyhow::bail!("{}: {}", &matches["msg"], &matches["error"]);
         } else {
-            bail!("Get OPC datasets error: {}", &error);
+            anyhow::bail!("Get OPC datasets error: {}", &error);
         }
     }
     temp_path.close()?;
@@ -718,29 +718,53 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     Ok(result)
 }
 
-/// 从 csv_config_files 中获取 csv 文件的 headers
-pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
-    let opc_type = OpcType::from_dsn(dsn)?;
-    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+/// 为 opc 的 csv_config_file 追加一行点位配置
+pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyhow::Result<()> {
+    // 检查新增的 point_id 是否在 CSV 中重复
+    check_point_id_duplicated(from, csv_line.clone()).await?;
+
+    // 将新增的点位配置，追加到现有的 CSV 点位配置文件中的第一个
+    let csv_files = OPCConfig::parse_csv_config_files(from).ok_or(anyhow::anyhow!(
         "csv_config_file not found in dsn: {}",
-        dsn.to_string()
+        from.to_string()
     ))?;
-    tracing::debug!("get headers from csv files: {:?}", csv_files);
+    let csv_file = csv_files
+        .first()
+        .ok_or(anyhow::anyhow!("csv_file not found"))?;
+    tracing::info!("append line to the csv: {}", csv_file);
 
-    // parse header from csv files
-    let parser = CsvParser::try_new(opc_type, csv_files)?;
-    let headers = parser.get_all_headers().await?;
+    // 在 csv 文件末尾追加一行
+    let mut csv = std::fs::read_to_string(csv_file)?;
+    csv = csv.trim_end().to_string();
+    csv.push('\n');
+    csv.push_str(&csv_line);
 
-    Ok(headers)
+    // 解析 csv 文件，验证合法性
+    let opc_type = OpcType::from_dsn(from)?;
+    let model = CsvParser::parse_csv(opc_type, csv.clone()).await?;
+    model.validate()?;
+    // 如果前端配置了 model_type，则校验 model 是否和 TDengine 的 schema 冲突
+    if let Some(model_type) = ModelType::from_dsn(from) {
+        model.validate_with_sink(model_type, to).await?;
+    }
+
+    // 写入 csv 文件
+    if let Some(file_path) = csv_file.strip_prefix("@") {
+        let mut file = tokio::fs::File::create(file_path).await?;
+        file.write_all(csv.as_bytes()).await?;
+    } else {
+        todo!("write to csv_config_file in dsn")
+    }
+
+    Ok(())
 }
 
-/// 为 opc 的 csv_config_file 追加一行点位配置
-pub async fn append_point(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
+/// 检查新增的 point_id 是否在 CSV 中重复
+async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
     let opc_type = OpcType::from_dsn(dsn)?;
 
     // new point
-    let csv_line_cloned = csv_line.clone();
-    let mut rdr = AsyncReader::from_reader(csv_line_cloned.as_bytes());
+    let mut rdr = AsyncReader::from_reader(csv_line.as_bytes());
     // new point header
     let headers = rdr.headers().await?;
     let csv_header = CsvHeader::try_new(opc_type.clone(), headers)?;
@@ -760,35 +784,41 @@ pub async fn append_point(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
     // check if point_id already exists
     for id in point_ids {
         if id == point_id {
-            bail!("point id: {} already exists", point_id);
+            anyhow::bail!("point id: {} already exists", point_id);
         }
     }
 
-    // 将新增的点位配置，追加到现有的 CSV 点位配置文件中
-    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
-        "csv_config_file not found in dsn: {}",
-        dsn.to_string()
-    ))?;
-    let parser = CsvParser::try_new(opc_type, csv_files)?;
-    parser.append_line(csv_line).await
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taos::IntoDsn;
 
     #[tokio::test]
-    async fn test_get_csv_headers() {
+    async fn test_check_point_id_duplicated() {
         std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+        // given
+        let lines = "point_id\nns=3;i=1008".to_string();
+        let dsn =
+            Dsn::from_str("opcua:///?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+        // when
+        let res = check_point_id_duplicated(&dsn, lines).await;
+        // then
+        assert!(res.is_ok());
 
-        let headers = get_csv_headers(&dsn).await.unwrap();
-        assert_eq!(headers.len(), 1);
-
-        let header = headers.values().next().unwrap();
-        let cols = header.get_columns();
-        assert_eq!(cols.len(), 14);
+        // given
+        let lines = "point_id\nns=3;i=1007".to_string();
+        // when
+        let res = check_point_id_duplicated(&dsn, lines).await;
+        // then
+        assert!(res.is_err());
+        assert_eq!(
+            "point id: ns=3;i=1007 already exists",
+            res.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -839,60 +869,6 @@ mod tests {
         }
     }
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_opc_ua_valid() {
-        std::env::set_var("PLUGINS_HOME", "../plugins");
-
-        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert!(dsv.valid);
-        assert!(dsv.support);
-        assert_eq!("opc", dsv.data_source);
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_opc_da_valid() {
-        std::env::set_var("PLUGINS_HOME", "../plugins");
-
-        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert!(dsv.valid);
-        assert!(dsv.support);
-        assert_eq!("opc", dsv.data_source);
-        assert_eq!("2.4.0", dsv.version.unwrap());
-    }
-
-    #[test]
-    fn test_csv_string_record() {
-        let s = r#"ns=3;s=Special_"!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_"!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}"#;
-        let record = csv_lib::StringRecord::from_iter([s]);
-        let line = record.iter().join(",");
-        dbg!(&line);
-
-        let mut writer = Vec::new();
-        let mut wtr = csv_lib::Writer::from_writer(&mut writer);
-        wtr.write_record(&record).unwrap();
-        wtr.flush().unwrap();
-        drop(wtr);
-        let line = String::from_utf8(writer).unwrap().trim().to_string();
-        dbg!(&line);
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_opc_datasets_by_command() {
-        // std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
-        // std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
-
-        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
-        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
-        let res = opc_datasets_by_command(&config).await.unwrap();
-
-        dbg!(res);
-    }
-
     #[test]
     fn test_opc_type() {
         let dsn = Dsn::from_str("opcua://").unwrap();
@@ -937,5 +913,81 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
+    }
+
+    /// 测试从 dsn 解析参数，生成一个 taosx-opc 的配置文件
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_check_mode() {
+        // given
+        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
+        // when
+        let config = OPCConfig::from_dsn_check_mode(&dsn).await.unwrap();
+        let toml = toml::to_string(&config).unwrap();
+        // then
+        assert_eq!(
+            toml,
+            r#"opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[report]
+remote = "127.0.0.1:0"
+batch_size = 1000
+batch_timeout = 1
+"#
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_point_mode() {
+        // given
+        let dsn = format!(
+            "opcua://{}?pattern_id={}&pattern_name={}",
+            "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
+        )
+        .into_dsn()
+        .unwrap();
+        // when
+        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+        let toml = toml::to_string(&config).unwrap();
+        // then
+        assert_eq!(
+            toml,
+            r#"opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[report]
+remote = "127.0.0.1:0"
+batch_size = 1000
+batch_timeout = 1
+
+[points]
+regex_id = "^(?!.*_Error).+$"
+regex_name = "^(?!.*_Error).+$"
+limit = 0
+
+[points.ua]
+"#
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_collect_mode() {
+        // TODO
     }
 }

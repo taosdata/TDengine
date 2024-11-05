@@ -2,10 +2,9 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
+use crate::runners::opc::config::collect::get_string_vec_from_param_or_file_for_opc;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::{
-    get_string_vec_from_param_or_file_for_opc, OPCConfig, PointsMode,
-};
+use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::OpcType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
