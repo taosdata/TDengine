@@ -2526,7 +2526,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
 
   int sz = taosArrayGetSize(array);
 
-  cJSON *cField = cJSON_CreateArray();
+  cJSON *cField = cJSON_CreateObject();
   if (array == NULL) {
     cJSON_Delete(json);
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -2564,7 +2564,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
     }
   }
-  cJSON_AddItemToObject(json, "pArray", cField);
+  cJSON_AddItemToObject(json, "configs", cField);
   *serialized = cJSON_Print(json);
   cJSON_Delete(json);
   return TSDB_CODE_SUCCESS;
