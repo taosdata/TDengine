@@ -1646,6 +1646,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "checkpointInterval");
   tsStreamCheckpointInterval = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "concurrentCheckpoint");
+  tsMaxConcurrentCheckpoint = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamSinkDataRate");
   tsSinkDataRate = pItem->fval;
 
