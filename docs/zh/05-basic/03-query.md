@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 
 ## 基本查询
 
-为了更好的介绍 TDengine 数据查询，使用 如下 taosBenchmark 命令，生成本章内容需要的时序数据。
+为了更好的介绍 TDengine 数据查询，使用如下 taosBenchmark 命令，生成本章内容需要的时序数据。
 
 ```shell
 taosBenchmark --start-timestamp=1600000000000 --tables=100 --records=10000000 --time-step=10000
@@ -25,7 +25,7 @@ ORDER BY ts DESC
 LIMIT 5;
 ```
 
-上面的 SQL，从超级表 `meters` 中查询出电压 `voltage` 大于 230 的记录，按时间降序排列，且仅输出前 5 行。查询结果如下：
+上面的 SQL，从超级表 `meters` 中查询出电压 `voltage` 大于 230V 的记录，按时间降序排列，且仅输出前 5 行。查询结果如下：
 
 ```text
           ts            |  current   | voltage |    phase    | groupid |          location        |

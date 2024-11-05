@@ -41,6 +41,7 @@ extern const int32_t TYPE_BYTES[21];
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
 #define POINTER_BYTES   sizeof(void *)
+#define M256_BYTES      32
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
