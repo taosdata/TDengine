@@ -1237,7 +1237,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
   } else {
     pAction->errCode = (terrno != 0) ? terrno : code;
     mError("trans:%d, %s:%d failed to write sdb since %s, type:%s status:%s", pTrans->id, mndTransStr(pAction->stage),
-           pAction->id, terrstr(), sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
+           pAction->id, tstrerror(code), sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
     mndSetTransLastAction(pTrans, pAction);
   }
 
@@ -1458,7 +1458,13 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     }
     mndSetTransLastAction(pTrans, pAction);
 
-    if (mndCannotExecuteTransAction(pMnode, topHalf)) break;
+    if (mndCannotExecuteTransAction(pMnode, topHalf)) {
+      pTrans->lastErrorNo = code;
+      pTrans->code = code;
+      mInfo("trans:%d, %s:%d, topHalf:%d, not execute next action, code:%s", pTrans->id, mndTransStr(pAction->stage),
+            action, topHalf, tstrerror(code));
+      break;
+    }
 
     if (code == 0) {
       pTrans->code = 0;
@@ -1555,7 +1561,20 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     code = mndTransExecuteRedoActions(pMnode, pTrans, topHalf);
   }
 
-  if (mndCannotExecuteTransAction(pMnode, topHalf)) return false;
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) {
+    pTrans->lastErrorNo = code;
+    pTrans->code = code;
+    bool continueExec = true;
+    if (code != 0 && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+      continueExec = true;
+    } else {
+      continueExec = false;
+    }
+    mInfo("trans:%d, cannot execute redo action stage, topHalf:%d, continueExec:%d, code:%s", pTrans->id, topHalf,
+          continueExec, tstrerror(code));
+
+    return continueExec;
+  }
   terrno = code;
 
   if (code == 0) {
@@ -1768,12 +1787,12 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
 
 void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = true;
-  return mndTransExecuteImp(pMnode, pTrans, topHalf);
+  mndTransExecuteImp(pMnode, pTrans, topHalf);
 }
 
 void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = false;
-  return mndTransExecuteImp(pMnode, pTrans, topHalf);
+  mndTransExecuteImp(pMnode, pTrans, topHalf);
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {

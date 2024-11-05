@@ -597,6 +597,8 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
+    sDebug("vgId:%d, fsm execute, index:%" PRId64 ", term:%" PRId64 ", type:%s, code:%d, retry:%d", pNode->vgId,
+           pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), code, retry);
     if (retry) {
       taosMsleep(10);
       sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
