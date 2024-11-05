@@ -1,0 +1,4 @@
+TDengine client is installed successfully. Please open a terminal and execute the commands below:
+
+To configure TDengine client, sudo vi /etc/taos/taos.cfg
+To access TDengine command line interface, taos -h YouServerName
