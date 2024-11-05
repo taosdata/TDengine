@@ -46,7 +46,7 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void* pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
@@ -210,15 +210,15 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   if (pOperator->opType != OP_TYPE_EQUAL) {
     return TSDB_CODE_SUCCESS;
   }
-  
-  SValueNode*    pValueNode = NULL;
+
+  SValueNode* pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
       0 == strcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
       nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pRight;
   } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
-     0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
-     nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+             0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
+             nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pLeft;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -233,13 +233,14 @@ static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOp
   if (!pCxt->tbnameCollect) {
     return DEAL_RES_CONTINUE;
   }
-  
+
   char*   pTableName = NULL;
   int32_t code = isTbnameEqCondOperator((SOperatorNode*)pOpNode, &pTableName);
   if (TSDB_CODE_SUCCESS != code) return DEAL_RES_CONTINUE;
   if (pTableName) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pComCxt->pStmt;
-    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName, pTableName, AUTH_TYPE_READ);
+    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName,
+                                                    pTableName, AUTH_TYPE_READ);
   }
 
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
@@ -932,7 +933,7 @@ static int32_t collectMetaKeyFromDropTSMAStmt(SCollectMetaKeyCxt* pCxt, SDropTSM
 }
 
 static int32_t collectMetaKeyFromShowUsage(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES,
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USAGE,
                                          pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
