@@ -2153,6 +2153,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   }
 
 _end:
+  tSimpleHashCleanup(pScanRange);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2327,9 +2328,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   }
 
 _end:
-  if (pScanRange != NULL) {
-    tSimpleHashCleanup(pScanRange);
-  }
+  tSimpleHashCleanup(pScanRange);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
