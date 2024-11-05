@@ -2044,8 +2044,17 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   const char* db = NULL;
+  int64_t     totalSize = 0;
+  int32_t     numOfCols = 0;
   int32_t     vgId = 0;
+  int64_t     dbSize = 0;
+  int64_t     walSize = 0;
+  int64_t     metaSize = 0;
+
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+
+  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &dbSize, &walSize, &metaSize);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2064,10 +2073,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-
-  int64_t walSize = 1024, totalSize = 0;
-  int32_t numOfCols = 0;
-  // SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
 
   SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
   code = colDataSetVal(pColInfoData, numOfRows, dbname, false);

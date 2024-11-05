@@ -279,6 +279,7 @@ typedef struct SStoreMeta {
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
+  int32_t (*getDBSize)(void* pVnode, int64_t* dataSize, int64_t* walSize, int64_t* metaSize);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
@@ -382,7 +383,8 @@ typedef struct SStateStore {
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
                                               void** ppVal, int32_t* pVLen, int32_t* pWinCode);
-  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal,
+                                    int32_t* pVLen);
 
   int32_t (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType,
                             int32_t pkLen, SUpdateInfo** ppInfo);
