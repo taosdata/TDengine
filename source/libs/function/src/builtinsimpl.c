@@ -4266,6 +4266,10 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
 
   numOfElems = pInput->numOfRows;  // since this is the primary timestamp, no need to exclude NULL values
   if (numOfElems == 0) {
+    // for stream
+    if (pCtx->end.key != INT64_MIN) {
+      pInfo->max = pCtx->end.key + 1;
+    }
     goto _elapsed_over;
   }
 

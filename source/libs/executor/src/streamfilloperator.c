@@ -1263,6 +1263,21 @@ static int32_t doStreamForceFillImpl(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < pBlock->info.rows; i++){
     code = keepBlockRowInDiscBuf(pOperator, pFillInfo, pBlock, tsCol, i, groupId, pFillSup->rowSize);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    int32_t size =  taosArrayGetSize(pInfo->pCloseTs);
+    if (size > 0) {
+      TSKEY* pTs = (TSKEY*) taosArrayGet(pInfo->pCloseTs, 0);
+      TSKEY  resTs = tsCol[i];
+      while (resTs < (*pTs)) {
+        SWinKey key = {.groupId = groupId, .ts = resTs};
+        taosArrayPush(pInfo->pUpdated, &key);
+        if (IS_FILL_CONST_VALUE(pFillSup->type)) {
+          break;
+        }
+        resTs = taosTimeAdd(resTs, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
+                            pFillSup->interval.precision);
+      }
+    }
   }
   code = pAggSup->stateStore.streamStateGroupPut(pAggSup->pState, groupId, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1300,6 +1315,11 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static void removeDuplicateResult(SArray* pTsArrray, __compar_fn_t fn) {
+  taosArraySort(pTsArrray, fn);
+  taosArrayRemoveDuplicate(pTsArrray, fn, NULL);
 }
 
 // force window close
@@ -1369,14 +1389,13 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  removeDuplicateTs(pInfo->pCloseTs);
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pCloseTs); i++) {
     TSKEY ts = *(TSKEY*) taosArrayGet(pInfo->pCloseTs, i);
     code = buildAllResultKey(pInfo->pStreamAggSup, ts, pInfo->pUpdated);
     QUERY_CHECK_CODE(code, lino, _end);
   }
   taosArrayClear(pInfo->pCloseTs);
-  taosArraySort(pInfo->pUpdated, winKeyCmprImpl);
+  removeDuplicateResult(pInfo->pUpdated, winKeyCmprImpl);
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
   pInfo->groupResInfo.freeItem = false;

@@ -30,7 +30,6 @@
 #define STREAM_TIME_SLICE_OP_STATE_NAME      "StreamTimeSliceHistoryState"
 #define STREAM_TIME_SLICE_OP_CHECKPOINT_NAME "StreamTimeSliceOperator_Checkpoint"
 
-#define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
 
 int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap) {
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), NULL, 0);
@@ -1741,6 +1740,12 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static void removeDuplicateTs(SArray* pTsArrray) {
+  __compar_fn_t fn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, TSDB_ORDER_ASC);
+  taosArraySort(pTsArrray, fn);
+  taosArrayRemoveDuplicate(pTsArrray, fn, NULL);
 }
 
 static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {

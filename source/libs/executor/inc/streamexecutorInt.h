@@ -40,6 +40,8 @@ extern "C" {
 
 #define IS_CONTINUE_INTERVAL_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL)
 
+#define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
+
 typedef struct SSliceRowData {
   TSKEY key;
   char  pRowVal[];
@@ -101,7 +103,6 @@ int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, 
                                               SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                               struct SOperatorInfo** ppOptInfo);
 int32_t buildAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SArray* pUpdated);
-void removeDuplicateTs(SArray* pTsArrray);
 
 #ifdef __cplusplus
 }

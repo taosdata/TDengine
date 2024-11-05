@@ -1371,7 +1371,7 @@ int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   } else {
     SWinKey* pPrevKey = taosArrayGet(pWinStates, index);
     *pResKey = *pPrevKey;
-    return getHashSortRowBuff(pFileState, pResKey, ppVal, pVLen, pWinCode);
+    return addRowBuffIfNotExist(pFileState, (void*)pPrevKey, sizeof(SWinKey), ppVal, pVLen, pWinCode);
   }
   (*pWinCode) = TSDB_CODE_FAILED;
 

@@ -129,7 +129,7 @@ static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterv
                                                       &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  qDebug("===stream=== set stream twa next point buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d",
+  qDebug("===stream=== set stream twa cur point buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d",
          curKey.ts, curKey.groupId, *pWinCode);
 
   initIntervalSlicePoint(pAggSup, pTWin, groupId, pCurPoint);
@@ -147,6 +147,8 @@ static int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterv
       STimeWindow prevSTW = {.skey = prevKey.ts};
       prevSTW.ekey = taosTimeGetIntervalEnd(prevSTW.skey, pInterval);
       initIntervalSlicePoint(pAggSup, &prevSTW, groupId, pPrevPoint);
+      qDebug("===stream=== set stream twa prev point buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d", pPrevPoint->winKey.win.skey,
+             pPrevPoint->winKey.groupId, prevWinCode);
     } else {
       SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.skey);
       SET_WIN_KEY_INVALID(pPrevPoint->winKey.win.ekey);
@@ -191,6 +193,16 @@ void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY 
     } else {
       pCtx[k].end.key = point.key;
       pCtx[k].end.val = winVal;
+    }
+  }
+}
+
+void doSetElapsedEndKey(TSKEY winKey, SExprSupp* pSup) {
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+  for (int32_t k = 0; k < pSup->numOfExprs; ++k) {
+    if (fmIsElapsedFunc(pCtx[k].functionId)) {
+      pCtx[k].end.key = winKey;
+      pCtx[k].end.val = 0;
     }
   }
 }
@@ -265,6 +277,7 @@ static int32_t doStreamIntervalSliceAggImpl(SOperatorInfo* pOperator, SSDataBloc
       QUERY_CHECK_CODE(code, lino, _end);
 
       resetIntervalSliceFunctionKey(pSup->pCtx, numOfOutput);
+      doSetElapsedEndKey(prevPoint.winKey.win.ekey, &pOperator->exprSupp);
       doStreamSliceInterpolation(prevPoint.pLastRow, prevPoint.winKey.win.ekey, curTs, pBlock, startPos, &pOperator->exprSupp, INTERVAL_SLICE_END);
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &prevPoint.winKey.win, 1);
       code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos,
@@ -627,10 +640,4 @@ _error:
   pTaskInfo->code = code;
   (*ppOptInfo) = NULL;
   return code;
-}
-
-void removeDuplicateTs(SArray* pTsArrray) {
-  __compar_fn_t fn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, TSDB_ORDER_ASC);
-  taosArraySort(pTsArrray, fn);
-  taosArrayRemoveDuplicate(pTsArrray, fn, NULL);
 }
