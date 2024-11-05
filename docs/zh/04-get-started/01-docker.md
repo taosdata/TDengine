@@ -17,7 +17,7 @@ docker pull tdengine/tdengine:latest
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine:3.0.1.4
+docker pull tdengine/tdengine:3.3.3.0
 ```
 
 然后只需执行下面的命令：
@@ -121,4 +121,4 @@ SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 1
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
 
-在上面的查询中，使用系统提供的伪列_wstart 来给出每个窗口的开始时间。
+在上面的查询中，使用系统提供的伪列 _wstart 来给出每个窗口的开始时间。

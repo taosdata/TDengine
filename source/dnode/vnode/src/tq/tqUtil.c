@@ -51,7 +51,8 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
 
-  if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL || pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
+  if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL ||
+      pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
     if (pRsp->blockData != NULL) {
       taosArrayDestroy(pRsp->blockData);
       pRsp->blockData = NULL;
@@ -71,6 +72,7 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
       taosArrayDestroy(pRsp->blockSchema);
       pRsp->blockSchema = NULL;
     }
+
     return terrno;
   }
 
@@ -683,19 +685,21 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
       continue;
     }
 
-    STaskId       id = {.streamId = pId->streamId, .taskId = pId->taskId};
-    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-    if (ppTask == NULL) {
+    STaskId      id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask* pTask = NULL;
+
+    code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+    if (code != 0) {
       tqError("vgId:%d failed to acquire task:0x%x in retrieving progress", pMeta->vgId, pId->taskId);
       continue;
     }
 
-    if ((*ppTask)->info.taskLevel != TASK_LEVEL__SOURCE) {
+    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+      streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
     // here we get the required stream source task
-    SStreamTask* pTask = *ppTask;
     *fhFinished = !HAS_RELATED_FILLHISTORY_TASK(pTask);
 
     int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
@@ -711,6 +715,7 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     SWalReader* pReader = walOpenReader(pTask->exec.pWalReader->pWal, NULL, 0);
     if (pReader == NULL) {
       tqError("failed to open wal reader to extract exec progress, vgId:%d", pMeta->vgId);
+      streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
@@ -736,6 +741,7 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     }
 
     walCloseReader(pReader);
+    streamMetaReleaseTask(pMeta, pTask);
   }
 
   streamMetaRUnLock(pMeta);

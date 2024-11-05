@@ -425,7 +425,7 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
       SValueNode* pValue = (SValueNode*)node->pRight;
       if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
         char* value = nodesGetValueFromNode(pValue);
-        strncpy(condTable, varDataVal(value), TSDB_TABLE_NAME_LEN);
+        tstrncpy(condTable, varDataVal(value), TSDB_TABLE_NAME_LEN);
         return true;
       }
     }
@@ -914,41 +914,41 @@ _end:
   }
 }
 
-int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, int32_t bufSize, int32_t* len) {
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = sprintf(str, "null");
+      n = tsnprintf(str, strBuffLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      n = tsnprintf(str, strBuffLen, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = sprintf(str, "%d", *(int8_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = sprintf(str, "%d", *(int16_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = sprintf(str, "%d", *(int32_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = sprintf(str, "%.5f", GET_FLOAT_VAL(buf));
+      n = tsnprintf(str, strBuffLen, "%.5f", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = sprintf(str, "%.9f", GET_DOUBLE_VAL(buf));
+      n = tsnprintf(str, strBuffLen, "%.9f", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -973,19 +973,19 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
       n = length;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%u", *(uint8_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%u", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%u", *(uint16_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%u", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
+      n = tsnprintf(str, strBuffLen, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -1065,14 +1065,21 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    int32_t tagStrBufflen = 32;
     char tagTypeStr[VARSTR_HEADER_SIZE + 32];
-    int  tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
+    int  tagTypeLen = tsnprintf(varDataVal(tagTypeStr), tagStrBufflen, "%s", tDataTypes[tagType].name);
+    tagStrBufflen -= tagTypeLen;
+    if (tagStrBufflen <= 0) {
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     if (tagType == TSDB_DATA_TYPE_NCHAR) {
-      tagTypeLen += sprintf(
-          varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+      tagTypeLen += tsnprintf(
+          varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
           (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     } else if (IS_VAR_DATA_TYPE(tagType)) {
-      tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+      tagTypeLen += tsnprintf(varDataVal(tagTypeStr) + tagTypeLen,  tagStrBufflen, "(%d)",
                             (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
@@ -1127,7 +1134,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         int32_t len = -1;
         if (tagLen > 0)
-          convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+          convertTagDataToStr(varDataVal(tagVarChar), bufSize + 1 - VARSTR_HEADER_SIZE, tagType, tagData, tagLen, &len);
         else
           len = 0;
         varDataSetLen(tagVarChar, len);
@@ -1197,13 +1204,19 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     int8_t colType = schemaRow->pSchema[i].type;
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    int32_t colStrBufflen = 32;
     char colTypeStr[VARSTR_HEADER_SIZE + 32];
-    int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
+    int  colTypeLen = tsnprintf(varDataVal(colTypeStr), colStrBufflen, "%s", tDataTypes[colType].name);
+    colStrBufflen -= colTypeLen;
+    if (colStrBufflen <= 0) {
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     if (colType == TSDB_DATA_TYPE_VARCHAR) {
-      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+      colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                             (int32_t)(schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE));
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+      colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                             (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(colTypeStr, colTypeLen);
@@ -2019,8 +2032,7 @@ static EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
 
       SValueNode* node = (SValueNode*)pNode;
       char*       dbName = nodesGetValueFromNode(node);
-      strncpy(pContext, varDataVal(dbName), varDataLen(dbName));
-      *((char*)pContext + varDataLen(dbName)) = 0;
+      tstrncpy((char*)pContext, varDataVal(dbName), TSDB_DB_NAME_LEN);
       return DEAL_RES_END;  // stop walk
     }
     default:
@@ -2056,11 +2068,11 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       getDBNameFromCondition(pInfo->pCondition, dbName);
       if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
           strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
-        sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+        TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       }
     } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
       getDBNameFromCondition(pInfo->pCondition, dbName);
-      if (dbName[0]) sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+      if (dbName[0]) TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       (void)sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
     }
 

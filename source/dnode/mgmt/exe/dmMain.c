@@ -24,6 +24,7 @@
 #include "jemalloc/jemalloc.h"
 #endif
 #include "dmUtil.h"
+#include "tcs.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -182,6 +183,7 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
+
 extern bool generateNewMeta;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
@@ -295,12 +297,13 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, version, compatible_version);
-  printf("git: %s\n", gitinfo);
+  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
+         td_compatible_version);
+  printf("git: %s\n", td_gitinfo);
 #ifdef TD_ENTERPRISE
-  printf("gitOfInternal: %s\n", gitinfoOfInternal);
+  printf("gitOfInternal: %s\n", td_gitinfoOfInternal);
 #endif
-  printf("build: %s\n", buildinfo);
+  printf("build: %s\n", td_buildinfo);
 }
 
 static void dmPrintHelp() {
@@ -329,10 +332,9 @@ static int32_t dmCheckS3() {
   int32_t  code = 0;
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfgS3(pCfg, 0, true);
-#if defined(USE_S3)
-  extern int32_t s3CheckCfg();
 
-  code = s3CheckCfg();
+#if defined(USE_S3)
+  code = tcsCheckCfg();
 #endif
   return code;
 }

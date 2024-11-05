@@ -2252,6 +2252,7 @@ int sml_ts5528_test(){
   printf("%s result success\n", __FUNCTION__);
   return 0;
 }
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);

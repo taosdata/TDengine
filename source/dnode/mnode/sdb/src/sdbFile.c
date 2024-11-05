@@ -25,6 +25,9 @@
 #define SDB_RESERVE_SIZE 512
 #define SDB_FILE_VER     1
 
+#define SDB_TABLE_SIZE_EXTRA   SDB_MAX
+#define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
+
 static int32_t sdbDeployData(SSdb *pSdb) {
   int32_t code = 0;
   mInfo("start to deploy sdb");
@@ -154,7 +157,38 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
-  char reserve[SDB_RESERVE_SIZE] = {0};
+  // for sdb compatibility
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t maxId = 0;
+    ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
+    if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+    if (ret != sizeof(int64_t)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
+    }
+    if (i < SDB_MAX) {
+      pSdb->maxId[i] = maxId;
+    }
+
+    int64_t ver = 0;
+    ret = taosReadFile(pFile, &ver, sizeof(int64_t));
+    if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
+    }
+    if (ret != sizeof(int64_t)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
+    }
+    if (i < SDB_MAX) {
+      pSdb->tableVer[i] = ver;
+    }
+  }
+
+  char reserve[SDB_RESERVE_SIZE_EXTRA] = {0};
   ret = taosReadFile(pFile, reserve, sizeof(reserve));
   if (ret < 0) {
     return terrno;
@@ -207,7 +241,26 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     }
   }
 
-  char reserve[SDB_RESERVE_SIZE] = {0};
+  // for sdb compatibility
+  for (int32_t i = SDB_TABLE_SIZE; i < SDB_TABLE_SIZE_EXTRA; ++i) {
+    int64_t maxId = 0;
+    if (i < SDB_MAX) {
+      maxId = pSdb->maxId[i];
+    }
+    if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
+      return terrno;
+    }
+
+    int64_t ver = 0;
+    if (i < SDB_MAX) {
+      ver = pSdb->tableVer[i];
+    }
+    if (taosWriteFile(pFile, &ver, sizeof(int64_t)) != sizeof(int64_t)) {
+      return terrno;
+    }
+  }
+
+  char reserve[SDB_RESERVE_SIZE_EXTRA] = {0};
   if (taosWriteFile(pFile, reserve, sizeof(reserve)) != sizeof(reserve)) {
     return terrno;
   }
@@ -347,8 +400,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->commitTerm = pSdb->applyTerm;
   pSdb->commitConfig = pSdb->applyConfig;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->commitIndex,
-        pSdb->commitTerm, pSdb->commitConfig);
+  mInfo("vgId:1, trans:0, read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file,
+        pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
   if ((ret = taosCloseFile(&pFile)) != 0) {
@@ -520,7 +573,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     pSdb->commitIndex = pSdb->applyIndex;
     pSdb->commitTerm = pSdb->applyTerm;
     pSdb->commitConfig = pSdb->applyConfig;
-    mInfo("write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+    mInfo("vgId:1, trans:0, write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
+          " file:%s",
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
@@ -557,8 +611,8 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   if (code != 0) {
     mError("failed to write sdb file since %s", tstrerror(code));
   } else {
-    mInfo("write sdb file success, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
-          pSdb->applyTerm, pSdb->applyConfig);
+    mInfo("vgId:1, trans:0, write sdb file success, apply index:%" PRId64 ", term:%" PRId64 ", config:%" PRId64,
+          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig);
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
+#include "tanal.h"
 #include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
@@ -29,9 +30,18 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
   if (epSet.numOfEps <= 1) {
-    pMsg->pCont = NULL;
-    pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
-    return;
+    if (epSet.numOfEps == 0) {
+      pMsg->pCont = NULL;
+      pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+      return;
+    }
+    // dnode is not the mnode or mnode leader  and This ensures that the function correctly handles cases where the
+    // dnode cannot obtain a valid epSet and avoids returning an incorrect or misleading epSet.
+    if (strcmp(epSet.eps[0].fqdn, tsLocalFqdn) == 0 && epSet.eps[0].port == tsServerPort) {
+      pMsg->pCont = NULL;
+      pMsg->code = TSDB_CODE_MNODE_NOT_FOUND;
+      return;
+    }
   }
 
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
@@ -106,6 +116,16 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
   }
 }
 
+static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAnalAlgoRsp rsp = {0};
+  if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+    taosAnalUpdate(rsp.ver, rsp.hash);
+    rsp.hash = NULL;
+  }
+  tFreeRetrieveAnalAlgoRsp(&rsp);
+  rpcFreeCont(pRpc->pCont);
+}
+
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -118,9 +138,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
   int32_t svrVer = 0;
-  code = taosVersionStrToInt(version, &svrVer);
+  code = taosVersionStrToInt(td_version, &svrVer);
   if (code != 0) {
-    dError("failed to convert version string:%s to int, code:%d", version, code);
+    dError("failed to convert version string:%s to int, code:%d", td_version, code);
     goto _OVER;
   }
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
@@ -153,6 +173,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
+      dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     default:
       break;
@@ -253,7 +276,7 @@ _OVER:
     }
 
     if (IsReq(pRpc)) {
-      SRpcMsg rsp = {.code = code, .info = pRpc->info};
+      SRpcMsg rsp = {.code = code, .info = pRpc->info, .msgType = pRpc->msgType + 1};
       if (code == TSDB_CODE_MNODE_NOT_FOUND) {
         dmBuildMnodeRedirectRsp(pDnode, &rsp);
       }
@@ -397,19 +420,22 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   rpcInit.noDelayFp = rpcNoDelayMsg;
 
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3) / 2;
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 2;
+  rpcInit.shareConn = 1;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.notWaitAvaliableConn = 0;
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
@@ -452,11 +478,13 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.startReadTimer = 0;
+  rpcInit.readTimeout = 0;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
@@ -500,10 +528,13 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConnLimit = tsShareConnLimit * 8;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  rpcInit.startReadTimer = 1;
+  rpcInit.readTimeout = tsReadTimeout;
+
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
@@ -555,9 +586,10 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.shareConnLimit = tsShareConnLimit * 16;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->serverRpc = rpcOpen(&rpcInit);

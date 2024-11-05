@@ -420,7 +420,23 @@ class TDTestCase:
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 interval(1d)")
 
-  
+    def test_TS5567(self):
+        tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t group by const_col")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t partition by const_col")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) group by const_col")
+        tdSql.checkRows(10)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by const_col")
+        tdSql.checkRows(10)
+        tdSql.query(f"select const_col as c_c from (select 1 as const_col from {self.dbname}.{self.stable}) t group by c_c")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col as c_c from (select 1 as const_col from {self.dbname}.{self.stable}) t partition by c_c")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) group by 1")
+        tdSql.checkRows(10)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by 1")
+        tdSql.checkRows(10)
     def run(self):
         tdSql.prepare()
         self.prepare_db()
@@ -453,6 +469,7 @@ class TDTestCase:
         self.test_window(nonempty_tb_num)
         self.test_event_window(nonempty_tb_num)
 
+        self.test_TS5567()
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)

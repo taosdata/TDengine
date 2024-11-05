@@ -84,7 +84,7 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
-  cleanupAppInfo();
+  //  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
@@ -388,7 +388,6 @@ void taos_free_result(TAOS_RES *res) {
     tDeleteMqBatchMetaRsp(&pRsp->batchMetaRsp);
   }
   taosMemoryFree(pRsp);
-
 }
 
 void taos_kill_query(TAOS *taos) {
@@ -484,7 +483,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   return taos_print_row_with_size(str, INT32_MAX, row, fields, num_fields);
 }
-int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields){
+int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int32_t len = 0;
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0 && len < size - 1) {
@@ -492,53 +491,53 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
     }
 
     if (row[i] == NULL) {
-      len += snprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
+      len += tsnprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        len += snprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += snprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_USMALLINT:
-        len += snprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += snprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UINT:
-        len += snprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UBIGINT:
-        len += snprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += snprintf(str + len, size - len, "%f", fv);
+        len += tsnprintf(str + len, size - len, "%f", fv);
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += snprintf(str + len, size - len, "%lf", dv);
+        len += tsnprintf(str + len, size - len, "%lf", dv);
       } break;
 
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -576,11 +575,11 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }
@@ -589,7 +588,7 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       break;
     }
   }
-  if (len < size){
+  if (len < size) {
     str[len] = 0;
   }
 
@@ -670,7 +669,7 @@ const char *taos_data_type(int type) {
   }
 }
 
-const char *taos_get_client_info() { return version; }
+const char *taos_get_client_info() { return td_version; }
 
 // return int32_t
 int taos_affected_rows(TAOS_RES *res) {
@@ -2082,7 +2081,7 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
 }
 
 int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || NULL == count) {
+  if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2103,7 +2102,23 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
   }
 }
 
+int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
+  if (stmt == NULL || count == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetStbColFields2(stmt, count, fields);
+}
+
 void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
+  (void)stmt;
+  if (!fields) return;
+  taosMemoryFree(fields);
+}
+
+DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);
@@ -2144,4 +2159,4 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
   return 0;
 }
 
-char *getBuildInfo() { return buildinfo; }
+char *getBuildInfo() { return td_buildinfo; }

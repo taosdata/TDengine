@@ -9,21 +9,22 @@ import java.util.List;
 @Repository
 public interface SubTableMapper {
 
-    // 创建：子表
+    // Create: SubTable
     void createUsingSuperTable(SubTableMeta subTableMeta);
 
-    // 插入：一张子表多个values
+    // Insert: Multiple records into one SubTable
     int insertOneTableMultiValues(SubTableValue subTableValue);
 
-    // 插入：一张子表多个values, 自动建表
+    // Insert: Multiple records into one SubTable, auto create SubTables
     int insertOneTableMultiValuesUsingSuperTable(SubTableValue subTableValue);
 
-    // 插入：多张表多个values
+    // Insert: Multiple records into multiple SubTable
     int insertMultiTableMultiValues(List<SubTableValue> tables);
 
-    // 插入：多张表多个values，自动建表
+    // Insert: Multiple records into multiple SubTable, auto create SubTables
     int insertMultiTableMultiValuesUsingSuperTable(List<SubTableValue> tables);
 
-    //<!-- TODO:修改子表标签值 alter table ${tablename} set tag tagName=newTagValue-->
+    // <!-- TODO: Modify SubTable tag value: alter table ${tablename} set tag
+    // tagName=newTagValue-->
 
 }
