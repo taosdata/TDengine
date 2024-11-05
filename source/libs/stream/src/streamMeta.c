@@ -452,7 +452,7 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   TSDB_CHECK_CODE(code, lino, _err);
 
   // add refId at the end of initialization function
-  pMeta->rid = taosAddRef(streamMetaId, pMeta);
+  pMeta->rid = taosAddRef(streamMetaRefPool, pMeta);
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   TSDB_CHECK_NULL(pRid, code, lino, _err, terrno);
