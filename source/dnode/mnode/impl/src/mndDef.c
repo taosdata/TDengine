@@ -137,7 +137,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (sz != 0) {
     pObj->tasks = taosArrayInit(sz, sizeof(void *));
     if (pObj->tasks == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       TAOS_RETURN(code);
     }
 
@@ -150,7 +150,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
           if (pTask == NULL) {
             taosArrayDestroy(pArray);
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             TAOS_RETURN(code);
           }
           if ((code = tDecodeStreamTask(pDecoder, pTask)) < 0) {
@@ -161,14 +161,14 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           if (taosArrayPush(pArray, &pTask) == NULL) {
             taosMemoryFree(pTask);
             taosArrayDestroy(pArray);
-            code = TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno;
             TAOS_RETURN(code);
           }
         }
       }
       if (taosArrayPush(pObj->tasks, &pArray) == NULL) {
         taosArrayDestroy(pArray);
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         TAOS_RETURN(code);
       }
     }
@@ -278,7 +278,7 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
   int32_t code = 0;
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
 
@@ -297,24 +297,24 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
   if (updateType == CONSUMER_ADD_REB){
     pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebNewTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
 
     char* topicTmp = taosStrdup(topic);
     if (taosArrayPush(pConsumer->rebNewTopics, &topicTmp) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
   }else if (updateType == CONSUMER_REMOVE_REB) {
     pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebRemovedTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     char* topicTmp = taosStrdup(topic);
     if (taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
   }else if (updateType == CONSUMER_INSERT_SUB){
@@ -325,10 +325,12 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
     pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
     pConsumer->maxPollIntervalMs = subscribe->maxPollIntervalMs;
     pConsumer->sessionTimeoutMs = subscribe->sessionTimeoutMs;
+    tstrncpy(pConsumer->user, subscribe->user, TSDB_USER_LEN);
+    tstrncpy(pConsumer->fqdn, subscribe->fqdn, TSDB_FQDN_LEN);
 
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
     if (pConsumer->rebNewTopics == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     pConsumer->assignedTopics = subscribe->topicNames;
@@ -429,6 +431,8 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
   tlen += taosEncodeFixedI32(buf, pConsumer->maxPollIntervalMs);
   tlen += taosEncodeFixedI32(buf, pConsumer->sessionTimeoutMs);
+  tlen += taosEncodeString(buf, pConsumer->user);
+  tlen += taosEncodeString(buf, pConsumer->fqdn);
   return tlen;
 }
 
@@ -503,6 +507,8 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   if (sver > 2){
     buf = taosDecodeFixedI32(buf, &pConsumer->maxPollIntervalMs);
     buf = taosDecodeFixedI32(buf, &pConsumer->sessionTimeoutMs);
+    buf = taosDecodeStringTo(buf, pConsumer->user);
+    buf = taosDecodeStringTo(buf, pConsumer->fqdn);
   } else{
     pConsumer->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
     pConsumer->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
@@ -606,7 +612,7 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
   int32_t code = 0;
   SMqSubscribeObj *pSubNew = taosMemoryMalloc(sizeof(SMqSubscribeObj));
   if (pSubNew == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto END;
   }
   (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);

@@ -105,6 +105,113 @@ int smlProcess_telnet_Test() {
   return code;
 }
 
+int smlProcess_telnet0_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql1[] = {"sysif.bytes.out  1479496100 1.3E0 host=web01 interface=eth0"};
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+
+  const char *sql2[] = {"sysif.bytes.out  1479496700 1.6E0 host=web01 interface=eth0"};
+  pRes = taos_schemaless_insert(taos, (char **)sql2, sizeof(sql2) / sizeof(sql2[0]), TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+
+  const char *sql3[] = {"sysif.bytes.out  1479496300 1.1E0 interface=eth0 host=web01"};
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
+int smlProcess_json0_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "[{\"metric\":\"syscpu.nice\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":4}}]"};
+
+  char *sql1[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    ASSERT(sql1[i] != NULL);
+    (void)strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  int code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql1[i]);
+  }
+  ASSERT(code == 0);
+
+
+  const char *sql2[] = {
+      "[{\"metric\":\"syscpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":1}"
+      "},{\"metric\":\"syscpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":4}"
+      "}]",
+  };
+
+  char *sql3[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql3[i] = taosMemoryCalloc(1, 1024);
+    ASSERT(sql3[i] != NULL);
+    (void)strncpy(sql3[i], sql2[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql3[i]);
+  }
+
+  ASSERT(code == 0);
+
+  taos_close(taos);
+
+  return code;
+}
+
 int smlProcess_json1_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
@@ -1775,6 +1882,21 @@ int sml_td24559_Test() {
   pRes = taos_query(taos, "create database if not exists td24559");
   taos_free_result(pRes);
 
+  const char *sql1[] = {
+      "sttb,t1=1 f1=283i32,f2=g\"\" 1632299372000",
+      "sttb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
+  };
+
+  pRes = taos_query(taos, "use td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code);
+  taos_free_result(pRes);
+
   const char *sql[] = {
       "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299372000",
       "stb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
@@ -1788,7 +1910,7 @@ int sml_td24559_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 
-  int code = taos_errno(pRes);
+  code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);
 
@@ -2098,12 +2220,48 @@ int sml_td29373_Test() {
   return code;
 }
 
+int sml_ts5528_test(){
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists ts5528");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists ts5528");
+  taos_free_result(pRes);
+
+  // check column name duplication
+  char *sql[] = {
+      "device_log_yuelan_cs1,deviceId=861701069493741 content=\"{\\\"deviceId\\\":\\\"星宇公司-861701069493741\\\",\\\"headers\\\":{\\\"_uid\\\":\\\"4e3599eacd62834995c77b38ad95f88d\\\",\\\"creatorId\\\":\\\"1199596756811550720\\\",\\\"deviceNmae\\\":\\\"861701069493741\\\",\\\"productId\\\":\\\"yuelan\\\",\\\"productName\\\":\\\"悦蓝cat1穿戴设备\\\"},\\\"messageType\\\":\\\"REPORT_PROPERTY\\\",\\\"properties\\\":{\\\"lat\\\":35.265527067449185,\\\"lng\\\":118.49713144245987,\\\"location\\\":\\\"118.49713144245987,35.265527067449185\\\"},\\\"timestamp\\\":1728719963230}\",createTime=1728719963230i64,id=\"4e3599eacd62834995c77b38ad95f88d\",messageId=\"\",timestamp=1728719963230i64,type=\"reportProperty\" 1728719963230",
+      "device_log_yuelan_cs1,deviceId=861701069065507 content=\"{\\\"deviceId\\\":\\\"星宇公司-861701069065507\\\",\\\"headers\\\":{\\\"_uid\\\":\\\"9045d6b78b4ffaf1e2d244e912ebbff8\\\",\\\"creatorId\\\":\\\"1199596756811550720\\\",\\\"deviceNmae\\\":\\\"861701069065507\\\",\\\"productId\\\":\\\"yuelan\\\",\\\"productName\\\":\\\"悦蓝cat1穿戴设备\\\"},\\\"messageType\\\":\\\"REPORT_PROPERTY\\\",\\\"properties\\\":{\\\"lat\\\":36.788241914043425,\\\"lng\\\":119.15042325460891,\\\"location\\\":\\\"119.15042325460891,36.788241914043425\\\"},\\\"timestamp\\\":1728719964105}\",createTime=1728719964105i64,id=\"9045d6b78b4ffaf1e2d244e912ebbff8\",messageId=\"\",timestamp=1728719964105i64,type=\"reportProperty\" 1728719964105",
+  };
+  pRes = taos_query(taos, "use ts5528");
+  taos_free_result(pRes);
+
+  for( int  i = 0; i < 2; i++){
+    int32_t totalRows = 0;
+    pRes = taos_schemaless_insert_raw(taos, sql[i], strlen(sql[i]), &totalRows, TSDB_SML_LINE_PROTOCOL,
+                                      TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+    int code = taos_errno(pRes);
+    taos_free_result(pRes);
+    if (code != 0) {
+      taos_close(taos);
+      return code;
+    }
+  }
+  taos_close(taos);
+  printf("%s result success\n", __FUNCTION__);
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   }
 
-  int ret = 0;
+  int ret = smlProcess_json0_Test();
+  ASSERT(!ret);
+  ret = sml_ts5528_test();
+  ASSERT(!ret);
   ret = sml_td29691_Test();
   ASSERT(ret);
   ret = sml_td29373_Test();
@@ -2137,6 +2295,8 @@ int main(int argc, char *argv[]) {
   ret = smlProcess_influx_Test();
   ASSERT(!ret);
   ret = smlProcess_telnet_Test();
+  ASSERT(!ret);
+  ret = smlProcess_telnet0_Test();
   ASSERT(!ret);
   ret = smlProcess_json1_Test();
   ASSERT(!ret);

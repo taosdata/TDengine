@@ -248,7 +248,7 @@ static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgrou
     return code;
   }
 
-  mDebug("doAddSinkTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
+  mDebug("doAddSinkTask taskId:%s, %p vgId:%d, isFillHistory:%d", pTask->id.idStr, pTask, pVgroup->vgId, isFillhistory);
 
   pTask->info.nodeId = pVgroup->vgId;
   pTask->info.epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -364,12 +364,13 @@ static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillh
 static void addNewTaskList(SStreamObj* pStream) {
   SArray* pTaskList = taosArrayInit(0, POINTER_BYTES);
   if (taosArrayPush(pStream->tasks, &pTaskList) == NULL) {
-    mError("failed to put array");
+    mError("failed to put into array");
   }
+
   if (pStream->conf.fillHistory) {
     pTaskList = taosArrayInit(0, POINTER_BYTES);
     if (taosArrayPush(pStream->pHTasksList, &pTaskList) == NULL) {
-      mError("failed to put array");
+      mError("failed to put into array");
     }
   }
 }
@@ -402,7 +403,8 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
     return code;
   }
 
-  mDebug("doAddSourceTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
+  mDebug("doAddSourceTask taskId:%s, %p vgId:%d, isFillHistory:%d", pTask->id.idStr, pTask, pVgroup->vgId,
+         isFillhistory);
 
   if (pStream->conf.fillHistory) {
     haltInitialTaskStatus(pTask, plan, isFillhistory);
@@ -512,19 +514,20 @@ static int32_t doAddAggTask(SStreamObj* pStream, SMnode* pMnode, SSubplan* plan,
                             SSnodeObj* pSnode, bool isFillhistory, bool useTriggerParam) {
   int32_t      code = 0;
   SStreamTask* pTask = NULL;
+  const char*  id = NULL;
 
   code = buildAggTask(pStream, pEpset, isFillhistory, useTriggerParam, &pTask);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
+  id = pTask->id.idStr;
   if (pSnode != NULL) {
     code = mndAssignStreamTaskToSnode(pMnode, pTask, plan, pSnode);
-    mDebug("doAddAggTask taskId:%s, snode id:%d, isFillHistory:%d", pTask->id.idStr, pSnode->id, isFillhistory);
-
+    mDebug("doAddAggTask taskId:%s, %p snode id:%d, isFillHistory:%d", id, pTask, pSnode->id, isFillhistory);
   } else {
     code = mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup);
-    mDebug("doAddAggTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
+    mDebug("doAddAggTask taskId:%s, %p vgId:%d, isFillHistory:%d", id, pTask, pVgroup->vgId, isFillhistory);
   }
   return code;
 }
@@ -634,7 +637,10 @@ static void bindSourceSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, b
 static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   int32_t code = 0;
   size_t size = taosArrayGetSize(tasks);
-  ASSERT(size >= 2);
+  if (size < 2) {
+    mError("task list size is less than 2");
+    return;
+  }
   SArray* pDownTaskList = taosArrayGetP(tasks, size - 1);
   SArray* pUpTaskList = taosArrayGetP(tasks, size - 2);
 
@@ -675,7 +681,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   if (numOfPlanLevel > 1 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     // add extra sink
     hasExtraSink = true;
-    int32_t code = addSinkTask(pMnode, pStream, pEpset);
+    code = addSinkTask(pMnode, pStream, pEpset);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -843,13 +849,13 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
     if (pVgEp == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
     pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
     pVgEp->vgId = pVgroup->vgId;
     if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       taosMemoryFree(pVgEp);
       goto END;
     }

@@ -33,7 +33,6 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
     return code;
   }
 
-  ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pReq->data, i);
     SSDataBlock* pDataBlock = taosArrayGet(pArray, i);
@@ -52,7 +51,6 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
       }
 
       int32_t len = tsDecompressString(pInput, compLen, 1, p, fullLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(len == fullLen);
       pInput = p;
     }
 
@@ -193,7 +191,7 @@ int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
   if ((*pSubmit)->submits == NULL) {
     taosFreeQitem(*pSubmit);
     *pSubmit = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pSubmit)->type = STREAM_INPUT__MERGED_SUBMIT;

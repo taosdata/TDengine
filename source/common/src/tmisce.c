@@ -171,14 +171,15 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
   ret = snprintf(pBuf + nwrite, cap, "}, inUse:%d", pEpSet->inUse);
   if (ret <= 0 || ret >= cap) {
     return TSDB_CODE_OUT_OF_BUFFER;
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
   int32_t code = 0;
   SJson*  pJson = tjsonCreateObject();
-  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pJson == NULL) return terrno;
 
   char tmp[4096] = {0};
 
@@ -196,7 +197,6 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   code = taosGetAppName(tmp, NULL);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
     TAOS_CHECK_GOTO(code, NULL, _exit);
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "appName", tmp), NULL, _exit);
@@ -241,7 +241,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   char* pCont = tjsonToString(pJson);
   if (pCont == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_CHECK_GOTO(code, NULL, _exit);
     goto _exit;
   }
@@ -284,7 +284,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
@@ -297,7 +297,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
@@ -309,7 +309,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
     if (pColInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_RANGE;
+      code = terrno;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);

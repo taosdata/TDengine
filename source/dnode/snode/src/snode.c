@@ -26,7 +26,9 @@
 // clang-format on
 
 int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
+  if (!(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -36,24 +38,23 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   streamTaskOpenAllUpstreamInput(pTask);
 
   streamTaskResetUpstreamStageInfo(pTask);
-  (void)streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
 
   char *p = streamTaskGetStatus(pTask).name;
   if (pTask->info.fillHistory) {
-    sndInfo("vgId:%d build stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+    sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
-            SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
+            SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
-    sndInfo("vgId:%d build stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+    sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
-            SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
+            SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
   }
@@ -91,14 +92,18 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  (void)streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS) != 0) {
+    sndError("failed to start all tasks");
+  }
   return 0;
 }
 
 void sndClose(SSnode *pSnode) {
   stopRsync();
   streamMetaNotifyClose(pSnode->pMeta);
-  (void)streamMetaCommit(pSnode->pMeta);
+  if (streamMetaCommit(pSnode->pMeta) != 0) {
+    sndError("failed to commit stream meta");
+  }
   streamMetaClose(pSnode->pMeta);
   taosMemoryFree(pSnode);
 }
@@ -135,7 +140,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
-      ASSERT(0);
+      return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
@@ -164,7 +169,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_CONSEN_CHKPT:
       return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }

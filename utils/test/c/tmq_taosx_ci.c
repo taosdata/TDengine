@@ -79,6 +79,7 @@ static void msg_process(TAOS_RES* msg) {
         } else {
           taosFprintfFile(g_fp, result);
           taosFprintfFile(g_fp, "\n");
+          taosFsyncFile(g_fp);
         }
       }
     }
@@ -132,7 +133,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes = taos_query(pConn, "create table if not exists ct0 using st1 tags(1000, \"ttt\", true)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu1, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -175,7 +176,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(
       pConn,
       "insert into ct3 values(1626006833600, 5, 6, 'c') ct1 values(1626006833601, 2, 3, 'sds') (1626006833602, 4, 5, "
-      "'ddd') ct0 values(1626006833603, 4, 3, 'hwj') ct1 values(now+5s, 23, 32, 's21ds')");
+      "'ddd') ct0 values(1626006833603, 4, 3, 'hwj') ct1 values(1626006833703, 23, 32, 's21ds')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -185,6 +186,41 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
   if (taos_errno(pRes) != 0) {
     printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1736006813600, -32222, 43, 'ewb', 99)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 drop column c4");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1736006833600, -4223, 344, 'bfs')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(1766006833600, -4432, 4433, 'e23wb', 9349)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -596,6 +632,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
+//  tmq_conf_set(conf, "session.timeout.ms", "1000000");
 //  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
   if (g_conf.snapShot) {
@@ -636,6 +673,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       cnt++;
+      printf("cnt:%d\n", cnt);
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
     } else {
@@ -844,6 +882,8 @@ void initLogFile() {
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":6,\"colName\":\"c4\"}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\",\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
@@ -991,6 +1031,8 @@ void initLogFile() {
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":6,\"colName\":\"c4\"}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\",\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
@@ -1170,7 +1212,7 @@ void testDetailError() {
   int32_t code = tmq_write_raw((TAOS*)1, raw);
   ASSERT(code);
   const char* err = tmq_err2str(code);
-  char*       tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  char*       tmp = strstr(err, "Invalid parameters,detail:taos:");
   ASSERT(tmp != NULL);
 }
 

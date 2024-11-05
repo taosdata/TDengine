@@ -16,9 +16,14 @@
 
 FstBuilderNode* fstBuilderNodeDefault() {
   FstBuilderNode* bn = taosMemoryMalloc(sizeof(FstBuilderNode));
+  if (bn == NULL) return NULL;
   bn->isFinal = false;
   bn->finalOutput = 0;
   bn->trans = taosArrayInit(16, sizeof(FstTransition));
+  if (bn->trans == NULL) {
+    taosMemoryFree(bn);
+    return NULL;
+  }
   return bn;
 }
 void fstBuilderNodeDestroy(FstBuilderNode* node) {
@@ -56,30 +61,11 @@ bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
 
   return true;
 }
-FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
-  FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
-  if (node == NULL) {
-    return NULL;
-  }
 
-  //
-  size_t  sz = taosArrayGetSize(src->trans);
-  SArray* trans = taosArrayInit(sz, sizeof(FstTransition));
-
-  for (size_t i = 0; i < sz; i++) {
-    FstTransition* tran = taosArrayGet(src->trans, i);
-    (void)taosArrayPush(trans, tran);
-  }
-
-  node->trans = trans;
-  node->isFinal = src->isFinal;
-  node->finalOutput = src->finalOutput;
-  return node;
-}
 // not destroy src, User's bussiness
-void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
+int32_t fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   if (dst == NULL || src == NULL) {
-    return;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->isFinal = src->isFinal;
@@ -89,17 +75,23 @@ void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   taosArrayDestroy(dst->trans);
   size_t sz = taosArrayGetSize(src->trans);
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
+  if (dst->trans == NULL) {
+    return terrno;
+  }
   for (size_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(src->trans, i);
-    (void)taosArrayPush(dst->trans, trn);
+    if (taosArrayPush(dst->trans, trn) == NULL) {
+      taosArrayDestroy(dst->trans);
+      dst->trans = NULL;
+      return terrno;
+    }
   }
+  return 0;
 }
 
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile *wrt, CompiledAddr lastAddr, CompiledAddr
 // startAddr) {
-
 // size_t sz = taosArrayGetSize(b->trans);
-// assert(sz < 256);
 // if (FST_BUILDER_NODE_IS_FINAL(b)
 //    && FST_BUILDER_NODE_TRANS_ISEMPTY(b)
 //    && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(b)) {

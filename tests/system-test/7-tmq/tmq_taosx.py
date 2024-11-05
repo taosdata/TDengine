@@ -131,14 +131,14 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1)
 
         tdSql.query("select * from ct3 order by c1 desc")
-        tdSql.checkRows(2)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 1, 51)
         tdSql.checkData(0, 4, 940)
         tdSql.checkData(1, 1, 23)
         tdSql.checkData(1, 4, None)
 
         tdSql.query("select * from st1 order by ts")
-        tdSql.checkRows(8)
+        tdSql.checkRows(14)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(4, 1, 4)
@@ -180,7 +180,7 @@ class TDTestCase:
         tdSql.checkData(6, 8, None)
 
         tdSql.query("select * from ct1")
-        tdSql.checkRows(4)
+        tdSql.checkRows(7)
 
         tdSql.query("select * from ct2")
         tdSql.checkRows(0)
@@ -598,12 +598,12 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
         tdSql.execute(f'drop consumer group g1 on t1')
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.query(f'show subscriptions')
         tdSql.checkRows(1)
@@ -641,7 +641,7 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'g1')
-        tdSql.checkData(0, 4, 't2')
+        tdSql.checkData(0, 6, 't2')
 
         tdSql.execute(f'insert into t4 using st tags(3) values(now, 1)')
         try:

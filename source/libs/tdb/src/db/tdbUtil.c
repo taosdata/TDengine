@@ -39,7 +39,9 @@ int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique) {
   int64_t stDev = 0, stIno = 0;
 
   int32_t code = taosDevInoFile(fd, &stDev, &stIno);
-  return code;
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   memset(fileid, 0, TDB_FILE_ID_LEN);
 

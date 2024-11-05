@@ -78,7 +78,7 @@ int32_t tStartEncode(SEncoder* pCoder) {
 
     pNode = tEncoderMalloc(pCoder, sizeof(*pNode));
     if (pNode == NULL) {
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      TAOS_RETURN(terrno);
     }
 
     pNode->data = pCoder->data;
@@ -104,7 +104,6 @@ void tEndEncode(SEncoder* pCoder) {
 
   if (pCoder->data) {
     pNode = pCoder->eStack;
-    ASSERT(pNode);
     pCoder->eStack = pNode->pNext;
 
     len = pCoder->pos;
@@ -113,7 +112,7 @@ void tEndEncode(SEncoder* pCoder) {
     pCoder->size = pNode->size;
     pCoder->pos = pNode->pos;
 
-    (void)tEncodeI32(pCoder, len);
+    int32_t ret = tEncodeI32(pCoder, len);
 
     pCoder->pos += len;
   }
@@ -127,7 +126,7 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
   pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
   if (pNode == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pNode->data = pCoder->data;
@@ -148,7 +147,6 @@ void tEndDecode(SDecoder* pCoder) {
   SDecoderNode* pNode;
 
   pNode = pCoder->dStack;
-  ASSERT(pNode);
   pCoder->dStack = pNode->pNext;
 
   pCoder->data = pNode->data;

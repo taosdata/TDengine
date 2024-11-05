@@ -39,8 +39,6 @@ static void median(void *src, int64_t size, int64_t s, int64_t e, const void *pa
     doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
   }
 
-  ASSERT(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
-         comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
 }
 
 static void tInsertSort(void *src, int64_t size, int32_t s, int32_t e, const void *param, __ext_compar_fn_t comparFn,
@@ -150,7 +148,7 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, int64_t size, cons
 int32_t taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
   char *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
   if (NULL == buf) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
   taosMemoryFreeClear(buf);
@@ -323,7 +321,7 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
   } else if (flags == TD_LT) {
     return (c > 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
-    ASSERT(0);
+    uError("Invalid bsearch flags:%d", flags);
     return NULL;
   }
 }
@@ -337,7 +335,7 @@ int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, con
   if (buf == NULL) {
     tmp = taosMemoryMalloc(size);
     if (NULL == tmp) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   } else {
     tmp = buf;
@@ -395,7 +393,7 @@ int32_t taosheapsort(void *base, int32_t size, int32_t len, const void *parcompa
 
   char *buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (base && size > 0) {
@@ -456,7 +454,7 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
   const int32_t THRESHOLD_SIZE = 6;
   char         *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   for (int32_t start = 0; start < numOfElem - 1; start += THRESHOLD_SIZE) {
@@ -469,7 +467,7 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
     int32_t currSize;
     void   *tmp = taosMemoryMalloc(numOfElem * size);
     if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     for (currSize = THRESHOLD_SIZE; currSize <= numOfElem - 1; currSize = 2 * currSize) {

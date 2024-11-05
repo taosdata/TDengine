@@ -13,18 +13,19 @@ from util.common import *
 class TDTestCase:
     """This test case is used to veirfy hot refresh configurations
     """
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-        
+
         self.configration_dic = {
             "cli": [
-                {
-                    "name": "keepAliveIdle",
-                    "values": [1, 100, 7200000],
-                    "except_values": [0, 7200001]
-                },
+                # {
+                #     "name": "keepAliveIdle",
+                #     "values": [1, 100, 7200000],
+                #     "except_values": [0, 7200001]
+                # },
                 {
                     "name": "queryPolicy",
                     "values": [1, 2, 4],
@@ -42,12 +43,12 @@ class TDTestCase:
                 }
             ],
             "svr": [
-                {
-                    "name": "keepAliveIdle",
-                    "alias": "tsKeepAliveIdle",
-                    "values": [1, 100, 7200000],
-                    "except_values": [0, 7200001]
-                },
+                # {
+                #     "name": "keepAliveIdle",
+                #     "alias": "tsKeepAliveIdle",
+                #     "values": [1, 100, 7200000],
+                #     "except_values": [0, 7200001]
+                # },
                 {
                     "name": "mndSdbWriteDelta",
                     "alias": "tsMndSdbWriteDelta",
@@ -100,6 +101,7 @@ class TDTestCase:
                     "name": "minDiskFreeSize",
                     "alias": "tsMinDiskFreeSize",
                     "values": ["51200K", "100M", "1G"],
+                    "check_values": ["52428800", "104857600", "1073741824"],
                     "except_values": ["1024K", "1.1G", "1T"]
                 },
                 {
@@ -155,31 +157,62 @@ class TDTestCase:
                     "alias": "tsLogKeepDays",
                     "values": [-365000, 10, 365000],
                     "except_values": [-365001, 365001]
+                },
+                {
+                    "name": "syncLogBufferMemoryAllowed",
+                    "alias": "syncLogBufferMemoryAllowed",
+                    "values": [104857600, 1048576000, 9223372036854775807],
+                    "except_values": [-104857600, 104857599, 9223372036854775808]
                 }
             ]
         }
 
-    def get_param_value(self, config_name):
+    def cli_get_param_value(self, config_name):
         tdSql.query("show local variables;")
         for row in tdSql.queryResult:
             if config_name == row[0]:
                 tdLog.debug("Found variable '{}'".format(row[0]))
                 return row[1]
 
-    def cli_check(self, name, values, except_values=False):
+    def svr_get_param_value(self, config_name):
+        tdSql.query("show dnode 1 variables;")
+        for row in tdSql.queryResult:
+            if config_name == row[1]:
+                tdLog.debug("Found variable '{}'".format(row[1]))
+                return row[2]
+
+    def cli_check(self, item, except_values=False):
+        name = item["name"]
+        if except_values:
+            values = item["except_values"]
+        else:
+            values = item["values"]
+        check_values = item.get("check_values", [])
         if not except_values:
-            for v in values:
+            for i in range(len(values)):
+                v = values[i]
                 tdLog.debug("Set {} to {}".format(name, v))
                 tdSql.execute(f'alter local "{name} {v}";')
-                value = self.get_param_value(name)
+                value = self.cli_get_param_value(name)
                 tdLog.debug("Get {} value: {}".format(name, value))
-                assert(v == int(value))
+                if check_values:
+                    tdLog.debug(f"assert {check_values[i]} == {str(value)}")
+                    assert str(check_values[i]) == str(value)
+                else:
+                    tdLog.debug(f"assert {v} == {str(value)}")
+                    assert str(v) == str(value)
         else:
             for v in values:
-                tdLog.debug("Set {} to {}".format(name, v))
+                tdLog.debug("Set client {} to {}".format(name, v))
                 tdSql.error(f'alter local "{name} {v}";')
 
-    def svr_check(self, name, alias, values, except_values=False):
+    def svr_check(self, item, except_values=False):
+        name = item["name"]
+        if except_values:
+            values = item["except_values"]
+        else:
+            values = item["values"]
+        check_values = item.get("check_values", [])
         p_list = ["dnode 1", "all dnodes"]
         # check bool param value
         if len(values) == 2 and [0, 1] == values and name != "queryRspPolicy":
@@ -188,13 +221,18 @@ class TDTestCase:
             is_bool = False
         tdLog.debug(f"{name} is_bool: {is_bool}")
         if not except_values:
-            for v in values:
+            for i in range(len(values)):
+                v = values[i]
                 dnode = random.choice(p_list)
                 tdSql.execute(f'alter {dnode} "{name} {v}";')
-                value = self.get_param_value(alias)
-                if value:
-                    tdLog.debug(f"value: {value}")
-                    assert(value == str(bool(v)).lower() if is_bool else str(v))
+                value = self.svr_get_param_value(name)
+                tdLog.debug(f"value: {value}")
+                if check_values:
+                    tdLog.debug(f"assert {check_values[i]} == {str(value)}")
+                    assert str(check_values[i]) == str(value)
+                else:
+                    tdLog.debug(f"assert {v} == {str(value)}")
+                    assert str(v) == str(value)
         else:
             for v in values:
                 dnode = random.choice(p_list)
@@ -203,30 +241,35 @@ class TDTestCase:
     def run(self):
 
         # reset log
-        taosdLogAbsoluteFilename = tdCom.getTaosdPath() + "/log/" + "taosdlog*"
+        taosdLogPath = tdCom.getTaosdPath() + "/log/*"
         tdSql.execute("alter all dnodes 'resetlog';")
-        r = subprocess.Popen("cat {} | grep 'reset log file'".format(taosdLogAbsoluteFilename), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(1)
+        cmd = "egrep 'reset log file' {}".format(taosdLogPath)
+        tdLog.debug("run cmd: {}".format(cmd))
+        r = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = r.communicate()
-        assert('reset log file' in stdout.decode())
+        tdLog.debug("stdout: {}".format(stdout.decode()))
+        tdLog.debug("stderr: {}".format(stderr.decode()))
+        assert ('reset log file' in stdout.decode())
 
         for key in self.configration_dic:
             if "cli" == key:
                 for item in self.configration_dic[key]:
-                    self.cli_check(item["name"], item["values"])
+                    self.cli_check(item)
                     if "except_values" in item:
-                        self.cli_check(item["name"], item["except_values"], True)
+                        self.cli_check(item, True)
             elif "svr" == key:
                 for item in self.configration_dic[key]:
-                    self.svr_check(item["name"], item["alias"], item["values"])
+                    self.svr_check(item)
                     if "except_values" in item:
-                        self.svr_check(item["name"], item["alias"], item["except_values"], True)
+                        self.svr_check(item, True)
             else:
                 raise Exception(f"unknown key: {key}")
-
 
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

@@ -92,10 +92,10 @@ endi
 if $data5_db != on then  # strict
   return -1
 endi
-if $data6_db != 14400m then  # duration
+if $data6_db != 10d then  # duration
   return -1
 endi
-if $data7_db != 5256000m,5256000m,5256000m then # keep
+if $data7_db != 3650d,3650d,3650d then # keep
   return -1
 endi
 if $data8_db != 256 then  # buffer
@@ -126,6 +126,12 @@ if $data20_db != 1 then  # wal_level
   return -1
 endi
 if $data21_db != 3000 then  # wal_fsync_period
+  return -1
+endi
+if $data30_db != 525600m then  # s3_keeplocal
+  return -1
+endi
+if $data31_db != 1 then  # s3_compact
   return -1
 endi
 

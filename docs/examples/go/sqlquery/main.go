@@ -10,39 +10,35 @@ import (
 )
 
 func main() {
-	db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")
+	var taosDSN = "root:taosdata@tcp(localhost:6030)/"
+	db, err := sql.Open("taosSql", taosDSN)
 	if err != nil {
-		log.Fatal("open database failed:", err)
+		log.Fatalln("Failed to connect to " + taosDSN + ", ErrMessage: " + err.Error())
 	}
 	defer db.Close()
 	// ANCHOR: create_db_and_table
 	// create database
 	res, err := db.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatal("create database failed:", err)
+		log.Fatalln("Failed to create database power, ErrMessage: " + err.Error())
 	}
-	affected, err := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		log.Fatal("get affected rows failed:", err)
+		log.Fatalln("Failed to get create database rowsAffected, ErrMessage: " + err.Error())
 	}
-	fmt.Println("create database affected:", affected)
-	// use database
-	res, err = db.Exec("USE power")
-	if err != nil {
-		log.Fatal("use database failed:", err)
-	}
-	affected, err = res.RowsAffected()
-	if err != nil {
-		log.Fatal("get affected rows failed:", err)
-	}
-	fmt.Println("use database affected:", affected)
+	// you can check rowsAffected here
+	fmt.Println("Create database power successfully, rowsAffected: ", rowsAffected)
 	// create table
 	res, err = db.Exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
-	affected, err = res.RowsAffected()
 	if err != nil {
-		log.Fatal("create table failed:", err)
+		log.Fatalln("Failed to create stable meters, ErrMessage: " + err.Error())
 	}
-	fmt.Println("create table affected:", affected)
+	rowsAffected, err = res.RowsAffected()
+	if err != nil {
+		log.Fatalln("Failed to get create stable rowsAffected, ErrMessage: " + err.Error())
+	}
+	// you can check rowsAffected here
+	fmt.Println("Create stable power.meters successfully, rowsAffected:", rowsAffected)
 	// ANCHOR_END: create_db_and_table
 	// ANCHOR: insert_data
 	// insert data, please make sure the database and table are created before
@@ -57,22 +53,24 @@ func main() {
 		"(NOW + 1a, 10.30000, 218, 0.25000) "
 	res, err = db.Exec(insertQuery)
 	if err != nil {
-		log.Fatal("insert data failed:", err)
+		log.Fatalf("Failed to insert data to power.meters, sql: %s, ErrMessage: %s\n", insertQuery, err.Error())
 	}
-	affected, err = res.RowsAffected()
+	rowsAffected, err = res.RowsAffected()
 	if err != nil {
-		log.Fatal("get affected rows failed:", err)
+		log.Fatalf("Failed to get insert rowsAffected, sql: %s, ErrMessage: %s\n", insertQuery, err.Error())
 	}
 	// you can check affectedRows here
-	fmt.Println("insert data affected:", affected)
+	fmt.Printf("Successfully inserted %d rows to power.meters.\n", rowsAffected)
 	// ANCHOR_END: insert_data
 	// ANCHOR: select_data
 	// query data, make sure the database and table are created before
-	rows, err := db.Query("SELECT ts, current, location FROM power.meters limit 100")
+	sql := "SELECT ts, current, location FROM power.meters limit 100"
+	rows, err := db.Query(sql)
 	if err != nil {
-		log.Fatal("query data failed:", err)
+		log.Fatalf("Failed to query data from power.meters, sql: %s, ErrMessage: %s\n", sql, err.Error())
 	}
 	for rows.Next() {
+		// Add your data processing logic here
 		var (
 			ts       time.Time
 			current  float32
@@ -80,9 +78,8 @@ func main() {
 		)
 		err = rows.Scan(&ts, &current, &location)
 		if err != nil {
-			log.Fatal("scan data failed:", err)
+			log.Fatalf("Failed to scan data, sql: %s, ErrMessage: %s\n", sql, err)
 		}
-		// you can check data here
 		fmt.Printf("ts: %s, current: %f, location: %s\n", ts, current, location)
 	}
 	// ANCHOR_END: select_data

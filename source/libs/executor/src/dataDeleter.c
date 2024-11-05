@@ -87,7 +87,10 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
   if (pRes->affectedRows) {
     pRes->skey = *(int64_t*)pColSKey->pData;
     pRes->ekey = *(int64_t*)pColEKey->pData;
-    ASSERT(pRes->skey <= pRes->ekey);
+    if (pRes->skey > pRes->ekey) {
+      qError("data delter skey:%" PRId64 " is bigger than ekey:%" PRId64, pRes->skey, pRes->ekey);
+      QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
   } else {
     pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
@@ -187,7 +190,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRaw
   }
 
   SDataDeleterBuf* pBuf = NULL;
-  (void)taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
+  taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
   if (pBuf != NULL) {
     TAOS_MEMCPY(&pDeleter->nextOutput, pBuf, sizeof(SDataDeleterBuf));
     taosFreeQitem(pBuf);
@@ -205,7 +208,10 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRaw
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (NULL == pDeleter->nextOutput.pData) {
-    ASSERT(pDeleter->queryEnd);
+    if (!pDeleter->queryEnd) {
+      qError("empty res while query not end in data deleter");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
     pOutput->useconds = pDeleter->useconds;
     pOutput->precision = pDeleter->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;
@@ -242,7 +248,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pDeleter->pParam);
   while (!taosQueueEmpty(pDeleter->pDataBlocks)) {
     SDataDeleterBuf* pBuf = NULL;
-    (void)taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
+    taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
 
     if (pBuf != NULL) {
       taosMemoryFreeClear(pBuf->pData);
@@ -267,10 +273,18 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
+  if (pParam == NULL) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    qError("invalid input param in creating data deleter, code%s", tstrerror(code));
+    goto _end;
+  }
+
+  SDeleterParam* pDeleterParam = (SDeleterParam*)pParam;
 
   SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
     code = terrno;
+    taosArrayDestroy(pDeleterParam->pUidList);
     taosMemoryFree(pParam);
     goto _end;
   }
@@ -285,12 +299,6 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
-
-  if (pParam == NULL) {
-    code = TSDB_CODE_QRY_INVALID_INPUT;
-    qError("invalid input param in creating data deleter, code%s", tstrerror(code));
-    goto _end;
-  }
 
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;

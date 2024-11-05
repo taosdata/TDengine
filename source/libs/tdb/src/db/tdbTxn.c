@@ -31,7 +31,7 @@ int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void 
   return 0;
 }
 
-int tdbTxnCloseImpl(TXN *pTxn) {
+void tdbTxnCloseImpl(TXN *pTxn) {
   if (pTxn) {
     if (pTxn->jPageSet) {
       hashset_destroy(pTxn->jPageSet);
@@ -39,12 +39,14 @@ int tdbTxnCloseImpl(TXN *pTxn) {
     }
 
     if (pTxn->jfd) {
-      TAOS_UNUSED(tdbOsClose(pTxn->jfd));
-      ASSERT(pTxn->jfd == NULL);
+      int32_t code = tdbOsClose(pTxn->jfd);
+      if (code) {
+        tdbError("tdb/txn: close journal file failed, code:%d", code);
+      }
     }
 
     tdbOsFree(pTxn);
   }
 
-  return 0;
+  return;
 }

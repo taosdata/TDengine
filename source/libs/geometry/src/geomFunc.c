@@ -43,7 +43,7 @@ int32_t doMakePointFunc(double x, double y, unsigned char **output) {
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -74,7 +74,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
   // make a zero ending string
   inputGeom = taosMemoryCalloc(1, varDataLen(input) + 1);
   if (inputGeom == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   (void)memcpy(inputGeom, varDataVal(input), varDataLen(input));
@@ -83,7 +83,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -114,7 +114,7 @@ int32_t doAsTextFunc(unsigned char *input, char **output) {
   size_t size = strlen(outputWKT);
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -131,12 +131,12 @@ _exit:
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
+  unsigned char *output = NULL;
 
   _getDoubleValue_fn_t getDoubleValueFn[2];
-  getDoubleValueFn[0] = getVectorDoubleValueFn(pInputData[0]->info.type);
-  getDoubleValueFn[1] = getVectorDoubleValueFn(pInputData[1]->info.type);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[0]->info.type, &getDoubleValueFn[0]), NULL, _exit);
+  TAOS_CHECK_GOTO(getVectorDoubleValueFn(pInputData[1]->info.type, &getDoubleValueFn[1]), NULL, _exit);
 
-  unsigned char *output = NULL;
   double         leftRes = 0;
   double         rightRes = 0;
 

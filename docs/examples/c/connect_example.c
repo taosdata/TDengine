@@ -8,19 +8,15 @@ int main() {
   const char *host = "localhost";
   const char *user = "root";
   const char *passwd = "taosdata";
-  // if don't want to connect to a default db, set it to NULL or ""
-  const char *db = NULL;
-  uint16_t    port = 0;  // 0 means use the default port
+  const char *db = NULL;      // if don't want to connect to a default db, set it to NULL or ""
+  uint16_t    port = 6030;    // 0 means use the default port
   TAOS       *taos = taos_connect(host, user, passwd, db, port);
   if (taos == NULL) {
-    int errno = taos_errno(NULL);
-    const char *msg = taos_errstr(NULL);
-    printf("%d, %s\n", errno, msg);
-    printf("failed to connect to server %s, errno: %d, msg: %s\n", host, errno, msg);
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }
-  printf("success to connect server %s\n", host);
+  fprintf(stdout, "Connected to %s:%hu successfully.\n", host, port);
   
   /* put your code here for read and write */
 

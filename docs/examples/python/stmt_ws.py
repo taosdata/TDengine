@@ -8,11 +8,13 @@ numOfRow = 10
 
 conn = None
 stmt = None
+host="localhost"
+port=6041
 try:
     conn = taosws.connect(user="root",
                           password="taosdata",
-                          host="localhost",
-                          port=6041)
+                          host=host,
+                          port=port)
 
     conn.execute("CREATE DATABASE IF NOT EXISTS power")
     conn.execute("USE power")
@@ -56,10 +58,11 @@ try:
         stmt.add_batch()
         stmt.execute()
         
-        print(f"stmt insert successfully.")
+        print(f"Successfully inserted to power.meters.")
         
 except Exception as err:
-    print(f"Failed to insert to table meters using stmt, error: {err}") 
+    print(f"Failed to insert to table meters using stmt, ErrMessage:{err}") 
+    raise err
 finally:
     if stmt:
         stmt.close()

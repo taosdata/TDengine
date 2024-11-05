@@ -1,6 +1,7 @@
 ---
 title: REST API
 sidebar_label: REST API
+toc_max_heading_level: 4
 description: 详细介绍 TDengine 提供的 RESTful API.
 ---
 
@@ -117,41 +118,55 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timez
 
 ### HTTP 响应码
 
-从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的http状态码
+默认情况下，`taosAdapter` 对大多数 C 接口调用出错时也会返回 200 响应码，但是 HTTP body 中包含错误信息。从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的 HTTP 响应码。无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
 
-| **说明**             | **httpCodeServerError false** | **httpCodeServerError true**          |
-|--------------------|-------------------------------|---------------------------------------|
-| taos_errno() 返回 0  | 200                           | 200                                   |
-| taos_errno() 返回 非0 | 200（除鉴权错误）                    | 500 （除鉴权错误和 400/502 错误）               |
-| 参数错误               | 400 (仅处理 HTTP 请求 URL 参数错误)    | 400 （处理 HTTP 请求 URL 参数错误和 taosd 返回错误） |
-| 鉴权错误               | 401                           | 401                                   |
-| 接口不存在              | 404                           | 404                                   |
-| 集群不可用错误            | 502                           | 502                                   |
-| 系统资源不足             | 503                           | 503                                   |
+**当 httpCodeServerError 为 false 时：**
 
-返回 400 的 C 错误码为：
+| **分类说明**             |**HTTP 响应码** |
+|--------------------|-------------------------------|
+| C 接口调用成功  | 200                           | 200   |
+| C 接口调用出错，且不是鉴权错误 | 200                   |
+| HTTP 请求 URL 参数错误               | 400    | 
+| C 接口调用鉴权错误               | 401                           |
+| 接口不存在              | 404                           |
+| 系统资源不足             | 503                          |
 
-- TSDB_CODE_TSC_SQL_SYNTAX_ERROR ( 0x0216)
-- TSDB_CODE_TSC_LINE_SYNTAX_ERROR   (0x021B)
+**当 httpCodeServerError 为 true 时：**
+
+| **分类说明**             |  **HTTP 响应码**          |
+|--------------------|-------------------------------|
+| C 接口调用成功  |  200                                   |
+| HTTP 请求 URL 参数错误和 C 接口调用参数解析错误    | 400  |
+| C 接口调用鉴权错误                 |  401          |
+| 接口不存在              | 404             |   
+| C 接口调用网络不可用错误            | 502            |
+| 系统资源不足             |503                |
+| 其他 C 接口调用错误 | 500                | 
+
+ C 接口参数解析相关错误码：
+- TSDB_CODE_TSC_SQL_SYNTAX_ERROR (0x0216)
+- TSDB_CODE_TSC_LINE_SYNTAX_ERROR (0x021B)
 - TSDB_CODE_PAR_SYNTAX_ERROR (0x2600)
 - TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE (0x060B)
-- TSDB_CODE_TSC_VALUE_OUT_OF_RANGE   (0x0224)
+- TSDB_CODE_TSC_VALUE_OUT_OF_RANGE (0x0224)
 - TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE (0x263B)
 
-返回 401 的错误码为：
+C 接口鉴权相关错误码：
 
-- TSDB_CODE_MND_USER_ALREADY_EXIST    (0x0350)
-- TSDB_CODE_MND_USER_NOT_EXIST  ( 0x0351)
-- TSDB_CODE_MND_INVALID_USER_FORMAT  (0x0352)
-- TSDB_CODE_MND_INVALID_PASS_FORMAT   (0x0353)
+- TSDB_CODE_MND_USER_ALREADY_EXIST (0x0350)
+- TSDB_CODE_MND_USER_NOT_EXIST (0x0351)
+- TSDB_CODE_MND_INVALID_USER_FORMAT (0x0352)
+- TSDB_CODE_MND_INVALID_PASS_FORMAT (0x0353)
 - TSDB_CODE_MND_NO_USER_FROM_CONN (0x0354)
 - TSDB_CODE_MND_TOO_MANY_USERS (0x0355)
 - TSDB_CODE_MND_INVALID_ALTER_OPER (0x0356)
 - TSDB_CODE_MND_AUTH_FAILURE (0x0357)
 
-返回 403 的错误码为：
+C 接口网络不可用相关错误码：
 
-- TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED (0x0020)
+- TSDB_CODE_RPC_NETWORK_UNAVAIL (0x000B)
+
+错误码和错误描述请参考[错误码](../../../reference/error-code)
 
 ### HTTP body 结构
 
@@ -332,6 +347,8 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
 - code：（`int`）错误码。
 - desc：（`string`）错误描述。
 
+错误码和错误描述请参考[错误码](../../../reference/error-code)
+
 #### 返回key-value形式数据
 
 当指定 url 参数 `row_with_meta=true` 时，返回的 data 中的数据会从数组的形式变成对象的形式，对象的 key 为列名，value 为数据，如下所示：
@@ -443,6 +460,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```bash
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：
@@ -494,6 +512,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```bash
   curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04" -d "create database demo" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：

@@ -16,10 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "libs/function/tudf.h"
+#include "tanal.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
+    return code;
+  }
+  if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
     return code;
   }
 #if defined(TD_ENTERPRISE)
@@ -44,6 +48,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopMonitorThread(pMgmt);
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
 #endif
@@ -54,7 +59,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
   SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   if (pMgmt == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pMgmt->pData = pInput->pData;
@@ -65,6 +70,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
@@ -76,7 +82,11 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
-    dError("failed to start udfd");
+    dError("failed to start udfd since %s", tstrerror(code));
+  }
+
+  if ((code = taosAnalInit()) != 0) {
+    dError("failed to init analysis env since %s", tstrerror(code));
   }
 
   pOutput->pMgmt = pMgmt;

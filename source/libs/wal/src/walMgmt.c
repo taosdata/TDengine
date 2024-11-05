@@ -21,11 +21,12 @@
 #include "walInt.h"
 
 typedef struct {
-  int8_t   stop;
-  int8_t   inited;
-  uint32_t seq;
-  int32_t  refSetId;
-  TdThread thread;
+  int8_t      stop;
+  int8_t      inited;
+  uint32_t    seq;
+  int32_t     refSetId;
+  TdThread    thread;
+  stopDnodeFn stopDnode;
 } SWalMgmt;
 
 static SWalMgmt tsWal = {0, .seq = 1};
@@ -35,7 +36,7 @@ static void     walFreeObj(void *pWal);
 
 int64_t walGetSeq() { return (int64_t)atomic_load_32((volatile int32_t *)&tsWal.seq); }
 
-int32_t walInit() {
+int32_t walInit(stopDnodeFn stopDnode) {
   int8_t old;
   while (1) {
     old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 2);
@@ -57,6 +58,11 @@ int32_t walInit() {
     atomic_store_8(&tsWal.inited, 1);
   }
 
+  if (stopDnode == NULL) {
+    wWarn("failed to set stop dnode call back");
+  }
+  tsWal.stopDnode = stopDnode;
+
   return 0;
 }
 
@@ -69,27 +75,37 @@ void walCleanUp() {
 
   if (old == 1) {
     walStopThread();
-    TAOS_UNUSED(taosCloseRef(tsWal.refSetId));
+    taosCloseRef(tsWal.refSetId);
     wInfo("wal module is cleaned up");
     atomic_store_8(&tsWal.inited, 0);
   }
 }
 
+static int32_t walInitLock(SWal *pWal) {
+  TdThreadRwlockAttr attr;
+  (void)taosThreadRwlockAttrInit(&attr);
+  (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  (void)taosThreadRwlockInit(&pWal->mutex, &attr);
+  (void)taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
+
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
-  SWal *pWal = taosMemoryCalloc(1, sizeof(SWal));
+  int32_t code = 0;
+  SWal   *pWal = taosMemoryCalloc(1, sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
 
-  if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {
+  if (walInitLock(pWal) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(pWal);
     return NULL;
   }
 
   // set config
-  TAOS_UNUSED(memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg)));
+  (void)memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
 
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->cfg.retentionSize > 0) {
@@ -140,20 +156,25 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->lastRollSeq = -1;
 
   // init write buffer
-  TAOS_UNUSED(memset(&pWal->writeHead, 0, sizeof(SWalCkHead)));
+  (void)memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
   // load meta
-  (void)walLoadMeta(pWal);
+  code = walLoadMeta(pWal);
+  if (code < 0) {
+    wWarn("vgId:%d, failed to load meta since %s", pWal->cfg.vgId, tstrerror(code));
+  }
 
-  if (walCheckAndRepairMeta(pWal) < 0) {
-    wError("vgId:%d, cannot open wal since repair meta file failed", pWal->cfg.vgId);
+  code = walCheckAndRepairMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, cannot open wal since repair meta file failed since %s", pWal->cfg.vgId, tstrerror(code));
     goto _err;
   }
 
-  if (walCheckAndRepairIdx(pWal) < 0) {
-    wError("vgId:%d, cannot open wal since repair idx file failed", pWal->cfg.vgId);
+  code = walCheckAndRepairIdx(pWal);
+  if (code < 0) {
+    wError("vgId:%d, cannot open wal since repair idx file failed since %s", pWal->cfg.vgId, tstrerror(code));
     goto _err;
   }
 
@@ -164,14 +185,17 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     goto _err;
   }
 
+  pWal->stopDnode = tsWal.stopDnode;
+
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
          pWal->cfg.fsyncPeriod);
   return pWal;
 
 _err:
   taosArrayDestroy(pWal->fileInfoSet);
+  taosArrayDestroy(pWal->toDeleteFiles);
   taosHashCleanup(pWal->pRefHash);
-  TAOS_UNUSED(taosThreadMutexDestroy(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockDestroy(&pWal->mutex));
   taosMemoryFreeClear(pWal);
 
   return NULL;
@@ -207,16 +231,18 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 int32_t walPersist(SWal *pWal) {
   int32_t code = 0;
 
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   code = walSaveMeta(pWal);
-  TAOS_UNUSED(taosThreadMutexUnlock(&pWal->mutex));
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
   TAOS_RETURN(code);
 }
 
 void walClose(SWal *pWal) {
-  TAOS_UNUSED(taosThreadMutexLock(&pWal->mutex));
-  (void)walSaveMeta(pWal);
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
+  if (walSaveMeta(pWal) < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, tstrerror(terrno));
+  }
   TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
   pWal->pLogFile = NULL;
   (void)taosCloseFile(&pWal->pIdxFile);
@@ -235,22 +261,26 @@ void walClose(SWal *pWal) {
   }
   taosHashCleanup(pWal->pRefHash);
   pWal->pRefHash = NULL;
-  (void)taosThreadMutexUnlock(&pWal->mutex);
+  (void)taosThreadRwlockUnlock(&pWal->mutex);
 
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
     wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);
     taosRemoveDir(pWal->path);
-    (void)taosMkDir(pWal->path);
+    if (taosMkDir(pWal->path) != 0) {
+      wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    }
   }
 
-  (void)taosRemoveRef(tsWal.refSetId, pWal->refId);
+  if (taosRemoveRef(tsWal.refSetId, pWal->refId) < 0) {
+    wError("vgId:%d, failed to remove ref for Wal since %s", pWal->cfg.vgId, tstrerror(terrno));
+  }
 }
 
 static void walFreeObj(void *wal) {
   SWal *pWal = wal;
   wDebug("vgId:%d, wal:%p is freed", pWal->cfg.vgId, pWal);
 
-  (void)taosThreadMutexDestroy(&pWal->mutex);
+  (void)taosThreadRwlockDestroy(&pWal->mutex);
   taosMemoryFreeClear(pWal);
 }
 
@@ -268,7 +298,9 @@ static bool walNeedFsync(SWal *pWal) {
 
 static void walUpdateSeq() {
   taosMsleep(WAL_REFRESH_MS);
-  (void)atomic_add_fetch_32((volatile int32_t *)&tsWal.seq, 1);
+  if (atomic_add_fetch_32((volatile int32_t *)&tsWal.seq, 1) < 0) {
+    wError("failed to update wal seq since %s", strerror(errno));
+  }
 }
 
 static void walFsyncAll() {

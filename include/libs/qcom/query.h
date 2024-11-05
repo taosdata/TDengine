@@ -330,12 +330,13 @@ int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
@@ -347,6 +348,8 @@ void    freeDbCfgInfo(SDbCfgInfo* pInfo);
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
+
+void* getTaskPoolWorkerCb();
 
 #define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE
@@ -361,7 +364,7 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) \
-  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER)
+  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER || (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
@@ -404,29 +407,29 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define IS_AUDIT_CTB_NAME(_ctbname) \
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
-#define qFatal(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qFatal(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_FATAL) {                                                           \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qError(...)                                                     \
-  do {                                                                  \
-    if (qDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+#define qError(...)                                                                           \
+  do {                                                                                        \
+    if (qDebugFlag & DEBUG_ERROR) {                                                           \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                         \
   } while (0)
-#define qWarn(...)                                                    \
-  do {                                                                \
-    if (qDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
-    }                                                                 \
+#define qWarn(...)                                                                          \
+  do {                                                                                      \
+    if (qDebugFlag & DEBUG_WARN) {                                                          \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                       \
   } while (0)
-#define qInfo(...)                                               \
-  do {                                                           \
-    if (qDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
-    }                                                            \
+#define qInfo(...)                                                                     \
+  do {                                                                                 \
+    if (qDebugFlag & DEBUG_INFO) {                                                     \
+      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                  \
   } while (0)
 #define qDebug(...)                                               \
   do {                                                            \

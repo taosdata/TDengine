@@ -9,13 +9,14 @@ telnetDemo = ["metric_telnet 1707095283260 4 host=host0 interface=eth0"]
 jsonDemo = [
     '{"metric": "metric_json","timestamp": 1626846400,"value": 10.3, "tags": {"groupid": 2, "location": "California.SanFrancisco", "id": "d1001"}}'
 ]
-
+host = "localhost"
+port = 6030
 try:
     conn = taos.connect(
-        host="localhost",
         user="root",
         password="taosdata",
-        port=6030
+        host=host,
+        port=port
     )
 
     conn.execute("CREATE DATABASE IF NOT EXISTS power")
@@ -31,8 +32,10 @@ try:
     conn.schemaless_insert(
         jsonDemo, taos.SmlProtocol.JSON_PROTOCOL, taos.SmlPrecision.MILLI_SECONDS
     )
+    print("Inserted data with schemaless successfully.");
 except Exception as err:
-    print(f"Failed to insert data with schemaless, err:{err}")
+    print(f"Failed to insert data with schemaless, ErrMessage:{err}")
+    raise err
 finally:
     if conn:
         conn.close()

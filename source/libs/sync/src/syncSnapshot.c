@@ -54,10 +54,10 @@ static int32_t syncSnapBufferCreate(SSyncSnapBuffer **ppBuf) {
   SSyncSnapBuffer *pBuf = taosMemoryCalloc(1, sizeof(SSyncSnapBuffer));
   if (pBuf == NULL) {
     *ppBuf = NULL;
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   pBuf->size = sizeof(pBuf->entries) / sizeof(void *);
-  ASSERT(pBuf->size == TSDB_SYNC_SNAP_BUFFER_SIZE);
+  if (pBuf->size != TSDB_SYNC_SNAP_BUFFER_SIZE) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (void)taosThreadMutexInit(&pBuf->mutex, NULL);
   *ppBuf = pBuf;
   TAOS_RETURN(0);
@@ -74,7 +74,7 @@ int32_t snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex, SSyncSn
 
   SSyncSnapshotSender *pSender = taosMemoryCalloc(1, sizeof(SSyncSnapshotSender));
   if (pSender == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pSender->start = false;
@@ -285,7 +285,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     if (pSender->seq > SYNC_SNAPSHOT_SEQ_BEGIN) {
       pBlk = taosMemoryCalloc(1, sizeof(SyncSnapBlock));
       if (pBlk == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         goto _OUT;
       }
 
@@ -311,7 +311,10 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     }
   }
 
-  ASSERT(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END);
+  if (!(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _OUT;
+  }
 
   // send msg
   int32_t blockLen = (pBlk) ? pBlk->blockLen : 0;
@@ -323,7 +326,10 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   // put in buffer
   int64_t nowMs = taosGetTimestampMs();
   if (pBlk) {
-    ASSERT(pBlk->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pBlk->seq < SYNC_SNAPSHOT_SEQ_END);
+    if (!(pBlk->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pBlk->seq < SYNC_SNAPSHOT_SEQ_END)) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _OUT;
+    }
     pBlk->sendTimeMs = nowMs;
     pSender->pSndBuf->entries[pSender->seq % pSender->pSndBuf->size] = pBlk;
     pBlk = NULL;
@@ -351,7 +357,10 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
-    ASSERT(pBlk);
+    if (!pBlk) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
     int64_t nowMs = taosGetTimestampMs();
     if (pBlk->acked || nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
@@ -413,7 +422,7 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
 
   SSyncSnapshotReceiver *pReceiver = taosMemoryCalloc(1, sizeof(SSyncSnapshotReceiver));
   if (pReceiver == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
 
   pReceiver->start = false;
@@ -682,13 +691,13 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
 
 static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotReceiver *pReceiver,
                                              SyncSnapshotSend *pMsg, SSnapshot *pInfo) {
-  ASSERT(pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT);
+  if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT) return TSDB_CODE_SYN_INTERNAL_ERROR;
   int32_t code = 0, lino = 0;
 
   // copy snap info from leader
   void *data = taosMemoryCalloc(1, pMsg->dataLen);
   if (data == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(terrno);
   }
   pInfo->data = data;
   data = NULL;
@@ -711,7 +720,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   SSnapshotParam *pParam = &pReceiver->snapshotParam;
   data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     sError("vgId:%d, failed to realloc memory for snapshot prep due to %s. dataLen:%d", pSyncNode->vgId,
            tstrerror(code), dataLen);
     goto _exit;
@@ -878,7 +887,7 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
     goto _out;
   }
 
-  ASSERT(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end);
+  if (!(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (pMsg->seq > pRcvBuf->cursor) {
     if (pRcvBuf->entries[pMsg->seq % pRcvBuf->size]) {
@@ -907,7 +916,9 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
       }
     }
     pRcvBuf->start = seq + 1;
-    (void)syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code);
+    if (syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code) != 0) {
+      sError("failed to send snap rsp");
+    }
     pRcvBuf->entryDeleteCb(pRcvBuf->entries[seq % pRcvBuf->size]);
     pRcvBuf->entries[seq % pRcvBuf->size] = NULL;
     if (code) goto _out;
@@ -922,7 +933,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
   // condition 4
   // transfering
   SyncSnapshotSend *pMsg = ppMsg[0];
-  ASSERT(pMsg);
+  if (!pMsg) return TSDB_CODE_SYN_INTERNAL_ERROR;
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int64_t                timeNow = taosGetTimestampMs();
   int32_t                code = 0;
@@ -1002,7 +1013,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    (void)syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code);
+    if (syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code) != 0) sError("failed to send snap rsp");
     TAOS_RETURN(code);
   }
 
@@ -1071,7 +1082,7 @@ _out:;
 }
 
 static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
-  ASSERT(pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
+  if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT_REPLY) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   SSyncTLV *datHead = (void *)pMsg->data;
   if (datHead->typ != pMsg->payloadType) {
@@ -1083,7 +1094,7 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   SSnapshotParam *pParam = &pSender->snapshotParam;
   void           *data = taosMemoryRealloc(pParam->data, dataLen);
   if (data == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_RETURN(terrno);
   }
   (void)memcpy(data, pMsg->data, dataLen);
 
@@ -1168,11 +1179,17 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     goto _out;
   }
 
-  ASSERT(pSndBuf->start <= pSndBuf->cursor + 1 && pSndBuf->cursor < pSndBuf->end);
+  if (!(pSndBuf->start <= pSndBuf->cursor + 1 && pSndBuf->cursor < pSndBuf->end)) {
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  }
 
   if (pMsg->ack > pSndBuf->cursor && pMsg->ack < pSndBuf->end) {
     SyncSnapBlock *pBlk = pSndBuf->entries[pMsg->ack % pSndBuf->size];
-    ASSERT(pBlk);
+    if (!pBlk) {
+      code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      goto _out;
+    }
     pBlk->acked = 1;
   }
 
@@ -1283,13 +1300,13 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     sSInfo(pSender, "process end rsp");
     snapshotSenderStop(pSender, true);
-    (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+    TAOS_CHECK_GOTO(syncNodeReplicateReset(pSyncNode, &pMsg->srcId), NULL, _ERROR);
   }
 
   return 0;
 
 _ERROR:
   snapshotSenderStop(pSender, false);
-  (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+  if (syncNodeReplicateReset(pSyncNode, &pMsg->srcId) != 0) sError("failed to reset replicate");
   TAOS_RETURN(code);
 }

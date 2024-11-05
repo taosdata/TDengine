@@ -78,7 +78,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
 
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
-    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QW_ERR_RET(terrno);
   }
 
   QW_LOCK(QW_WRITE, &mgmt->schLock);
@@ -533,13 +533,13 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 
   while (true) {
     tbGet = false;
-    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN, &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }
 
     if (dbFName[0] && tbName[0]) {
-      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)snprintf(tbInfo.tbFName, sizeof(tbInfo.tbFName), "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }
@@ -564,7 +564,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
-    (void)taosCloseRef(gQwMgmt.qwRef);  // ignore error
+    taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
   }
   taosWUnLockLatch(&gQwMgmt.lock);
@@ -581,7 +581,10 @@ void qwDestroyImpl(void *pMgmt) {
   int32_t schStatusCount = 0;
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
-  (void)taosTmrStop(mgmt->hbTimer); //ignore error
+  if (taosTmrStop(mgmt->hbTimer)) {
+    qTrace("stop qworker hb timer may failed");
+  }
+  
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 

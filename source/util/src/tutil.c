@@ -124,7 +124,6 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
       if (split == NULL) {
         return NULL;
       }
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t)POINTER_BYTES * size);
     }
   }
 
@@ -506,11 +505,11 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
   return index;
 }
 
-int32_t parseCfgReal(const char *str, double *out) {
-  double val;
+int32_t parseCfgReal(const char *str, float *out) {
+  float val;
   char  *endPtr;
   errno = 0;
-  val = taosStr2Double(str, &endPtr);
+  val = taosStr2Float(str, &endPtr);
   if (str == endPtr || errno == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }

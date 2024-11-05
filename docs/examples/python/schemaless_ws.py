@@ -1,20 +1,22 @@
 import taosws
 
-db = "power"
+host = "localhost"
+port = 6041
 def prepare():
     conn = None
     try:
         conn = taosws.connect(user="root",
                             password="taosdata",
-                            host="localhost",
-                            port=6041)
+                            host=host,
+                            port=port)
 
         # create database
-        rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
+        rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS power")
         assert rowsAffected == 0
 
     except Exception as err:
-        print(f"Failed to create db and table, err:{err}")
+        print(f"Failed to create db and table, db addrr:{host}:{port} ; ErrMessage:{err}")
+        raise err
     finally:
         if conn:
             conn.close()
@@ -36,9 +38,9 @@ def schemaless_insert():
     try:
         conn = taosws.connect(user="root",
                               password="taosdata",
-                              host="localhost",
-                              port=6041,
-                              database=db)
+                              host=host,
+                              port=port,
+                              database='power')
 
         conn.schemaless_insert(
             lines = lineDemo,
@@ -63,10 +65,16 @@ def schemaless_insert():
             ttl=1,
             req_id=3,
         )
-
+        print("Inserted data with schemaless successfully.");
     except Exception as err:
-        print(f"Failed to insert data with schemaless, err:{err}")
-
+        print(f"Failed to insert data with schemaless, ErrMessage:{err}")
+        raise err
+    
     finally:
         if conn:
             conn.close()
+
+if __name__ == "__main__":
+    prepare()
+    schemaless_insert()
+  

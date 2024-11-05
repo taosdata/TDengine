@@ -357,7 +357,6 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_PUSH_BLK_TO_CACHE(_cache, _blk)                                   \
   do {                                                                          \
-    ASSERT(taosArrayGetSize((_cache)->grps) <= 1);                                \
     SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayReserve((_cache)->grps, 1);   \
     (_cache)->rowNum += (_blk)->info.rows;                                       \
     pGrp->blk = (_blk);                                                         \
@@ -381,7 +380,6 @@ typedef struct SMJoinOperatorInfo {
   do {                                                                          \
     SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
     if (NULL != pGrp) {                                               \
-      ASSERT(pGrp->blk == (_tb)->blk);                                  \
       pGrp->beginIdx = (_tb)->blkRowIdx;                              \
       pGrp->readIdx = pGrp->beginIdx;                                       \
     }                                                                   \

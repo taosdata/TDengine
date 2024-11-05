@@ -15,7 +15,7 @@ func main() {
 	var taosDSN = "root:taosdata@tcp(localhost:6030)/"
 	taos, err := sql.Open("taosSql", taosDSN)
 	if err != nil {
-		log.Fatalln("failed to connect TDengine, err:", err)
+		log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
 	}
 	fmt.Println("Connected to " + taosDSN + " successfully.")
 	defer taos.Close()

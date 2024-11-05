@@ -21,6 +21,7 @@
 #include "streamBackendRocksdb.h"
 #include "trpc.h"
 #include "tstream.h"
+#include "tref.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,22 +49,29 @@ extern "C" {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct SStreamTmrInfo {
+  int32_t activeCounter;  // make sure only launch one checkpoint trigger check tmr
+  tmr_h   tmrHandle;
+  int64_t launchChkptId;
+  int8_t  isActive;
+} SStreamTmrInfo;
+
 struct SActiveCheckpointInfo {
-  TdThreadMutex lock;
-  int32_t       transId;
-  int64_t       firstRecvTs;  // first time to recv checkpoint trigger info
-  int64_t       activeId;     // current active checkpoint id
-  int64_t       failedId;
-  bool          dispatchTrigger;
-  SArray*       pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
-  int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
-  int32_t       checkCounter;
-  tmr_h         pChkptTriggerTmr;
-  int32_t       sendReadyCheckCounter;
-  tmr_h         pSendReadyMsgTmr;
+  TdThreadMutex  lock;
+  int32_t        transId;
+  int64_t        firstRecvTs;  // first time to recv checkpoint trigger info
+  int64_t        activeId;     // current active checkpoint id
+  int64_t        failedId;
+  bool           dispatchTrigger;
+  SArray*        pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
+  SArray*        pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
+  int8_t         allUpstreamTriggerRecv;
+  SArray*        pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
+  SStreamTmrInfo chkptTriggerMsgTmr;
+  SStreamTmrInfo chkptReadyMsgTmr;
 };
+
+void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param);
 
 typedef struct {
   int8_t       type;
@@ -157,7 +165,6 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
-extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
@@ -219,10 +226,12 @@ void    destroyMetaHbInfo(SMetaHbInfo* pInfo);
 void    streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
 void    streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
 int32_t streamMetaSendHbHelper(SStreamMeta* pMeta);
+int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
+void    metaRefMgtRemove(int64_t* pRefId);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
-int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t checkpointId);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
 
@@ -231,7 +240,7 @@ void    initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t up
 int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
                                int64_t checkpointId, SRpcMsg* pMsg);
 
-void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
+int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
 
 
 #ifdef __cplusplus

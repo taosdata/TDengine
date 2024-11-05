@@ -1,18 +1,26 @@
 #!/usr/bin/python3
 import taosws
 
-topic = "topic_meters"
+db              = "power"
+topic           = "topic_meters"
+user            = "root"
+password        = "taosdata"
+host            = "localhost"
+port            = 6041
+groupId         = "group1"
+clientId        = "1"  
+tdConnWsScheme  = "ws"
+autoOffsetReset = "latest"
+autoCommitState = "true"
+autoCommitIntv  = "1000"
+
 
 def prepareMeta():
     conn = None
 
     try:
-        conn = taosws.connect(user="root",
-                              password="taosdata",
-                              host="localhost",
-                              port=6041)
+        conn = taosws.connect(user=user, password=password, host=host, port=port)
 
-        db = "power"
         # create database
         rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
         assert rowsAffected == 0
@@ -23,7 +31,7 @@ def prepareMeta():
 
         # create super table
         rowsAffected = conn.execute(
-            "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+            "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(64))"
         )
         assert rowsAffected == 0
 
@@ -48,10 +56,10 @@ def prepareMeta():
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
         affectedRows = conn.execute(sql)
-        print(f"inserted into {affectedRows} rows to power.meters successfully.")
+        print(f"Inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
-        print(f"Failed to prepareMeta {err}")
+        print(f"Failed to prepareMeta, host: {host}:{port}, db: {db}, topic: {topic}, ErrMessage:{err}.")
         raise err
     finally:
         if conn:
@@ -59,21 +67,22 @@ def prepareMeta():
 
 
 # ANCHOR: create_consumer
-def create_consumer():
+def create_consumer():  
     try:
         consumer = taosws.Consumer(conf={
-            "td.connect.websocket.scheme": "ws",
-            "group.id": "group1",
-            "client.id": "1",
-            "auto.offset.reset": "latest",
-            "td.connect.ip": "localhost",
-            "td.connect.port": "6041",
-            "enable.auto.commit": "true",
-            "auto.commit.interval.ms": "1000",
+            "td.connect.websocket.scheme": tdConnWsScheme,
+            "group.id": groupId,
+            "client.id": clientId,
+            "auto.offset.reset": autoOffsetReset,
+            "td.connect.ip": host,
+            "td.connect.port": port,
+            "enable.auto.commit": autoCommitState,
+            "auto.commit.interval.ms": autoCommitIntv,
         })
+        print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}.");
         return consumer;
     except Exception as err:
-        print(f"Failed to create websocket consumer, err:{err}");
+        print(f"Failed to create websocket consumer, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.");
         raise err
 
 
@@ -90,10 +99,10 @@ def seek_offset(consumer):
                 print(
                     f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
                 consumer.seek(topic, assign.vg_id(), assign.begin())
-                print("assignment seek to beginning successfully");
+                print("Assignment seek to beginning successfully.")
 
     except Exception as err:
-        print(f"seek example failed; err:{err}")
+        print(f"Failed to seek offset, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
     # ANCHOR_END: assignment
 
@@ -102,16 +111,16 @@ def seek_offset(consumer):
 def subscribe(consumer):
     try:
         consumer.subscribe([topic])
-        print("subscribe topics successfully")
+        print("Subscribe topics successfully")
         for i in range(50):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
                     for row in block:
-                        print(row)
+                        print(f"data: {row}")
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to poll data, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
 
 
@@ -125,25 +134,32 @@ def commit_offset(consumer):
             if records:
                 for block in records:
                     for row in block:
-                        print(row)
+                        print(f"data: {row}")
                         
                 #  after processing the data, commit the offset manually        
                 consumer.commit(records)
+                print("Commit offset manually successfully.")
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to commit offset, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
         raise err
 
 
 # ANCHOR_END: commit_offset
 #
-# ANCHOR: unsubscribe
+
 def unsubscribe(consumer):
+# ANCHOR: unsubscribe    
     try:
         consumer.unsubscribe()
+        print("Consumer unsubscribed successfully.");
     except Exception as err:
-        print("Failed to unsubscribe consumer. err:{err}")
-
+        print(f"Failed to unsubscribe consumer. topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
+        raise err
+    finally:
+        if consumer:
+            consumer.close()
+            print("Consumer closed successfully."); 
 
 # ANCHOR_END: unsubscribe
 
@@ -154,10 +170,7 @@ if __name__ == "__main__":
         consumer = create_consumer()
         subscribe(consumer)
         seek_offset(consumer)
-        commit_offset(consumer)
-        unsubscribe(consumer)
-    except Exception as err:
-        print(f"Failed to stmt consumer. err:{err}")
+        commit_offset(consumer)      
     finally:
         if consumer:
-            consumer.close()
+            unsubscribe(consumer)

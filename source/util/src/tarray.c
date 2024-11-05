@@ -200,6 +200,7 @@ void* taosArrayPop(SArray* pArray) {
 void* taosArrayGet(const SArray* pArray, size_t index) {
   if (NULL == pArray) {
     terrno = TSDB_CODE_INVALID_PARA;
+    uError("failed to return value from array of null ptr");
     return NULL;
   }
 
@@ -266,8 +267,9 @@ void* taosArrayInsert(SArray* pArray, size_t index, const void* pData) {
 }
 
 void taosArraySet(SArray* pArray, size_t index, void* pData) {
-  ASSERT(index < pArray->size);
-  memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
+  if (index < pArray->size) {
+    memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
+  }
 }
 
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
@@ -291,10 +293,12 @@ void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {
 }
 
 void taosArrayRemove(SArray* pArray, size_t index) {
-  ASSERT(index < pArray->size);
+  if (!(index < pArray->size)) {
+    return;
+  }
 
   if (index == pArray->size - 1) {
-    (void)taosArrayPop(pArray);
+    void* t = taosArrayPop(pArray);
     return;
   }
 
@@ -305,17 +309,17 @@ void taosArrayRemove(SArray* pArray, size_t index) {
 }
 
 void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
-  ASSERT(index + num <= pArray->size);
-
-  if (fp) {
-    for (int32_t i = 0; i < num; i++) {
-      fp(taosArrayGet(pArray, index + i));
+  if (index + num <= pArray->size) {
+    if (fp) {
+      for (int32_t i = 0; i < num; i++) {
+        fp(taosArrayGet(pArray, index + i));
+      }
     }
-  }
 
-  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + num) * pArray->elemSize,
-          (pArray->size - index - num) * pArray->elemSize);
-  pArray->size -= num;
+    memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + num) * pArray->elemSize,
+            (pArray->size - index - num) * pArray->elemSize);
+    pArray->size -= num;
+  }
 }
 
 SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
@@ -349,8 +353,6 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
     if (fn == NULL) {
       memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
     } else {
-      ASSERT(pSrc->elemSize == sizeof(void*));
-
       for (int32_t i = 0; i < pSrc->size; ++i) {
         void* p = fn(taosArrayGetP(pSrc, i));
         memcpy(((char*)dst->pData) + i * dst->elemSize, &p, dst->elemSize);

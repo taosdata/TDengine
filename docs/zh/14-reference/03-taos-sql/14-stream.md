@@ -99,7 +99,7 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子�
 
 ## 流式计算读取历史数据
 
-正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。例如：
+正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。流计算处理历史数据的最大窗口数是2000万，超过限制会报错。例如：
 
 ```sql
 create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
@@ -153,7 +153,7 @@ SELECT * from information_schema.`ins_streams`;
 
 由于窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，则事件时间无法更新，可能导致无法得到最新的计算结果。
 
-因此，流式计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式。
+因此，流式计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式。MAX_DELAY 最小时间是 5s，如果低于 5s，创建流计算时会报错。
 
 MAX_DELAY 模式在窗口关闭时会立即触发计算。此外，当数据写入后，计算触发的时间超过 max delay 指定的时间，则立即触发计算
 
@@ -212,11 +212,11 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 ```sql
 [field1_name,...]
 ```
-用来指定stb_name的列与subquery输出结果的对应关系。如果stb_name的列与subquery输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果stb_name的列与subquery输出结果的数据类型不匹配，会把subquery输出结果的类型转换成对应的stb_name的列的类型。
+在本页文档顶部的 [field1_name,...] 是用来指定 stb_name 的列与 subquery 输出结果的对应关系的。如果 stb_name 的列与 subquery 输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果 stb_name 的列与 subquery 输出结果的数据类型不匹配，会把 subquery 输出结果的类型转换成对应的 stb_name 的列的类型。
 
 对于已经存在的超级表，检查列的schema信息
-1. 检查列的schema信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
-2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与subquery的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
+2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
 ## 自定义TAG
 
@@ -291,3 +291,4 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 CREATE SNODE ON DNODE [id]
 ```
 其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
+从 3.3.4.0 版本开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。

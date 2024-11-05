@@ -29,26 +29,29 @@ namespace TDengineExample
                     // use database
                     client.Exec("USE power");
                     // insert influx line protocol data
-                    client.SchemalessInsert(new[]{lineDemo}, TDengineSchemalessProtocol.TSDB_SML_LINE_PROTOCOL,
+                    client.SchemalessInsert(new[] { lineDemo }, TDengineSchemalessProtocol.TSDB_SML_LINE_PROTOCOL,
                         TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_MILLI_SECONDS, 0, ReqId.GetReqId());
                     // insert opentsdb telnet protocol data
-                    client.SchemalessInsert(new[]{telnetDemo}, TDengineSchemalessProtocol.TSDB_SML_TELNET_PROTOCOL,
+                    client.SchemalessInsert(new[] { telnetDemo }, TDengineSchemalessProtocol.TSDB_SML_TELNET_PROTOCOL,
                         TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_MILLI_SECONDS, 0, ReqId.GetReqId());
                     // insert json data
-                    client.SchemalessInsert(new []{jsonDemo}, TDengineSchemalessProtocol.TSDB_SML_JSON_PROTOCOL,
+                    client.SchemalessInsert(new[] { jsonDemo }, TDengineSchemalessProtocol.TSDB_SML_JSON_PROTOCOL,
                         TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_NOT_CONFIGURED, 0, ReqId.GetReqId());
                 }
+
+                Console.WriteLine("Inserted data with schemaless successfully.");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert data with schemaless; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert data with schemaless, ErrCode: " + e.Code +
+                                  ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert data with schemaless; Err:" + e.Message);
+                Console.WriteLine("Failed to insert data with schemaless, ErrMessage: " + e.Message);
                 throw;
             }
         }

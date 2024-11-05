@@ -13,15 +13,14 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+    type_name [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
 
 table_option: {
     COMMENT 'string_value'
-  | SMA(col_name [, col_name] ...)
-  | TTL value
+  | SMA(col_name [, col_name] ...)  
 }
 ```
 

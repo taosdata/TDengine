@@ -142,10 +142,10 @@ typedef struct SQWTaskCtx {
 
   int8_t events[QW_EVENT_MAX];
 
-  SArray    *explainRes;
-  void      *taskHandle;
-  void      *sinkHandle;
-  SArray    *tbInfo; // STbVerInfo
+  SArray *explainRes;
+  void   *taskHandle;
+  void   *sinkHandle;
+  SArray *tbInfo;  // STbVerInfo
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
@@ -201,7 +201,7 @@ typedef struct SQWorker {
   SQWStat   stat;
   int32_t  *destroyed;
 
-  int8_t    nodeStopped;
+  int8_t nodeStopped;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {
@@ -212,7 +212,8 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
-#define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
+#define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) \
+  (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
 
 #define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId
 #define QW_IDS()       sId, qId, tId, rId, eId
@@ -229,31 +230,31 @@ typedef struct SQWorkerMgmt {
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
 #define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
-#define QW_SET_PHASE(ctx, _value)                                            \
-  do {                                                                       \
-    switch (_value) {                                                        \
-      case QW_PHASE_PRE_FETCH:                                               \
-        ctx->inFetch = 1;                                                    \
-        break;                                                               \
-      case QW_PHASE_POST_FETCH:                                              \
-        ctx->inFetch = 0;                                                    \
-        break;                                                               \
-      case QW_PHASE_PRE_QUERY:                                               \
-      case QW_PHASE_POST_QUERY:                                              \
-      case QW_PHASE_PRE_CQUERY:                                              \
-      case QW_PHASE_POST_CQUERY:                                             \
-        atomic_store_8(&(ctx)->phase, _value);                               \
-        break;                                                               \
-      default:                                                               \
-        break;                                                               \
-    }                                                                        \
+#define QW_SET_PHASE(ctx, _value)              \
+  do {                                         \
+    switch (_value) {                          \
+      case QW_PHASE_PRE_FETCH:                 \
+        ctx->inFetch = 1;                      \
+        break;                                 \
+      case QW_PHASE_POST_FETCH:                \
+        ctx->inFetch = 0;                      \
+        break;                                 \
+      case QW_PHASE_PRE_QUERY:                 \
+      case QW_PHASE_POST_QUERY:                \
+      case QW_PHASE_PRE_CQUERY:                \
+      case QW_PHASE_POST_CQUERY:               \
+        atomic_store_8(&(ctx)->phase, _value); \
+        break;                                 \
+      default:                                 \
+        break;                                 \
+    }                                          \
   } while (0)
 
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
-#define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
-#define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
+#define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
+#define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)
 #define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QTID(id, qId, tId, eId)                              \
@@ -309,24 +310,24 @@ typedef struct SQWorkerMgmt {
 #define QW_SCH_ELOG(param, ...) qError("QW:%p SID:%" PRIx64 " " param, mgmt, sId, __VA_ARGS__)
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p SID:%" PRIx64 " " param, mgmt, sId, __VA_ARGS__)
 
-#define QW_TASK_ELOG(param, ...) qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
-#define QW_TASK_WLOG(param, ...) qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
-#define QW_TASK_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+#define QW_TASK_ELOG(param, ...) qError("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+#define QW_TASK_WLOG(param, ...) qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+#define QW_TASK_DLOG(param, ...) qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOGL(param, ...) \
-  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+  qDebugL("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
 
-#define QW_TASK_ELOG_E(param) qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
-#define QW_TASK_WLOG_E(param) qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
-#define QW_TASK_DLOG_E(param) qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
+#define QW_TASK_ELOG_E(param) qError("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
+#define QW_TASK_WLOG_E(param) qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
+#define QW_TASK_DLOG_E(param) qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
 
 #define QW_SCH_TASK_ELOG(param, ...)                                                                            \
-  qError("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
+  qError("QW:%p SID:0x%" PRIx64 ",qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
          __VA_ARGS__)
 #define QW_SCH_TASK_WLOG(param, ...)                                                                           \
-  qWarn("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
+  qWarn("QW:%p SID:0x%" PRIx64 ",qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
         __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...)                                                                            \
-  qDebug("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
+  qDebug("QW:%p SID:0x%" PRIx64 ",qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, \
          __VA_ARGS__)
 
 #define QW_LOCK_DEBUG(...)     \
@@ -341,34 +342,58 @@ typedef struct SQWorkerMgmt {
 #define QW_LOCK(type, _lock)                                                                       \
   do {                                                                                             \
     if (QW_READ == (type)) {                                                                       \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                \
+      if (atomic_load_32((_lock)) < 0) {                                                           \
+        qError("invalid lock value before read lock");                                             \
+        break;                                                                                     \
+      }                                                                                            \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                  \
+      if (atomic_load_32((_lock)) <= 0) {                                                          \
+        qError("invalid lock value after read lock");                                              \
+        break;                                                                                     \
+      }                                                                                            \
     } else {                                                                                       \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");               \
+      if (atomic_load_32((_lock)) < 0) {                                                           \
+        qError("invalid lock value before write lock");                                            \
+        break;                                                                                     \
+      }                                                                                            \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");  \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                 \
+        qError("invalid lock value after write lock");                                             \
+        break;                                                                                     \
+      }                                                                                            \
     }                                                                                              \
   } while (0)
 
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                \
+      if (atomic_load_32((_lock)) <= 0) {                                                           \
+        qError("invalid lock value before read unlock");                                            \
+        break;                                                                                      \
+      }                                                                                             \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                \
+      if (atomic_load_32((_lock)) < 0) {                                                            \
+        qError("invalid lock value after read unlock");                                             \
+        break;                                                                                      \
+      }                                                                                             \
     } else {                                                                                        \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");   \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                  \
+        qError("invalid lock value before write unlock");                                           \
+        break;                                                                                      \
+      }                                                                                             \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");               \
+      if (atomic_load_32((_lock)) < 0) {                                                            \
+        qError("invalid lock value after write unlock");                                            \
+        break;                                                                                      \
+      }                                                                                             \
     }                                                                                               \
   } while (0)
 

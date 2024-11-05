@@ -63,7 +63,7 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
 
   int64_t ts = smlGetTimeValue(data, len, fromPrecision, toPrecision);
   if (unlikely(ts == -1)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", data);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid timestamp", data);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   return ts;
@@ -84,7 +84,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   }
 
   if (pVal->value[0] == 'l' || pVal->value[0] == 'L') {  // nchar
-    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= 3) {
+    if (pVal->length >= NCHAR_ADD_LEN && pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"') {
       pVal->type = TSDB_DATA_TYPE_NCHAR;
       pVal->length -= NCHAR_ADD_LEN;
       if (pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
@@ -97,14 +97,14 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   }
 
   if (pVal->value[0] == 'g' || pVal->value[0] == 'G') {  // geometry
-    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= sizeof("POINT")+3) {
+    if (pVal->length >= NCHAR_ADD_LEN && pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"') {
       int32_t code = initCtxGeomFromText();
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
       char* tmp = taosMemoryCalloc(pVal->length, 1);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
       code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
@@ -124,7 +124,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   }
 
   if (pVal->value[0] == 'b' || pVal->value[0] == 'B') {  // varbinary
-    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= 3) {
+    if (pVal->length >= NCHAR_ADD_LEN && pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"') {
       pVal->type = TSDB_DATA_TYPE_VARBINARY;
       if(isHex(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN)){
         if(!isValidateHex(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN)){
@@ -150,7 +150,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         }
         void *data = taosMemoryMalloc(pVal->length);
         if(data == NULL){
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         (void)memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
         pVal->value = data;
@@ -271,7 +271,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     if (keyEscaped) {
       char *tmp = (char *)taosMemoryMalloc(keyLen);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, key, keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, keyLen);
@@ -280,7 +280,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     if (valueEscaped) {
       char *tmp = (char *)taosMemoryMalloc(valueLen);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, value, valueLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, valueLen);
@@ -294,11 +294,11 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         .keyEscaped = keyEscaped,
         .valueEscaped = valueEscaped};
     if(taosArrayPush(preLineKV, &kv) == NULL){
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
-      return TSDB_CODE_TSC_INVALID_JSON;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
 
     cnt++;
@@ -311,31 +311,24 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 }
 
 static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *elements) {
+  int32_t code = 0;
+  int32_t lino = 0;
   bool isSameCTable = IS_SAME_CHILD_TABLE;
   if(isSameCTable){
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t ret = 0;
   if(info->dataFormat){
-    ret = smlProcessSuperTable(info, elements);
-    if(ret != 0){
-      if(info->reRun){
-        return TSDB_CODE_SUCCESS;
-      }
-      return ret;
-    }
+    SML_CHECK_CODE(smlProcessSuperTable(info, elements));
   }
-
-  ret = smlProcessTagLine(info, sql, sqlEnd);
-  if(ret != 0){
-    if (info->reRun){
-      return TSDB_CODE_SUCCESS;
-    }
-    return ret;
-  }
-
+  SML_CHECK_CODE(smlProcessTagLine(info, sql, sqlEnd));
   return smlProcessChildTable(info, elements);
+
+END:
+  if(info->reRun){
+    return TSDB_CODE_SUCCESS;
+  }
+  RETURN
 }
 
 static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *currElement) {
@@ -353,7 +346,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+        smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
@@ -370,7 +363,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     }
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid key or key is too long than 64", key);
+      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid key or key is too long than 64", key);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -404,25 +397,25 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     valueLen = *sql - value;
 
     if (unlikely(quoteNum != 0 && quoteNum != 2)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "unbalanced quotes", value);
+      smlBuildInvalidDataMsg(&info->msgBuf, "SML line unbalanced quotes", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (unlikely(valueLen == 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", value);
+      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid value", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
     SSmlKv  kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
     int32_t ret = smlParseValue(&kv, &info->msgBuf);
     if (ret != TSDB_CODE_SUCCESS) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
+      uError("SML:0x%" PRIx64 " %s parse value error:%d.", info->id, __FUNCTION__, ret);
       return ret;
     }
 
     if (keyEscaped) {
       char *tmp = (char *)taosMemoryMalloc(kv.keyLen);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, key, kv.keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, kv.keyLen);
@@ -433,11 +426,10 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     if (valueEscaped) {
       char *tmp = (char *)taosMemoryMalloc(kv.length);
       if (tmp == NULL){
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       (void)memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
-      ASSERT(kv.type != TSDB_DATA_TYPE_GEOMETRY);
       if(kv.type == TSDB_DATA_TYPE_VARBINARY){
         taosMemoryFree((void*)kv.value);
       }
@@ -447,6 +439,13 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 
     if (info->dataFormat) {
       bool isAligned = isSmlColAligned(info, cnt, &kv);
+      if (kv.type == TSDB_DATA_TYPE_BINARY && valueEscaped) {
+        if (taosArrayPush(info->escapedStringList, &kv.value) == NULL){
+          freeSSmlKv(&kv);
+          return terrno;
+        }
+        kv.value = NULL;
+      }
       freeSSmlKv(&kv);
       if(!isAligned){
         return TSDB_CODE_SUCCESS;
@@ -455,11 +454,13 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
       if (currElement->colArray == NULL) {
         currElement->colArray = taosArrayInit_s(sizeof(SSmlKv), 1);
         if (currElement->colArray == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          freeSSmlKv(&kv);
+          return terrno;
         }
       }
       if (taosArrayPush(currElement->colArray, &kv) == NULL){  // reserve for timestamp
-        return TSDB_CODE_OUT_OF_MEMORY;
+        freeSSmlKv(&kv);
+        return terrno;
       }
     }
 
@@ -497,7 +498,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   }
   elements->measureLen = sql - elements->measure;
   if (unlikely(IS_INVALID_TABLE_LEN(elements->measureLen - measureLenEscaped))) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "measure is empty or too large than 192", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line measure is empty or too large than 192", NULL);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
@@ -544,7 +545,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   elements->colsLen = sql - elements->cols;
   if (unlikely(elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "cols is empty", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols is empty", NULL);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -561,7 +562,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   int64_t ts = smlParseInfluxTime(info, elements->timestamp, elements->timestampLen);
   if (unlikely(ts <= 0)) {
-    uError("SML:0x%" PRIx64 " smlParseTS error:%" PRId64, info->id, ts);
+    uError("SML:0x%" PRIx64 " %s error:%" PRId64, info->id, __FUNCTION__, ts);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
 

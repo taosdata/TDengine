@@ -1,6 +1,6 @@
 ---
-sidebar_label: 安装包
-title: 使用安装包立即开始
+sidebar_label: 用安装包快速体验
+title: 使用安装包快速体验 TDengine
 description: 使用安装包快速体验 TDengine
 ---
 
@@ -14,7 +14,9 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 
 为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
 
-在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。需要注意的是，RPM 和 Deb 包不含 `taosdump` 和 TDinsight 安装脚本，这些工具需要通过安装 taosTools 包获得。TDengine 也提供 Windows x64 平台和 macOS x64/m1 平台的安装包。
+在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统，用户可以根据自己的运行环境自行选择。同时我们也提供了 tar.gz 格式安装包，以及 `apt-get` 工具从线上进行安装。
+
+此外，TDengine 也提供 macOS x64/m1 平台的 pkg 安装包。
 
 ## 运行环境要求
 在linux系统中，运行环境最低要求如下:
@@ -146,7 +148,7 @@ Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的�
 </Tabs>
 
 :::info
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases/tdengine)。
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](https://docs.taosdata.com/releases/tdengine/)。
 :::
 
 :::note
@@ -263,7 +265,7 @@ SELECT * FROM t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/components/taos-cli/)。
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/tools/taos-cli/)。
 
 ## 快速体验
 
@@ -277,7 +279,7 @@ taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能�
 taosBenchmark -y
 ```
 
-系统将自动在数据库 test 下创建一张名为 meters的超级表。这张超级表将包含 10 000 张子表，表名从 d0 到 d9999，每张表包含 10,000条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4个字段。时间戳范围从“2017-07-14 10:40:00 000”到“2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
+系统将自动在数据库 test 下创建一张名为 meters的超级表。这张超级表将包含 10,000 张子表，表名从 d0 到 d9999，每张表包含 10,000条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4个字段。时间戳范围从 “2017-07-14 10:40:00 000” 到 “2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
 
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
@@ -286,7 +288,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/components/taosbenchmark)
+有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 
@@ -317,4 +319,4 @@ SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 1
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
 
-在上面的查询中，使用系统提供的伪列_wstart 来给出每个窗口的开始时间。
+在上面的查询中，使用系统提供的伪列 _wstart 来给出每个窗口的开始时间。

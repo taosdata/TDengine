@@ -14,7 +14,7 @@ import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` 提供两种形式的连接器
 * **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
-* **Websocket 连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。（自 v3.0.1 起）
+* **WebSocket 连接**，通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。（自 v3.0.1 起）
 
 连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
@@ -67,9 +67,13 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 | VARBINARY         | byte[]           |
 | GEOMETRY          | byte[]           |
 
-:::note
-JSON 类型仅在 tag 中支持。
-:::
+**注意**：JSON 类型仅在 tag 中支持。
+GEOMETRY类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)
+WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
+
+## 示例程序汇总
+
+示例程序源码请参考：[示例程序](https://github.com/taosdata/taos-connector-dotnet/tree/3.0/examples)
 
 ## API 参考
 

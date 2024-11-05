@@ -208,7 +208,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   if (p != NULL) {
     void* tmp = taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
     if (!tmp) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
@@ -225,7 +225,10 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     } else {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
-
+    if (TSDB_CODE_SUCCESS != pOperator->pTaskInfo->code) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
+      T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
+    }
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       return NULL;
     } else {
@@ -233,7 +236,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       taosArrayRemove(pExchangeInfo->pResultBlockList, 0);
       void* tmp = taosArrayPush(pExchangeInfo->pRecycledBlocks, &p);
       if (!tmp) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
@@ -302,16 +305,10 @@ _end:
   return code;
 }
 
-static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = loadRemoteDataNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const char* id) {
   pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
   if (pInfo->pSourceDataInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pInfo->dynamicOp) {
@@ -323,7 +320,7 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
   if (!pInfo->pTaskId) {
     return terrno;
   }
-  strncpy(pInfo->pTaskId, id, len);
+  tstrncpy(pInfo->pTaskId, id, len);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
@@ -332,7 +329,7 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
     SSourceDataInfo* pDs = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
     if (pDs == NULL) {
       taosArrayDestroyEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -358,7 +355,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   if (pInfo->pSources == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pExNode->node.dynamicOp) {
@@ -378,7 +375,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     void* tmp = taosArrayPush(pInfo->pSources, pNode);
     if (!tmp) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     SExchangeSrcIndex idx = {.srcIdx = i, .inUseIdx = -1};
     int32_t           code =
@@ -390,22 +387,28 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
-  pInfo->self = taosAddRef(exchangeObjRefPool, pInfo);
-
+  int64_t refId = taosAddRef(exchangeObjRefPool, pInfo);
+  if (refId < 0) {
+    int32_t code = terrno;
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  } else {
+    pInfo->self = refId;
+  }
 
   return initDataSource(numOfSources, pInfo, id);
 }
 
 int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t        code = 0;
   int32_t        lino = 0;
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -438,10 +441,10 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -456,13 +459,15 @@ _error:
     pOperator->info = NULL;
     destroyOperator(pOperator);
   }
-  pTaskInfo->code = code;
   return code;
 }
 
 void destroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
-  (void)taosRemoveRef(exchangeObjRefPool, pExInfo->self);
+  int32_t        code = taosRemoveRef(exchangeObjRefPool, pExInfo->self);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
 }
 
 void freeBlock(void* pParam) {
@@ -479,15 +484,20 @@ void freeSourceDataInfo(void* p) {
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
-  SExchangeInfo* pExInfo = (SExchangeInfo*)param;
-  for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
-    int64_t* pRpcHandle = taosArrayGet(pExInfo->pFetchRpcHandles, i);
-    if (*pRpcHandle > 0) {
-      SDownstreamSourceNode* pSource = taosArrayGet(pExInfo->pSources, i);
-      (void)asyncFreeConnById(pExInfo->pTransporter, *pRpcHandle);
-    }
+  if (param == NULL) {
+    return;
   }
-  taosArrayDestroy(pExInfo->pFetchRpcHandles);
+  SExchangeInfo* pExInfo = (SExchangeInfo*)param;
+  if (pExInfo->pFetchRpcHandles) {
+    for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
+      int64_t* pRpcHandle = taosArrayGet(pExInfo->pFetchRpcHandles, i);
+      if (*pRpcHandle > 0) {
+        SDownstreamSourceNode* pSource = taosArrayGet(pExInfo->pSources, i);
+        (void)asyncFreeConnById(pExInfo->pTransporter, *pRpcHandle);
+      }
+    }
+    taosArrayDestroy(pExInfo->pFetchRpcHandles);
+  }
 
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
@@ -498,7 +508,10 @@ void doDestroyExchangeOperatorInfo(void* param) {
   blockDataDestroy(pExInfo->pDummyBlock);
   tSimpleHashCleanup(pExInfo->pHashSources);
 
-  (void)tsem_destroy(&pExInfo->ready);
+  int32_t code = tsem_destroy(&pExInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   taosMemoryFreeClear(pExInfo->pTaskId);
 
   taosMemoryFreeClear(param);
@@ -507,6 +520,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
 int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SFetchRspHandleWrapper* pWrapper = (SFetchRspHandleWrapper*)param;
 
+  taosMemoryFreeClear(pMsg->pEpSet);
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
@@ -515,9 +529,17 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   int32_t          index = pWrapper->sourceIndex;
-  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
-  *pRpcHandle = -1;
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
+
+  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
+  if (pRpcHandle != NULL) {
+    int32_t ret = asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+    if (ret != 0) {
+      qDebug("failed to free rpc handle, code:%s, %p", tstrerror(ret), pExchangeInfo);
+    }
+    *pRpcHandle = -1;
+  }
+
   if (!pSourceDataInfo) {
     return terrno;
   }
@@ -551,31 +573,34 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   code = tsem_post(&pExchangeInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
-    code = TAOS_SYSTEM_ERROR(code);
     qError("failed to invoke post when fetch rsp is ready, code:%s, %p", tstrerror(code), pExchangeInfo);
+    return code;
   }
 
-  (void)taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+  code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
   return code;
 }
 
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
   if (NULL == pScan) {
     taosMemoryFreeClear(*ppRes);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pScan->pUidList = taosArrayDup(pUidList, NULL);
   if (NULL == pScan->pUidList) {
     taosMemoryFree(pScan);
     taosMemoryFreeClear(*ppRes);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pScan->tableSeq = tableSeq;
 
@@ -839,6 +864,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
+  SSDataBlock*       pb = NULL;
 
   char* pNextStart = pRetrieveRsp->data;
   char* pStart = pNextStart;
@@ -863,7 +889,6 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   }
 
   while (index++ < pRetrieveRsp->numOfBlocks) {
-    SSDataBlock* pb = NULL;
     pStart = pNextStart;
 
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
@@ -879,27 +904,29 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     int32_t rawLen = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
-    ASSERT(compLen <= rawLen && compLen != 0);
+    QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-      ASSERT(t == rawLen);
+      QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pStart = pDataInfo->decompBuf;
     }
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
     if (code != 0) {
       taosMemoryFreeClear(pDataInfo->pRsp);
-      return code;
+      goto _end;
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    pb = NULL;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pb);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -1026,7 +1053,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
     void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
     if (!tmp) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     pIdx->inUseIdx = taosArrayGetSize(pExchangeInfo->pSourceDataInfo) - 1;
   } else {
@@ -1077,6 +1104,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) ||
       (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorGetParam)) {
     return TSDB_CODE_SUCCESS;
@@ -1084,23 +1112,26 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
 
   if (pExchangeInfo->dynamicOp) {
     code = addDynamicExchangeSource(pOperator);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t st = taosGetTimestampUs();
 
   if (!pExchangeInfo->seqLoadData) {
-    int32_t code = prepareConcurrentlyLoad(pOperator);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    code = prepareConcurrentlyLoad(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
     pExchangeInfo->openedTs = taosGetTimestampUs();
   }
 
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1180,7 +1211,14 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
       return pTask->code;
     }
   }
-  (void)tsem_wait(&pExchangeInfo->ready);
+
+  code = tsem_wait(&pExchangeInfo->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTask->code = code;
+    return pTask->code;
+  }
+
   if (pTask->pWorkerCb) {
     code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
     if (code != TSDB_CODE_SUCCESS) {

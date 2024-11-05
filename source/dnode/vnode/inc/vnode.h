@@ -49,7 +49,9 @@ typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
-int32_t vnodeInit(int32_t nthreads);
+typedef void (*StopDnodeFp)();
+
+int32_t vnodeInit(int32_t nthreads, StopDnodeFp stopDnodeFp);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
 bool    vnodeShouldRemoveWal(SVnode *pVnode);
@@ -123,7 +125,7 @@ int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
-int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
@@ -162,7 +164,7 @@ typedef struct STsdbReader STsdbReader;
 int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                              SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
 int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
-void         tsdbReaderSetId2(STsdbReader *pReader, const char *idstr);
+int32_t      tsdbReaderSetId(void *pReader, const char *idstr);
 void         tsdbReaderClose2(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
@@ -184,7 +186,7 @@ int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, 
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
                                 SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                              SArray *pTableUids);
+                              SArray *pTableUids, bool *pGotAllRows);
 void    tsdbCacherowsReaderClose(void *pReader);
 
 void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
@@ -241,7 +243,7 @@ int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, int64_t maxVer, con
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
+int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, int64_t *createTime);
 int32_t tqGetStreamExecInfo(SVnode *pVnode, int64_t streamId, int64_t *pDelay, bool *fhFinished);
 
 // sma

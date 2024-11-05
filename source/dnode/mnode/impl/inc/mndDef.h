@@ -70,7 +70,7 @@ typedef enum {
   MND_OPER_WRITE_DB,
   MND_OPER_READ_DB,
   MND_OPER_READ_OR_WRITE_DB,
-  MND_OPER_SHOW_VARIBALES,
+  MND_OPER_SHOW_VARIABLES,
   MND_OPER_SUBSCRIBE,
   MND_OPER_CREATE_TOPIC,
   MND_OPER_DROP_TOPIC,
@@ -78,6 +78,9 @@ typedef enum {
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
   MND_OPER_BALANCE_VGROUP_LEADER,
+  MND_OPER_CREATE_ANODE,
+  MND_OPER_UPDATE_ANODE,
+  MND_OPER_DROP_ANODE
 } EOperType;
 
 typedef enum {
@@ -106,6 +109,7 @@ typedef enum {
 //  TRN_CONFLICT_TOPIC = 4,
 //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
+  TRN_CONFLICT_TSMA = 7,
 } ETrnConflct;
 
 typedef enum {
@@ -230,6 +234,24 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
   char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
+
+typedef struct {
+  int32_t nameLen;
+  char*   name;
+} SAnodeAlgo;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  urlLen;
+  int32_t  numOfAlgos;
+  int32_t  status;
+  SRWLatch lock;
+  char*    url;
+  SArray** algos;
+} SAnodeObj;
 
 typedef struct {
   int32_t    id;
@@ -597,6 +619,8 @@ typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
   char     clientId[TSDB_CLIENT_ID_LEN];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;

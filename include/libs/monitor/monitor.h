@@ -30,6 +30,8 @@ extern "C" {
 #define MON_VER_LEN    12
 #define MON_LOG_LEN    1024
 
+#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
+
 typedef struct {
   int64_t   ts;
   ELogLevel level;
@@ -216,6 +218,8 @@ typedef struct {
 } SDmNotifyHandle;
 
 int32_t monInit(const SMonCfg *pCfg);
+void    monSetDnodeId(int32_t dnodeId);
+void    monInitVnode();
 void    monCleanup();
 void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
 int32_t monGetLogs(SMonLogs *logs);

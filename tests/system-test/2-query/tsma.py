@@ -693,7 +693,7 @@ class TDTestCase:
             "======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     db,
                     'dropFlag':   1,
-                    'vgroups':    2,
+                    'vgroups':    4,
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -871,6 +871,7 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
+        tdSql.query('show create table test.meters')
         self.check(ctxs)
         if not ignore_some_tests:
             tdSql.execute('create database db2')
@@ -1272,6 +1273,21 @@ class TDTestCase:
         else:
             tdLog.debug(f'wait query succeed: {sql} to return {expected_row_num}, got: {tdSql.getRows()}')
 
+    def wait_query_err(self, sql: str, timeout_in_seconds: float, err):
+        timeout = timeout_in_seconds
+        while timeout > 0:
+            try:
+                tdSql.query(sql, queryTimes=1)
+                time.sleep(1)
+                timeout = timeout - 1
+            except:
+                tdSql.error(sql, err);
+                break
+        if timeout <= 0:
+            tdLog.exit(f'failed to wait query: {sql} to return error timeout: {timeout_in_seconds}s')
+        else:
+            tdLog.debug(f'wait query error succeed: {sql}')
+
     def test_drop_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
@@ -1337,15 +1353,15 @@ class TDTestCase:
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
-        self.wait_query('show test.tables like "%t0"', 0, wait_query_seconds)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t0')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop multi tables
         tdSql.execute('drop table test.t3, test.t4')
-        self.wait_query('show test.tables like "%t3"', 0, wait_query_seconds)
-        self.wait_query('show test.tables like "%t4"', 0, wait_query_seconds)
-
-        tdSql.query('show test.tables like "%tsma%"')
-        tdSql.checkRows(0)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t3')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
+        res_tb = TSMAQCBuilder().md5('1.test.tsma1_t4')
+        self.wait_query_err(f'desc test.`{res_tb}`', wait_query_seconds, -2147473917)
 
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
@@ -1476,18 +1492,18 @@ class TDTestCase:
         tdSql.error(sql, -2147473920)  # syntax error 
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(1m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(7m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(11m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '20m', 'meters')
 
         sql = 'create recursive tsma tsma3 on test.tsma2 interval(30m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter    
+        tdSql.error(sql, -2147471086)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma2', 'tsma3', 'test', '40m', 'meters')
 

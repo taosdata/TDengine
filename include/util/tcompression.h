@@ -72,8 +72,8 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t     tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
-                           uint32_t intervals, int32_t ifAdtFse, const char *compressor);
+void tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                    int32_t ifAdtFse, const char *compressor);
 
 void tsCompressExit();
 
@@ -153,11 +153,11 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 int32_t getWordLength(char type);
 
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
-int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output);
+int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
+int32_t tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);
 int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
                                     bool bigEndian);
-int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
 
 /*************************************************************************
  *                  REGULAR COMPRESSION 2
@@ -214,8 +214,8 @@ typedef int32_t (*__data_compress_init)(char *lossyColumns, float fPrecision, do
                                         uint32_t intervals, int32_t ifAdtFse, const char *compressor);
 typedef int32_t (*__data_compress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                            const char type);
-typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
-                                             const char type);
+typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, int32_t ninput, const int32_t nelements,
+                                             char *const output, const char type);
 
 typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                            int32_t outputSize, const char type, int8_t level);
@@ -268,7 +268,7 @@ typedef struct {
   uint8_t lvl[3];  // l[0] = 'low', l[1] = 'mid', l[2] = 'high'
 } TCmprLvlSet;
 
-int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
+void tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
 
 #define DEFINE_VAR(cmprAlg)                   \
   uint8_t l1 = COMPRESS_L1_TYPE_U32(cmprAlg); \

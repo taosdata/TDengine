@@ -15,8 +15,14 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 
 首先检查下面服务：
 - TDengine 已经安装并正常运行，此仪表盘需要 TDengine 3.0.0.0 及以上，并开启监控上报配置，具体配置请参考：[TDengine 监控配置](../taosd/#监控相关)。
-- taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 使用手册](../taosadapter)
-- taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 使用手册](../taoskeeper)
+- taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 参考手册](../taosadapter)
+- taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 参考手册](../taoskeeper)
+- Grafana 服务已安装并正常运行。我们建议您使用最新的 Grafana 版本，TDInsight 支持 Grafana 7.5 及以上版本。
+  :::info
+
+  下文介绍中，都以 Grafana v11.0.0 版本为例，其他版本功能可能有差异，请参考 [Grafana 官网](https://grafana.com/docs/grafana/latest/)。
+
+  :::
 
 然后记录以下信息：
 
@@ -24,97 +30,18 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 - taosAdapter 集群认证信息，可使用用户名及密码。
 - taosKeeper 记录监控指标的数据库名称。
 
-## 安装和启动 Grafana
-
-我们建议您使用最新的 Grafana 版本，TDInsight 支持 Grafana 7.5 及以上版本。您可以在任何[支持的操作系统](https://grafana.com/docs/grafana/latest/installation/requirements/#supported-operating-systems)中，按照 [Grafana 官方文档安装说明](https://grafana.com/docs/grafana/latest/installation/) 安装 Grafana。
-安装后请参考 [启动 Grafana](https://grafana.com/docs/grafana/latest/setup-grafana/start-restart-grafana/) 启动 Grafana 服务。  
-
-安装完成后就可以在 Web 浏览器中打开 Grafana 网址，默认是：`http://localhost:3000`。 默认用户名/密码都是 `admin`。Grafana 会要求在首次登录后更改密码。  
-
-:::info
-
-下文介绍中，都以 Grafana v11.0.0 版本为例，其他版本功能可能有差异，请参考 [Grafana 官网](https://grafana.com/docs/grafana/latest/)。
-
-:::
-
-## 安装 TDengine 数据源插件
-
-TDInsight 支持图形界面安装、手动安装和脚本安装三种安装方式，一般建议图形界面安装。对于 Grafana 8.5 以下版本可以使用手动安装和脚本安装方式。
-
-<Tabs defaultValue="manual" groupId="deploy">
-<TabItem value="gui" label="图形界面安装">
-
-使用 Grafana 最新版本（8.5+），您可以在 Grafana 中[浏览和管理插件](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog)。在 Grafana 管理界面中的 **Configurations > Plugins** 页面直接搜索 `TDengine` 并按照提示安装。
-
-</TabItem>
-<TabItem value="manual" label="手动安装">
-
-从 GitHub 安装 TDengine 最新版数据源插件。
-
-```bash
-get_latest_release() {
-  curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
-    grep '"tag_name":' |
-    sed -E 's/.*"v([^"]+)".*/\1/'
-}
-TDENGINE_PLUGIN_VERSION=$(get_latest_release)
-sudo grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
-  plugins install tdengine-datasource
-```
-
-:::note
-3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
-
-```ini
-[plugins]
-allow_loading_unsigned_plugins = tdengine-datasource
-```
-
-:::
-
-</TabItem>
-
-<TabItem value="auto" label="脚本安装">
-
-我们提供了一个自动化安装脚本 [TDinsight.sh](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) 脚本以便用户快速进行安装配置。
-
-您可以通过 `wget` 或其他工具下载该脚本：
-
-```bash
-wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
-chmod +x TDinsight.sh
-./TDinsight.sh
-```
-
-这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。
-
-1. 假设您在同一台主机上使用 TDengine 和 Grafana 服务。 运行 `./TDinsight.sh` 并打开 Grafana 页面就可以看到 TDinsight 仪表盘了。
-2. 假设您在主机 `tdengine` 上启动 TDengine 数据库，taosAdapter 的 HTTP 监听端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：`./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord`
-
-详细的使用方法请参考 [TDinsight.sh 详细说明](./#附录)
-
-</TabItem>
-</Tabs>
 
 
-## 添加 TDengine 数据源
+## 安装 TDengine 数据源插件和配置数据源
+安装 Grafana TDengine 数据源插件和配置数据源的步骤请参考：[与  Grafana 集成](../../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)
 
-安装完毕后， 点击 “Connections” -> “Data sources“， 然后选择 ”tdengine-datasource“，输入 TDengine 相关配置：
-- Host： TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
-- User：TDengine 用户名。
-- Password：TDengine 用户密码。
-
-点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`。  
-
-
-## 导入 TDengine V3 仪表盘
+## 导入 TDinsightV3 仪表盘
 
 在配置 TDengine 数据源界面，点击 “Dashboards” tab，再点击 ”import” 导入 ”TDengine for 3.x” 仪表盘。
 导入成功后可以进入这个 dashboard，在左上角 ”Log from“ 选项中选择 taosKeeper 中设置的记录监控指标的数据库就可以看到监控结果。
 
 
-##  TDengine V3 仪表盘详情
+##  TDinsightV3 仪表盘详情
 
 TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，比如 dnodes、 mnodes、 vnodes 和数据库等。
 主要分为集群状态、DNodes 概述、MNode 概述、请求、数据库、DNode 资源使用情况和 taosAdapter 监控信息。下面我们分别详细介绍。  

@@ -15,6 +15,7 @@
 
 #include "builtinsimpl.h"
 #include "function.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
@@ -71,304 +72,10 @@
 
 #define GET_INVOKE_INTRINSIC_THRESHOLD(_bits, _bytes) ((_bits) / ((_bytes) << 3u))
 
-static void calculateRounds(int32_t numOfRows, int32_t bytes, int32_t* remainder, int32_t* rounds, int32_t* width) {
-  const int32_t bitWidth = 256;
-
-  *width = (bitWidth >> 3u) / bytes;
-  *remainder = numOfRows % (*width);
-  *rounds = numOfRows / (*width);
-}
-
-#define EXTRACT_MAX_VAL(_first, _sec, _width, _remain, _v) \
-  (_v) = TMAX((_first)[0], (_first)[1]);                   \
-  for (int32_t k = 1; k < (_width); ++k) {                 \
-    (_v) = TMAX((_v), (_first)[k]);                        \
-  }                                                        \
-                                                           \
-  for (int32_t j = 0; j < (_remain); ++j) {                \
-    if ((_v) < (_sec)[j]) {                                \
-      (_v) = (_sec)[j];                                    \
-    }                                                      \
-  }
-
-#define EXTRACT_MIN_VAL(_first, _sec, _width, _remain, _v) \
-  (_v) = TMIN((_first)[0], (_first)[1]);                   \
-  for (int32_t k = 1; k < (_width); ++k) {                 \
-    (_v) = TMIN((_v), (_first)[k]);                        \
-  }                                                        \
-                                                           \
-  for (int32_t j = 0; j < (_remain); ++j) {                \
-    if ((_v) > (_sec)[j]) {                                \
-      (_v) = (_sec)[j];                                    \
-    }                                                      \
-  }
-
-static int8_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal) {
-  int8_t        v = 0;
-  const int8_t* p = pData;
-
-  int32_t width, remain, rounds;
-  calculateRounds(numOfRows, sizeof(int8_t), &remain, &rounds, &width);
-
-#if __AVX2__
-  __m256i next;
-  __m256i initVal = _mm256_lddqu_si256((__m256i*)p);
-  p += width;
-
-  if (!isMinFunc) {  // max function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epi8(initVal, next);
-        p += width;
-      }
-
-      const int8_t* q = (const int8_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    } else {  // unsigned value
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epu8(initVal, next);
-        p += width;
-      }
-
-      const uint8_t* q = (const uint8_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    }
-
-  } else {  // min function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epi8(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const int8_t* q = (const int8_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    } else {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epu8(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const uint8_t* q = (const uint8_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    }
-  }
-#endif
-
-  return v;
-}
-
-static int16_t i16VectorCmpAVX2(const int16_t* pData, int32_t numOfRows, bool isMinFunc, bool signVal) {
-  int16_t        v = 0;
-  const int16_t* p = pData;
-
-  int32_t width, remain, rounds;
-  calculateRounds(numOfRows, sizeof(int16_t), &remain, &rounds, &width);
-
-#if __AVX2__
-  __m256i next;
-  __m256i initVal = _mm256_lddqu_si256((__m256i*)p);
-  p += width;
-
-  if (!isMinFunc) {  // max function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epi16(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const int16_t* q = (const int16_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    } else {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epu16(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const uint16_t* q = (const uint16_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    }
-
-  } else {  // min function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epi16(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const int16_t* q = (const int16_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    } else {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epi16(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const uint16_t* q = (const uint16_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    }
-  }
-#endif
-
-  return v;
-}
-
-static int32_t i32VectorCmpAVX2(const int32_t* pData, int32_t numOfRows, bool isMinFunc, bool signVal) {
-  int32_t        v = 0;
-  const int32_t* p = pData;
-
-  int32_t width, remain, rounds;
-  calculateRounds(numOfRows, sizeof(int32_t), &remain, &rounds, &width);
-
-#if __AVX2__
-  __m256i next;
-  __m256i initVal = _mm256_lddqu_si256((__m256i*)p);
-  p += width;
-
-  if (!isMinFunc) {  // max function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epi32(initVal, next);
-        p += width;
-      }
-
-      // let compare  the final results
-      const int32_t* q = (const int32_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    } else {  // unsigned value
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_max_epi32(initVal, next);
-        p += width;
-      }
-
-      // let compare  the final results
-      const uint32_t* q = (const uint32_t*)&initVal;
-      EXTRACT_MAX_VAL(q, p, width, remain, v)
-    }
-  } else {  // min function
-    if (signVal) {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epi32(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const int32_t* q = (const int32_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    } else {
-      for (int32_t i = 0; i < rounds; ++i) {
-        next = _mm256_lddqu_si256((__m256i*)p);
-        initVal = _mm256_min_epu32(initVal, next);
-        p += width;
-      }
-
-      // let sum up the final results
-      const uint32_t* q = (const uint32_t*)&initVal;
-      EXTRACT_MIN_VAL(q, p, width, remain, v)
-    }
-  }
-#endif
-
-  return v;
-}
-
-static float floatVectorCmpAVX(const float* pData, int32_t numOfRows, bool isMinFunc) {
-  float        v = 0;
-  const float* p = pData;
-
-  int32_t width, remain, rounds;
-  calculateRounds(numOfRows, sizeof(float), &remain, &rounds, &width);
-
-#if __AVX__
-
-  __m256 next;
-  __m256 initVal = _mm256_loadu_ps(p);
-  p += width;
-
-  if (!isMinFunc) {  // max function
-    for (int32_t i = 1; i < rounds; ++i) {
-      next = _mm256_loadu_ps(p);
-      initVal = _mm256_max_ps(initVal, next);
-      p += width;
-    }
-
-    const float* q = (const float*)&initVal;
-    EXTRACT_MAX_VAL(q, p, width, remain, v)
-  } else {  // min function
-    for (int32_t i = 1; i < rounds; ++i) {
-      next = _mm256_loadu_ps(p);
-      initVal = _mm256_min_ps(initVal, next);
-      p += width;
-    }
-
-    const float* q = (const float*)&initVal;
-    EXTRACT_MIN_VAL(q, p, width, remain, v)
-  }
-#endif
-
-  return v;
-}
-
-static double doubleVectorCmpAVX(const double* pData, int32_t numOfRows, bool isMinFunc) {
-  double        v = 0;
-  const double* p = pData;
-
-  int32_t width, remain, rounds;
-  calculateRounds(numOfRows, sizeof(double), &remain, &rounds, &width);
-
-#if __AVX__
-
-  __m256d next;
-  __m256d initVal = _mm256_loadu_pd(p);
-  p += width;
-
-  if (!isMinFunc) {  // max function
-    for (int32_t i = 1; i < rounds; ++i) {
-      next = _mm256_loadu_pd(p);
-      initVal = _mm256_max_pd(initVal, next);
-      p += width;
-    }
-
-    // let sum up the final results
-    const double* q = (const double*)&initVal;
-    EXTRACT_MAX_VAL(q, p, width, remain, v)
-  } else {  // min function
-    for (int32_t i = 1; i < rounds; ++i) {
-      next = _mm256_loadu_pd(p);
-      initVal = _mm256_min_pd(initVal, next);
-      p += width;
-    }
-
-    // let sum up the final results
-    const double* q = (const double*)&initVal;
-    EXTRACT_MIN_VAL(q, p, width, remain, v)
-  }
-#endif
-
-  return v;
-}
-
-static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows) {
+static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows, bool isStr) {
   int32_t i = start;
 
-  while (i < (start + numOfRows) && (colDataIsNull_f(pCol->nullbitmap, i) == true)) {
+  while (i < (start + numOfRows) && (isStr ? colDataIsNull_s(pCol, i) : colDataIsNull_f(pCol->nullbitmap, i) == true)) {
     i += 1;
   }
 
@@ -377,32 +84,35 @@ static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, 
 
 static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                           bool signVal) {
-  // AVX2 version to speedup the loop
-  if (tsAVX2Supported && tsSIMDEnable) {
-    pBuf->v = i8VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
-  } else {
-    if (!pBuf->assign) {
-      pBuf->v = ((int8_t*)data)[start];
+  if (!pBuf->assign) {
+    pBuf->v = ((const int8_t*)data)[start];
+  }
+
+  if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int8_t) >= M256_BYTES) {
+    int32_t code = i8VectorCmpAVX2(((char*)data) + start * sizeof(int8_t), numOfRows, isMinFunc, signVal, &pBuf->v);
+    if (code == TSDB_CODE_SUCCESS) {
+      pBuf->assign = true;
+      return;
     }
+  }
 
-    if (signVal) {
-      const int8_t* p = (const int8_t*)data;
-      int8_t*       v = (int8_t*)&pBuf->v;
+  if (signVal) {
+    const int8_t* p = (const int8_t*)data;
+    int8_t*       v = (int8_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
     } else {
-      const uint8_t* p = (const uint8_t*)data;
-      uint8_t*       v = (uint8_t*)&pBuf->v;
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
+    }
+  } else {
+    const uint8_t* p = (const uint8_t*)data;
+    uint8_t*       v = (uint8_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
+    } else {
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
     }
   }
 
@@ -411,32 +121,35 @@ static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SM
 
 static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
-  // AVX2 version to speedup the loop
-  if (tsAVX2Supported && tsSIMDEnable) {
-    pBuf->v = i16VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
-  } else {
-    if (!pBuf->assign) {
-      pBuf->v = ((int16_t*)data)[start];
+  if (!pBuf->assign) {
+    pBuf->v = ((const int16_t*)data)[start];
+  }
+
+  if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int16_t) >= M256_BYTES) {
+    int32_t code = i16VectorCmpAVX2(((char*)data) + start * sizeof(int16_t), numOfRows, isMinFunc, signVal, &pBuf->v);
+    if (code == TSDB_CODE_SUCCESS) {
+      pBuf->assign = true;
+      return;
     }
+  }
 
-    if (signVal) {
-      const int16_t* p = (const int16_t*)data;
-      int16_t*       v = (int16_t*)&pBuf->v;
+  if (signVal) {
+    const int16_t* p = (const int16_t*)data;
+    int16_t*       v = (int16_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
     } else {
-      const uint16_t* p = (const uint16_t*)data;
-      uint16_t*       v = (uint16_t*)&pBuf->v;
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
+    }
+  } else {
+    const uint16_t* p = (const uint16_t*)data;
+    uint16_t*       v = (uint16_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
+    } else {
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
     }
   }
 
@@ -445,32 +158,35 @@ static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, S
 
 static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
-  // AVX2 version to speedup the loop
-  if (tsAVX2Supported && tsSIMDEnable) {
-    pBuf->v = i32VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
-  } else {
-    if (!pBuf->assign) {
-      pBuf->v = ((int32_t*)data)[start];
+  if (!pBuf->assign) {
+    pBuf->v = ((const int32_t*)data)[start];
+  }
+
+  if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int32_t) >= M256_BYTES) {
+    int32_t code = i32VectorCmpAVX2(((char*)data) + start * sizeof(int32_t), numOfRows, isMinFunc, signVal, &pBuf->v);
+    if (code == TSDB_CODE_SUCCESS) {
+      pBuf->assign = true;
+      return;
     }
+  }
 
-    if (signVal) {
-      const int32_t* p = (const int32_t*)data;
-      int32_t*       v = (int32_t*)&pBuf->v;
+  if (signVal) {
+    const int32_t* p = (const int32_t*)data;
+    int32_t*       v = (int32_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
     } else {
-      const uint32_t* p = (const uint32_t*)data;
-      uint32_t*       v = (uint32_t*)&pBuf->v;
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
+    }
+  } else {
+    const uint32_t* p = (const uint32_t*)data;
+    uint32_t*       v = (uint32_t*)&pBuf->v;
 
-      if (isMinFunc) {
-        __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
-      } else {
-        __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
-      }
+    if (isMinFunc) {
+      __COMPARE_EXTRACT_MIN(start, start + numOfRows, *v, p);
+    } else {
+      __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
     }
   }
 
@@ -480,7 +196,7 @@ static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((int64_t*)data)[start];
+    pBuf->v = ((const int64_t*)data)[start];
   }
 
   if (signVal) {
@@ -502,34 +218,30 @@ static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, S
       __COMPARE_EXTRACT_MAX(start, start + numOfRows, *v, p);
     }
   }
+
+  pBuf->assign = true;
 }
 
 static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf,
                            bool isMinFunc) {
   float* pData = (float*)pCol->pData;
   float* val = (float*)&pBuf->v;
+  if (!pBuf->assign) {
+    *val = pData[start];
+  }
 
-  // AVX version to speedup the loop
-  if (tsAVXSupported && tsSIMDEnable) {
-    *val = floatVectorCmpAVX(pData, numOfRows, isMinFunc);
-  } else {
-    if (!pBuf->assign) {
-      *val = pData[start];
+  if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(float) >= M256_BYTES) {
+    int32_t code = floatVectorCmpAVX2(pData + start, numOfRows, isMinFunc, val);
+    if (code == TSDB_CODE_SUCCESS) {
+      pBuf->assign = true;
+      return;
     }
+  }
 
-    if (isMinFunc) {  // min
-      for (int32_t i = start; i < start + numOfRows; ++i) {
-        if (*val > pData[i]) {
-          *val = pData[i];
-        }
-      }
-    } else {  // max
-      for (int32_t i = start; i < start + numOfRows; ++i) {
-        if (*val < pData[i]) {
-          *val = pData[i];
-        }
-      }
-    }
+  if (isMinFunc) {  // min
+    __COMPARE_EXTRACT_MIN(start, start + numOfRows, *val, pData);
+  } else {  // max
+    __COMPARE_EXTRACT_MAX(start, start + numOfRows, *val, pData);
   }
 
   pBuf->assign = true;
@@ -539,28 +251,22 @@ static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfR
                             bool isMinFunc) {
   double* pData = (double*)pCol->pData;
   double* val = (double*)&pBuf->v;
+  if (!pBuf->assign) {
+    *val = pData[start];
+  }
 
-  // AVX version to speedup the loop
-  if (tsAVXSupported && tsSIMDEnable) {
-    *val = (double)doubleVectorCmpAVX(pData, numOfRows, isMinFunc);
-  } else {
-    if (!pBuf->assign) {
-      *val = pData[start];
+  if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(double) >= M256_BYTES) {
+    int32_t code = doubleVectorCmpAVX2(pData + start, numOfRows, isMinFunc, val);
+    if (code == TSDB_CODE_SUCCESS) {
+      pBuf->assign = true;
+      return;
     }
+  }
 
-    if (isMinFunc) {  // min
-      for (int32_t i = start; i < start + numOfRows; ++i) {
-        if (*val > pData[i]) {
-          *val = pData[i];
-        }
-      }
-    } else {  // max
-      for (int32_t i = start; i < start + numOfRows; ++i) {
-        if (*val < pData[i]) {
-          *val = pData[i];
-        }
-      }
-    }
+  if (isMinFunc) {  // min
+    __COMPARE_EXTRACT_MIN(start, start + numOfRows, *val, pData);
+  } else {  // max
+    __COMPARE_EXTRACT_MAX(start, start + numOfRows, *val, pData);
   }
 
   pBuf->assign = true;
@@ -580,7 +286,7 @@ static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, c
 }
 
 static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunctionCtx* pCtx, SMinmaxResInfo* pBuf,
-                         bool isMinFunc) {
+                            bool isMinFunc) {
   if (isMinFunc) {
     switch (pCol->info.type) {
       case TSDB_DATA_TYPE_BOOL:
@@ -641,6 +347,52 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
       case TSDB_DATA_TYPE_DOUBLE: {
         const double* pData = (const double*)pCol->pData;
         __COMPARE_ACQUIRED_MIN(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
+        break;
+      }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char* pLeft = (char*)colDataGetData(pCol, i);
+          char* pRight = (char*)pBuf->str;
+
+          int32_t ret = compareLenBinaryVal(pLeft, pRight);
+          if (ret < 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char* pLeft = (char*)colDataGetData(pCol, i);
+          char* pRight = (char*)pBuf->str;
+
+          int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
+          if (ret < 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
         break;
       }
     }
@@ -706,6 +458,53 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char* pLeft = (char*)colDataGetData(pCol, i);
+          char* pRight = (char*)pBuf->str;
+
+          int32_t ret = compareLenBinaryVal(pLeft, pRight);
+          if (ret > 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t code = TSDB_CODE_SUCCESS;
+        for (; i < (end); ++i) {
+          if (colDataIsNull_var(pCol, i)) {
+            continue;
+          }
+          char* pLeft = (char*)colDataGetData(pCol, i);
+          char* pRight = (char*)pBuf->str;
+
+          int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
+          if (ret > 0) {
+            memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) {
+                return code;
+              }
+            }
+          }
+        }
+        break;
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -743,8 +542,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   }
 
   // data in current data block are qualified to the query
-  if (pInput->colDataSMAIsSet) {
-
+  if (pInput->colDataSMAIsSet && !IS_STR_DATA_TYPE(type)) {
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _over;
@@ -820,7 +618,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   // clang-format on
 
   if (pCol->hasNull || numOfRows < threshold[pCol->info.type] || pCtx->subsidiaries.num > 0) {
-    int32_t i = findFirstValPosition(pCol, start, numOfRows);
+    int32_t i = findFirstValPosition(pCol, start, numOfRows, IS_STR_DATA_TYPE(type));
 
     if ((i < end) && (!pBuf->assign)) {
       char* p = pCol->pData + pCol->info.bytes * i;
@@ -846,6 +644,16 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           break;
         case TSDB_DATA_TYPE_FLOAT: {
           *(float*)&pBuf->v = *(float*)p;
+          break;
+        }
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_NCHAR: {
+          pBuf->str = taosMemoryMalloc(pCol->info.bytes);
+          if (pBuf->str == NULL) {
+            return terrno;
+          }
+          (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;
         }
         default:

@@ -17,9 +17,9 @@
 #include "tsdbFS2.h"
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
-extern int32_t tsdbCloseCompMonitor(STsdb *tsdb);
+extern void    tsdbCloseCompMonitor(STsdb *tsdb);
 
-int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
+void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
   pKeepCfg->precision = pCfg->precision;
   pKeepCfg->days = pCfg->days;
@@ -27,7 +27,6 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   pKeepCfg->keep1 = pCfg->keep1;
   pKeepCfg->keep2 = pCfg->keep2;
   pKeepCfg->keepTimeOffset = pCfg->keepTimeOffset;
-  return 0;
 }
 
 int64_t tsdbGetEarliestTs(STsdb *pTsdb) {
@@ -50,7 +49,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
   if (pTsdb == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_RETURN(terrno);
   }
 
   pTsdb->path = (char *)&pTsdb[1];
@@ -59,26 +58,30 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
-    (void)tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
 
   // create dir
   if (pVnode->pTfs) {
-    (void)tfsMkdir(pVnode->pTfs, pTsdb->path);
+    code = tfsMkdir(pVnode->pTfs, pTsdb->path);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    (void)taosMkDir(pTsdb->path);
+    code = taosMkDir(pTsdb->path);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // open tsdb
-  TAOS_CHECK_GOTO(tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback), &lino, _exit);
+  code = tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
     TAOS_CHECK_GOTO(TSDB_CODE_NEED_RETRY, &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(tsdbOpenCache(pTsdb), &lino, _exit);
+  code = tsdbOpenCache(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
@@ -87,7 +90,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
-    (void)tsdbCloseFS(&pTsdb->pFS);
+    tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);
   } else {
@@ -99,7 +102,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbClose(STsdb **pTsdb) {
+void tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     STsdb *pdb = *pTsdb;
     tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
@@ -110,13 +113,13 @@ int32_t tsdbClose(STsdb **pTsdb) {
     (*pTsdb)->mem = NULL;
     (void)taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
-    (void)tsdbCloseFS(&(*pTsdb)->pFS);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
-    (void)tsdbCloseCompMonitor(*pTsdb);
+    tsdbCloseCompMonitor(*pTsdb);
 #endif
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
-  return 0;
+  return;
 }

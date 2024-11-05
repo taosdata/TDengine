@@ -15,7 +15,7 @@ func main() {
 	var taosDSN = "root:taosdata@http(localhost:6041)/"
 	taos, err := sql.Open("taosRestful", taosDSN)
 	if err != nil {
-		log.Fatalln("failed to connect TDengine, err:", err)
+		log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
 	}
 	fmt.Println("Connected to " + taosDSN + " successfully.")
 	defer taos.Close()

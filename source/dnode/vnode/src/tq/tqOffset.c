@@ -20,9 +20,9 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
   int32_t len = strlen(path) + strlen(name) + 2;
   char*   fname = taosMemoryCalloc(1, len);
   if(fname == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
-  int32_t code = snprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
+  int32_t code = tsnprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
   if (code < 0){
     code = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(fname);
@@ -56,7 +56,7 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     size = htonl(size);
     pMemBuf = taosMemoryCalloc(1, size);
     if (pMemBuf == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto END;
     }
 

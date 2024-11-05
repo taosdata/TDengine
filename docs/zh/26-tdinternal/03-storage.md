@@ -101,7 +101,7 @@ head 文件是时序数据存储文件（data 文件）的 BRIN（Block Range In
 
 head 文件中存储了多个 BRIN 记录块及其索引。BRIN 记录块采用列存压缩的方式，这种方式可以大大减少空间占用，同时保持较高的查询性能。BRIN 索引结构如下图所示：
 
-！[BRIN 索引结构](./brin.png)
+![BRIN 索引结构](./brin.png)
 
 #### data 文件
 

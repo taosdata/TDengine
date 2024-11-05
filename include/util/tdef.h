@@ -40,7 +40,8 @@ extern const int32_t TYPE_BYTES[21];
 #define LONG_BYTES      sizeof(int64_t)
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
-#define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+#define POINTER_BYTES   sizeof(void *)
+#define M256_BYTES      32
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
@@ -188,6 +189,47 @@ typedef enum EOperatorType {
   OP_TYPE_ASSIGN = 200
 } EOperatorType;
 
+static const EOperatorType OPERATOR_ARRAY[] = {
+  OP_TYPE_ADD,
+  OP_TYPE_SUB,
+  OP_TYPE_MULTI,
+  OP_TYPE_DIV,
+  OP_TYPE_REM,
+  
+  OP_TYPE_MINUS,
+  
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
+
+  OP_TYPE_GREATER_THAN,
+  OP_TYPE_GREATER_EQUAL,
+  OP_TYPE_LOWER_THAN,
+  OP_TYPE_LOWER_EQUAL,
+  OP_TYPE_EQUAL,
+  OP_TYPE_NOT_EQUAL,
+  OP_TYPE_IN,
+  OP_TYPE_NOT_IN,
+  OP_TYPE_LIKE,
+  OP_TYPE_NOT_LIKE,
+  OP_TYPE_MATCH,
+  OP_TYPE_NMATCH,
+  
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
+  OP_TYPE_IS_TRUE,
+  OP_TYPE_IS_FALSE,
+  OP_TYPE_IS_UNKNOWN,
+  OP_TYPE_IS_NOT_TRUE,
+  OP_TYPE_IS_NOT_FALSE,
+  OP_TYPE_IS_NOT_UNKNOWN,
+  //OP_TYPE_COMPARE_MAX_VALUE, 
+
+  OP_TYPE_JSON_GET_VALUE,
+  OP_TYPE_JSON_CONTAINS,
+
+  OP_TYPE_ASSIGN
+};
+
 #define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
 
 typedef enum ELogicConditionType {
@@ -284,7 +326,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
-#define TSDB_FQDN_LEN             128
+#define TSDB_FQDN_LEN             TD_FQDN_LEN
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
@@ -293,6 +335,14 @@ typedef enum ELogicConditionType {
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
+#define TSDB_ANAL_ANODE_URL_LEN   128
+#define TSDB_ANAL_ALGO_NAME_LEN   64
+#define TSDB_ANAL_ALGO_TYPE_LEN   24
+#define TSDB_ANAL_ALGO_KEY_LEN    (TSDB_ANAL_ALGO_NAME_LEN + 9)
+#define TSDB_ANAL_ALGO_URL_LEN    (TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1)
+#define TSDB_ANAL_ALGO_OPTION_LEN 256
+
+#define TSDB_MAX_EP_NUM 10
 
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
@@ -330,6 +380,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
@@ -402,6 +453,7 @@ typedef enum ELogicConditionType {
 #define TSDB_CACHE_MODEL_LAST_ROW       1
 #define TSDB_CACHE_MODEL_LAST_VALUE     2
 #define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DNODE_LIST_LEN             256
 #define TSDB_ENCRYPT_ALGO_STR_LEN       16
 #define TSDB_ENCRYPT_ALGO_NONE_STR      "none"
 #define TSDB_ENCRYPT_ALGO_SM4_STR       "sm4"
@@ -441,13 +493,13 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MIN_S3_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_S3_CHUNK_SIZE     (1024 * 1024)
-#define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
+#define TSDB_DEFAULT_S3_CHUNK_SIZE (128 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
-#define TSDB_DEFAULT_S3_COMPACT    0
+#define TSDB_DEFAULT_S3_COMPACT    1
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -497,7 +549,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 10
+#define TSDB_MAX_RPC_THREADS 50
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -566,6 +618,8 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
+enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
+
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
 #define QNODE_HANDLE   -1
@@ -598,6 +652,13 @@ enum {
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+typedef enum {
+  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANAL_ALGO_TYPE_FORECAST = 1,
+  ANAL_ALGO_TYPE_END,
+} EAnalAlgoType;
+
 #ifdef __cplusplus
 }
 #endif

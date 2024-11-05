@@ -5,9 +5,9 @@ namespace TDengineExample
 {
     internal class OptsJsonExample
     {
+        // ANCHOR: main
         public static void Main(string[] args)
         {
-            // ANCHOR: main
             var host = "127.0.0.1";
 
             var lineDemo =
@@ -38,20 +38,22 @@ namespace TDengineExample
                     client.SchemalessInsert(new []{jsonDemo}, TDengineSchemalessProtocol.TSDB_SML_JSON_PROTOCOL,
                         TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_NOT_CONFIGURED, 0, ReqId.GetReqId());
                 }
+
+                Console.WriteLine("Inserted data with schemaless successfully.");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert data with schemaless; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert data with schemaless, host:" + host + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert data with schemaless; Err:" + e.Message);
+                Console.WriteLine("Failed to insert data with schemaless, host:" + host + "; ErrMessage: " + e.Message);
                 throw;
             }
-            // ANCHOR_END: main
         }
+        // ANCHOR_END: main
     }
 }

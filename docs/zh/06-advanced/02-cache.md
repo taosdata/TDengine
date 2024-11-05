@@ -16,12 +16,12 @@ TDengine 采用了一种创新的时间驱动缓存管理策略，亦称为写�
 
 为了实现数据的分布式存储和高可用性，TDengine 引入了虚拟节点（vnode）的概念。每个 vnode 可以拥有多达 3 个副本，这些副本共同组成一个 vnode group，简称 vgroup。在创建数据库时，用户需要确定每个 vnode 的写入缓存大小，以确保数据的合理分配和高效存储。
 
-创建数据库时的两个关键参数—vgroups 和 buffer—分别决定了数据库中的数据由多少个 vgroup 进行处理，以及为每个 vnode 分配多少写入缓存。通过合理配置这两个
+创建数据库时的两个关键参数 `vgroups` 和 `buffer` 分别决定了数据库中的数据由多少个 vgroup 进行处理，以及为每个 vnode 分配多少写入缓存。通过合理配置这两个
 参数，用户可以根据实际需求调整数据库的性能和存储容量，从而实现最佳的性能和成本效益。
 
 例 如， 下面的 SQL 创建了包含 10 个 vgroup，每个 vnode 占 用 256MB 内存的数据库。
-```ssql
-create database power vgroups 10 buffer 256 cachemodel 'none' pages 128 pagesize 16
+```sql
+CREATE DATABASE POWER VGROUPS 10 BUFFER 256 CACHEMODEL 'NONE' PAGES 128 PAGESIZE 16;
 ```
 
 缓存越大越好，但超过一定阈值后再增加缓存对写入性能提升并无帮助。
@@ -43,7 +43,7 @@ create database power vgroups 10 buffer 256 cachemodel 'none' pages 128 pagesize
 为了提升查询和写入操作的效率，每个 vnode 都配备了缓存机制，用于存储其曾经获取过的元数据。这一元数据缓存的大小由创建数据库时的两个参数 pages 和 pagesize 共同决定。其中，pagesize 参数的单位是 KB，用于指定每个缓存页的大小。如下 SQL 会为数据库 power 的每个 vnode 创建 128 个 page、每个 page 16KB 的元数据缓存
 
 ```sql
-create database power pages 128 pagesize 16
+CREATE DATABASE POWER PAGES 128 PAGESIZE 16;
 ```
 
 ## 文件系统缓存
@@ -57,7 +57,7 @@ TDengine 利用这些日志文件实现故障前的状态恢复。在写入 WAL 
 - wal_fsync_period：当 wal_level 设置为 2 时，这个参数控制执行 fsync 的频率。设置为 0 表示每次写入后立即执行 fsync，这可以确保数据的安全性，但可能会牺牲一些性能。当设置为大于 0 的数值时，表示 fsync 周期，默认为 3000，范围是[1， 180000]，单位毫秒。
 
 ```sql
-create database power wal_level 1 wal_fsync_period 3000
+CREATE DATABASE POWER WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
 ```
 
 在创建数据库时可以选择不同的参数类型，来选择性能优先或者可靠性优先。

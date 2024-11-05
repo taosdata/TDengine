@@ -14,7 +14,8 @@ def create_connection():
         )
         print(f"Connected to {host}:{port} successfully.");
     except Exception as err:
-        print(f"Failed to connect to {host}:{port} ; Err:{err}")
+        print(f"Failed to connect to {host}:{port} , ErrMessage:{err}")
+        raise err
     finally:
         if conn:
             conn.close()

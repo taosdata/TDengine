@@ -12,7 +12,7 @@ def create_connection():
         
         print(f"Connected to {url} successfully.");
     except Exception as err:
-        print(f"Failed to connect to {url} ; Err:{err}")
+        print(f"Failed to connect to {url} , ErrMessage:{err}")
     finally:
         if conn:
             conn.close() 

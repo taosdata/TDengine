@@ -61,6 +61,8 @@ typedef enum {
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
 #define SCH_DEFAULT_MAX_RETRY_NUM     6
 #define SCH_MIN_AYSNC_EXEC_NUM        3
+#define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
+#define SCH_DEFAULT_TASK_CAPACITY_NUM 1000     
 
 typedef struct SSchDebug {
   bool lockEnable;
@@ -91,7 +93,7 @@ typedef struct SSchRuntimeStat {
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
-
+  int64_t hbConnNotFound;
 } SSchRuntimeStat;
 
 typedef struct SSchJobStat {
@@ -306,6 +308,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  void                *pWorkerCb;
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -315,6 +318,8 @@ typedef struct SSchTaskCtx {
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;
+
+#define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
 
 #define SCH_TASK_TIMEOUT(_task) \
   ((taosGetTimestampUs() - *(int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
@@ -328,8 +333,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_EID(_task) ((_task) ? (_task)->execId : -1)
 
 #define SCH_IS_DATA_BIND_QRY_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
-#define SCH_IS_DATA_BIND_TASK(task) \
-  (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
+#define SCH_IS_DATA_BIND_PLAN(_plan) (((_plan)->subplanType == SUBPLAN_TYPE_SCAN) || ((_plan)->subplanType == SUBPLAN_TYPE_MODIFY))
+#define SCH_IS_DATA_BIND_TASK(task) SCH_IS_DATA_BIND_PLAN((task)->plan)
 #define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
 #define SCH_IS_DATA_MERGE_TASK(task)  (!SCH_IS_DATA_BIND_TASK(task))
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
@@ -410,22 +415,24 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_SWITCH_EPSET(_addr)         ((_addr)->epSet.inUse = ((_addr)->epSet.inUse + 1) % (_addr)->epSet.numOfEps)
 #define SCH_TASK_NUM_OF_EPS(_addr)      ((_addr)->epSet.numOfEps)
 
-#define SCH_LOG_TASK_START_TS(_task)               \
-  do {                                             \
-    int64_t us = taosGetTimestampUs();             \
-    (void)taosArrayPush((_task)->profile.execTime, &us); \
-    if (0 == (_task)->execId) {                    \
-      (_task)->profile.startTs = us;               \
-    }                                              \
+#define SCH_LOG_TASK_START_TS(_task)                     \
+  do {                                                   \
+    int64_t us = taosGetTimestampUs();                   \
+    if (NULL == taosArrayPush((_task)->profile.execTime, &us)) { \
+      qError("taosArrayPush task execTime failed, error:%s", tstrerror(terrno));  \
+    }                                                                             \
+    if (0 == (_task)->execId) {                          \
+      (_task)->profile.startTs = us;                     \
+    }                                                    \
   } while (0)
 
-#define SCH_LOG_TASK_WAIT_TS(_task)                                                                         \
-  do {                                                                                                      \
-    int64_t us = taosGetTimestampUs();                                                                      \
-    int64_t* startus = (int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId);                  \
-    if (NULL != startus) {                                                                                  \
-      (_task)->profile.waitTime += us - *startus;                                                           \
-    }                                                                                                       \
+#define SCH_LOG_TASK_WAIT_TS(_task)                                                         \
+  do {                                                                                      \
+    int64_t  us = taosGetTimestampUs();                                                     \
+    int64_t *startus = (int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId); \
+    if (NULL != startus) {                                                                  \
+      (_task)->profile.waitTime += us - *startus;                                           \
+    }                                                                                       \
   } while (0)
 
 #define SCH_LOG_TASK_END_TS(_task)                                               \
@@ -434,28 +441,28 @@ extern SSchedulerMgmt schMgmt;
     int32_t  idx = (_task)->execId % (_task)->maxExecTimes;                      \
     int64_t *startts = taosArrayGet((_task)->profile.execTime, (_task)->execId); \
     if (NULL != startts) {                                                       \
-        *startts = us - *startts;                                                \
+      *startts = us - *startts;                                                  \
     }                                                                            \
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
-#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("qid:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("qid:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                     \
-  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
+  qError("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
          __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...)                                                                                     \
-  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
+  qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
          __VA_ARGS__)
 #define SCH_TASK_TLOG(param, ...)                                                                                     \
-  qTrace("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
+  qTrace("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
          __VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...)                                                                                     \
-  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
+  qDebugL("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
           __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...)                                                                                    \
-  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
+  qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
         __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
@@ -498,38 +505,62 @@ extern SSchedulerMgmt schMgmt;
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
-#define SCH_LOCK(type, _lock)                                                                              \
-  do {                                                                                                     \
-    if (SCH_READ == (type)) {                                                                              \
-      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before read lock");                          \
-      SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);       \
-      taosRLockLatch(_lock);                                                                               \
-      SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);       \
-      ASSERTS(atomic_load_32(_lock) > 0, "invalid lock value after read lock");                            \
-    } else {                                                                                               \
-      ASSERTS(atomic_load_32(_lock) >= 0, "invalid lock value before write lock");                         \
-      SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);       \
-      taosWLockLatch(_lock);                                                                               \
-      SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);       \
-      ASSERTS(atomic_load_32(_lock) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock"); \
-    }                                                                                                      \
+#define SCH_LOCK(type, _lock)                                                                        \
+  do {                                                                                               \
+    if (SCH_READ == (type)) {                                                                        \
+      if (atomic_load_32((_lock)) < 0) {                                                             \
+        qError("invalid lock value before read lock");                                               \
+        break;                                                                                       \
+      }                                                                                              \
+      SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      taosRLockLatch(_lock);                                                                         \
+      SCH_LOCK_DEBUG("SCH RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      if (atomic_load_32((_lock)) <= 0) {                                                            \
+        qError("invalid lock value after read lock");                                                \
+        break;                                                                                       \
+      }                                                                                              \
+    } else {                                                                                         \
+      if (atomic_load_32((_lock)) < 0) {                                                             \
+        qError("invalid lock value before write lock");                                              \
+        break;                                                                                       \
+      }                                                                                              \
+      SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      taosWLockLatch(_lock);                                                                         \
+      SCH_LOCK_DEBUG("SCH WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                   \
+        qError("invalid lock value after write lock");                                               \
+        break;                                                                                       \
+      }                                                                                              \
+    }                                                                                                \
   } while (0)
 
-#define SCH_UNLOCK(type, _lock)                                                                                \
-  do {                                                                                                         \
-    if (SCH_READ == (type)) {                                                                                  \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                           \
-      SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);          \
-      taosRUnLockLatch(_lock);                                                                                 \
-      SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);          \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                           \
-    } else {                                                                                                   \
-      ASSERTS(atomic_load_32((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock"); \
-      SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);          \
-      taosWUnLockLatch(_lock);                                                                                 \
-      SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);          \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                          \
-    }                                                                                                          \
+#define SCH_UNLOCK(type, _lock)                                                                       \
+  do {                                                                                                \
+    if (SCH_READ == (type)) {                                                                         \
+      if (atomic_load_32((_lock)) <= 0) {                                                             \
+        qError("invalid lock value before read unlock");                                              \
+        break;                                                                                        \
+      }                                                                                               \
+      SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      taosRUnLockLatch(_lock);                                                                        \
+      SCH_LOCK_DEBUG("SCH RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      if (atomic_load_32((_lock)) < 0) {                                                              \
+        qError("invalid lock value after read unlock");                                               \
+        break;                                                                                        \
+      }                                                                                               \
+    } else {                                                                                          \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                    \
+        qError("invalid lock value before write unlock");                                             \
+        break;                                                                                        \
+      }                                                                                               \
+      SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      taosWUnLockLatch(_lock);                                                                        \
+      SCH_LOCK_DEBUG("SCH WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      if (atomic_load_32((_lock)) < 0) {                                                              \
+        qError("invalid lock value after write unlock");                                              \
+        break;                                                                                        \
+      }                                                                                               \
+    }                                                                                                 \
   } while (0)
 
 #define SCH_RESET_JOB_LEVEL_IDX(_job)                         \
@@ -545,6 +576,7 @@ int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
 int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
+int32_t  schReleaseJobEx(int64_t refId, int32_t* released);
 void     schFreeFlowCtrl(SSchJob *pJob);
 int32_t  schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
 int32_t  schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
@@ -583,7 +615,7 @@ int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
 int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
-int32_t  schDumpEpSet(SEpSet *pEpSet, char** ppRes);
+int32_t  schDumpEpSet(SEpSet *pEpSet, char **ppRes);
 char    *schGetOpStr(SCH_OP_TYPE type);
 int32_t  schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t  schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
@@ -612,6 +644,7 @@ void     schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
 int32_t  schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pTask);
 int32_t  schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 void     schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+int32_t  schValidateSubplan(SSchJob *pJob, SSubplan* pSubplan, int32_t level, int32_t idx, int32_t taskNum);
 int32_t  schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t  schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void     schDirectPostJobRes(SSchedulerReq *pReq, int32_t errCode);

@@ -1,12 +1,13 @@
 import taos
 
 conn = None
-
+host = "localhost"
+port = 6030
 try:
-    conn = taos.connect(user="root",
-                          password="taosdata",
-                          host="localhost",
-                          port=6030)
+    conn = taos.connect(host=host,
+                        port=port,
+                        user="root",
+                        password="taosdata")
 
     sql = """
         INSERT INTO 
@@ -17,10 +18,11 @@ try:
             VALUES (NOW + 1a, 10.30000, 218, 0.25000)
         """
     affectedRows = conn.execute(sql)
-    print(f"inserted into {affectedRows} rows to power.meters successfully.")
+    print(f"Successfully inserted {affectedRows} rows to power.meters.")
 
 except Exception as err:
-    print(err)
+    print(f"Failed to insert data to power.meters, sql: {sql}, ErrMessage: {err}.")
+    raise err
 finally:
     if conn:
         conn.close()

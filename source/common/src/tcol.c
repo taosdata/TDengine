@@ -238,7 +238,7 @@ const char* columnLevelStr(uint8_t type) {
 
 bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(encode)) return true;
-  (void)strtolower(encode, encode);
+  TAOS_UNUSED(strtolower(encode, encode));
   for (int i = 0; i < supportedEncodeNum; ++i) {
     if (0 == strcmp((const char*)encode, supportedEncode[i])) {
       return true;
@@ -255,7 +255,7 @@ bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OP
 }
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) return true;
-  (void)strtolower(compress, compress);
+  TAOS_UNUSED(strtolower(compress, compress));
   for (int i = 0; i < supportedCompressNum; ++i) {
     if (0 == strcmp((const char*)compress, supportedCompress[i])) {
       return true;
@@ -273,7 +273,7 @@ bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRES
 }
 bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) return true;
-  (void)strtolower(level, level);
+  TAOS_UNUSED(strtolower(level, level));
   if (1 == strlen(level)) {
     if ('h' == level[0] || 'm' == level[0] || 'l' == level[0]) return true;
   } else {
@@ -361,6 +361,9 @@ int8_t validColCompress(uint8_t type, uint8_t l2) {
 //
 int8_t validColEncode(uint8_t type, uint8_t l1) {
   if (l1 == TSDB_COLVAL_ENCODE_NOCHANGE) {
+    return 1;
+  }
+  if (l1 == TSDB_COLVAL_ENCODE_DISABLED) {
     return 1;
   }
   if (type == TSDB_DATA_TYPE_BOOL) {

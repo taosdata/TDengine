@@ -120,7 +120,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {
     if (pOutChunk) *pOutChunk = NULL;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pNewChunk->pBuf = (char*)(pNewChunk + 1);
   pNewChunk->availableSize = pAllocator->chunkSize;
@@ -141,7 +141,7 @@ static int32_t callocNodeChunk(SNodeAllocator* pAllocator, SNodeMemChunk** pOutC
 static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (NULL == g_pNodeAllocator) {
     *pOut = taosMemoryCalloc(1, size);
-    if (!pOut) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!*pOut) return terrno;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -180,7 +180,7 @@ void nodesFree(void* p) {
 static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator) {
   *pAllocator = taosMemoryCalloc(1, sizeof(SNodeAllocator));
   if (NULL == *pAllocator) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pAllocator)->chunkSize = chunkSize;
   int32_t code = callocNodeChunk(*pAllocator, NULL);
@@ -235,10 +235,13 @@ void nodesDestroyAllocatorSet() {
     int64_t         refId = 0;
     while (NULL != pAllocator) {
       refId = pAllocator->self;
-      (void)taosRemoveRef(g_allocatorReqRefPool, refId);
+      int32_t code = taosRemoveRef(g_allocatorReqRefPool, refId);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, refId);
+      }
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    (void)taosCloseRef(g_allocatorReqRefPool);
+    taosCloseRef(g_allocatorReqRefPool);
   }
 }
 
@@ -328,7 +331,10 @@ void nodesDestroyAllocator(int64_t allocatorId) {
     return;
   }
 
-  (void)taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  int32_t code = taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%"PRId64, __func__, __LINE__, g_allocatorReqRefPool, allocatorId);
+  }
 }
 
 static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
@@ -413,6 +419,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SEventWindowNode), &pNode); break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode); break;
+    case QUERY_NODE_ANOMALY_WINDOW:
+      code = makeNode(type, sizeof(SAnomalyWindowNode), &pNode); break;
     case QUERY_NODE_HINT:
       code = makeNode(type, sizeof(SHintNode), &pNode); break;
     case QUERY_NODE_VIEW:
@@ -468,6 +476,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SDropDnodeStmt), &pNode); break;
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode); break;
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SCreateAnodeStmt), &pNode); break;
+    case QUERY_NODE_DROP_ANODE_STMT:
+      code = makeNode(type, sizeof(SDropAnodeStmt), &pNode); break;
+    case QUERY_NODE_UPDATE_ANODE_STMT:
+      code = makeNode(type, sizeof(SUpdateAnodeStmt), &pNode); break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode); break;
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -534,6 +548,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -641,6 +657,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SIndefRowsFuncLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = makeNode(type, sizeof(SInterpFuncLogicNode), &pNode); break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode); break;
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -685,6 +703,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SGroupSortPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       code = makeNode(type, sizeof(SIntervalPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      code = makeNode(type, sizeof(SMergeIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
@@ -716,6 +736,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
+      code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -726,6 +748,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SIndefRowsFuncPhysiNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = makeNode(type, sizeof(SInterpFuncLogicNode), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
+      code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = makeNode(type, sizeof(SDataDispatcherNode), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -818,7 +842,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
 
-static void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
+void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
 static void destroyHintValue(EHintOption option, void* value) {
   switch (option) {
@@ -1013,6 +1037,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       break;
     }
+    case QUERY_NODE_ANOMALY_WINDOW: {
+      SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
+      nodesDestroyNode(pAnomaly->pCol);
+      break;
+    }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
       destroyHintValue(pHint->option, pHint->value);
@@ -1090,7 +1119,10 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
+      int32_t code = taosCloseFile(&pStmt->fp);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesError("failed to close file: %s:%d", __func__, __LINE__);
+      }
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:
@@ -1158,6 +1190,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
@@ -1243,6 +1278,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -1460,6 +1497,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
+      nodesDestroyList(pLogicNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -1489,6 +1527,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC: {
+      SForecastFuncLogicNode* pLogicNode = (SForecastFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE: {
@@ -1564,10 +1608,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
       SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pWindowOffset);
+      nodesDestroyNode(pPhyNode->pJLimit);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->leftPrimExpr);
       nodesDestroyNode(pPhyNode->rightPrimExpr);
+      nodesDestroyNode(pPhyNode->pLeftOnCond);
+      nodesDestroyNode(pPhyNode->pRightOnCond);
       nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 
@@ -1575,8 +1623,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
 
-      nodesDestroyNode(pPhyNode->pLeftOnCond);
-      nodesDestroyNode(pPhyNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
@@ -1610,6 +1656,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -1625,6 +1672,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pNotFillExprs);
       nodesDestroyNode(pPhyNode->pWStartTs);
       nodesDestroyNode(pPhyNode->pValues);
+      nodesDestroyList(pPhyNode->pFillNullExprs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -1654,6 +1702,11 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
+      SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
       destroyPartitionPhysiNode((SPartitionPhysiNode*)pNode);
       break;
@@ -1679,6 +1732,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pFuncs);
       nodesDestroyNode(pPhyNode->pFillValues);
       nodesDestroyNode(pPhyNode->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
+      SForecastFuncPhysiNode* pPhyNode = (SForecastFuncPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -2001,6 +2061,8 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
 
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
     case TSDB_DATA_TYPE_BOOL:
       pNode->datum.b = *(bool*)value;
       *(bool*)&pNode->typeData = pNode->datum.b;
@@ -2052,7 +2114,10 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
       pNode->datum.p = (char*)value;
       break;
@@ -2256,12 +2321,17 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = snprintf(name, sizeof(name), "%s", pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
   } else {
-    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+    len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
-  if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
-    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
+  if (pCol->projRefIdx > 0) {
+    len = taosHashBinary(name, strlen(name));
+    len += sprintf(name + len, "_%d", pCol->projRefIdx);
+  }
+  SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
+  if (pNodeFound == NULL) {
+    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNode, POINTER_BYTES);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       SNode* pNew = NULL;
       pCxt->errCode = nodesCloneNode(pNode, &pNew);
@@ -2303,7 +2373,6 @@ static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 }
-
 
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
@@ -2430,8 +2499,7 @@ typedef struct SCollectFuncsCxt {
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
-      !(((SExprNode*)pNode)->orderAlias)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -2638,11 +2706,12 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
   return num;
 }
 
-void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  int32_t code = 0;
   if (pNode->isNull) {
     pVal->nType = TSDB_DATA_TYPE_NULL;
     pVal->nLen = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    return;
+    return code;
   }
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
@@ -2676,13 +2745,21 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
-      pVal->pz[pVal->nLen] = 0;
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+        pVal->pz[pVal->nLen] = 0;
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);
       pVal->pz = taosMemoryMalloc(pVal->nLen);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      if (pVal->pz) {
+        memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      } else {
+        code = terrno;
+      }
       break;
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
@@ -2690,6 +2767,7 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     default:
       break;
   }
+  return code;
 }
 
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
@@ -2742,7 +2820,7 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {
     pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
     char* p = taosMemoryMalloc(lenStr + 1  + VARSTR_HEADER_SIZE);
     if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     varDataSetLen(p, lenStr);
     memcpy(varDataVal(p), literal, lenStr + 1);

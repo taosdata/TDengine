@@ -8,22 +8,19 @@ try:
                    password="taosdata",
                    timeout=30)
 
-    db = "power"
     # create database
-    rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
-    assert rowsAffected == 0
+    rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS power")
+    print(f"Create database power successfully, rowsAffected: {rowsAffected}");
 
     # create super table
     rowsAffected = conn.execute(
-        f"CREATE TABLE IF NOT EXISTS `{db}`.`meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+        f"CREATE TABLE IF NOT EXISTS power.meters (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
     )
-    assert rowsAffected == 0
-    # create table
-    rowsAffected = conn.execute(f"CREATE TABLE IF NOT EXISTS `{db}`.`d0` USING `{db}`.`meters` (groupid, location) TAGS(0, 'Los Angles')")
-    assert rowsAffected == 0
+    print(f"Create stable power.meters successfully, rowsAffected: {rowsAffected}");
 
 except Exception as err:
-    print(f"Failed to create db and table, url:{url} err:{err}") 
+    print(f"Failed to create database power or stable meters, ErrMessage:{err}") 
+    raise err
 finally:
     if conn:
         conn.close()

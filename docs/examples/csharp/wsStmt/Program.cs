@@ -13,9 +13,10 @@ namespace Examples
             var numOfSubTable = 10;
             var numOfRow = 10;
             var random = new Random();
+            var connectionString = $"protocol=WebSocket;host={host};port=6041;useSSL=false;username=root;password=taosdata";
             try
             {
-                var builder = new ConnectionStringBuilder($"protocol=WebSocket;host={host};port=6041;useSSL=false;username=root;password=taosdata");
+                var builder = new ConnectionStringBuilder(connectionString);
                 using (var client = DbDriver.Open(builder))
                 {
                     // create database
@@ -54,7 +55,7 @@ namespace Examples
                             stmt.Exec();
                             // get affected rows
                             var affectedRows = stmt.Affected();
-                            Console.WriteLine($"table {tableName} insert {affectedRows} rows.");
+                            Console.WriteLine($"Successfully inserted {affectedRows} rows to {tableName}.");
                         }
                     }
                 }
@@ -62,13 +63,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert to table meters using stmt; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert to table meters using stmt, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert to table meters using stmt; Err:" + e.Message);
+                Console.WriteLine("Failed to insert to table meters using stmt, ErrMessage: " + e.Message);
                 throw;
             }
         }

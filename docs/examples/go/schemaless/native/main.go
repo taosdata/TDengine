@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/taosdata/driver-go/v3/af"
@@ -14,30 +15,31 @@ func main() {
 
 	conn, err := af.Open(host, "root", "taosdata", "", 0)
 	if err != nil {
-		log.Fatal("failed to connect TDengine, err:", err)
+		log.Fatalln("Failed to connect to host: " + host + "; ErrMessage: " + err.Error())
 	}
 	defer conn.Close()
 	_, err = conn.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatal("failed to create database, err:", err)
+		log.Fatalln("Failed to create database power, ErrMessage: " + err.Error())
 	}
 	_, err = conn.Exec("USE power")
 	if err != nil {
-		log.Fatal("failed to use database, err:", err)
+		log.Fatalln("Failed to use database power, ErrMessage: " + err.Error())
 	}
 	// insert influxdb line protocol
 	err = conn.InfluxDBInsertLines([]string{lineDemo}, "ms")
 	if err != nil {
-		log.Fatal("failed to insert influxdb line protocol, err:", err)
+		log.Fatalln("Failed to insert data with schemaless, data:" + lineDemo + ", ErrMessage: " + err.Error())
 	}
 	// insert opentsdb telnet protocol
 	err = conn.OpenTSDBInsertTelnetLines([]string{telnetDemo})
 	if err != nil {
-		log.Fatal("failed to insert opentsdb telnet line protocol, err:", err)
+		log.Fatalln("Failed to insert data with schemaless, data:" + telnetDemo + ", ErrMessage: " + err.Error())
 	}
 	// insert opentsdb json protocol
 	err = conn.OpenTSDBInsertJsonPayload(jsonDemo)
 	if err != nil {
-		log.Fatal("failed to insert opentsdb json format protocol, err:", err)
+		log.Fatalln("Failed to insert data with schemaless, data:" + jsonDemo + ", ErrMessage: " + err.Error())
 	}
+	fmt.Println("Inserted data with schemaless successfully.")
 }

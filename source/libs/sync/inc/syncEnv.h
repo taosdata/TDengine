@@ -23,29 +23,11 @@ extern "C" {
 #include "syncInt.h"
 
 #define TIMER_MAX_MS       0x7FFFFFFF
-#define ENV_TICK_TIMER_MS  1000
 #define PING_TIMER_MS      5000
-#define ELECT_TIMER_MS_MIN 2500
-#define HEARTBEAT_TIMER_MS 1000
-#define HEARTBEAT_TICK_NUM 20
 
 typedef struct SSyncEnv {
   uint8_t isStart;
-
-  // tick timer
-  tmr_h             pEnvTickTimer;
-  int32_t           envTickTimerMS;
-  uint64_t          envTickTimerLogicClock;  // if use queue, should pass logic clock into queue item
-  uint64_t          envTickTimerLogicClockUser;
-  TAOS_TMR_CALLBACK FpEnvTickTimer;  // Timer Fp
-  uint64_t          envTickTimerCounter;
-
-  // timer manager
-  tmr_h pTimerManager;
-
-  // other resources shared by SyncNodes
-  // ...
-
+  tmr_h   pTimerManager;
 } SSyncEnv;
 
 SSyncEnv* syncEnv();

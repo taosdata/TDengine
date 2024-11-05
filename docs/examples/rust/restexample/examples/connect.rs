@@ -1,9 +1,17 @@
 use taos::*;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    #[allow(unused_variables)]
-    let taos = TaosBuilder::from_dsn("taos+ws://localhost:6041")?.build()?;
-    println!("Connected to localhost with websocket connection successfully.");
-    Ok(())
+async fn main() -> anyhow::Result<()> {
+    let dsn = "ws://localhost:6041".to_string();
+    
+    match TaosBuilder::from_dsn(&dsn)?.build().await {
+        Ok(_taos) => {
+            println!("Connected to {} successfully.", dsn);
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("Failed to connect to {}, ErrMessage: {}", dsn, err);
+            return Err(err.into());
+        }
+    }
 }

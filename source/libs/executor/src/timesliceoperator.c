@@ -42,7 +42,7 @@ typedef struct STimeSliceOperatorInfo {
   SRowKey              prevKey;
   bool                 prevTsSet;
   uint64_t             groupId;
-  SGroupKeys*          pPrevGroupKey;
+  SArray*              pPrevGroupKeys;
   SSDataBlock*         pNextGroupRes;
   SSDataBlock*         pRemainRes;   // save block unfinished processing
   int32_t              remainIndex;  // the remaining index in the block to be processed
@@ -114,7 +114,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->start.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
@@ -127,7 +126,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -143,7 +141,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          ASSERT(varDataTLen(p) <= pColInfoData->info.bytes);
           memcpy(pLinearInfo->end.val, p, varDataTLen(p));
         } else {
           memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
@@ -291,6 +288,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
   // output the result
   int32_t fillColIndex = 0;
+  int32_t groupKeyIndex = 0;
   bool    hasInterp = true;
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
@@ -323,7 +321,9 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (!isSelectGroupConstValueFunc(pExprInfo)) {
           // use stored group key
-          SGroupKeys* pkey = pSliceInfo->pPrevGroupKey;
+          SGroupKeys *pkey = taosArrayGet(pSliceInfo->pPrevGroupKeys, groupKeyIndex);
+          QUERY_CHECK_NULL(pkey, code, lino, _end, terrno);
+          groupKeyIndex++;
           if (pkey->isNull == false) {
             code = colDataSetVal(pDst, rows, pkey->pData, false);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -547,7 +547,7 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pPrevRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -582,7 +582,7 @@ static int32_t initNextRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pNextRow = taosArrayInit(4, sizeof(SGroupKeys));
   if (pInfo->pNextRow == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -618,7 +618,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
 
   pInfo->pLinearInfo = taosArrayInit(4, sizeof(SFillLinearInfo));
   if (pInfo->pLinearInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -648,25 +648,40 @@ _end:
   return code;
 }
 
+static void destroyGroupKey(void* pKey) {
+  SGroupKeys* key = (SGroupKeys*)pKey;
+  if (key->pData != NULL) {
+    taosMemoryFreeClear(key->pData);
+  }
+}
+
 static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExprSup) {
-  if (pInfo->pPrevGroupKey != NULL) {
+  if (pInfo->pPrevGroupKeys != NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pInfo->pPrevGroupKey = taosMemoryCalloc(1, sizeof(SGroupKeys));
-  if (pInfo->pPrevGroupKey == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  pInfo->pPrevGroupKeys = taosArrayInit(pExprSup->numOfExprs, sizeof(SGroupKeys));
+  if (pInfo->pPrevGroupKeys == NULL) {
+    return terrno;
   }
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
 
     if (isGroupKeyFunc(pExprInfo)) {
-      pInfo->pPrevGroupKey->bytes = pExprInfo->base.resSchema.bytes;
-      pInfo->pPrevGroupKey->type = pExprInfo->base.resSchema.type;
-      pInfo->pPrevGroupKey->isNull = false;
-      pInfo->pPrevGroupKey->pData = taosMemoryCalloc(1, pInfo->pPrevGroupKey->bytes);
-      if (!pInfo->pPrevGroupKey->pData) {
+      SGroupKeys key = {.bytes = pExprInfo->base.resSchema.bytes,
+                        .type = pExprInfo->base.resSchema.type,
+                        .isNull = false,
+                        .pData = taosMemoryCalloc(1, pExprInfo->base.resSchema.bytes)};
+      if (!key.pData) {
+        taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+        pInfo->pPrevGroupKeys = NULL;
+        return terrno;
+      }
+      if (NULL == taosArrayPush(pInfo->pPrevGroupKeys, &key)) {
+        taosMemoryFree(key.pData);
+        taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+        pInfo->pPrevGroupKeys = NULL;
         return terrno;
       }
     }
@@ -913,7 +928,7 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
   SInterval*   pInterval = &pSliceInfo->interval;
 
   if (pSliceInfo->fillType == TSDB_FILL_NEXT || pSliceInfo->fillType == TSDB_FILL_LINEAR ||
-      pSliceInfo->pPrevGroupKey == NULL) {
+      pSliceInfo->pPrevGroupKeys == NULL) {
     return;
   }
 
@@ -924,12 +939,18 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
   }
 }
 
-static void copyPrevGroupKey(SExprSupp* pExprSup, SGroupKeys* pGroupKey, SSDataBlock* pSrcBlock) {
+static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray * pGroupKeys, SSDataBlock* pSrcBlock) {
+  int32_t groupKeyIdx = 0;
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 
     if (isGroupKeyFunc(pExprInfo)) {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+      SGroupKeys      *pGroupKey = taosArrayGet(pGroupKeys, groupKeyIdx);
+      if (pGroupKey == NULL) {
+        return terrno;
+      }
+      groupKeyIdx++;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
 
       if (colDataIsNull_s(pSrc, 0)) {
@@ -945,9 +966,9 @@ static void copyPrevGroupKey(SExprSupp* pExprSup, SGroupKeys* pGroupKey, SSDataB
       }
 
       pGroupKey->isNull = false;
-      break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
@@ -989,7 +1010,11 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
   doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo, ignoreNull);
-  copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pBlock);
+  code = copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKeys, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
 }
 
 static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -1088,12 +1113,6 @@ _finished:
   return code;
 }
 
-static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = doTimesliceNext(pOperator, &pRes);
-  return pRes;
-}
-
 static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn* pPkColumn) {
   SNode* pNode;
   FOREACH(pNode, pFuncs) {
@@ -1113,7 +1132,7 @@ static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn
 }
 
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
-  QRY_OPTR_CHECK(pOptrInfo);
+  QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -1121,7 +1140,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   if (pOperator == NULL || pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _error;
   }
 
@@ -1156,7 +1175,10 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->fillType = convertFillType(pInterpPhyNode->fillMode);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  pInfo->pFillColInfo = createFillColInfo(pExprInfo, numOfExprs, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
+  pInfo->pFillColInfo =
+      createFillColInfo(pExprInfo, numOfExprs, NULL, 0, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
+  QUERY_CHECK_NULL(pInfo->pFillColInfo, code, lino, _error, terrno);
+
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
@@ -1166,7 +1188,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->prevTsSet = false;
   pInfo->prevKey.ts = INT64_MIN;
   pInfo->groupId = 0;
-  pInfo->pPrevGroupKey = NULL;
+  pInfo->pPrevGroupKeys = NULL;
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
@@ -1190,7 +1212,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
@@ -1199,19 +1221,17 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
 
   code = appendDownstream(pOperator, &downstream, 1);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
-  return code;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
-  if (pOperator != NULL) {
-    pOperator->info = NULL;
-    destroyOperator(pOperator);
-  }
+  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
@@ -1241,16 +1261,20 @@ void destroyTimeSliceOperatorInfo(void* param) {
   }
   taosArrayDestroy(pInfo->pLinearInfo);
 
-  if (pInfo->pPrevGroupKey) {
-    taosMemoryFree(pInfo->pPrevGroupKey->pData);
-    taosMemoryFree(pInfo->pPrevGroupKey);
+  if (pInfo->pPrevGroupKeys) {
+    taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+    pInfo->pPrevGroupKeys = NULL;
+  }
+  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
   }
 
   cleanupExprSupp(&pInfo->scalarSup);
-
-  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
-    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  if (pInfo->pFillColInfo != NULL) {
+    for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+      taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+    }
+    taosMemoryFree(pInfo->pFillColInfo);
   }
-  taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }

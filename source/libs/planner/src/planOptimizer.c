@@ -1166,9 +1166,9 @@ static EDealRes pdcJoinCollectCondCol(SNode* pNode, void* pContext) {
       char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
       int32_t len = 0;
       if ('\0' == pCol->tableAlias[0]) {
-        len = snprintf(name, sizeof(name), "%s", pCol->colName);
+        len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
       } else {
-        len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+        len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
       }
       if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
         pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
@@ -1194,7 +1194,7 @@ static int32_t pdcJoinCollectColsFromParent(SJoinLogicNode* pJoin, SSHashObj* pT
     .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
   };
   if (NULL == cxt.pColHash) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   
   nodesWalkExpr(pJoin->pPrimKeyEqCond, pdcJoinCollectCondCol, &cxt);
@@ -2380,6 +2380,8 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       pFuncList = ((SInterpFuncLogicNode*)pLogicNode)->pFuncs;
       break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      pFuncList = ((SForecastFuncLogicNode*)pLogicNode)->pFuncs;
     default:
       break;
   }
@@ -2879,7 +2881,7 @@ static int32_t smaIndexOptCreateSmaScan(SScanLogicNode* pScan, STableIndexInfo* 
   pSmaScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
   if (!pSmaScan->pVgroupList) {
     nodesDestroyNode((SNode*)pSmaScan);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   code = nodesCloneList(pCols, &pSmaScan->node.pTargets);
   if (NULL == pSmaScan->node.pTargets) {
@@ -3162,9 +3164,9 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 // todo refact: just to mask compilation warnings
 static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
-  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+  int32_t len = tsnprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
-  (void)taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy(pAlias, name, TSDB_COL_NAME_LEN - 1);
 }
 
@@ -3475,6 +3477,20 @@ static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pConte
 }
 
 
+static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* pChildTargets) {
+  SNode* pChildTarget = NULL, *pParentProject = NULL;
+  FOREACH(pChildTarget, pChildTargets) {
+    SColumnNode* pTargetCol = (SColumnNode*)pChildTarget;
+    FOREACH(pParentProject, pParentProjects) {
+      SExprNode* pProject = (SExprNode*)pParentProject;
+      if (0 == strcmp(pTargetCol->colName, pProject->aliasName)) {
+        pTargetCol->resIdx = pProject->projIdx;
+        break;
+      }
+    }
+  }
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
@@ -3546,6 +3562,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     nodesWalkExprs(pScan->pScanPseudoCols, eliminateProjOptRewriteScanTableAlias, &cxt);    
     nodesWalkExpr(pScan->node.pConditions, eliminateProjOptRewriteScanTableAlias, &cxt);
     nodesWalkExprs(pChild->pTargets, eliminateProjOptRewriteScanTableAlias, &cxt);
+    eliminateProjPushdownProjIdx(pProjectNode->pProjections, pChild->pTargets);
   }
   
   if (TSDB_CODE_SUCCESS == code) {
@@ -3826,8 +3843,8 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
-    (void)taosCreateMD5Hash(name, len);
+    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
+    (void)taosHashBinary(name, len);
     strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
   SNode* pNew = NULL;
@@ -4278,27 +4295,27 @@ static void lastRowScanOptRemoveUslessTargets(SNodeList* pTargets, SNodeList* pL
 static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pColNode, int32_t funcType) {
   SFunctParam* pFuncTypeParam = taosMemoryCalloc(1, sizeof(SFunctParam));
   if (NULL == pFuncTypeParam) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pFuncTypeParam->type = funcType;
   if (NULL == pScan->pFuncTypes) {
     pScan->pFuncTypes = taosArrayInit(pScan->pScanCols->length, sizeof(SFunctParam));
     if (NULL == pScan->pFuncTypes) {
       taosMemoryFree(pFuncTypeParam);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
  
   pFuncTypeParam->pCol = taosMemoryCalloc(1, sizeof(SColumn));
   if (NULL == pFuncTypeParam->pCol) {
     taosMemoryFree(pFuncTypeParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pFuncTypeParam->pCol->colId = pColNode->colId;
   strcpy(pFuncTypeParam->pCol->name, pColNode->colName);
   if (NULL == taosArrayPush(pScan->pFuncTypes, pFuncTypeParam)) {
     taosMemoryFree(pFuncTypeParam);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosMemoryFree(pFuncTypeParam);
@@ -4336,7 +4353,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     }
     FOREACH(pParamNode, pFunc->pParameterList) {
       if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-        int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+        int32_t len = tsnprintf(pFunc->functionName, sizeof(pFunc->functionName),
                               FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
         pFunc->functionName[len] = '\0';
         code = fmGetFuncInfo(pFunc, NULL, 0);
@@ -4883,6 +4900,31 @@ typedef struct SMergeProjectionsContext {
   int32_t            errCode;
 } SMergeProjectionsContext;
 
+static EDealRes mergeProjectionsExpr2(SNode** pNode, void* pContext) {
+  SMergeProjectionsContext* pCxt = pContext;
+  SProjectLogicNode*        pChildProj = pCxt->pChildProj;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SColumnNode* pProjCol = (SColumnNode*)(*pNode);
+    SNode* pProjection;
+    int32_t projIdx = 1;
+    FOREACH(pProjection, pChildProj->pProjections) {
+      if (isColRefExpr(pProjCol, (SExprNode*)pProjection)) {
+        SNode* pExpr = NULL;
+        pCxt->errCode = nodesCloneNode(pProjection, &pExpr);
+        if (pExpr == NULL) {
+          return DEAL_RES_ERROR;
+        }
+        snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
+            ((SExprNode*)*pNode)->aliasName);
+        nodesDestroyNode(*pNode);
+        *pNode = pExpr;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   SMergeProjectionsContext* pCxt = pContext;
   SProjectLogicNode*        pChildProj = pCxt->pChildProj;
@@ -4917,7 +4959,7 @@ static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
   }
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
-  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
+  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr2, &cxt);
   int32_t code = cxt.errCode;
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -6493,6 +6535,7 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       pSort->calcGroupId = true;
       code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
       if (code == TSDB_CODE_SUCCESS) {
+        nodesDestroyNode((SNode*)pNode);
         pCxt->optimized = true;
       } else {
         nodesDestroyNode((SNode*)pSort);
@@ -6577,7 +6620,6 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
         return false;
     }
 
-    assert(pFuncs);
     FOREACH(pTmpNode, pFuncs) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
       if (!fmIsTSMASupportedFunc(pFunc->funcId) && !fmIsPseudoColumnFunc(pFunc->funcId) &&
@@ -6627,7 +6669,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
 
   if (nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
     pTsmaOptCtx->queryInterval = taosMemoryCalloc(1, sizeof(SInterval));
-    if (!pTsmaOptCtx->queryInterval) return TSDB_CODE_OUT_OF_MEMORY;
+    if (!pTsmaOptCtx->queryInterval) return terrno;
 
     SWindowLogicNode* pWindow = (SWindowLogicNode*)pTsmaOptCtx->pParent;
     pTsmaOptCtx->queryInterval->interval = pWindow->interval;
@@ -6641,7 +6683,6 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
     pTsmaOptCtx->pAggFuncs = pWindow->pFuncs;
     pTsmaOptCtx->ppParentTsmaSubplans = &pWindow->pTsmaSubplans;
   } else {
-    ASSERT(nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_AGG);
     SAggLogicNode* pAgg = (SAggLogicNode*)pTsmaOptCtx->pParent;
     pTsmaOptCtx->pAggFuncs = pAgg->pAggFuncs;
     pTsmaOptCtx->ppParentTsmaSubplans = &pAgg->pTsmaSubplans;
@@ -6649,7 +6690,7 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
   pTsmaOptCtx->pUsefulTsmas = taosArrayInit(pScan->pTsmas->size, sizeof(STSMAOptUsefulTsma));
   pTsmaOptCtx->pUsedTsmas = taosArrayInit(3, sizeof(STSMAOptUsefulTsma));
   if (!pTsmaOptCtx->pUsefulTsmas || !pTsmaOptCtx->pUsedTsmas) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
   }
   return code;
 }
@@ -6712,7 +6753,7 @@ static int32_t tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList*
       }
       found = true;
       if (NULL == taosArrayPush(pTsmaScanCols, &i)) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       break;
     }
@@ -6770,7 +6811,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
   for (int32_t i = 0; i < pTsmaOptCtx->pTsmas->size; ++i) {
     if (!pTsmaScanCols) {
       pTsmaScanCols = taosArrayInit(pTsmaOptCtx->pAggFuncs->length, sizeof(int32_t));
-      if (!pTsmaScanCols) return TSDB_CODE_OUT_OF_MEMORY;
+      if (!pTsmaScanCols) return terrno;
     }
     if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE || pTsmaOptCtx->pScan->tableType == TSDB_NORMAL_TABLE) {
       const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, i);
@@ -6799,7 +6840,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
       if (pTsmaScanCols) {
         taosArrayDestroy(pTsmaScanCols);
       }
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   if (pTsmaScanCols) taosArrayDestroy(pTsmaScanCols);
@@ -6906,7 +6947,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // the main tsma
@@ -6919,7 +6960,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
     STSMAOptUsefulTsma usefulTsma = {
         .pTsma = pTsma, .scanRange = scanRange, .pTsmaScanCols = pUsefulTsma->pTsmaScanCols};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
 
   // add tail tsma if possible
@@ -6933,14 +6974,15 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
     if (NULL == taosArrayPush(pTsmaOptCtx->pUsedTsmas, &usefulTsma))
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
   }
   return code;
 }
 
 int32_t tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNodeList* pAggFuncs, SNodeList** ppList) {
-  ASSERT(pTsma->pTsma);
-  ASSERT(pTsma->pTsmaScanCols);
+  if (!pTsma->pTsma || !pTsma->pTsmaScanCols) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
   int32_t    code;
   SNode*     pNode;
   SNodeList* pScanCols = NULL;
@@ -6996,8 +7038,7 @@ static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptU
       break;
     }
   }
-  ASSERT(found);
-  return 0;
+  return found ? TSDB_CODE_SUCCESS : TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
 static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode,
@@ -7033,7 +7074,7 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
       pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
       pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
       pValue->datum.p = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + VARSTR_HEADER_SIZE);
-      if (!pValue->literal || !pValue->datum.p) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (!pValue->literal || !pValue->datum.p) code = terrno;
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -7116,7 +7157,6 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     SColumnNode* pPkTsCol = NULL;
     FOREACH(pNode, pNewScan->pScanCols) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      ASSERT(pTsma->pTsmaScanCols);
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         pPkTsCol = NULL;
         code = nodesCloneNode((SNode*)pCol, (SNode**)&pPkTsCol);
@@ -7162,7 +7202,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
             int32_t len = sizeof(int32_t) + sizeof(SVgroupInfo) * pVgpsInfo->numOfVgroups;
             pNewScan->pVgroupList = taosMemoryCalloc(1, len);
             if (!pNewScan->pVgroupList) {
-              code = TSDB_CODE_OUT_OF_MEMORY;
+              code = terrno;
               break;
             }
             memcpy(pNewScan->pVgroupList, pVgpsInfo, len);
@@ -7196,8 +7236,8 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   strcpy(pWStart->functionName, "_wstart");
   int64_t pointer = (int64_t)pWStart;
   char    name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
-  (void)taosCreateMD5Hash(name, len);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
+  (void)taosHashBinary(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
 
@@ -7272,7 +7312,6 @@ static int32_t tsmaOptRewriteParent(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParen
 
   if (code == TSDB_CODE_SUCCESS && pWindow) {
     SColumnNode* pCol = (SColumnNode*)pScan->pScanCols->pTail->pNode;
-    assert(pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     nodesDestroyNode(pWindow->pTspk);
     pWindow->pTspk = NULL;
     code = nodesCloneNode((SNode*)pCol, &pWindow->pTspk);
@@ -7302,7 +7341,6 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
       for (int32_t j = 0; j < pTsmaOptCtx->pScan->pTsmas->size; ++j) {
         if (taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, j) == pTsma->pTsma) {
           const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, j);
-          ASSERT(ptbInfo->uid != 0);
           strcpy(pTsma->targetTbName, ptbInfo->tableName);
           pTsma->targetTbUid = ptbInfo->uid;
         }

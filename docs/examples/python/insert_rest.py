@@ -1,9 +1,9 @@
 import taosrest
 
 conn = None
-
+url="http://localhost:6041"
 try:
-    conn = taosrest.connect(url="http://localhost:6041",
+    conn = taosrest.connect(url=url,
                    user="root",
                    password="taosdata",
                    timeout=30)
@@ -17,10 +17,11 @@ try:
             VALUES (NOW + 1a, 10.30000, 218, 0.25000)
         """
     affectedRows = conn.execute(sql)
-    print(f"inserted into {affectedRows} rows to power.meters successfully.")
+    print(f"Successfully inserted {affectedRows} rows to power.meters.")
 
 except Exception as err:
-    print(err)
+    print(f"Failed to insert data to power.meters, sql:{sql}, ErrMessage:{err}.")
+    raise err
 finally:
     if conn:
         conn.close()

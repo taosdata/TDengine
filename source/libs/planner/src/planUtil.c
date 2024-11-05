@@ -256,6 +256,15 @@ static int32_t adjustCountDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustAnomalyDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -268,6 +277,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustEventDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_COUNT:
       return adjustCountDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_ANOMALY:
+      return adjustAnomalyDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -318,6 +329,15 @@ static int32_t adjustInterpDataRequirement(SInterpFuncLogicNode* pInterp, EDataO
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustForecastDataRequirement(SForecastFuncLogicNode* pForecast, EDataOrderLevel requirement) {
+  if (requirement <= pForecast->node.requireDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pForecast->node.resultDataOrder = requirement;
+  pForecast->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -354,6 +374,9 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
       break;
@@ -630,8 +653,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      (void)taosCreateMD5Hash(name, len);
+      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len);
       strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
     }
   }
@@ -716,5 +739,16 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr) {
+  if (pCol->projRefIdx > 0) return pCol->projRefIdx == pExpr->projIdx;
 
+  return 0 == strcmp(pCol->colName, pExpr->aliasName);
+}
 
+void rewriteTargetsWithResId(SNodeList* pTargets) {
+  SNode* pNode;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    pCol->resIdx = pCol->projRefIdx;
+  }
+}

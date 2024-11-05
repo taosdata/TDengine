@@ -4,16 +4,14 @@ title: 标签索引
 description: 使用标签索引提升查询性能
 ---
 
-## 简介
-
-在 TDengine 3.0.3.0 版本之前（不含），默认在第一列 TAG 上建立索引，但不支持给其它列动态添加索引。从 3.0.3.0 版本开始，可以动态地为其它 TAG 列添加索引。对于第一个 TAG 列上自动建立的索引，其在查询中默认生效，且用户无法对其进行任何干预。适当地使用索引能够有效地提升查询性能。
+本节说明 TDengine 的索引机制。在 TDengine 3.0.3.0 版本之前（不含），默认在第一列 TAG 上建立索引，但不支持给其它列动态添加索引。从 3.0.3.0 版本开始，可以动态地为其它 TAG 列添加索引。对于第一个 TAG 列上自动建立的索引，其在查询中默认生效，且用户无法对其进行任何干预。适当地使用索引能够有效地提升查询性能。
 
 ## 语法
 
 创建索引的语法如下 
 
 ```sql
-CREATE INDEX index_name ON tbl_name (tagColName）
+CREATE INDEX index_name ON tbl_name (tagColName)
 ```
 
 其中 `index_name` 为索引名称， `tbl_name` 为超级表名称，`tagColName` 为要在其上建立索引的 tag 列的名称。`tagColName` 的类型不受限制，即任何类型的 tag 列都可以建立索引。

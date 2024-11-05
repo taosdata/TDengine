@@ -1,6 +1,5 @@
 import queue
 import random
-from fabric2.runners import threading
 from pandas._libs import interval
 import taos
 import sys
@@ -9,6 +8,7 @@ from util.common import TDCom
 from util.log import *
 from util.sql import *
 from util.cases import *
+import threading
 
 
 
@@ -126,6 +126,17 @@ class TDTestCase:
     def test_fill_range(self):
         os.system('taosBenchmark -t 10 -n 10000 -v 8 -S 32000 -y')
         self.schedule_fill_test_tasks()
+        sql = "select first(_wstart), last(_wstart) from (select _wstart, count(*) from test.meters where ts >= '2019-09-19 23:54:00.000' and ts < '2019-09-20 01:00:00.000' interval(10s) sliding(10s) fill(VALUE_F, 122) order by _wstart) t"
+        tdSql.query(sql, queryTimes=1)
+        rows = tdSql.getRows()
+        first_ts = tdSql.queryResult[0][0]
+        last_ts = tdSql.queryResult[0][1]
+
+        sql = "select first(_wstart), last(_wstart) from (select _wstart, count(*) from test.meters where ts >= '2019-09-19 23:54:00.000' and ts < '2019-09-20 01:00:00.000' interval(10s) sliding(10s) fill(VALUE_F, 122) order by _wstart desc) t"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(rows)
+        tdSql.checkData(0, 0, first_ts)
+        tdSql.checkData(0, 1, last_ts)
         tdSql.execute('drop database test')
 
     def run(self):

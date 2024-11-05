@@ -46,8 +46,11 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  if (writer->pColCmprObj != NULL) {
+    taosHashCleanup(writer->pColCmprObj);
+    writer->pColCmprObj = NULL;
+  }
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
-  // TODO: TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->blockDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(writer->blockData); i++) {
@@ -73,8 +76,6 @@ static int32_t tsdbFSetWriteTableDataEnd(SFSetWriter *writer) {
   int32_t numRow = ((writer->blockData[pidx].nRow + writer->blockData[cidx].nRow) >> 1);
 
   if (writer->blockData[pidx].nRow > 0 && numRow >= writer->config->minRow) {
-    ASSERT(writer->blockData[pidx].nRow == writer->config->maxRow);
-
     SRowInfo row = {
         .suid = writer->ctx->tbid->suid,
         .uid = writer->ctx->tbid->uid,
@@ -129,6 +130,8 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   taosHashCleanup(writer->pColCmprObj);
+  writer->pColCmprObj = NULL;
+
   return code;
 }
 
@@ -138,7 +141,7 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
 
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   writer[0]->config[0] = config[0];

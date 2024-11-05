@@ -10,7 +10,7 @@ MQTT is a popular IoT data transfer protocol. [EMQX](https://github.com/emqx/emq
 
 The following preparations are required for EMQX to add TDengine data sources correctly.
 - The TDengine cluster is deployed and working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/components/taosadapter) for details.
 - If you use the emulated writers described later, you need to install the appropriate version of Node.js. V12 is recommended.
 
 ## Install and start EMQX
@@ -82,7 +82,7 @@ Edit the resource configuration to add the key/value pairing for Authorization. 
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
-Please refer to the [ TDengine REST API documentation ](../../reference/rest-api/) for the authorization in details. 
+Please refer to the [ TDengine REST API documentation ](../../reference/connectors/rest-api/) for the authorization in details. 
  
 Enter the rule engine replacement template in the message body:
 

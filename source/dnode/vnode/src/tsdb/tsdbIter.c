@@ -153,7 +153,8 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       for (; iter->dataData->brinBlockIdx < iter->dataData->brinBlock->numOfRecords; iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
-        (void)tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
+        code = tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
+        if (code) return code;
 
         if (iter->filterByVersion && (record->maxVer < iter->range[0] || record->minVer > iter->range[1])) {
           continue;
@@ -224,7 +225,7 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       iter->row->row = row[0];
 
-      (void)tsdbTbDataIterNext(iter->memtData->tbIter);
+      bool r = tsdbTbDataIterNext(iter->memtData->tbIter);
       goto _exit;
     }
 
@@ -373,7 +374,8 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   iter->dataData->brinBlkArrayIdx = 0;
 
   // SBrinBlock
-  (void)tBrinBlockInit(iter->dataData->brinBlock);
+  code = tBrinBlockInit(iter->dataData->brinBlock);
+  if (code) return code;
   iter->dataData->brinBlockIdx = 0;
 
   // SBlockData
@@ -430,7 +432,7 @@ static int32_t tsdbMemTombIterOpen(STsdbIter *iter) {
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
-  (void)tBrinBlockDestroy(iter->dataData->brinBlock);
+  tBrinBlockDestroy(iter->dataData->brinBlock);
   tBlockDataDestroy(iter->dataData->blockData);
   return 0;
 }
@@ -547,8 +549,7 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
       code = tsdbMemTombIterOpen(iter[0]);
       break;
     default:
-      code = TSDB_CODE_INVALID_PARA;
-      ASSERTS(false, "Not implemented");
+      return TSDB_CODE_INVALID_PARA;
   }
 
   if (code) {
@@ -588,7 +589,7 @@ int32_t tsdbIterClose(STsdbIter **iter) {
     case TSDB_ITER_TYPE_MEMT_TOMB:
       break;
     default:
-      ASSERT(false);
+      return TSDB_CODE_INVALID_PARA;
   }
   taosMemoryFree(iter[0]);
   iter[0] = NULL;
@@ -610,7 +611,7 @@ int32_t tsdbIterNext(STsdbIter *iter) {
     case TSDB_ITER_TYPE_MEMT_TOMB:
       return tsdbMemTombIterNext(iter, NULL);
     default:
-      ASSERT(false);
+      return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -630,7 +631,7 @@ static int32_t tsdbIterSkipTableData(STsdbIter *iter, const TABLEID *tbid) {
     case TSDB_ITER_TYPE_MEMT_TOMB:
       return tsdbMemTombIterNext(iter, tbid);
     default:
-      ASSERT(false);
+      return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -691,18 +692,20 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
   TARRAY2_FOREACH(iterArray, iter) {
     if (iter->noMoreData) continue;
     node = tRBTreePut(merger[0]->iterTree, iter->node);
-    ASSERT(node);
+    if (node == NULL) {
+      taosMemoryFree(merger[0]);
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   return tsdbIterMergerNext(merger[0]);
 }
 
-int32_t tsdbIterMergerClose(SIterMerger **merger) {
+void tsdbIterMergerClose(SIterMerger **merger) {
   if (merger[0]) {
     taosMemoryFree(merger[0]);
     merger[0] = NULL;
   }
-  return 0;
 }
 
 int32_t tsdbIterMergerNext(SIterMerger *merger) {
@@ -718,10 +721,8 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
       merger->iter = NULL;
     } else if ((node = tRBTreeMin(merger->iterTree))) {
       c = merger->iterTree->cmprFn(merger->iter->node, node);
-      ASSERT(c);
       if (c > 0) {
         node = tRBTreePut(merger->iterTree, merger->iter->node);
-        ASSERT(node);
         merger->iter = NULL;
       }
     }
@@ -734,15 +735,9 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
   return 0;
 }
 
-SRowInfo *tsdbIterMergerGetData(SIterMerger *merger) {
-  ASSERT(!merger->isTomb);
-  return merger->iter ? merger->iter->row : NULL;
-}
+SRowInfo *tsdbIterMergerGetData(SIterMerger *merger) { return merger->iter ? merger->iter->row : NULL; }
 
-STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger) {
-  ASSERT(merger->isTomb);
-  return merger->iter ? merger->iter->record : NULL;
-}
+STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger) { return merger->iter ? merger->iter->record : NULL; }
 
 int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
   int32_t      code;
@@ -757,10 +752,8 @@ int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
       merger->iter = NULL;
     } else if ((node = tRBTreeMin(merger->iterTree))) {
       c = merger->iterTree->cmprFn(merger->iter->node, node);
-      ASSERT(c);
       if (c > 0) {
         node = tRBTreePut(merger->iterTree, merger->iter->node);
-        ASSERT(node);
         merger->iter = NULL;
       }
     }

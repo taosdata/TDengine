@@ -7,13 +7,14 @@ numOfRow = 10
 
 conn = None
 stmt = None
-
+host="localhost"        
+port=6030
 try:
     conn = taos.connect(
-        host="localhost",
         user="root",
         password="taosdata",
-        port=6030,
+        host=host,        
+        port=port,
     )
 
     conn.execute("CREATE DATABASE IF NOT EXISTS power")
@@ -52,10 +53,11 @@ try:
         params[3].float(phases)
         stmt.bind_param_batch(params)
         stmt.execute()
-        print(f"stmt insert successfully.")
+        print(f"Successfully inserted to power.meters.")
 
 except Exception as err:
-    print(f"Failed to insert to table meters using stmt, error: {err}") 
+    print(f"Failed to insert to table meters using stmt, ErrMessage:{err}") 
+    raise err
 finally:
     if stmt:
         stmt.close()

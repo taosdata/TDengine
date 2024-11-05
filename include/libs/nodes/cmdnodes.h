@@ -72,6 +72,7 @@ typedef struct SDatabaseOptions {
   int8_t      compressionLevel;
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
+  char        dnodeListStr[TSDB_DNODE_LIST_LEN];
   char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
@@ -240,6 +241,7 @@ typedef struct SDropTableStmt {
   ENodeType  type;
   SNodeList* pTables;
   bool       withTsma;
+  bool       withOpt;
 } SDropTableStmt;
 
 typedef struct SDropSuperTableStmt {
@@ -247,6 +249,7 @@ typedef struct SDropSuperTableStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
+  bool      withOpt;
 } SDropSuperTableStmt;
 
 typedef struct SAlterTableStmt {
@@ -315,6 +318,21 @@ typedef struct SAlterDnodeStmt {
   char      config[TSDB_DNODE_CONFIG_LEN];
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterDnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_ANAL_ANODE_URL_LEN + 3];
+} SCreateAnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   anodeId;
+} SDropAnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   anodeId;
+} SUpdateAnodeStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;

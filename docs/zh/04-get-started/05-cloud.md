@@ -1,6 +1,6 @@
 ---
-sidebar_label: 云服务
-title: 通过 云服务 快速体验 TDengine
+sidebar_label: 用云服务快速体验
+title: 通过云服务 快速体验 TDengine
 toc_max_heading_level: 4
 ---
 
@@ -15,7 +15,7 @@ TDengine Cloud 大幅减轻了用户在部署、运维等方面的人力负担�
 
 要在 TDengine Cloud 注册新用户，请遵循以下简易步骤完成注册流程：
 
-1. 打开浏览器，访问 TDengine Cloud 的首页：https://cloud.taosdata.com，在右边的“注册”部分，填入自己的姓名以及企业邮箱地址，点击“获取验证码”按钮。
+1. 打开浏览器，访问 [TDengine Cloud](https://cloud.taosdata.com)，在右边的“注册”部分，填入自己的姓名以及企业邮箱地址，点击“获取验证码”按钮。
 
 2. 检查企业邮箱，找到主题为“你的 TDengine Cloud 注册账户验证码”的邮件。从邮件内容中复制 6 位验证码，并将其粘贴到注册页面上的“验证码”输入框中。接着，点击“注册 TDengine Cloud”按钮，进入客户信息补全页面。
 

@@ -45,6 +45,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                            .retentionPeriod = -1,
                                            .rollPeriod = 0,
                                            .segSize = 0,
+                                           .committed = 0,
                                            .retentionSize = -1,
                                            .level = TAOS_WAL_WRITE,
                                            .clearFiles = 0,
@@ -125,7 +126,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     }
     SJson *pNodeRetentions = tjsonCreateArray();
     if (pNodeRetentions == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     TAOS_CHECK_RETURN(tjsonAddItemToObject(pJson, "retentions", pNodeRetentions));
     for (int32_t i = 0; i < nRetention; ++i) {
@@ -167,7 +168,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   TAOS_CHECK_RETURN(tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo));
   vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", pCfg->vgId,
@@ -175,7 +176,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];
@@ -248,7 +249,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
   for (int32_t i = 0; i < nRetention; ++i) {
     SJson *pNodeRetention = tjsonGetArrayItem(pNodeRetentions, i);
-    ASSERT(pNodeRetention != NULL);
     tjsonGetNumberValue(pNodeRetention, "freq", (pCfg->tsdbCfg.retentions)[i].freq, code);
     if (code) return code;
     tjsonGetNumberValue(pNodeRetention, "freqUnit", (pCfg->tsdbCfg.retentions)[i].freqUnit, code);
@@ -301,8 +301,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 #if defined(TD_ENTERPRISE)
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
-      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      return -1;
+      return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
       strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
@@ -353,7 +352,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (info == NULL) return -1;
     tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code) return code;
-    (void)tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
+    code = tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
     tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
     if (code) return code;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
@@ -376,11 +375,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE) {
     pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   }
   tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
-  if (code < 0) {
+  if (code < 0 || pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL) {
     pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   }
   tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);

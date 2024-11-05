@@ -17,6 +17,37 @@ public class TestAll {
                 stmt.execute("drop database if exists " + dbName);
             }
         }
+        waitTransaction();
+    }
+
+    public void dropTopic(String topicName) throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("drop topic if exists " + topicName);
+            }
+        }
+        waitTransaction();
+    }
+
+    public void waitTransaction() throws SQLException {
+
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl)) {
+            try (Statement stmt = conn.createStatement()) {
+                for (int i = 0; i < 10; i++) {
+                    stmt.execute("show transactions");
+                    try (ResultSet resultSet = stmt.getResultSet()) {
+                        if (resultSet.next()) {
+                            int count = resultSet.getInt(1);
+                            if (count == 0) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public void insertData() throws SQLException {
@@ -40,46 +71,84 @@ public class TestAll {
     }
 
     @Test
-    public void testJNIConnect() throws SQLException {
+    public void testJNIConnect() throws Exception {
         JNIConnectExample.main(args);
     }
 
     @Test
-    public void testRestConnect() throws SQLException {
+    public void testRestConnect() throws Exception {
         RESTConnectExample.main(args);
     }
 
     @Test
-    public void testRestInsert() throws SQLException {
-        dropDB("power");
-        RestInsertExample.main(args);
-        RestQueryExample.main(args);
+    public void testWsConnect() throws Exception {
+        WSConnectExample.main(args);
     }
 
     @Test
-    public void testStmtInsert() throws SQLException {
+    public void testBase() throws Exception {
+        JdbcCreatDBDemo.main(args);
+        JdbcInsertDataDemo.main(args);
+        JdbcQueryDemo.main(args);
+
         dropDB("power");
-        StmtInsertExample.main(args);
     }
 
     @Test
-    public void testSubscribe() {
+    public void testWsSchemaless() throws Exception {
+        dropDB("power");
+        SchemalessWsTest.main(args);
+    }
+    @Test
+    public void testJniSchemaless() throws Exception {
+        dropDB("power");
+        SchemalessJniTest.main(args);
+    }
+
+    @Test
+    public void testJniStmtBasic() throws Exception {
+        dropDB("power");
+        ParameterBindingBasicDemo.main(args);
+    }
+
+    @Test
+    public void testJniStmtFull() throws Exception {
+        dropDB("power");
+        ParameterBindingFullDemo.main(args);
+    }
+
+    @Test
+    public void testWsStmtBasic() throws Exception {
+        dropDB("power");
+        WSParameterBindingBasicDemo.main(args);
+    }
+
+    @Test
+    public void testWsStmtFull() throws Exception {
+        dropDB("power");
+        WSParameterBindingFullDemo.main(args);
+    }
+
+    @Test
+    public void testConsumer() throws Exception {
+        dropDB("power");
         SubscribeDemo.main(args);
     }
 
-
     @Test
-    public void testSubscribeOverWebsocket() {
-        WebsocketSubscribeDemo.main(args);
+    public void testSubscribeJni() throws SQLException, InterruptedException {
+        dropTopic("topic_meters");
+        dropDB("power");
+        ConsumerLoopFull.main(args);
+        dropTopic("topic_meters");
+        dropDB("power");
     }
-
     @Test
-    public void testSchemaless() throws SQLException {
-        LineProtocolExample.main(args);
-        TelnetLineProtocolExample.main(args);
-        // for json protocol, tags may be double type. but for telnet protocol tag must be nchar type.
-        // To avoid type mismatch, we delete database test.
-        dropDB("test");
-        JSONProtocolExample.main(args);
+    public void testSubscribeWs() throws SQLException, InterruptedException {
+        dropTopic("topic_meters");
+        dropDB("power");
+        WsConsumerLoopFull.main(args);
+        dropTopic("topic_meters");
+        dropDB("power");
     }
 }

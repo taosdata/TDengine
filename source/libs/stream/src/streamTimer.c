@@ -40,13 +40,35 @@ int32_t streamTimerGetInstance(tmr_h* pTmr) {
   return TSDB_CODE_SUCCESS;
 }
 
-void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, int32_t vgId,
                     const char* pMsg) {
-//  while (1) {
-    bool ret = taosTmrReset(fp, mseconds, param, handle, pTmrId);
-    if (ret) {
-//      break;
+  if (*pTmrId == NULL) {
+    *pTmrId = taosTmrStart(fp, mseconds, pParam, pHandle);
+    if (*pTmrId == NULL) {
+      stError("vgId:%d start %s tmr failed, code:%s", vgId, pMsg, tstrerror(terrno));
+      return;
     }
-//    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
-//  }
+  } else {
+    bool ret = taosTmrReset(fp, mseconds, pParam, pHandle, pTmrId);
+    if (ret) {
+      stError("vgId:%d start %s tmr failed, code:%s", vgId, pMsg, tstrerror(terrno));
+      return;
+    }
+  }
+
+  stTrace("vgId:%d start %s tmr succ", vgId, pMsg);
+}
+
+void streamTmrStop(tmr_h tmrId) {
+  bool stop = taosTmrStop(tmrId);
+  if (stop) {
+    // todo
+  }
+}
+
+void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param) {
+  pInfo->activeCounter = 0;
+  pInfo->launchChkptId = 0;
+  atomic_store_8(&pInfo->isActive, 0);
+  streamTaskFreeRefId(param);
 }

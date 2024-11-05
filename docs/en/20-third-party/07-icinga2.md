@@ -4,7 +4,7 @@ sidebar_label: icinga2
 description: This document describes how to integrate TDengine with icinga2.
 ---
 
-import Icinga2 from "../14-reference/_icinga2.mdx"
+import Icinga2 from "../14-reference/01-components/_icinga2.mdx"
 
 icinga2 is an open-source, host and network monitoring software initially developed from the Nagios network monitoring application. Currently, icinga2 is distributed under the GNU GPL v2 license.
 
@@ -14,7 +14,7 @@ You can write the data collected by icinga2 to TDengine by simply modifying the 
 
 To write icinga2 data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/components/taosadapter) for details.
 - icinga2 has been installed. Please refer to the [official documentation](https://icinga.com/docs/icinga-2/latest/doc/02-installation/) for icinga2 installation
 
 ## Configuration steps
