@@ -561,7 +561,7 @@ int32_t vnodePreProcessDropTbMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SVDropTbBatchReq receivedBatchReqs = {0};
   SVDropTbBatchReq sentBatchReqs = {0};
 
-  tDecoderInit(&dc, pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
+  tDecoderInit(&dc, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead));
 
   code = tDecodeSVDropTbBatchReq(&dc, &receivedBatchReqs);
   if (code < 0) {
@@ -591,7 +591,7 @@ int32_t vnodePreProcessDropTbMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   sentBatchReqs.nReqs = sentBatchReqs.pArray->size;
 
   tEncodeSize(tEncodeSVDropTbBatchReq, &sentBatchReqs, size, code);
-  tEncoderInit(&ec, pMsg->pCont + sizeof(SMsgHead), size);
+  tEncoderInit(&ec, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), size);
   code = tEncodeSVDropTbBatchReq(&ec, &sentBatchReqs);
   tEncoderClear(&ec);
   if (code != TSDB_CODE_SUCCESS) {

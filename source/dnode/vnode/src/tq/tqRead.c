@@ -366,7 +366,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     } else if (pCont->msgType == TDMT_VND_DELETE) {
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-      EStreamType blockType = pCont->msgType == STREAM_DELETE_DATA;
+      EStreamType blockType = STREAM_DELETE_DATA;
       code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
