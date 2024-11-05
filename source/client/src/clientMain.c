@@ -669,7 +669,7 @@ const char *taos_data_type(int type) {
   }
 }
 
-const char *taos_get_client_info() { return version; }
+const char *taos_get_client_info() { return td_version; }
 
 // return int32_t
 int taos_affected_rows(TAOS_RES *res) {
@@ -2159,4 +2159,4 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
   return 0;
 }
 
-char *getBuildInfo() { return buildinfo; }
+char *getBuildInfo() { return td_buildinfo; }
