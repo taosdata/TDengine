@@ -22,6 +22,10 @@
 #include "taoserror.h"
 #include "tglobal.h"
 
+int32_t azBegin() { return TSDB_CODE_SUCCESS; }
+
+void azEnd() {}
+
 #if defined(USE_S3)
 
 #include <azure/core.hpp>
@@ -39,10 +43,6 @@ extern char tsS3BucketName[TSDB_FQDN_LEN];
 
 extern int8_t tsS3Enabled;
 extern int8_t tsS3EpNum;
-
-int32_t azBegin() { return TSDB_CODE_SUCCESS; }
-
-void azEnd() {}
 
 static void checkPrint(const char *fmt, ...) {
   va_list arg_ptr;
@@ -523,10 +523,6 @@ int32_t azDeleteObjects(const char *object_name[], int nobject) {
 }
 
 #else
-
-int32_t azBegin() { return TSDB_CODE_SUCCESS; }
-
-void azEnd() {}
 
 int32_t azCheckCfg() { return TSDB_CODE_SUCCESS; }
 
