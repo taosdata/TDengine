@@ -7,7 +7,7 @@ ENDIF()
 add_custom_command(
     OUTPUT ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c
     COMMAND echo "Running lemon process in ${TD_SOURCE_DIR}/source/libs/parser/inc"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/lemon sql.y || true
+    COMMAND ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon sql.y || true
     COMMAND echo "copy sql.c from ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c to ${TD_SOURCE_DIR}/source/libs/parser/src/"
     COMMAND cp ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c ${TD_SOURCE_DIR}/source/libs/parser/src/
     COMMAND echo "lemon process completed."
