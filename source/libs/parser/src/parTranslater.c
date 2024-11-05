@@ -4149,9 +4149,9 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   }
 
   if (TSDB_CODE_SUCCESS == code &&
-          (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
-      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
-      (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USAGE) && !hasUserDbCond)) {
+      ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USAGE) && !hasUserDbCond))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
