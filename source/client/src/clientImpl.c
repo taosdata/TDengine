@@ -1250,6 +1250,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
+  int32_t subplanNum = 0;
 
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
@@ -1405,6 +1406,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (TSDB_CODE_SUCCESS == code) {
       code = schedulerExecJob(&req, &pRequest->body.queryJob);
     }
+
     taosArrayDestroy(pNodeList);
   } else {
     qDestroyQueryPlan(pDag);
@@ -1698,7 +1700,7 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
-  tstrncpy(connectReq.sVer, version, sizeof(connectReq.sVer));
+  tstrncpy(connectReq.sVer, td_version, sizeof(connectReq.sVer));
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = taosMemoryMalloc(contLen);
@@ -1768,19 +1770,15 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-int32_t doProcessMsgFromServer(void* param) {
-  AsyncArg* arg = (AsyncArg*)param;
-  SRpcMsg*  pMsg = &arg->msg;
-  SEpSet*   pEpSet = arg->pEpset;
-
+int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
-    taosMemoryFree(arg->pEpset);
     rpcFreeCont(pMsg->pCont);
-    taosMemoryFree(arg);
+    taosMemoryFree(pEpSet);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
+
   STscObj* pTscObj = NULL;
 
   STraceId* trace = &pMsg->info.traceId;
@@ -1800,10 +1798,9 @@ int32_t doProcessMsgFromServer(void* param) {
         if (TSDB_CODE_SUCCESS != taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId)) {
           tscError("doProcessMsgFromServer taosReleaseRef failed");
         }
-        taosMemoryFree(arg->pEpset);
         rpcFreeCont(pMsg->pCont);
+        taosMemoryFree(pEpSet);
         destroySendMsgInfo(pSendInfo);
-        taosMemoryFree(arg);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       pTscObj = pRequest->pTscObj;
@@ -1842,20 +1839,24 @@ int32_t doProcessMsgFromServer(void* param) {
 
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
-
-  taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
+}
+int32_t doProcessMsgFromServer(void* param) {
+  AsyncArg* arg = (AsyncArg*)param;
+  int32_t   code = doProcessMsgFromServerImpl(&arg->msg, arg->pEpset);
+  taosMemoryFree(arg);
+  return code;
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  int32_t code = 0;
   SEpSet* tEpSet = NULL;
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
     if (NULL == tEpSet) {
-      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-      rpcFreeCont(pMsg->pCont);
-      destroySendMsgInfo(pMsg->info.ahandle);
-      return;
+      code = terrno;
+      pMsg->code = terrno;
+      goto _exit;
     }
     (void)memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
@@ -1877,21 +1878,25 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   if (NULL == arg) {
-    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(tEpSet);
-    rpcFreeCont(pMsg->pCont);
-    destroySendMsgInfo(pMsg->info.ahandle);
-    return;
+    code = terrno;
+    pMsg->code = code;
+    goto _exit;
   }
+
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
-    tscError("failed to sched msg to tsc, tsc ready to quit");
-    rpcFreeCont(pMsg->pCont);
-    taosMemoryFree(arg->pEpset);
-    destroySendMsgInfo(pMsg->info.ahandle);
+  if ((code = taosAsyncExec(doProcessMsgFromServer, arg, NULL)) != 0) {
+    pMsg->code = code;
     taosMemoryFree(arg);
+    goto _exit;
+  }
+  return;
+_exit:
+  tscError("failed to sched msg to tsc since %s", tstrerror(code));
+  code = doProcessMsgFromServerImpl(pMsg, tEpSet);
+  if (code != 0) {
+    tscError("failed to sched msg to tsc, tsc ready quit");
   }
 }
 
@@ -2571,7 +2576,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
-  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(version, &(rpcInit.compatibilityVer))) {
+  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
   }

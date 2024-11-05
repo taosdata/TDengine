@@ -41,6 +41,7 @@ extern const int32_t TYPE_BYTES[21];
 #define FLOAT_BYTES     sizeof(float)
 #define DOUBLE_BYTES    sizeof(double)
 #define POINTER_BYTES   sizeof(void *)
+#define M256_BYTES      32
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
@@ -187,6 +188,47 @@ typedef enum EOperatorType {
   // internal operator
   OP_TYPE_ASSIGN = 200
 } EOperatorType;
+
+static const EOperatorType OPERATOR_ARRAY[] = {
+  OP_TYPE_ADD,
+  OP_TYPE_SUB,
+  OP_TYPE_MULTI,
+  OP_TYPE_DIV,
+  OP_TYPE_REM,
+  
+  OP_TYPE_MINUS,
+  
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
+
+  OP_TYPE_GREATER_THAN,
+  OP_TYPE_GREATER_EQUAL,
+  OP_TYPE_LOWER_THAN,
+  OP_TYPE_LOWER_EQUAL,
+  OP_TYPE_EQUAL,
+  OP_TYPE_NOT_EQUAL,
+  OP_TYPE_IN,
+  OP_TYPE_NOT_IN,
+  OP_TYPE_LIKE,
+  OP_TYPE_NOT_LIKE,
+  OP_TYPE_MATCH,
+  OP_TYPE_NMATCH,
+  
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
+  OP_TYPE_IS_TRUE,
+  OP_TYPE_IS_FALSE,
+  OP_TYPE_IS_UNKNOWN,
+  OP_TYPE_IS_NOT_TRUE,
+  OP_TYPE_IS_NOT_FALSE,
+  OP_TYPE_IS_NOT_UNKNOWN,
+  //OP_TYPE_COMPARE_MAX_VALUE, 
+
+  OP_TYPE_JSON_GET_VALUE,
+  OP_TYPE_JSON_CONTAINS,
+
+  OP_TYPE_ASSIGN
+};
 
 #define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
 
@@ -411,6 +453,7 @@ typedef enum ELogicConditionType {
 #define TSDB_CACHE_MODEL_LAST_ROW       1
 #define TSDB_CACHE_MODEL_LAST_VALUE     2
 #define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DNODE_LIST_LEN             256
 #define TSDB_ENCRYPT_ALGO_STR_LEN       16
 #define TSDB_ENCRYPT_ALGO_NONE_STR      "none"
 #define TSDB_ENCRYPT_ALGO_SM4_STR       "sm4"

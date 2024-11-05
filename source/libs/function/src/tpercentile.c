@@ -224,7 +224,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value, int32_t *index
 
   *index = -1;
 
-  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v)) {
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v) || isinf(v)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -232,6 +232,8 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value, int32_t *index
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
   if (fabs(span) < DBL_EPSILON) {
     *index = 0;
+  } else if (isinf(span)) {
+    *index = -1;
   } else {
     double slotSpan = span / pBucket->numOfSlots;
     *index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);

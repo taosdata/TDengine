@@ -28,7 +28,7 @@ jobs:
         run: |
           mkdir debug
           cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
@@ -48,7 +48,7 @@ jobs:
         working-directory: tools/keeper
         run: |
           go mod tidy
-          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
 
       - name: Clean up

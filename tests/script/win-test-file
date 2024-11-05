@@ -325,6 +325,7 @@
 ./test.sh -f tsim/compress/compress.sim
 ./test.sh -f tsim/compress/compress_col.sim
 ./test.sh -f tsim/compress/uncompress.sim
+./test.sh -f tsim/compress/compressDisable.sim
 ./test.sh -f tsim/compute/avg.sim
 ./test.sh -f tsim/compute/block_dist.sim
 ./test.sh -f tsim/compute/bottom.sim

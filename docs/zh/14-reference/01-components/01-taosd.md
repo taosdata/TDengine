@@ -156,8 +156,8 @@ charset 的有效值是 UTF-8。
 ### 内存相关
 |      参数名称       |                    参数说明                     |
 | :----------------: | :---------------------------------------------: |
-| rpcQueueMemoryAllowed       | 一个 dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围：10485760-INT64_MAX，缺省值：服务器内存的 1/10 |
-| syncLogBufferMemoryAllowed  | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值，单位 bytes，取值范围：10485760-INT64_MAX，缺省值：服务器内存的 1/10，3.1.3.2/3.3.2.13 版本开始生效 |
+| rpcQueueMemoryAllowed       | 一个 dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10 |
+| syncLogBufferMemoryAllowed  | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10，3.1.3.2/3.3.2.13 版本开始生效 |
 
 ### 性能调优
 
@@ -180,6 +180,7 @@ charset 的有效值是 UTF-8。
 |   tmrDebugFlag   |                                                              定时器模块的日志开关，取值范围同上                                                              |
 |    uDebugFlag    |                                                             共用功能模块的日志开关，取值范围同上                                                             |
 |   rpcDebugFlag   |                                                               rpc 模块的日志开关，取值范围同上                                                               |
+|   cDebugFlag   |                                                               客户端模块的日志开关，取值范围同上                                                               |
 |   jniDebugFlag   |                                                               jni 模块的日志开关，取值范围同上                                                               |
 |    qDebugFlag    |                                                              query 模块的日志开关，取值范围同上                                                              |
 |    dDebugFlag    |                                                        dnode 模块的日志开关，取值范围同上，缺省值 135                                                        |
