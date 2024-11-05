@@ -32,7 +32,6 @@ void azEnd() {}
 #include <azure/storage/blobs.hpp>
 #include "td_block_blob_client.hpp"
 
-// Add appropriate using namespace directives
 using namespace Azure::Storage;
 using namespace Azure::Storage::Blobs;
 
@@ -223,7 +222,6 @@ static int32_t azPutObjectFromFileOffsetImpl(const char *file, const char *objec
     uint8_t     blobContent[] = "Hello Azure!";
     // Create the block blob client
     // BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
-    // TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
     TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
 
     blobClient.UploadFrom(file, offset, size);
@@ -467,7 +465,7 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
   TAOS_RETURN(code);
 }
 
-int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
+static int32_t azGetObjectsByPrefixImpl(const char *prefix, const char *path) {
   const std::string delimiter = "/";
   std::string       accountName = tsS3AccessKeyId[0];
   std::string       accountKey = tsS3AccessKeySecret[0];
@@ -512,6 +510,23 @@ int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
   }
 
   return 0;
+}
+
+int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
+  int32_t code = 0;
+
+  try {
+    code = azGetObjectsByPrefixImpl(prefix, path);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
 }
 
 int32_t azDeleteObjects(const char *object_name[], int nobject) {
