@@ -624,6 +624,7 @@ typedef struct SAggPhysiNode {
 typedef struct SDownstreamSourceNode {
   ENodeType      type;
   SQueryNodeAddr addr;
+  uint64_t       clientId;
   uint64_t       taskId;
   uint64_t       schedId;
   int32_t        execId;

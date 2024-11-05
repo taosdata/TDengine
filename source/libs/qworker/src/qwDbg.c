@@ -96,14 +96,14 @@ void qwDbgDumpSchInfo(SQWorker *mgmt, SQWSchStatus *sch, int32_t i) {
   int32_t taskNum = taosHashGetSize(sch->tasksHash);
   QW_DLOG("***The %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs, taskNum);
 
-  uint64_t qId, tId;
+  uint64_t qId, cId, tId;
   int32_t  eId;
   SQWTaskStatus *pTask = NULL;
   void *pIter = taosHashIterate(sch->tasksHash, NULL);
   while (pIter) {
     pTask = (SQWTaskStatus *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
-    QW_GET_QTID(key, qId, tId, eId);
+    QW_GET_QTID(key, qId, cId, tId, eId);
 
     QW_TASK_DLOG("job refId:%" PRIx64 ", code:%x, task status:%d", pTask->refId, pTask->code, pTask->status);
 
@@ -118,13 +118,13 @@ void qwDbgDumpTasksInfo(SQWorker *mgmt) {
 
   int32_t i = 0;
   SQWTaskCtx *ctx = NULL;
-  uint64_t qId, tId;
+  uint64_t qId, cId, tId;
   int32_t  eId;
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
-    QW_GET_QTID(key, qId, tId, eId);
+    QW_GET_QTID(key, qId, cId, tId, eId);
     
     QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, queryMsgType:%d, "
       "sId:%" PRId64 ", level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "

@@ -851,6 +851,7 @@ static int32_t slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
 
 static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
+  COPY_SCALAR_FIELD(clientId);
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);

@@ -983,6 +983,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
+  ENV_ERR_RET(initClientId(), "failed to init clientId");
 
   tscDebug("starting to initialize TAOS driver");
 

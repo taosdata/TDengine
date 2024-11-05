@@ -31,7 +31,7 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
-typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
+typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
 typedef struct {
   void*        handle;

@@ -2307,6 +2307,7 @@ typedef struct {
 typedef struct {
   SExplainRsp rsp;
   uint64_t    qId;
+  uint64_t    cId;
   uint64_t    tId;
   int64_t     rId;
   int32_t     eId;
@@ -2660,6 +2661,7 @@ typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2689,6 +2691,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int32_t  execId;
 } SQueryContinueReq;
@@ -2723,6 +2726,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int32_t         execId;
   SOperatorParam* pOpParam;
@@ -2738,6 +2742,7 @@ typedef struct {
 
 typedef struct {
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2784,6 +2789,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2797,6 +2803,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2813,6 +2820,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int64_t         refId;
   int32_t         execId;
@@ -4261,6 +4269,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   uint32_t sqlLen;
   uint32_t phyLen;
