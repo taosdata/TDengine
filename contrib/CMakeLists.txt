@@ -188,7 +188,7 @@ find_program(C_COMPILER_LEMON NAMES gcc)
 if(C_COMPILER_LEMON)
     message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
 else()
-    set(C_COMPILER_LEMON CMAKE_C_COMPILER)
+    set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
     message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
 endif()
 

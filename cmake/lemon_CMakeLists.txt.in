@@ -2,9 +2,8 @@
 
 ExternalProject_Add(
     lemon
-    URL https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=release
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${C_COMPILER_LEMON} -o ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon.c
+    BUILD_COMMAND "${C_COMPILER_LEMON}" -o ${TD_CONTRIB_DIR}/lemon/lemon ${TD_CONTRIB_DIR}/lemon/lemon.c
     INSTALL_COMMAND ""
     BUILD_IN_SOURCE 1
     BUILD_ALWAYS 1
