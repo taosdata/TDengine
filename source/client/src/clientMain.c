@@ -84,7 +84,7 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
-//  cleanupAppInfo();
+  //  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
@@ -388,7 +388,6 @@ void taos_free_result(TAOS_RES *res) {
     tDeleteMqBatchMetaRsp(&pRsp->batchMetaRsp);
   }
   taosMemoryFree(pRsp);
-
 }
 
 void taos_kill_query(TAOS *taos) {
@@ -484,7 +483,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   return taos_print_row_with_size(str, INT32_MAX, row, fields, num_fields);
 }
-int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields){
+int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int32_t len = 0;
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0 && len < size - 1) {
@@ -589,7 +588,7 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       break;
     }
   }
-  if (len < size){
+  if (len < size) {
     str[len] = 0;
   }
 
@@ -2082,7 +2081,7 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
 }
 
 int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || NULL == count) {
+  if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2103,7 +2102,23 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
   }
 }
 
+int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
+  if (stmt == NULL || count == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetStbColFields2(stmt, count, fields);
+}
+
 void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
+  (void)stmt;
+  if (!fields) return;
+  taosMemoryFree(fields);
+}
+
+DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);
