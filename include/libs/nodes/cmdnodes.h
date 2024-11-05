@@ -158,6 +158,13 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pEnd;
 } SCompactDatabaseStmt;
 
+typedef struct SCompactVgroupsStmt {
+  ENodeType  type;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SCompactVgroupsStmt;
+
 typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;

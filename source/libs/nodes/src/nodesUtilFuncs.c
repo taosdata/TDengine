@@ -512,6 +512,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SNode), &pNode); break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode); break;
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode); break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = makeNode(type, sizeof(SCreateFunctionStmt), &pNode); break;
     case QUERY_NODE_DROP_FUNCTION_STMT:
@@ -1235,6 +1237,13 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT: {
       SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_COMPACT_VGROUPS_STMT: {
+      SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
       nodesDestroyNode(pStmt->pEnd);
       break;

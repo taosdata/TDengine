@@ -229,6 +229,7 @@ cmd ::= FLUSH DATABASE db_name(A).                                              
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
 cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C); }
+cmd ::= COMPACT VGROUPS IN NK_LP integer_list(A) NK_RP start_opt(B) end_opt(C).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C); }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
