@@ -1233,7 +1233,6 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 
   metaWLock(pMeta);
   rc = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
-  metaInfo("wjm meta drop table by uid: %"PRId64, uid);
   metaULock(pMeta);
 
   if (rc < 0) goto _exit;

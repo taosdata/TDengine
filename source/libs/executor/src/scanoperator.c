@@ -3542,11 +3542,10 @@ static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
     void*            pParName = NULL;
     int32_t          winCode = 0;
-    // TODO wjm test remove non stream child tables
     code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i],
                                                    &pParName, false, &winCode);
     if (TSDB_CODE_SUCCESS == code && winCode != 0) {
-      qInfo("delete stream part Name for:%"PRId64 " not found", gpIdCol[i]);
+      qDebug("delete stream part Name for:%"PRId64 " not found", gpIdCol[i]);
       colDataSetNULL(pTbnameCol, i);
       continue;
     }

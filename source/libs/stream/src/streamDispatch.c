@@ -758,7 +758,6 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     SUseDbRsp* pDbInfo = &pTask->outputInfo.shuffleDispatcher.dbInfo;
     hashValue =
         taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
-    stInfo("wjm ctbname for dispatch: %s, pDataBlock.info.parTbName: %s", ctbName, pDataBlock->info.parTbName);
     SBlockName bln = {0};
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));

@@ -53,7 +53,7 @@ static int32_t checkTagSchema(SStreamTask* pTask, SVnode* pVnode);
 static void reubuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs);
 static int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_t index, SVnode* pVnode,
                                     int64_t earlyTs);
-static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName, int64_t uid);
+static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName);
 
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr, bool newSubTableRule) {
@@ -442,7 +442,7 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   SVDropTbBatchReq batchReq = {0};
   SVDropTbReq      req = {0};
 
-  if (rows <= 0 || pTask->subtableWithoutMd5 == 0) return TSDB_CODE_SUCCESS;
+  if (rows <= 0 || rows > 1 || pTask->subtableWithoutMd5 == 0) return TSDB_CODE_SUCCESS;
 
   batchReq.pArray = taosArrayInit(rows, sizeof(SVDropTbReq));
   if (!batchReq.pArray) return terrno;
@@ -451,15 +451,12 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   req.igNotExists = true;
 
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-  SColumnInfoData* pUidCol = taosArrayGet(pDataBlock->pDataBlock, UID_COLUMN_INDEX);
   char tbName[TSDB_TABLE_NAME_LEN + 1] = {0};
   for (int32_t i = 0; i < rows; ++i) {
     void* pData = colDataGetVarData(pTbNameCol, i);
     memcpy(tbName, varDataVal(pData), varDataLen(pData));
     tbName[varDataLen(pData) + 1] = 0;
     req.name = tbName;
-    // TODO wjm remove uid, it's not my uid
-    req.uid = *(int64_t*)colDataGetData(pUidCol, i);
     if (taosArrayPush(batchReq.pArray, &req) == NULL) {
       TSDB_CHECK_CODE(terrno, lino, _exit);
     }
@@ -467,9 +464,9 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
-  // TODO wjm handle only one table
+  // only one row
   code = metaGetTableEntryByName(&mr, tbName);
-  if (isValidDstChildTable(&mr, TD_VID(pVnode), tbName, pTask->outputInfo.tbSink.stbUid)) {
+  if (TSDB_CODE_SUCCESS == code && isValidDstChildTable(&mr, TD_VID(pVnode), tbName, pTask->outputInfo.tbSink.stbUid)) {
     STableSinkInfo* pTableSinkInfo = NULL;
     bool alreadyCached = doGetSinkTableInfoFromCache(pTask->outputInfo.tbSink.pTbInfo, pDataBlock->info.id.groupId, &pTableSinkInfo);
     if (alreadyCached) {
@@ -485,9 +482,7 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
     void* pData = colDataGetVarData(pTbNameCol, i);
     memcpy(tbName, varDataVal(pData), varDataLen(pData));
     tbName[varDataLen(pData) + 1] = 0;
-    int64_t uid = *(int64_t*)colDataGetData(pUidCol, i);
-    // TODO wjm remove uid it's not my uid
-    code = doWaitForDstTableDropped(pVnode, pTask, tbName, uid);
+    code = doWaitForDstTableDropped(pVnode, pTask, tbName);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -906,7 +901,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName, int64_t uid) {
+static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName) {
   int32_t vgId = TD_VID(pVnode);
   int64_t suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
@@ -920,7 +915,6 @@ static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, cons
     metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
     int32_t code = metaGetTableEntryByName(&mr, dstTableName);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      tqDebug("wjm s-task:%s table:%s has been dropped", id, dstTableName);
       metaReaderClear(&mr);
       break;
     } else if (TSDB_CODE_SUCCESS == code) {
@@ -929,7 +923,6 @@ static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, cons
         taosMsleep(100);
         tqDebug("s-task:%s wait 100ms for table:%s drop", id, dstTableName);
       } else {
-        tqDebug("wjm s-task:%s table:%s exist, but not mine", id, dstTableName);
         metaReaderClear(&mr);
         break;
       }

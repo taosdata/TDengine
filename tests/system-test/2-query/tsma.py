@@ -1237,10 +1237,11 @@ class TDTestCase:
         clust_dnode_nums = len(cluster_dnode_list)
         if clust_dnode_nums > 1:
             self.test_redistribute_vgroups()
-        self.test_td_32519()
+        tdSql.execute("drop tsma test.tsma5")
+        for _ in range(4):
+            self.test_td_32519()
 
     def test_td_32519(self):
-        tdSql.execute("drop tsma test.tsma5")
         self.create_recursive_tsma('tsma1', 'tsma_r', 'test', '1h', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'])
         tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 11:45:00", 1,1,1,1,1,1,1, "a", "a")', queryTimes=1)
         tdSql.execute('INSERT INTO test.t1 VALUES("2024-10-24 11:55:00", 2,1,1,1,1,1,1, "a", "a")', queryTimes=1)
@@ -1269,6 +1270,7 @@ class TDTestCase:
         sql = 'select * from test.`163b7c69922cf6d83a98bfa44e52dade`'
         self.wait_query(sql, 2, 20) ## tsma_r output ctb for t1
         tdSql.checkData(0, 1, 1)
+        self.drop_tsma('tsma_r', 'test')
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
