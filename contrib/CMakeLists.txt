@@ -184,6 +184,14 @@ if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+find_program(C_COMPILER_LEMON NAMES gcc)
+if(C_COMPILER_LEMON)
+    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+else()
+    set(C_COMPILER_LEMON CMAKE_C_COMPILER)
+    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+endif()
+
 # lemon
 cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
