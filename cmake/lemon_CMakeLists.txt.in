@@ -3,7 +3,7 @@
         lemon
         URL https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=release
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND ${CMAKE_C_COMPILER} -o ${CMAKE_BINARY_DIR}/bin/lemon ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon.c
-        INSTALL_COMMAND cp ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lempar.c  ${CMAKE_BINARY_DIR}/bin/lempar.c
+        BUILD_COMMAND ${CMAKE_C_COMPILER} -o ${CMAKE_BINARY_DIR}/build/bin/lemon ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lemon.c
+        INSTALL_COMMAND cp ${TD_CONTRIB_DIR}/deps-download/lemon-prefix/src/lemon/tool/lempar.c  ${CMAKE_BINARY_DIR}/build/bin/lempar.c
         BUILD_IN_SOURCE 1
     )
