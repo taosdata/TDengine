@@ -10436,9 +10436,32 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
 static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupList, SArray** ppVgroups) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // TODO
-  ASSERT(0);
+  int32_t numOfVgroups = LIST_LENGTH(vgroupList);
 
+  (*ppVgroups) = taosArrayInit(numOfVgroups, sizeof(int64_t));
+  if (NULL == *ppVgroups) {
+    return terrno;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, vgroupList) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+      code = TSDB_CODE_VND_INVALID_VGROUP_ID;
+      break;
+    }
+
+    int64_t vgroupId = getBigintFromValueNode(pVal);
+    if (NULL == taosArrayPush(*ppVgroups, &vgroupId)) {
+      code = terrno;
+      break;
+    }
+  }
+
+  if (code) {
+    taosArrayDestroy(*ppVgroups);
+    *ppVgroups = NULL;
+  }
   return code;
 }
 

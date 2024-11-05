@@ -4546,8 +4546,8 @@ int32_t tSerializeSCompactVgroupsReq(void *buf, int32_t bufLen, SCompactVgroupsR
   TSDB_CHECK_CODE(code, lino, _exit);
 
   for (int32_t i = 0; i < taosArrayGetSize(pReq->vgroupIds); ++i) {
-    int32_t vgid = *(int32_t *)taosArrayGet(pReq->vgroupIds, i);
-    code = tEncodeI32(&encoder, vgid);
+    int64_t vgid = *(int64_t *)taosArrayGet(pReq->vgroupIds, i);
+    code = tEncodeI64v(&encoder, vgid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -4588,15 +4588,15 @@ int32_t tDeserializeSCompactVgroupsReq(void *buf, int32_t bufLen, SCompactVgroup
   code = tDecodeI32(&decoder, &vgidNum);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  pReq->vgroupIds = taosArrayInit(vgidNum, sizeof(int32_t));
+  pReq->vgroupIds = taosArrayInit(vgidNum, sizeof(int64_t));
   if (NULL == pReq->vgroupIds) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   for (int32_t i = 0; i < vgidNum; ++i) {
-    int32_t vgid;
+    int64_t vgid;
 
-    code = tDecodeI32(&decoder, &vgid);
+    code = tDecodeI64v(&decoder, &vgid);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosArrayPush(pReq->vgroupIds, &vgid) == NULL) {

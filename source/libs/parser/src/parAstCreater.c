@@ -1976,7 +1976,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_S3_COMPACT:
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_KEEP_TIME_OFFSET: 
+    case DB_OPTION_KEEP_TIME_OFFSET:
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
@@ -2117,6 +2117,7 @@ _err:
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNodeList* vgidList, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, NULL, true));
   SCompactVgroupsStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
