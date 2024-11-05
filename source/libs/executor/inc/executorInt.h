@@ -553,6 +553,7 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  bool               cleanGroupResInfo;
   struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
@@ -831,8 +832,10 @@ void    cleanupExprSupp(SExprSupp* pSup);
 
 void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
-void     cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                          SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap);
+void     cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                    SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap);
+void     cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SGroupResInfo* pGroupResInfo,
+                           SAggSupporter *pAggSup, bool cleanHashmap);
 void     cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                       SGroupResInfo* pGroupResInfo);
 

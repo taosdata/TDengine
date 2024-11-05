@@ -13,35 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tcompression.h"
-#include "ttypes.h"
-
-int32_t getWordLength(char type) {
-  int32_t wordLength = 0;
-  switch (type) {
-    case TSDB_DATA_TYPE_BIGINT:
-      wordLength = LONG_BYTES;
-      break;
-    case TSDB_DATA_TYPE_INT:
-      wordLength = INT_BYTES;
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      wordLength = SHORT_BYTES;
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      wordLength = CHAR_BYTES;
-      break;
-    default:
-      uError("Invalid decompress integer type:%d", type);
-      return TSDB_CODE_INVALID_PARA;
-  }
-
-  return wordLength;
-}
 
 #ifdef __AVX2__
+char tsSIMDEnable = 1;
+#else
+char tsSIMDEnable = 0;
+#endif
+
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type) {
+#ifdef __AVX2__
   int32_t word_length = getWordLength(type);
 
   // Selector value:           0  1   2   3   4   5   6   7   8  9  10  11 12  13  14  15
@@ -75,12 +56,12 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
         int32_t batch = 0;
         int32_t remain = 0;
         if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-#if __AVX512F__
+#ifdef __AVX512F__
           batch = num >> 3;
           remain = num & 0x07;
 #endif
         } else if (tsSIMDEnable && tsAVX2Supported) {
-#if __AVX2__
+#ifdef __AVX2__
           batch = num >> 2;
           remain = num & 0x03;
 #endif
@@ -88,7 +69,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
         if (selector == 0 || selector == 1) {
           if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-#if __AVX512F__
+#ifdef __AVX512F__
             for (int32_t i = 0; i < batch; ++i) {
               __m512i prev = _mm512_set1_epi64(prevValue);
               _mm512_storeu_si512((__m512i *)&p[_pos], prev);
@@ -117,7 +98,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
           }
         } else {
           if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
-#if __AVX512F__
+#ifdef __AVX512F__
             __m512i sum_mask1 = _mm512_set_epi64(6, 6, 4, 4, 2, 2, 0, 0);
             __m512i sum_mask2 = _mm512_set_epi64(5, 5, 5, 5, 1, 1, 1, 1);
             __m512i sum_mask3 = _mm512_set_epi64(3, 3, 3, 3, 3, 3, 3, 3);
@@ -310,10 +291,13 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   }
 
   return nelements * word_length;
+#else
+  uError("unable run %s without avx2 instructions", __func__);
+  return -1;
+#endif
 }
 
-#define M256_BYTES sizeof(__m256i)
-
+#ifdef __AVX2__
 FORCE_INLINE __m256i decodeFloatAvx2(const char *data, const char *flag) {
   __m256i dataVec = _mm256_load_si256((__m256i *)data);
   __m256i flagVec = _mm256_load_si256((__m256i *)flag);
@@ -332,7 +316,27 @@ FORCE_INLINE __m256i decodeFloatAvx2(const char *data, const char *flag) {
   return diffVec;
 }
 
+FORCE_INLINE __m256i decodeDoubleAvx2(const char *data, const char *flag) {
+  __m256i dataVec = _mm256_load_si256((__m256i *)data);
+  __m256i flagVec = _mm256_load_si256((__m256i *)flag);
+  __m256i k7 = _mm256_set1_epi64x(7);
+  __m256i lopart = _mm256_set_epi64x(0, -1, 0, -1);
+  __m256i hipart = _mm256_set_epi64x(-1, 0, -1, 0);
+  __m256i trTail = _mm256_cmpgt_epi64(flagVec, k7);
+  __m256i trHead = _mm256_andnot_si256(trTail, _mm256_set1_epi64x(-1));
+  __m256i shiftVec = _mm256_slli_epi64(_mm256_sub_epi64(k7, _mm256_and_si256(flagVec, k7)), 3);
+  __m256i maskVec = hipart;
+  __m256i diffVec = _mm256_sllv_epi64(dataVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_or_si256(trHead, lopart);
+  diffVec = _mm256_srlv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  maskVec = _mm256_and_si256(trTail, lopart);
+  diffVec = _mm256_sllv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
+  return diffVec;
+}
+#endif
+
 int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output) {
+#ifdef __AVX2__
   // Allocate memory-aligned buffer
   char buf[M256_BYTES * 3];
   memset(buf, 0, sizeof(buf));
@@ -343,7 +347,7 @@ int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *out
 
   // Load data into the buffer for batch processing
   int32_t  batchSize = M256_BYTES / FLOAT_BYTES;
-  int32_t idx = 0;
+  int32_t  idx = 0;
   uint32_t cur = 0;
   for (int32_t i = 0; i < nelements; i += 2) {
     if (idx == batchSize) {
@@ -380,27 +384,14 @@ int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *out
     out += idx * FLOAT_BYTES;
   }
   return (int32_t)(out - output);
-}
-
-FORCE_INLINE __m256i decodeDoubleAvx2(const char *data, const char *flag) {
-  __m256i dataVec = _mm256_load_si256((__m256i *)data);
-  __m256i flagVec = _mm256_load_si256((__m256i *)flag);
-  __m256i k7 = _mm256_set1_epi64x(7);
-  __m256i lopart = _mm256_set_epi64x(0, -1, 0, -1);
-  __m256i hipart = _mm256_set_epi64x(-1, 0, -1, 0);
-  __m256i trTail = _mm256_cmpgt_epi64(flagVec, k7);
-  __m256i trHead = _mm256_andnot_si256(trTail, _mm256_set1_epi64x(-1));
-  __m256i shiftVec = _mm256_slli_epi64(_mm256_sub_epi64(k7, _mm256_and_si256(flagVec, k7)), 3);
-  __m256i maskVec = hipart;
-  __m256i diffVec = _mm256_sllv_epi64(dataVec, _mm256_and_si256(shiftVec, maskVec));
-  maskVec = _mm256_or_si256(trHead, lopart);
-  diffVec = _mm256_srlv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
-  maskVec = _mm256_and_si256(trTail, lopart);
-  diffVec = _mm256_sllv_epi64(diffVec, _mm256_and_si256(shiftVec, maskVec));
-  return diffVec;
+#else
+  uError("unable run %s without avx2 instructions", __func__);
+  return -1;
+#endif
 }
 
 int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, char *const output) {
+#ifdef __AVX2__
   // Allocate memory-aligned buffer
   char buf[M256_BYTES * 3];
   memset(buf, 0, sizeof(buf));
@@ -448,12 +439,15 @@ int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, ch
     out += idx * DOUBLE_BYTES;
   }
   return (int32_t)(out - output);
-}
+#else
+  uError("unable run %s without avx2 instructions", __func__);
+  return -1;
 #endif
+}
 
-#if __AVX512VL__
-// decode two timestamps in one loop.
-void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian) {
+int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
+                                  bool bigEndian) {
+#ifdef __AVX512VL__
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
 
@@ -588,11 +582,16 @@ void tsDecompressTimestampAvx2(const char *const input, const int32_t nelements,
       ostream[opos++] = prevVal[1] + prevDeltaX;
     }
   }
-  return;
+  return opos;
+#else
+  uError("unable run %s without avx512 instructions", __func__);
+  return -1;
+#endif
 }
 
-void tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                 bool UNUSED_PARAM(bigEndian)) {
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
+                                    bool UNUSED_PARAM(bigEndian)) {
+#ifdef __AVX512VL__
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
 
@@ -700,6 +699,9 @@ void tsDecompressTimestampAvx512(const char *const input, const int32_t nelement
     }
   }
 
-  return;
-}
+  return opos;
+#else
+  uError("unable run %s without avx512 instructions", __func__);
+  return -1;
 #endif
+}

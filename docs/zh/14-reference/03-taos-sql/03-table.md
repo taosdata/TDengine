@@ -42,12 +42,12 @@ table_option: {
 **使用说明**
 
 1. 表（列）名命名规则参见[名称命名规则](./19-limit.md#名称命名规则)。
-1. 表名最大长度为 192。
-1. 表的第一个字段必须是 TIMESTAMP，并且系统自动将其设为主键。
-1. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列。被指定为主键列的第二列必须为整型或字符串类型（varchar）。
-1. 表的每行长度不能超过 48KB（从 3.0.5.0 版本开始为 64KB）;（注意：每个 BINARY/NCHAR/GEOMETRY 类型的列还会额外占用 2 个字节的存储位置）。
-1. 使用数据类型 BINARY/NCHAR/GEOMETRY，需指定其最长的字节数，如 BINARY(20)，表示 20 字节。
-1. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考[按列压缩](../compress)
+2. 表名最大长度为 192。
+3. 表的第一个字段必须是 TIMESTAMP，并且系统自动将其设为主键。
+4. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列。被指定为主键列的第二列必须为整型或字符串类型（VARCHAR）。
+5. 表的每行长度不能超过 48KB（从 3.0.5.0 版本开始为 64KB）;（注意：每个 VARCHAR/NCHAR/GEOMETRY 类型的列还会额外占用 2 个字节的存储位置）。
+6. 使用数据类型 VARCHAR/NCHAR/GEOMETRY，需指定其最长的字节数，如 VARCHAR(20)，表示 20 字节。
+7. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考[按列压缩](../compress)
 
 **参数说明**
 
@@ -87,7 +87,7 @@ CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_nam
 
 **参数说明**
 
-1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考数据写入章节。
+1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考'数据写入'章节。
 2. 为指定的 stb_name 创建子表，该超级表必须已经存在。
 3. field_name 列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 NULL。
 

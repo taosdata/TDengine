@@ -1289,8 +1289,8 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   int32_t    code = 0;
   SWorkThrd* pThrd = hThrd;
   int32_t    lino;
-
-  SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
+  int8_t     wqInited = 0;
+  SSvrConn*  pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
   }
@@ -1340,6 +1340,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   code = initWQ(&pConn->wq);
   TAOS_CHECK_GOTO(code, &lino, _end);
+  wqInited = 1;
 
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
@@ -1372,7 +1373,7 @@ _end:
     transDestroyBuffer(&pConn->readBuf);
     taosHashCleanup(pConn->pQTable);
     taosMemoryFree(pConn->pTcp);
-    destroyWQ(&pConn->wq);
+    if (wqInited) destroyWQ(&pConn->wq);
     taosMemoryFree(pConn->buf);
     taosMemoryFree(pConn);
     pConn = NULL;

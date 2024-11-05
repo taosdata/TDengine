@@ -664,7 +664,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   // set status
   if (pWal->vers.firstVer == -1) {
-    pWal->vers.firstVer = 0;
+    pWal->vers.firstVer = index;
   }
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalCkHead) + cyptedBodyLen;
