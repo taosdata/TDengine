@@ -29,7 +29,7 @@
           <span class="itemTitle">{{ $t('datasource.csvNotifyInterval') }}:</span>
           <span>{{ fileForm.notify_interval }}{{ $t('seconds') }}</span>
         </div>
-        <div class="descItem" v-if="fileForm.new_file_notify">
+        <div class="descItem">
           <span class="itemTitle">{{ $t('datasource.csvFileSort') }}:</span>
           <span v-if="fileForm.sort === '1'">{{ $t('sortasc') }}</span>
           <span v-else>{{ $t('sortdesc') }}</span>
@@ -53,7 +53,6 @@ import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
 import { getDsnData, handleDownload } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
-import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import CommonTransformer from "./transformerInfo.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";

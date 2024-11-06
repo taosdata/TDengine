@@ -134,7 +134,7 @@
               </el-input-number>
               <span style="margin-left: 10px;">{{ $t('seconds') }}</span>
             </el-form-item>
-            <el-form-item prop="filesort" v-if="fileForm.new_file_notify">
+            <el-form-item prop="filesort">
               <template slot="label">
                 <el-tooltip placement="top" effect="light" :open-delay="0">
                   <template slot="content">
@@ -596,6 +596,9 @@ export default {
     //获取 csv 解析需要的参数
     getCsvParseParam() {
       let options = getCSVOptions(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+      if (this.fileForm.file_or_dir == "2") {
+        options.push(`file_pattern=${this.fileForm.file_pattern}`);
+      }
       return options.join("&");
     },
     checkFileName(file) {

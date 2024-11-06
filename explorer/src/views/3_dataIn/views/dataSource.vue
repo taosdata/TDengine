@@ -388,11 +388,11 @@
               <el-button
                 type="primay"
                 size="mini"
-                :disabled="
-                  $COMMUNITY
+                :disabled="scope.row.disableEdit || 
+                  ($COMMUNITY
                     ? $COMMUNITY
                     : scope.row.from_detail === undefined ||
-                      !getEditStatus(scope.row.labels)
+                      !getEditStatus(scope.row.labels))
                 "
                 @click="edit(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-edit"
@@ -917,6 +917,7 @@ export default {
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
                 "Z"
               : "";
+            item["disableEdit"] = (item.from_expand.id === "csv" && item.from_expand.params?.file_or_dir === "1");
             return item;
           });
           this.requestIng = false;
