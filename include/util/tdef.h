@@ -616,6 +616,8 @@ typedef enum {
   ANAL_ALGO_TYPE_END,
 } EAnalAlgoType;
 
+#define MIN_RESERVE_MEM_SIZE 1024 // MB
+
 #ifdef __cplusplus
 }
 #endif

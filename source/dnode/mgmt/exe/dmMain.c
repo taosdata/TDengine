@@ -442,6 +442,13 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   }
+  
+  if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
+    dError("failed to init conv");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
 
   if ((code = taosConvInit()) != 0) {
     dError("failed to init conv");

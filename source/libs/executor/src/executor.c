@@ -441,6 +441,7 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   }
 
 _end:
+
   pAPI->metaReaderFn.clearReader(&mr);
   (*ppArrayRes) = qa;
 

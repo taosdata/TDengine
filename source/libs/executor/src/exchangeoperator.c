@@ -116,7 +116,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFreeClear(pDataInfo->pRsp);
+            taosMemFreeClear(pDataInfo->pRsp);
             goto _error;
           }
         } else {
@@ -125,7 +125,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                  ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
                  GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
                  pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          taosMemFreeClear(pDataInfo->pRsp);
         }
         break;
       }
@@ -154,13 +154,13 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
 
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      taosMemFreeClear(pDataInfo->pRsp);
 
       if (pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          taosMemFreeClear(pDataInfo->pRsp);
           goto _error;
         }
       }
@@ -633,7 +633,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   pDataInfo->startTime = taosGetTimestampUs();
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
-  SFetchRspHandleWrapper* pWrapper = taosMemCalloc(1, sizeof(SFetchRspHandleWrapper));
+  SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
   QUERY_CHECK_NULL(pWrapper, code, lino, _end, terrno);
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
@@ -673,7 +673,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    void* msg = taosMemCalloc(1, msgSize);
+    void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemFree(pWrapper);
@@ -696,7 +696,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
            pSource->execId, pExchangeInfo, sourceIndex, totalSources);
 
     // send the fetch remote task result reques
-    SMsgSendInfo* pMsgSendInfo = taosMemCalloc(1, sizeof(SMsgSendInfo));
+    SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
       taosMemFreeClear(msg);
       taosMemFree(pWrapper);
@@ -714,9 +714,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     int64_t transporterId = 0;
     void* poolHandle = NULL;
-    taosSaveDisableMemoryPoolUsage(poolHandle);
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
-    taosRestoreEnableMemoryPoolUsage(poolHandle);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
     *pRpcHandle = transporterId;

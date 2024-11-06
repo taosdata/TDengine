@@ -102,7 +102,6 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
-    taosMemoryFree(sql);
     return code;
   }
 
@@ -112,7 +111,14 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     }
   }
 
-  TSWAP((*pTaskInfo)->sql, sql);
+  (*pTaskInfo)->sql = taosStrdup(sql);
+  if (NULL == (*pTaskInfo)->sql) {
+    code = terrno;
+    nodesDestroyNode((SNode*)pPlan);
+    doDestroyTask(*pTaskInfo);
+    (*pTaskInfo) = NULL;
+    return code;
+  }
 
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;

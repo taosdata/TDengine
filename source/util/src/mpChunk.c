@@ -301,6 +301,7 @@ int32_t mpChunkInitSession(SMemPool* pPool, SMPSession* pSession) {
 }
 
 int32_t mpChunkUpdateCfg(SMemPool* pPool) {
+/*
   pPool->chunk.maxChunkNum = pPool->cfg.freeSize / pPool->cfg.chunkSize;
   if (pPool->chunk.maxChunkNum <= 0) {
     uError("invalid memory pool max chunk num, freeSize:%" PRId64 ", chunkSize:%d", pPool->cfg.freeSize, pPool->cfg.chunkSize);
@@ -310,7 +311,7 @@ int32_t mpChunkUpdateCfg(SMemPool* pPool) {
   pPool->chunk.readyChunkReserveNum = TMIN(pPool->cfg.threadNum * pPool->chunk.threadChunkReserveNum, pPool->chunk.maxChunkNum);
 
   pPool->chunk.chunkCache.groupNum = TMAX(pPool->chunk.maxChunkNum / 10, MP_CHUNK_CACHE_ALLOC_BATCH_SIZE);
-
+*/
   return TSDB_CODE_SUCCESS;
 }
 

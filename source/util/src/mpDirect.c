@@ -33,7 +33,10 @@ int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint
     nSize = taosMemSize(res);
     mpUpdateAllocSize(pPool, pSession, nSize, nSize - *size);
   } else {
-    (void)atomic_sub_fetch_64(&pSession->pJob->job.allocMemSize, *size);
+    if (NULL != pSession) {
+      (void)atomic_sub_fetch_64(&pSession->pJob->job.allocMemSize, *size);
+    }
+    
     (void)atomic_sub_fetch_64(&pPool->allocMemSize, *size);
     
     uError("malloc %" PRId64 " alignment %d failed, code: 0x%x", *size, alignment, terrno);
@@ -64,9 +67,12 @@ void mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* ori
   taosRLockLatch(&pPool->cfgLock); // tmp test
 
   taosMemFree(ptr);
+
+  if (NULL != pSession) {
+    (void)atomic_sub_fetch_64(&pSession->allocMemSize, oSize);
+    (void)atomic_sub_fetch_64(&pSession->pJob->job.allocMemSize, oSize);
+  }
   
-  (void)atomic_sub_fetch_64(&pSession->allocMemSize, oSize);
-  (void)atomic_sub_fetch_64(&pSession->pJob->job.allocMemSize, oSize);
   (void)atomic_sub_fetch_64(&pPool->allocMemSize, oSize);
 
   taosRUnLockLatch(&pPool->cfgLock);

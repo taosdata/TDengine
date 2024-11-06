@@ -767,7 +767,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->sId = sId;
   ctx->phase = -1;
   
-  if (NULL != gQueryMgmt.memPoolHandle) {
+  if (NULL != gMemPoolHandle) {
     QW_ERR_JRET(qwInitSession(QW_FPARAMS(), ctx, &ctx->memPoolSession));
   }
   
@@ -803,7 +803,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   ctx->queryMsgType = qwMsg->msgType;
   ctx->localExec = false;
 
+  taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
+  taosDisableMemoryPoolUsage();
+  
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
@@ -814,7 +817,6 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql, OPTR_EXEC_MODEL_BATCH);
   taosDisableMemoryPoolUsage();
   
-  sql = NULL;
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     qDestroyTask(pTaskInfo);
@@ -1365,10 +1367,6 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-
-  if (0 == atomic_val_compare_exchange_8(&gQueryMgmt.memPoolInited, 0, 1)) {
-    QW_ERR_RET(qwInitQueryPool());
-  }
   
   int32_t qwNum = atomic_add_fetch_32(&gQwMgmt.qwNum, 1);
   if (1 == qwNum) {
@@ -1632,3 +1630,48 @@ _return:
 
   QW_RET(code);
 }
+
+
+void qWorkerRetireJob(uint64_t jobId, int32_t errCode) {
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashGet(gQueryMgmt.pJobInfo, &jobId, sizeof(jobId));
+  if (NULL == pJob) {
+    qError("QID:0x%" PRIx64 " fail to get job from job hash", jobId);
+    return;
+  }
+
+  if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+    qInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
+
+    qwRetireJob(pJob);
+  } else {
+    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
+  }
+}
+
+void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  uint64_t jobId = 0;
+  int64_t retiredSize = 0;
+  while (retiredSize < retireSize && NULL != pJob) {
+    if (atomic_load_8(&pJob->retired)) {
+      pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+      continue;
+    }
+
+    if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+      int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
+      jobId = pJob->memInfo->jobId;
+
+      qwRetireJob(pJob);
+
+      retiredSize += aSize;    
+
+      qDebug("QID:0x%" PRIx64 " job retired cause of mid level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+      jobId, aSize, retireSize);
+    }
+
+    pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+  }
+}
+
+

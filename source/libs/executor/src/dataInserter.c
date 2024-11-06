@@ -432,7 +432,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
-  taosMemoryFree(pInserter->pSchema);
+  taosMemFree(pInserter->pSchema);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   (void)taosThreadMutexDestroy(&pInserter->mutex);

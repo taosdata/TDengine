@@ -1413,7 +1413,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
 
     SMetaReader mr1 = {0};
     pMetaReaderFn->initReader(&mr1, pVnode, META_READER_NOLOCK, pMetaFn);
-
+    
     int64_t suid = pMReader->me.ctbEntry.suid;
     code = pMetaReaderFn->getTableEntryByUid(&mr1, suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1576,6 +1576,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     SMetaReader mr = {0};
     pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+
     code = doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, &mr, *uid, dbname, vgId,
                                   p, numOfRows, GET_TASKID(pTaskInfo));
 
@@ -1723,7 +1724,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       SMetaReader mr = {0};
       pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
-
+      
       uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2147,7 +2148,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     tstrncpy(pInfo->req.user, pInfo->pUser, tListLen(pInfo->req.user));
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
-    char*   buf1 = taosMemCalloc(1, contLen);
+    char*   buf1 = taosMemoryCalloc(1, contLen);
     if (!buf1) {
       return NULL;
     }
@@ -2159,7 +2160,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     }
 
     // send the fetch remote task result reques
-    SMsgSendInfo* pMsgSendInfo = taosMemCalloc(1, sizeof(SMsgSendInfo));
+    SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -2177,10 +2178,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->fp = loadSysTableCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
-    void* poolHandle = NULL;
-    taosSaveDisableMemoryPoolUsage(poolHandle);
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
-    taosRestoreEnableMemoryPoolUsage(poolHandle);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

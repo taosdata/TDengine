@@ -41,9 +41,6 @@ extern "C" {
 #define QW_THREAD_MAX_SCHED_TASK_NUM     10
 
 #define QW_QUERY_MEM_POOL_NAME         "Query"
-#define QW_DEFAULT_RESERVE_MEM_PERCENT 20
-#define QW_MIN_RESERVE_MEM_SIZE        (512 * 1048576UL)
-#define QW_MIN_MEM_POOL_SIZE           (1048576UL)
 #define QW_MAX_RETIRE_JOB_NUM          10000
 
 #define QW_DEFAULT_THREAD_TASK_NUM     3
@@ -252,9 +249,6 @@ typedef struct SQueryMgmt {
   SRWLatch     taskMgmtLock;
   int32_t      concTaskLevel;
   SHashObj*    pJobInfo;
-  void*        memPoolHandle;
-  int8_t       memPoolInited;
-  SQWRetireCtx retireCtx;
 } SQueryMgmt;
 
 #define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)

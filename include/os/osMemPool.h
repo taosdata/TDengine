@@ -58,8 +58,8 @@ typedef struct SMPMemoryStat {
   SMPStatItem    memMalloc;
   SMPStatItem    memCalloc;
   SMPStatItemExt memRealloc;
-  SMPStatItem    strdup;
-  SMPStatItem    strndup;
+  SMPStatItem    memStrdup;
+  SMPStatItem    memStrndup;
   SMPStatItem    memFree;
   SMPStatItem    memTrim;
 
@@ -78,33 +78,33 @@ typedef struct SMPStatDetail {
 typedef void (*mpDecConcSessionNum)(void);
 typedef void (*mpIncConcSessionNum)(void);
 typedef void (*mpSetConcSessionNum)(int32_t);
-typedef void (*mpRetireJobs)(void*, int64_t, bool, int32_t);
-typedef void (*mpRetireJob)(SMemPoolJob*, int32_t);
+typedef void (*mpReserveFailFp)(int64_t, int32_t);
+typedef void (*mpReserveReachFp)(uint64_t, int32_t);
 typedef void (*mpCfgUpdate)(void*, void*);
 
 typedef struct SMemPoolCallBack {
-  mpDecConcSessionNum  decSessFp;
-  mpIncConcSessionNum  incSessFp;
-  mpSetConcSessionNum  setSessFp;
-  mpRetireJobs         retireJobsFp;
-  mpRetireJob          retireJobFp;
-  mpCfgUpdate          cfgUpdateFp;
+  //mpDecConcSessionNum  decSessFp;
+  //mpIncConcSessionNum  incSessFp;
+  //mpSetConcSessionNum  setSessFp;
+  mpReserveFailFp        failFp;
+  mpReserveReachFp       reachFp;
+  //mpCfgUpdate          cfgUpdateFp;
 } SMemPoolCallBack;
 
 
 typedef struct SMemPoolCfg {
-  bool               autoMaxSize;
-  int64_t            reserveSize;
-  int64_t            retireUnitSize;
-  int64_t            freeSize;
-  int64_t            jobQuota;
+  //bool               reserveMode;
+  int32_t           *reserveSize;    //MB
+  //int32_t           *upperLimitSize; //MB
+  //int64_t            retireUnitSize;
+  int32_t           *jobQuota;       //MB
   int32_t            chunkSize;
   int32_t            threadNum;
   MemPoolEvictPolicy evicPolicy;
   SMemPoolCallBack   cb;
 } SMemPoolCfg;
 
-#define MEMPOOL_GET_ALLOC_SIZE(_dstat) ((_dstat)->bytes.memMalloc.succ + (_dstat)->bytes.memCalloc.succ + (_dstat)->bytes.memRealloc.succ + (_dstat)->bytes.strdup.succ + (_dstat)->bytes.strndup.succ)
+#define MEMPOOL_GET_ALLOC_SIZE(_dstat) ((_dstat)->bytes.memMalloc.succ + (_dstat)->bytes.memCalloc.succ + (_dstat)->bytes.memRealloc.succ + (_dstat)->bytes.memStrdup.succ + (_dstat)->bytes.memStrndup.succ)
 #define MEMPOOL_GET_FREE_SIZE(_dstat) ((_dstat)->bytes.memRealloc.origSucc + (_dstat)->bytes.memFree.succ)
 #define MEMPOOL_GET_USED_SIZE(_dstat) (MEMPOOL_GET_ALLOC_SIZE(_dstat) - MEMPOOL_GET_FREE_SIZE(_dstat))
 
@@ -129,8 +129,8 @@ void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
 void    taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd);
 void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
-bool    taosMemPoolNeedRetireJob(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
+int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
 
 
 #define taosMemPoolFreeClear(ptr)   \
@@ -143,29 +143,27 @@ int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t
 
 
 #ifndef BUILD_TEST
-extern threadlocal void* threadPoolHandle;
+extern void* gMemPoolHandle;
 extern threadlocal void* threadPoolSession;
 
 
-#define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolHandle = _pool; threadPoolSession = _session; tsEnableRandErr = true;} while (0) 
-#define taosDisableMemoryPoolUsage() (threadPoolHandle = NULL, tsEnableRandErr = false) 
-#define taosSaveDisableMemoryPoolUsage(_handle) do { (_handle) = threadPoolHandle; threadPoolHandle = NULL; } while (0)
-#define taosRestoreEnableMemoryPoolUsage(_handle) (threadPoolHandle = (_handle))
+#define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolSession = _session; tsEnableRandErr = true;} while (0) 
+#define taosDisableMemoryPoolUsage() do { threadPoolSession = NULL; tsEnableRandErr = false;} while (0) 
 
-#define taosMemoryMalloc(_size) ((NULL != threadPoolHandle) ? (taosMemPoolMalloc(threadPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__)) : (taosMemMalloc(_size)))
-#define taosMemoryCalloc(_num, _size) ((NULL != threadPoolHandle) ? (taosMemPoolCalloc(threadPoolHandle, threadPoolSession, _num, _size, (char*)__FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
-#define taosMemoryRealloc(_ptr, _size) ((NULL != threadPoolHandle) ? (taosMemPoolRealloc(threadPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
-#define taosStrdup(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolStrdup(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosStrdupi(_ptr)))
-#define taosStrndup(_ptr, _size) ((NULL != threadPoolHandle) ? (taosMemPoolStrndup(threadPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosStrndupi(_ptr, _size)))
-#define taosMemoryFree(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolFree(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemFree(_ptr)))
-#define taosMemorySize(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolGetMemorySize(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemSize(_ptr)))
-#define taosMemoryTrim(_size, _trimed) ((NULL != threadPoolHandle) ? (taosMemPoolTrim(threadPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
-#define taosMemoryMallocAlign(_alignment, _size) ((NULL != threadPoolHandle) ? (taosMemPoolMallocAlign(threadPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
+#define taosMemoryMalloc(_size) ((NULL != gMemPoolHandle) ? (taosMemPoolMalloc(gMemPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__)) : (taosMemMalloc(_size)))
+#define taosMemoryCalloc(_num, _size) ((NULL != gMemPoolHandle) ? (taosMemPoolCalloc(gMemPoolHandle, threadPoolSession, _num, _size, (char*)__FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
+#define taosMemoryRealloc(_ptr, _size) ((NULL != gMemPoolHandle) ? (taosMemPoolRealloc(gMemPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
+#define taosStrdup(_ptr) ((NULL != gMemPoolHandle) ? (taosMemPoolStrdup(gMemPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosStrdupi(_ptr)))
+#define taosStrndup(_ptr, _size) ((NULL != gMemPoolHandle) ? (taosMemPoolStrndup(gMemPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosStrndupi(_ptr, _size)))
+#define taosMemoryFree(_ptr) ((NULL != gMemPoolHandle) ? (taosMemPoolFree(gMemPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemFree(_ptr)))
+#define taosMemorySize(_ptr) ((NULL != gMemPoolHandle) ? (taosMemPoolGetMemorySize(gMemPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemSize(_ptr)))
+#define taosMemoryTrim(_size, _trimed) ((NULL != gMemPoolHandle) ? (taosMemPoolTrim(gMemPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
+#define taosMemoryMallocAlign(_alignment, _size) ((NULL != gMemPoolHandle) ? (taosMemPoolMallocAlign(gMemPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
 #else
 #define taosEnableMemoryPoolUsage(_pool, _session) 
 #define taosDisableMemoryPoolUsage() 
-#define taosSaveDisableMemoryPoolUsage(_handle) 
-#define taosRestoreEnableMemoryPoolUsage(_handle) 
+#define taosSaveDisableMemoryPoolUsage() 
+#define taosRestoreEnableMemoryPoolUsage() 
 
 #define taosMemoryMalloc(_size) taosMemMalloc(_size)
 #define taosMemoryCalloc(_num, _size) taosMemCalloc(_num, _size)

@@ -31,7 +31,9 @@ extern "C" {
 #define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
 #define MP_MAX_MALLOC_MEM_SIZE      0xFFFFFFFFFF
 
-#define MP_DEFAULT_MEM_CHK_INTERVAL_MS       100
+#define MP_DEFAULT_MEM_CHK_INTERVAL_MS       10
+#define MP_MIN_MEM_CHK_INTERVAL_MS       1
+
 
 #define MP_RETIRE_HIGH_THRESHOLD_PERCENT          (0.95)
 #define MP_RETIRE_MID_THRESHOLD_PERCENT           (0.9)
@@ -39,6 +41,10 @@ extern "C" {
 #define MP_RETIRE_UNIT_PERCENT               (0.1)
 #define MP_RETIRE_UNIT_MIN_SIZE              (50 * 1048576UL)
 #define MP_CFG_UPDATE_MIN_RESERVE_SIZE       (50 * 1024 * 1048576UL)
+
+#define MP_DEFAULT_RESERVE_MEM_PERCENT 20
+#define MP_MIN_FREE_SIZE_AFTER_RESERVE (4 * 1024 * 1048576UL)
+#define MP_MIN_MEM_POOL_SIZE           (5 * 1024 * 1048576UL)
 
 
 // FLAGS AREA
@@ -273,7 +279,7 @@ typedef struct SMemPool {
   int16_t            slotId;
   SRWLatch           cfgLock;
   SMemPoolCfg        cfg;
-  int64_t            retireThreshold[3];
+  //int64_t            retireThreshold[3];
   int64_t            retireUnit;
   SMPCtrlInfo        ctrl;
 
@@ -344,9 +350,6 @@ enum {
 
 #define MP_STAT_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail
 #define MP_STAT_ORIG_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail, (_item).origExec, (_item).origSucc, (_item).origFail
-
-#define MP_API_ENTER() void* _pPoolHandle = NULL; taosSaveDisableMemoryPoolUsage(_pPoolHandle)
-#define MP_API_LEAVE() taosRestoreEnableMemoryPoolUsage(_pPoolHandle)
 
 #define MP_INIT_MEM_HEADER(_header, _size, _nsChunk)                      \
   do {                                                                    \

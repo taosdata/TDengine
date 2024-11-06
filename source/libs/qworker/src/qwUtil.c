@@ -321,7 +321,9 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
 
   taosArrayDestroy(ctx->tbInfo);
 
-  taosMemPoolDestroySession(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
+  if (gMemPoolHandle && ctx->memPoolSession) {
+    taosMemPoolDestroySession(gMemPoolHandle, ctx->memPoolSession);
+  }
 }
 
 static void freeExplainExecItem(void *param) {
