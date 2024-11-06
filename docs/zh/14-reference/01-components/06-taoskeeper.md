@@ -13,7 +13,7 @@ taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的�
 
 taosKeeper 有两种安装方式：
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](../../../get-started/)。
+- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[TDengine 安装](../../../get-started/)。
 
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
@@ -22,55 +22,63 @@ taosKeeper 有两种安装方式：
 taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：命令行参数、环境变量 和 配置文件。优先级为：命令行参数、环境变量、配置文件参数。 一般我们推荐使用配置文件。
 
 ### 命令行参数和环境变量
+
 命令行参数 和 环境变量说明可以参考命令 `taoskeeper --help` 的输出。下面是一个例子：
+
 ```shell
-Usage of taosKeeper v3.3.2.0:
-      --debug                          enable debug mode. Env "TAOS_KEEPER_DEBUG"
-  -P, --port int                       http port. Env "TAOS_KEEPER_PORT" (default 6043)
-      --logLevel string                log level (panic fatal error warn warning info debug trace). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
-      --gopoolsize int                 coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
-  -R, --RotationInterval string        interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
-      --tdengine.host string           TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
-      --tdengine.port int              TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
-      --tdengine.username string       TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
-      --tdengine.password string       TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
-      --tdengine.usessl                TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
-      --metrics.prefix string          prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
-      --metrics.database.name string   database for storing metrics data. Env "TAOS_KEEPER_METRICS_DATABASE" (default "log")
-      --metrics.tables stringArray     export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
-      --environment.incgroup           whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
-      --log.path string                log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
-      --log.rotationCount uint         log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
-      --log.rotationTime duration      log rotation time. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
-      --log.rotationSize string        log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "100000000")
-  -c, --config string                  config path default /etc/taos/taoskeeper.toml
-  -V, --version                        Print the version and exit
-  -h, --help                           Print this help message and exit
+Usage of taoskeeper v3.3.3.0:
+  -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
+  -c, --config string                                config path default /etc/taos/taoskeeper.toml
+      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
+      --environment.incgroup                         whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
+      --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
+      --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
+  -h, --help                                         Print this help message and exit
+      --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
+      --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
+      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
+      --log.level string                             log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
+      --log.path string                              log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
+      --log.reservedDiskSize string                  reserved disk size for log dir (KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_RESERVED_DISK_SIZE" (default "1GB")
+      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
+      --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "1GB")
+      --log.rotationTime duration                    deprecated: log rotation time always 24 hours. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
+      --logLevel string                              log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
+      --metrics.database.name string                 database for storing metrics data. Env "TAOS_KEEPER_METRICS_DATABASE" (default "log")
+      --metrics.database.options.buffer int          database option buffer for audit database. Env "TAOS_KEEPER_METRICS_BUFFER" (default 64)
+      --metrics.database.options.cachemodel string   database option cachemodel for audit database. Env "TAOS_KEEPER_METRICS_CACHEMODEL" (default "both")
+      --metrics.database.options.keep int            database option buffer for audit database. Env "TAOS_KEEPER_METRICS_KEEP" (default 90)
+      --metrics.database.options.vgroups int         database option vgroups for audit database. Env "TAOS_KEEPER_METRICS_VGROUPS" (default 1)
+      --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
+      --metrics.tables stringArray                   export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
+  -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
+      --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
+      --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
+      --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
+      --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
+      --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
+  -V, --version                                      Print the version and exit
 ```
-
-
 
 ### 配置文件
 
-taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置文件。   
-若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为： `/etc/taos/taoskeeper.toml` 。   
+taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置文件。
+若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为： `/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。  
 
 **下面是配置文件的示例：**
-```toml
-# Start with debug middleware for gin
-debug = false
 
-# Listen port, default is 6043
+```toml
+instanceId = 64
+
+# Listening port, default is 6043.
 port = 6043
 
-# log level
-loglevel = "info"
-
-# go pool size
+# Go pool size
 gopoolsize = 50000
 
-# interval for metrics
+# Interval for metrics
 RotationInterval = "15s"
 
 [tdengine]
@@ -81,20 +89,21 @@ password = "taosdata"
 usessl = false
 
 [metrics]
-# metrics prefix in metrics names.
+# Metrics prefix in metrics names.
 prefix = "taos"
 
-# export some tables that are not super table
+# Export some tables that are not super table.
 tables = []
 
-# database for storing metrics data
+# Database for storing metrics data.
 [metrics.database]
 name = "log"
-# database options for db storing metrics data
+
+# Database options for db storing metrics data.
 [metrics.database.options]
 vgroups = 1
 buffer = 64
-KEEP = 90
+keep = 90
 cachemodel = "both"
 
 [environment]
@@ -102,9 +111,19 @@ cachemodel = "both"
 incgroup = false
 
 [log]
-rotationCount = 5
-rotationTime = "24h"
-rotationSize = 100000000
+# The directory where log files are stored.
+# path = "/var/log/taos"
+level = "info"
+# Number of log file rotations before deletion.
+rotationCount = 30
+# The number of days to retain log files.
+keepDays = 30
+# The maximum size of a log file before rotation.
+rotationSize = "1GB"
+# If set to true, log files will be compressed.
+compress = false
+# Minimum disk space to reserve. Log files will not be written if disk space falls below this limit.
+reservedDiskSize = "1GB"
 ```
 
 ## 启动
@@ -117,7 +136,6 @@ monitorFqdn localhost # taoskeeper 服务的 FQDN
 ```
 
 TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../../../operation/monitor)。
-
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -188,8 +206,7 @@ Active: inactive (dead)
 </TabItem>
 </Tabs>
 
-
-## 健康检查 
+## 健康检查
 
 可以访问 taosKeeper 的 `check_health` 接口来判断服务是否存活，如果服务正常则会返回 HTTP 200 状态码：
 
@@ -208,7 +225,6 @@ Content-Length: 21
 {"version":"3.3.2.3"}
 ```
 
-
 ## 数据收集与监控
 
 taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine 监控。
@@ -216,6 +232,7 @@ taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产�
 ### 查看监控数据
 
 可以查看 `log` 库下的超级表，每个超级表都对应一组监控指标，具体指标不再赘述。
+
 ```shell
 taos> use log;
 Database changed.
@@ -251,16 +268,13 @@ taos> select last_row(*) from taosd_dnodes_info;
 Query OK, 1 row(s) in set (0.003168s)
 ```
 
-
 ### 使用 TDInsight 配置监控
 
-收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/) 
-
+收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
 
 ## 集成 Prometheus
 
 taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine 的目的。
-
 
 ### 导出监控指标
 
@@ -298,9 +312,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### taosd 集群
 
 ##### 监控信息支持的标签
+
 - `cluster_id`： 集群 id
 
 ##### 相关指标及其含义
+
 | 指标名称                            | 类型    | 含义                                  |
 | ----------------------------------- | ------- | ------------------------------------- |
 | taos_cluster_info_connections_total | counter | 总连接数                              |
@@ -328,11 +344,13 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### dnode
 
 ##### 监控信息支持的标签
+
 - `cluster_id`： 集群 id
 - `dnode_ep`： dnode 端点
 - `dnode_id`：dnode id
 
 ##### 相关指标及其含义
+
 | 指标名称                       | 类型    | 含义                                                                                     |
 | ------------------------------ | ------- | ---------------------------------------------------------------------------------------- |
 | taos_d_info_status             | gauge   | dnode 状态，标签 value 表示状态， ready 表示正常， offline 表示下线， unknown 表示未知。 |
@@ -361,13 +379,15 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### 数据目录
 
 ##### 监控信息支持的标签
+
 - `cluster_id`： 集群 id
 - `dnode_ep`： dnode 端点
 - `dnode_id`：dnode id
 - `data_dir_name`：数据目录名
-- `data_dir_level`：数据目录级别 
+- `data_dir_level`：数据目录级别
 
 ##### 相关指标及其含义
+
 | 指标名称                          | 类型  | 含义                 |
 | --------------------------------- | ----- | -------------------- |
 | taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte) |
@@ -377,12 +397,14 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### 日志目录
 
 ##### 监控信息支持的标签
+
 - `cluster_id`： 集群 id
 - `dnode_ep`： dnode 端点
 - `dnode_id`：dnode id
 - `log_dir_name`：日志目录名
 
 ##### 相关指标及其含义
+
 | 指标名称                         | 类型  | 含义                 |
 | -------------------------------- | ----- | -------------------- |
 | taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte) |
@@ -392,11 +414,13 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### 日志数量
 
 ##### 监控信息支持的标签
+
 - `cluster_id`： 集群 id
 - `dnode_ep`： dnode 端点
 - `dnode_id`：dnode id
 
 ##### 相关指标及其含义
+
 | 指标名称               | 类型    | 含义         |
 | ---------------------- | ------- | ------------ |
 | taos_log_summary_debug | counter | 调试日志数量 |
@@ -404,14 +428,15 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_log_summary_info  | counter | 信息日志数量 |
 | taos_log_summary_trace | counter | 跟踪日志数量 |
 
-
 #### taosadapter
 
 ##### 监控信息支持的标签
+
 - `endpoint`：端点
 - `req_type`：请求类型，0 表示 rest，1 表示 websocket
 
 ##### 相关指标及其含义
+
 | 指标名称                               | 类型    | 含义                 |
 | -------------------------------------- | ------- | -------------------- |
 | taos_adapter_requests_fail             | counter | 失败的请求数         |
@@ -433,9 +458,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### taoskeeper
 
 ##### 监控信息支持的标签
+
 - `identify`： 节点 endpoint
 
 ##### 相关指标及其含义
+
 | 指标名称                | 类型  | 含义                                  |
 | ----------------------- | ----- | ------------------------------------- |
 | taos_keeper_monitor_cpu | gauge | taoskeeper CPU 使用率（取值范围 0~1） |
@@ -444,6 +471,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 #### 其他 taosd 集群监控项
 
 ##### taos_m_info_role
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `mnode_ep`: mnode 端点
@@ -453,6 +481,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **含义**: mnode 角色
 
 ##### taos_taos_sql_req_count
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `result`: 请求结果（取值范围： Success, Failed）
@@ -462,6 +491,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **含义**: SQL 请求数量
 
 ##### taos_taosd_sql_req_count
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `dnode_ep`: dnode 端点
@@ -474,6 +504,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **含义**: SQL 请求数量
 
 ##### taos_taosd_vgroups_info_status
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `database_name`: 数据库名称
@@ -482,6 +513,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **含义**: 虚拟组状态。 0 为 unsynced，表示没有leader选出；1 为 ready。
 
 ##### taos_taosd_vgroups_info_tables_num
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `database_name`: 数据库名称
@@ -490,6 +522,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **含义**: 虚拟组表数量
 
 ##### taos_taosd_vnodes_info_role
+
 - **标签**:
   - `cluster_id`: 集群 id
   - `database_name`: 数据库名称
@@ -499,7 +532,6 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - **类型**: gauge
 - **含义**: 虚拟节点角色
   
-
 ### 抽取配置
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
@@ -520,8 +552,6 @@ scrape_configs:
 我们提供了 `TaosKeeper Prometheus Dashboard for 3.x` dashboard，提供了和 TDinsight 类似的监控 dashboard。
 
 在 Grafana Dashboard 菜单点击 `import`，dashboard ID 填写 `18587`，点击 `Load` 按钮即可导入 `TaosKeeper Prometheus Dashboard for 3.x` dashboard。
-
-
 
 ## taosKeeper 监控指标
 
