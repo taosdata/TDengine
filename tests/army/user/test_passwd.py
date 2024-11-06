@@ -23,11 +23,12 @@ class TDTestCase(TBase):
 
     def run(self):
         apiPath = self.apiPath()
+        tdLog.info(f"api path: {apiPath}")
         if apiPath:
             p = subprocess.Popen(f"cd {apiPath} && make", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
-                tdLog.exit("Test script passwdTest.c make failed")
+                tdLog.exit(f"Test script passwdTest.c make failed with error: {err}")
             test_file_cmd = os.sep.join([apiPath, "passwdTest localhost"])
         else:
             tdLog.exit("passwdTest.c not found")
