@@ -206,6 +206,9 @@ const mutations = {
   SET_CSV_TRANSFORMER_PARSER:(state,data)=>{
     state.csvTransformerParser=data
   },
+  SET_CSV_RAW_DATA:(state,data)=>{
+    state.csvRawData = data
+  },
   SET_FILTER_PARSE_DATA:(state,data)=>{
     state.transformerFilterParseData=data
   },

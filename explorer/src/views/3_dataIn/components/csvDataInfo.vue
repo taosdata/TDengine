@@ -166,22 +166,22 @@ export default {
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
     }
 
-      //编辑状态直接从返回值去csv 的parser
-      this.showConfig = true;
-      
-      let parseParam = this.getCsvParseParam()
-      let result = await getCSVColumns(
-        this.fileForm.fileurl,
-        "csv",
-        parseParam
-      );
-      this.csvColumns = result.file_header.column_names;
-      if (result && !result.sample_values) {
-        this.$error(this.$t('datasource.transformer.emptySampleValues'))
-        return
+    let rawData = this.$store.state.app.csvRawData;
+    if (rawData && rawData.length > 0) {
+      let csvColumns = [];
+      let sample_values = [];
+      for (let key in rawData[0]) {
+        csvColumns.push(key);
       }
-      this.sample_values = result.sample_values ?? [];
-      this.formatCsvTransformerData(this.csvColumns, this.sample_values);
+      for (let i = 0; i < rawData.length; i++) {
+        let row = [];
+        for (let key in rawData[i]) {
+          row.push(rawData[i][key]);
+        }
+        sample_values.push(row);
+      }
+      this.formatCsvTransformerData(csvColumns, sample_values);
+    }
     
   },
   methods: {

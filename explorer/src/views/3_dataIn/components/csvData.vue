@@ -266,8 +266,6 @@ export default {
       },
 
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
-      csvColumns: [],
-      sample_values: [],
       localcsv: {},
       dbOptions: [],
       extractArr: [],
@@ -276,10 +274,15 @@ export default {
   },
   async mounted() {
     if (!this.isEditable && !this.isViewable) {
+      this.$store.commit("app/SET_CSV_FILE_LISTENER", this.fileForm);
       return;
     }
 
     this.isModifying = this.$store.state.app.currentEditID > 0;
+    if (!this.isModifying) {
+      this.$store.commit("app/SET_CSV_FILE_LISTENER", this.fileForm);
+      return;
+    }
 
     let csvFileConfig = this.$store.state.app.csvFileListener;
     for (let configItem in csvFileConfig) {
@@ -312,15 +315,22 @@ export default {
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
     }
     
-    let parseParam = this.getCsvParseParam()
-    let result = await getCSVColumns(fileUrl,"csv",parseParam);
-    this.csvColumns = result.file_header.column_names;
-    if (result && !result.sample_values) {
-      this.$error(this.$t('datasource.transformer.emptySampleValues'))
-      return
+    let rawData = this.$store.state.app.csvRawData;
+    if (rawData && rawData.length > 0) {
+      let csvColumns = [];
+      let sample_values = [];
+      for (let key in rawData[0]) {
+        csvColumns.push(key);
+      }
+      for (let i = 0; i < rawData.length; i++) {
+        let row = [];
+        for (let key in rawData[i]) {
+          row.push(rawData[i][key]);
+        }
+        sample_values.push(row);
+      }
+      this.formatCsvTransformerData(csvColumns, sample_values);
     }
-    this.sample_values = result.sample_values ?? [];
-    this.formatCsvTransformerData(this.csvColumns, this.sample_values);
   },
 
   methods: {
@@ -489,10 +499,7 @@ export default {
           return
         }
 
-        this.csvColumns = result.file_header.column_names;
-        this.sample_values = result.sample_values ?? [];
-
-        this.formatCsvTransformerData(this.csvColumns, this.sample_values);
+        this.formatCsvTransformerData(columns, result.sample_values ?? []);
         this.submitUpload();
       } catch (error) {
         this.loading = false
@@ -504,21 +511,13 @@ export default {
       let inputList = values.map((item) => {
         return Object.fromEntries(
           item.map((val, index) => {
-            return [this.csvColumns[index], val];
+            return [columns[index], val];
           })
         );
       });
       let msgBody = values.map((item) => {
         return item;
       });
-      // 自定义列删除
-      // if (this.$store.state.app.csvTransformerlocalCols.length > 0) {
-      //   msgBody.unshift(
-      //     this.$store.state.app.csvTransformerlocalCols.toString()
-      //   );
-      // } else {
-      //   msgBody.unshift(columns.toString());
-      // }
       msgBody.unshift(columns.toString());
       this.extractArr.splice(0, this.extractArr.length);
       columns.forEach((item) => {
@@ -567,6 +566,7 @@ export default {
           }),
         },
       ];
+      
       this.$store.commit("app/SET_TRANSFORMER_MAPCOLUMNS", transformerColumns);
       this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
       this.showTransformer = true;
@@ -589,7 +589,7 @@ export default {
           })
         );
       } catch (error) {
-        console.log("表不存在则创建");
+        console.log(error);
         // error&&error.desc&&this.$error(error.desc)
       }
     },

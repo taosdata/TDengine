@@ -440,7 +440,7 @@ export default {
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
         .then((data) => {
-          this.sourceForm.type = data.from_detail.id;
+          this.sourceForm.type = data.from_expand.id;
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
@@ -457,6 +457,9 @@ export default {
           }
           if (data.parser) {
             this.oldParams.parser = data.parser
+            if (data.from_expand.id === 'csv') {
+              this.$store.commit("app/SET_CSV_RAW_DATA", data.parser.input);
+            }
           }
         })
         .finally(() => {
