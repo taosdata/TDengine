@@ -59,7 +59,7 @@ class InstallInfo:
         self.packagClientName = ""
 
 
-install_info = InstallInfo(directory, branch, internal_dir, community_dir, release_dir, "C:\\TDengine") 
+install_info = InstallInfo(directory, branch, internal_dir, community_dir, release_dir, install_dir="C:\\TDengine") 
 
 def setLog(loglevel='info',log_persist=True):
     # generate a timestamp string
@@ -181,7 +181,7 @@ def parse_arguments():
 
     install_info.directory = args.directory
     install_info.branch = args.branch
-    install_info.install_dir = "C:\\TDengine"
+    install_info.install_dir = f"C:\\{args.customer_name}"
     install_info.internal_dir = os.path.join(args.directory, args.branch, "TDinternal")
     install_info.community_dir = os.path.join(install_info.internal_dir, "community")
     scrip_dir = os.path.join(install_info.internal_dir, "enterprise", "packaging")
@@ -204,7 +204,9 @@ def git_pull(repo_dir, source_branch, target):
         logging.info(f"{repo_dir}: reset to HEAD done")
     except:
         pass
-    
+
+    os.system("git remote prune origin")
+    repo.git.checkout(source_branch)
     repo.git.checkout(source_branch)
     logging.info(f"{repo_dir}: checkout {source_branch} done")
     
@@ -262,7 +264,7 @@ def get_latest_code():
 
     # pull taosws
     taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
-    git_pull(taosws_dir, "main", f"ver-{td_version.version}")
+    git_pull(taosws_dir, "install_info.branch", f"ver-{td_version.version}")
 
 def init_release_dir():
     logging.info(f"init release directory {install_info.release_dir} ...")
@@ -279,7 +281,7 @@ def process_cmake():
     if td_version.verType != 'community':
         cmd = (f'cmake ..\ -G "NMake Makefiles JOM" '
             f'-DCMAKE_MAKE_PROGRAM=jom -DASSERT_NOT_CORE=true -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true '
-            f'-DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true '
+            f'-DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_KEEPER=true '
             f'-DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER={td_version.version} '
             f'-DCPUTYPE=x64 -DCUS_NAME={tdCustomer.Name} -DCUS_PROMPT={tdCustomer.Prompt} '
             f'-DCUS_EMAIL={tdCustomer.Email}  -DTD_PRODUCT_NAME=\"{tdCustomer.Name} Enterprise Edition\" -DGRANT_VALUE={tdCustomer.grantValue} ')
@@ -437,27 +439,29 @@ def process_build_taosws_32bit():
     print("32bit taosws build done")
 
 def process_build_odbc():
-    odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
+    # only directory/main has  taos-connector-odbc
+    odbc_dir = os.path.join(directory, "main", "taos-connector-odbc")
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
     print("current path: {0}".format(os.getcwd()))
     
-    #build 32 bit ODBC
-    os.system("vcvarsall.bat amd64_x86")
-    print("vcvarsall.bat amd64_x86")
-    os.system("rm -rf .externals && rm -rf build32")
-    os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
-    os.system(f"cmake --build build32 --config {odbc_build_type} -j 8")
-    
-    x86_dll_dir = os.path.join(odbc_dir, "build32", "src", f"{odbc_build_type}")           
-    x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
-    x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
-    os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
-    os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
-    
-    x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
-    os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
+    if install_info.branch != "3.1":
+        #build 32 bit ODBC
+        os.system("vcvarsall.bat amd64_x86")
+        print("vcvarsall.bat amd64_x86")
+        os.system("rm -rf .externals && rm -rf build32")
+        os.system('''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
+        os.system(f"cmake --build build32 --config {odbc_build_type} -j 8")
+        
+        x86_dll_dir = os.path.join(odbc_dir, "build32", "src", f"{odbc_build_type}")           
+        x86_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "lib")
+        x86_target_bin_dir = os.path.join(install_info.install_dir, "taos_odbc", "x86", "bin")    
+        os.system("xcopy /YS {}\\taos_odbc.dll {}".format(x86_dll_dir, x86_target_bin_dir)) 
+        os.system("xcopy /YS {}\\taos_odbc.lib {}".format(x86_dll_dir, x86_target_lib_dir))    
+        
+        x86_template_dir = os.path.join(odbc_dir, "build32", "templates")
+        os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
     
     # build 64 bit ODBC    
     
@@ -482,6 +486,10 @@ def process_build_odbc():
     
     x64_template_dir = os.path.join(odbc_dir, "build64", "templates")
     os.system("xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x64".format(x64_template_dir, install_info.install_dir))
+
+def process_download_odbc():
+    subprocess.call("powershell -command \"Start-BitsTransfer -Source https://github.com/taosdata/taos_odbc/releases/download/v1.0.0.0/taos_odbc_install_files.zip -Destination taos_odbc_install_files.zip\"")
+    subprocess.call(f"powershell -command \"Expand-Archive taos_odbc_install_files.zip {install_info.install_dir}\"")
 
 def process_add_enterprice_extent():
     connector_install_dir = os.path.join(install_info.install_dir, "connector")
@@ -552,14 +560,15 @@ def copy_taosx_files():
         os.system(f"xcopy /S {taosx_source_dir}\\append {install_info.install_dir}\\append\\*")
         os.system(f"xcopy /S {taosx_source_dir}\\config {install_info.install_dir}\\cfg\\*")
         
-def copy_keeper_files():
-    if td_version.verType != "community":
-        keeper_dir = os.path.join(install_info.directory, install_info.branch, "taoskeeperinternal")
-    else:
-        keeper_dir = os.path.join(install_info.directory, install_info.branch, "taoskeeper")
+# get keeper  from tdinternal repo not single repo so comment this function
+# def copy_keeper_files():
+#     if td_version.verType != "community":
+#         keeper_dir = os.path.join(install_info.directory, install_info.branch, "taoskeeperinternal")
+#     else:
+#         keeper_dir = os.path.join(install_info.directory, install_info.branch, "taoskeeper")
     
-    os.system(f"xcopy {keeper_dir}\\taoskeeper.exe {install_info.install_dir}\\")
-    os.system(f"xcopy {keeper_dir}\\config\\taoskeeper.toml {install_info.install_dir}\\cfg\\")
+#     os.system(f"xcopy {keeper_dir}\\taoskeeper.exe {install_info.install_dir}\\")
+#     os.system(f"xcopy {keeper_dir}\\config\\taoskeeper.toml {install_info.install_dir}\\cfg\\")
         
 
 def write_server_install_file():
@@ -619,9 +628,11 @@ def process_package_server():
     print("OEM prompt is :" + tdCustomer.Prompt)
     print("OEM email is :" + tdCustomer.Email)
     
-    # odbc_dir = os.path.join(install_info.install_dir, "taos_odbc")
-    # if os.path.exists(odbc_dir):
-    #     shutil.rmtree(odbc_dir)
+    # keep same method with old 3.1 code
+    if  install_info.branch == "3.1" and tdCustomer.Name == "TDengine":
+        odbc_dir = os.path.join(install_info.install_dir, "taos_odbc")
+        if os.path.exists(odbc_dir):
+            shutil.rmtree(odbc_dir)
     
     try:
         package_process_cmd = f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
@@ -912,23 +923,31 @@ if __name__ == "__main__":
     # p2.join()
     # p3.join()
 
+    logging.info("start to build taosd nad taosx")
     process_build_TD()
     process_build_taosx()
-    process_build_keeper()
+    logging.info("finish  building taosd nad taosx ")
+    # # add -DBUILD_KEEPER=true  and comment process_build_keeper
+    # process_build_keeper()
     
     process_install()    
-    process_build_taosws_32bit()
-    process_build_odbc()
+
+    if install_info.branch != "3.1":
+        process_build_taosws_32bit()
+        process_build_odbc()
+    else:
+        process_download_odbc()
+
     process_add_enterprice_extent()    
     process_package_client()
     
     
     if td_version.verType != "community":
         copy_taosx_files()
-        copy_keeper_files()
+        # copy_keeper_files()
         if tdCustomer.Name != "TDengine":
             process_OEM_rename_process()
-        process_package_server()
+        process_package_server()     
     
     end_time = time.time()
     excute_time = (end_time - start_time) / 60
