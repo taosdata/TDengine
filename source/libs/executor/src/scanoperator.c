@@ -25,6 +25,7 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "ttime.h"
 
 #include "operator.h"
 #include "query.h"
@@ -1461,6 +1462,18 @@ static void destroyTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
+  if (pBlock && dataRequireFlag == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+      if (pCol) {
+        pCol->info.noData = true;
+      }
+    }
+  }
+}
+
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -1511,6 +1524,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  resetClolumnReserve(pInfo->pResBlock, pInfo->base.dataBlockLoadFlag);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
 
   code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
@@ -1636,10 +1650,18 @@ static bool isCountWindow(SStreamScanInfo* pInfo) {
   return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
 }
 
+static bool isTimeSlice(SStreamScanInfo* pInfo) {
+  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
+}
+
 static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
-  pInfo->groupId = groupCol[rowIndex];
+  if (colDataIsNull_s(pColInfo, rowIndex)) {
+    pInfo->igCheckGroupId = true;
+  } else {
+    pInfo->groupId = groupCol[rowIndex];
+  }
 }
 
 void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t ver) {
@@ -1913,6 +1935,12 @@ static int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t ts
       continue;
     }
 
+    if (pInfo->igCheckGroupId == true) {
+      pResult->info.calWin = pInfo->updateWin;
+      (*ppRes) = pResult;
+      goto _end;
+    }
+
     if (pInfo->partitionSup.needCalc) {
       SSDataBlock* tmpBlock = NULL;
       code = createOneDataBlock(pResult, true, &tmpBlock);
@@ -1987,10 +2015,10 @@ int32_t appendOneRowToSpecialBlockImpl(SSDataBlock* pBlock, TSKEY* pStartTs, TSK
   code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = colDataSetVal(pUidCol, pBlock->info.rows, (const char*)pUid, false);
+  code = colDataSetVal(pUidCol, pBlock->info.rows, (const char*)pUid, pUid == NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)pGp, false);
+  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)pGp, pGp == NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = colDataSetVal(pCalStartCol, pBlock->info.rows, (const char*)pCalStartTs, false);
@@ -2103,6 +2131,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
@@ -2148,7 +2177,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     QUERY_CHECK_CODE(code, lino, _end);
 
     colDataSetNULL(pDestCalStartTsCol, i);
-    colDataSetNULL(pDestCalEndTsCol, i);
+    colDataSetNULL(pDestTableNameInxCol, i);
     pDestBlock->info.rows++;
   }
 
@@ -2202,6 +2231,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
@@ -2228,6 +2258,169 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pDestCalEndTsCol, i, (const char*)&range.win.ekey, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pDestTableNameInxCol, i);
+
+    pDestBlock->info.rows++;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t setDelRangeEndKey(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SWinKey* pEndKey, STimeWindow* pScanRange, bool* pRes) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SSlicePoint nextPoint = {.key.groupId = pEndKey->groupId};
+  int32_t     vLen = 0;
+  int32_t     winCode = TSDB_CODE_SUCCESS;
+  code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, pEndKey, &nextPoint.key, (void**)&nextPoint.pResPos, &vLen, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (winCode == TSDB_CODE_SUCCESS) {
+    setPointBuff(&nextPoint, pFillSup);
+    if (HAS_ROW_DATA(nextPoint.pLeftRow) && pEndKey->ts < nextPoint.pLeftRow->key) {
+      pScanRange->ekey = nextPoint.pLeftRow->key;
+      *pRes = true;
+    } else if (pEndKey->ts < nextPoint.pRightRow->key) {
+      pScanRange->ekey = nextPoint.pRightRow->key;
+      *pRes = true;
+    } else {
+      *pEndKey = nextPoint.key;
+      pScanRange->ekey = TMAX(nextPoint.pRightRow->key, nextPoint.key.ts);
+      *pRes = false;
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SInterval* pInterval, TSKEY start, TSKEY end,
+                             int64_t groupId, STimeWindow* pScanRange) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  int32_t        winCode = TSDB_CODE_SUCCESS;
+  SResultRowInfo dumyInfo = {0};
+  dumyInfo.cur.pageId = -1;
+  STimeWindow sWin = getActiveTimeWindow(NULL, &dumyInfo, start, pInterval, TSDB_ORDER_ASC);
+  SWinKey     startKey = {.groupId = groupId, .ts = sWin.skey};
+
+  sWin = getActiveTimeWindow(NULL, &dumyInfo, end, pInterval, TSDB_ORDER_ASC);
+  SWinKey endKey = {.groupId = groupId, .ts = sWin.ekey};
+
+  SSlicePoint prevPoint = {.key.groupId = groupId};
+  SSlicePoint nextPoint = {.key.groupId = groupId};
+  int32_t     vLen = 0;
+  code = pAggSup->stateStore.streamStateFillGetPrev(pAggSup->pState, &startKey, &prevPoint.key, (void**)&prevPoint.pResPos, &vLen, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (winCode == TSDB_CODE_SUCCESS) {
+    setPointBuff(&prevPoint, pFillSup);
+    if (HAS_ROW_DATA(prevPoint.pRightRow)) {
+      pScanRange->skey = prevPoint.pRightRow->key;
+    } else {
+      pScanRange->skey = prevPoint.pLeftRow->key;
+    }
+  } else {
+    pScanRange->skey = startKey.ts;
+  }
+
+  bool res = false;
+  SWinKey curKey = endKey;
+  code = setDelRangeEndKey(pAggSup, pFillSup, &curKey, pScanRange, &res);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (res == false) {
+    code = setDelRangeEndKey(pAggSup, pFillSup, &curKey, pScanRange, &res);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (res == false) {
+    pScanRange->ekey = TMAX(endKey.ts, pScanRange->ekey);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock,
+                                          EStreamType mode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  blockDataCleanup(pDestBlock);
+  if (pSrcBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExecTaskInfo*   pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
+  SColumnInfoData* pStartTsCol = taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY*           endData = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*        uidCol = (uint64_t*)pUidCol->pData;
+  SColumnInfoData* pGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        pSrcGp = (uint64_t*)pGpCol->pData;
+  SColumnInfoData* pSrcPkCol = NULL;
+  if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX) {
+    pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
+  }
+  int64_t ver = pSrcBlock->info.version - 1;
+
+  if (pInfo->partitionSup.needCalc &&
+      (startData[0] != endData[0] || (hasPrimaryKeyCol(pInfo) && mode == STREAM_DELETE_DATA))) {
+    code = getPreVersionDataBlock(uidCol[0], startData[0], endData[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+    startData = (TSKEY*)pStartTsCol->pData;
+    endData = (TSKEY*)pEndTsCol->pData;
+    uidCol = (uint64_t*)pUidCol->pData;
+    pSrcGp = (uint64_t*)pGpCol->pData;
+  }
+
+  code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pDestStartCol = taosArrayGet(pDestBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestEndCol = taosArrayGet(pDestBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestUidCol = taosArrayGet(pDestBlock->pDataBlock, UID_COLUMN_INDEX);
+  SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
+    uint64_t groupId = pSrcGp[i];
+    if (groupId == 0) {
+      void* pVal = NULL;
+      if (hasPrimaryKeyCol(pInfo) && pSrcPkCol) {
+        pVal = colDataGetData(pSrcPkCol, i);
+      }
+      groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], ver, pVal);
+    }
+
+    STimeWindow scanRange = {0};
+    code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, pInfo->pFillSup, &pInfo->interval, startData[i], endData[i], groupId,
+                                &scanRange);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = colDataSetVal(pDestStartCol, i, (const char*)&scanRange.skey, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = colDataSetVal(pDestEndCol, i, (const char*)&scanRange.ekey, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pDestUidCol, i);
+    code = colDataSetVal(pDestGpCol, i, (const char*)&groupId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = colDataSetVal(pDestCalStartTsCol, i, (const char*)&scanRange.skey, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = colDataSetVal(pDestCalEndTsCol, i, (const char*)&scanRange.ekey, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     pDestBlock->info.rows++;
@@ -2285,6 +2478,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   SColumnInfoData* pGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows;) {
     uint64_t srcUid = srcUidData[i];
     uint64_t groupId = srcGp[i];
@@ -2323,6 +2517,8 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
 
     code = colDataSetVal(pGpCol, pDestBlock->info.rows, (const char*)(&groupId), false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pDestTableNameInxCol,  pDestBlock->info.rows);
 
     pDestBlock->info.rows++;
   }
@@ -2502,6 +2698,9 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (isCountWindow(pInfo)) {
     code = generateCountScanRange(pInfo, pSrcBlock, pDestBlock, type);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (isTimeSlice(pInfo)) {
+    code = generateTimeSliceScanRange(pInfo, pSrcBlock, pDestBlock, type);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     code = generateDeleteResultBlock(pInfo, pSrcBlock, pDestBlock);
@@ -3080,6 +3279,7 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, TABLE_NAME_COLUMN_INDEX), j);
       j++;
     }
   }
@@ -3153,30 +3353,77 @@ _end:
 }
 
 int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* pLen) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int32_t len = 0;
-  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
-  QUERY_CHECK_CODE(code, lino, _end);
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  int32_t   len = 0;
+  SEncoder* pEnCoder = NULL;
+  SEncoder* pScanEnCoder = NULL;
 
   len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
+  SEncoder encoder = {0};
+  pEnCoder = &encoder;
+  tEncoderInit(pEnCoder, NULL, 0);
+  if (tStartEncode(pEnCoder) != 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pEnCoder, pInfo->pUpdateInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (tEncodeI64(pEnCoder, pInfo->lastScanRange.skey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (tEncodeI64(pEnCoder, pInfo->lastScanRange.ekey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  tEndEncode(pEnCoder);
+  len += encoder.pos;
+  tEncoderClear(pEnCoder);
+  pEnCoder = NULL;
+
   *pBuff = taosMemoryCalloc(1, len);
   if (!(*pBuff)) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   void* buf = *pBuff;
-  (void)encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
+  int32_t stwLen = encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
 
-  int32_t tmp = 0;
-  code = pInfo->stateStore.updateInfoSerialize(buf, len, pInfo->pUpdateInfo, &tmp);
+  SEncoder scanEncoder = {0};
+  pScanEnCoder = &scanEncoder;
+  tEncoderInit(pScanEnCoder, buf, len - stwLen);
+  if (tStartEncode(pScanEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pScanEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (tEncodeI64(pScanEnCoder, pInfo->lastScanRange.skey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (tEncodeI64(pScanEnCoder, pInfo->lastScanRange.ekey) < 0) {
+    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   *pLen = len;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (pEnCoder != NULL) {
+    tEndEncode(pEnCoder);
+    tEncoderClear(pEnCoder);
+  }
+  if (pScanEnCoder != NULL) {
+    tEndEncode(pScanEnCoder);
+    tEncoderClear(pScanEnCoder);
   }
   return code;
 }
@@ -3206,35 +3453,86 @@ _end:
 
 // other properties are recovered from the execution plan
 void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SDecoder* pDeCoder = NULL;
   if (!pBuff || len == 0) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
   void* buf = pBuff;
   buf = decodeSTimeWindowAggSupp(buf, &pInfo->twAggSup);
   int32_t tlen = len - encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
   if (tlen == 0) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
 
   void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   if (!pUpInfo) {
-    return;
+    lino = __LINE__;
+    goto _end;
   }
-  int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
+  SDecoder decoder = {0};
+  pDeCoder = &decoder;
+  tDecoderInit(pDeCoder, buf, tlen);
+  if (tStartDecode(pDeCoder) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
     pInfo->pUpdateInfo = pUpInfo;
   } else {
     taosMemoryFree(pUpInfo);
+    lino = __LINE__;
+    goto _end;
   }
+
+  if (tDecodeIsEnd(pDeCoder)) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.skey);
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.ekey);
+
+  if (tDecodeI64(pDeCoder, &pInfo->lastScanRange.skey) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+  if (tDecodeI64(pDeCoder, &pInfo->lastScanRange.ekey) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+
+_end:
+  if (pDeCoder != NULL) {
+    tEndDecode(pDeCoder);
+    tDecoderClear(pDeCoder);
+  }
+  qInfo("%s end at line %d", __func__, lino);
 }
+
 static bool hasScanRange(SStreamScanInfo* pInfo) {
   SStreamAggSupporter* pSup = pInfo->windowSup.pStreamAggSup;
   return pSup && pSup->pScanBlock->info.rows > 0 && (isStateWindow(pInfo) || isCountWindow(pInfo));
 }
 
 static bool isStreamWindow(SStreamScanInfo* pInfo) {
-  return isIntervalWindow(pInfo) || isSessionWindow(pInfo) || isStateWindow(pInfo) || isCountWindow(pInfo);
+  return isIntervalWindow(pInfo) || isSessionWindow(pInfo) || isStateWindow(pInfo) || isCountWindow(pInfo) ||
+         isTimeSlice(pInfo);
+}
+
+static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
+  int32_t code = blockDataEnsureCapacity(dest, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
 }
 
 static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -3462,13 +3760,27 @@ FETCH_NEXT_BLOCK:
           }
         }
       } break;
+      case STREAM_GET_RESULT: {
+        pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+        pInfo->updateResIndex = 0;
+        pInfo->lastScanRange = pBlock->info.window;
+        TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
+        if (pInfo->useGetResultRange == true) {
+          endKey = pBlock->info.window.ekey;
+        }
+        code = copyGetResultBlock(pInfo->pUpdateRes, pBlock->info.window.skey, endKey);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pUpdateInfo->maxDataVersion = -1;
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
       } break;
       default:
         break;
     }
-    printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "block recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
     (*ppRes) = pBlock;
     return code;
@@ -3676,6 +3988,9 @@ FETCH_NEXT_BLOCK:
     // printDataBlock(pInfo->pCheckpointRes, "stream scan ck", GET_TASKID(pTaskInfo));
     (*ppRes) = pInfo->pCheckpointRes;
     return code;
+  } else {
+    qError("stream scan error, invalid block type %d, %s", pInfo->blockType, id);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
 _end:
@@ -3959,6 +4274,8 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
   int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
   void*            pBuff = NULL;
+  SEncoder*        pEnCoder = NULL;
+  SEncoder*        pScanEnCoder = NULL;
   if (!pInfo->pState) {
     return;
   }
@@ -3966,9 +4283,21 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
     qDebug("stask:%s streamScanReleaseState cancel", GET_TASKID(pOperator->pTaskInfo));
     return;
   }
-  int32_t len = 0;
-  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
+  int32_t  len = 0;
+  SEncoder encoder = {0};
+  pEnCoder = &encoder;
+  tEncoderInit(pEnCoder, NULL, 0);
+  if (tStartEncode(pEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  tEndEncode(pEnCoder);
+  len += encoder.pos;
+  tEncoderClear(pEnCoder);
+  pEnCoder = NULL;
 
   pBuff = taosMemoryCalloc(1, len);
   if (!pBuff) {
@@ -3976,9 +4305,19 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  int32_t tmp = 0;
-  code = pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo, &tmp);
+  SEncoder scanEncoder = {0};
+  pScanEnCoder = &scanEncoder;
+  tEncoderInit(pScanEnCoder, pBuff, len);
+  if (tStartEncode(pScanEnCoder) != 0) {
+    code = TSDB_CODE_FAILED;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = pInfo->stateStore.updateInfoSerialize(pScanEnCoder, pInfo->pUpdateInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  tEndEncode(pScanEnCoder);
+  tEncoderClear(pScanEnCoder);
+  pScanEnCoder = NULL;
 
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME),
                                         pBuff, len);
@@ -3986,12 +4325,21 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  if (pEnCoder != NULL) {
+    tEndEncode(pEnCoder);
+    tEncoderClear(pEnCoder);
+  }
+  if (pScanEnCoder != NULL) {
+    tEndEncode(pScanEnCoder);
+    tEncoderClear(pScanEnCoder);
+  }
   taosMemoryFree(pBuff);
 }
 
 void streamScanReloadState(SOperatorInfo* pOperator) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  SDecoder*        pDeCoder = NULL;
   SStreamScanInfo* pInfo = pOperator->info;
   if (!pInfo->pState) {
     return;
@@ -4012,7 +4360,14 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  SDecoder decoder = {0};
+  pDeCoder = &decoder;
+  tDecoderInit(pDeCoder, pBuff, len);
+  if (tStartDecode(pDeCoder) < 0) {
+    lino = __LINE__;
+    goto _end;
+  }
+  int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   taosMemoryFree(pBuff);
   if (winCode == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
     if (pInfo->pUpdateInfo->minTS < 0) {
@@ -4049,6 +4404,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
   }
 
 _end:
+  if (pDeCoder != NULL) {
+    tEndDecode(pDeCoder);
+    tDecoderClear(pDeCoder);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -4239,6 +4598,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
   pInfo->groupId = 0;
+  pInfo->igCheckGroupId = false;
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
   code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);
@@ -4264,10 +4624,14 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
+  pInfo->pFillSup = NULL;
+  pInfo->useGetResultRange = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.skey);
+  SET_WIN_KEY_INVALID(pInfo->lastScanRange.ekey);
   // for stream
   if (pTaskInfo->streamInfo.pState) {
     void*   buff = NULL;

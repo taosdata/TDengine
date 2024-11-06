@@ -467,9 +467,11 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -1022,6 +1024,7 @@ typedef struct {
   char          sDetailVer[128];
   int64_t       whiteListVer;
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1215,6 +1218,7 @@ typedef struct {
   int32_t bytes;
   int8_t  type;
   uint8_t pk;
+  bool    noData;
 } SColumnInfo;
 
 typedef struct STimeWindow {
@@ -1337,6 +1341,7 @@ typedef struct {
   char*   sql;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  char    dnodeListStr[TSDB_DNODE_LIST_LEN];
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1824,6 +1829,17 @@ typedef struct {
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 void    tFreeSStatisReq(SStatisReq* pReq);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  char    table[TSDB_TABLE_NAME_LEN];
+  char    operation[AUDIT_OPERATION_LEN];
+  int32_t sqlLen;
+  char*   pSql;
+} SAuditReq;
+int32_t tSerializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+int32_t tDeserializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+void    tFreeSAuditReq(SAuditReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2813,9 +2829,11 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE        1
-#define STREAM_TRIGGER_WINDOW_CLOSE   2
-#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_TRIGGER_AT_ONCE            1
+#define STREAM_TRIGGER_WINDOW_CLOSE       2
+#define STREAM_TRIGGER_MAX_DELAY          3
+#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE 4
+
 #define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
@@ -3413,6 +3431,7 @@ typedef struct {
   int32_t       svrTimestamp;
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
@@ -4104,18 +4123,16 @@ void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 #define MQ_DATA_RSP_VERSION 100
 
 typedef struct {
-  struct {
-    SMqRspHead   head;
-    STqOffsetVal rspOffset;
-    STqOffsetVal reqOffset;
-    int32_t      blockNum;
-    int8_t       withTbName;
-    int8_t       withSchema;
-    SArray*      blockDataLen;
-    SArray*      blockData;
-    SArray*      blockTbName;
-    SArray*      blockSchema;
-  };
+  SMqRspHead   head;
+  STqOffsetVal rspOffset;
+  STqOffsetVal reqOffset;
+  int32_t      blockNum;
+  int8_t       withTbName;
+  int8_t       withSchema;
+  SArray*      blockDataLen;
+  SArray*      blockData;
+  SArray*      blockTbName;
+  SArray*      blockSchema;
 
   union{
     struct{

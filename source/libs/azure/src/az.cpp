@@ -22,13 +22,16 @@
 #include "taoserror.h"
 #include "tglobal.h"
 
+int32_t azBegin() { return TSDB_CODE_SUCCESS; }
+
+void azEnd() {}
+
 #if defined(USE_S3)
 
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 #include "td_block_blob_client.hpp"
 
-// Add appropriate using namespace directives
 using namespace Azure::Storage;
 using namespace Azure::Storage::Blobs;
 
@@ -39,10 +42,6 @@ extern char tsS3BucketName[TSDB_FQDN_LEN];
 
 extern int8_t tsS3Enabled;
 extern int8_t tsS3EpNum;
-
-int32_t azBegin() { return TSDB_CODE_SUCCESS; }
-
-void azEnd() {}
 
 static void checkPrint(const char *fmt, ...) {
   va_list arg_ptr;
@@ -223,7 +222,6 @@ static int32_t azPutObjectFromFileOffsetImpl(const char *file, const char *objec
     uint8_t     blobContent[] = "Hello Azure!";
     // Create the block blob client
     // BlockBlobClient blobClient = containerClient.GetBlockBlobClient(blobName);
-    // TDBlockBlobClient blobClient(containerClient.GetBlobClient(blobName));
     TDBlockBlobClient blobClient(containerClient.GetBlobClient(object_name));
 
     blobClient.UploadFrom(file, offset, size);
@@ -416,7 +414,7 @@ _exit:
   return 0;
 }
 
-int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
+static int32_t azGetObjectToFileImpl(const char *object_name, const char *fileName) {
   int32_t     code = TSDB_CODE_SUCCESS;
   std::string accountName = tsS3AccessKeyId[0];
   std::string accountKey = tsS3AccessKeySecret[0];
@@ -450,7 +448,24 @@ int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
   TAOS_RETURN(code);
 }
 
-int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
+int32_t azGetObjectToFile(const char *object_name, const char *fileName) {
+  int32_t code = 0;
+
+  try {
+    code = azGetObjectToFileImpl(object_name, fileName);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t azGetObjectsByPrefixImpl(const char *prefix, const char *path) {
   const std::string delimiter = "/";
   std::string       accountName = tsS3AccessKeyId[0];
   std::string       accountKey = tsS3AccessKeySecret[0];
@@ -497,6 +512,23 @@ int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
   return 0;
 }
 
+int32_t azGetObjectsByPrefix(const char *prefix, const char *path) {
+  int32_t code = 0;
+
+  try {
+    code = azGetObjectsByPrefixImpl(prefix, path);
+  } catch (const std::exception &e) {
+    azError("%s: Reason Phrase: %s", __func__, e.what());
+
+    code = TAOS_SYSTEM_ERROR(EIO);
+    azError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 int32_t azDeleteObjects(const char *object_name[], int nobject) {
   for (int i = 0; i < nobject; ++i) {
     azDeleteObjectsByPrefix(object_name[i]);
@@ -506,10 +538,6 @@ int32_t azDeleteObjects(const char *object_name[], int nobject) {
 }
 
 #else
-
-int32_t azBegin() { return TSDB_CODE_SUCCESS; }
-
-void azEnd() {}
 
 int32_t azCheckCfg() { return TSDB_CODE_SUCCESS; }
 

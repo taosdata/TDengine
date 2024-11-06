@@ -3364,7 +3364,7 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   return 0;
 }
 void streamStateCurNext_rocksdb(SStreamStateCur* pCur) {
-  if (pCur) {
+  if (pCur && pCur->iter && rocksdb_iter_valid(pCur->iter)) {
     rocksdb_iter_next(pCur->iter);
   }
 }
@@ -3386,7 +3386,7 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   return streamStateDel_rocksdb(pState, &tmp);
 }
 
-int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+int32_t streamStateFillGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
   if (!pCur) {
     return -1;
   }
@@ -3478,7 +3478,7 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCu
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key) {
   SStreamStateCur* pCur = streamStateFillGetCur_rocksdb(pState, key);
   if (pCur) {
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, key, NULL, 0);
+    int32_t code = streamStateFillGetGroupKVByCur_rocksdb(pCur, key, NULL, 0);
     if (code == 0) return pCur;
     streamStateFreeCur(pCur);
   }
@@ -3562,6 +3562,7 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
+
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateGetCur_rocksdb");
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
@@ -4126,6 +4127,12 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
   streamStateFreeCur(pCur);
   return NULL;
 }
+
+SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState) {
+  SWinKey key = {.groupId = UINT64_MAX, .ts = INT64_MAX};
+  return streamStateFillSeekKeyNext_rocksdb(pState, &key);
+}
+
 #ifdef BUILD_NO_CALL
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
   stDebug("streamStateSessionGetKeyByRange_rocksdb");
@@ -4316,25 +4323,87 @@ _end:
   return res;
 }
 
-#ifdef BUILD_NO_CALL
 //  partag cf
 int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
   int    code = 0;
   char*  dst = NULL;
   size_t size = 0;
-  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL) {
+  if (pState->pResultRowStore.resultRowPut == NULL || pState->pExprSupp == NULL || tag == NULL) {
     STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, tag, tagLen);
     return code;
   }
-  code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, value, vLen, &dst, &size);
+  code = (pState->pResultRowStore.resultRowPut)(pState->pExprSupp, tag, tagLen, &dst, &size);
   if (code != 0) {
     return code;
   }
-  STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, dst, size);
+  STREAM_STATE_PUT_ROCKSDB(pState, "partag", &groupId, dst, (int32_t)size);
   taosMemoryFree(dst);
   return code;
 }
 
+void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t groupId, SStreamStateCur* pCur) {
+  if (pCur == NULL) {
+    return ;
+  }
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  pCur->number = pState->number;
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "partag", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  int i = streamStateGetCfIdx(pState, "partag");
+  if (i < 0) {
+    stError("streamState failed to put to cf name:%s", "partag");
+    return ;
+  }
+
+  char    buf[128] = {0};
+  int32_t klen = ginitDict[i].enFunc((void*)&groupId, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, klen)) {
+    return ;
+  }
+  // skip ttl expired data
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_next(pCur->iter);
+  }
+
+  if (rocksdb_iter_valid(pCur->iter)) {
+    int64_t curGroupId;
+    size_t  kLen = 0;
+    char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    TAOS_UNUSED(parKeyDecode((void*)&curGroupId, keyStr));
+    if (curGroupId > groupId) return ;
+
+    rocksdb_iter_next(pCur->iter);
+  }
+}
+
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
+  stDebug("streamStateFillGetKVByCur_rocksdb");
+  if (!pCur) {
+    return -1;
+  }
+  SWinKey winKey;
+  if (!rocksdb_iter_valid(pCur->iter) || iterValueIsStale(pCur->iter)) {
+    return -1;
+  }
+
+  size_t klen, vlen;
+  char*  keyStr = (char*)rocksdb_iter_key(pCur->iter, &klen);
+  (void)parKeyDecode(pGroupId, keyStr);
+
+  if (pVal) {
+    const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
+    int32_t     len = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
+    if (len < 0) {
+      return -1;
+    }
+    if (pVLen != NULL) *pVLen = len;
+  }
+
+  return 0;
+}
+
+#ifdef BUILD_NO_CALL
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
   int    code = 0;
   char*  tVal;
@@ -4538,7 +4607,9 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   rocksdb_column_family_handle_t* pCf = wrapper->pCf[ginitDict[cfIdx].idx];
   rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, ttlV, (size_t)ttlVLen);
 
-  taosMemoryFree(dst);
+  if (pState->pResultRowStore.resultRowPut != NULL && pState->pExprSupp != NULL) {
+    taosMemoryFree(dst);
+  }
 
   if (tmpBuf == NULL) {
     taosMemoryFree(ttlV);
@@ -5065,13 +5136,13 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
   memset(dstBuf, 0, cap);
-  nBytes = snprintf(dstDir, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
-  TdFilePtr pFile = taosOpenFile(dstDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(dstBuf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     code = terrno;
     stError("chkp failed to create meta file: %s, reason:%s", dstDir, tstrerror(code));
@@ -5240,3 +5311,61 @@ int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname) {
   return code;
 }
 #endif
+
+SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key) {
+  stDebug("streamStateSeekKeyPrev_rocksdb");
+  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
+
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  pCur->number = pState->number;
+
+  char buf[128] = {0};
+  int  len = winKeyEncode((void*)key, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_prev(pCur->iter);
+  }
+
+  if (rocksdb_iter_valid(pCur->iter)) {
+    SWinKey curKey;
+    size_t  kLen = 0;
+    char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    TAOS_UNUSED(winKeyDecode((void*)&curKey, keyStr));
+    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+      return pCur;
+    }
+    rocksdb_iter_prev(pCur->iter);
+    return pCur;
+  }
+
+  streamStateFreeCur(pCur);
+  return NULL;
+}
+
+int32_t streamStateGetGroupKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  if (!pCur) {
+    return -1;
+  }
+  uint64_t groupId = pKey->groupId;
+
+  int32_t code = streamStateGetKVByCur_rocksdb(pState, pCur, pKey, pVal, pVLen);
+  if (code == 0) {
+    if (pKey->groupId == groupId) {
+      return 0;
+    }
+    if (pVal != NULL) {
+      taosMemoryFree((void*)*pVal);
+      *pVal = NULL;
+    }
+  }
+  return -1;
+}

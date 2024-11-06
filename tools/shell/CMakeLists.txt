@@ -49,3 +49,32 @@ target_include_directories(
 )
 
 SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
+
+#
+# generator library shell_ut for uint test
+#
+
+IF(TD_LINUX)
+    # include
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
+    # shell_ut library
+    add_library(shell_ut STATIC ${SHELL_SRC})
+
+    IF(TD_WEBSOCKET)
+        ADD_DEPENDENCIES(shell_ut taosws-rs)
+    ENDIF()
+    target_link_libraries(shell_ut PUBLIC taos ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell_ut PRIVATE os common transport geometry util)
+
+    # util depends
+    target_link_directories(
+        shell_ut
+        PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
+    )
+
+    # unit test
+    IF(${BUILD_TEST})
+        ADD_SUBDIRECTORY(test)
+    ENDIF(${BUILD_TEST})    
+ENDIF()

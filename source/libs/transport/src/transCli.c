@@ -3153,7 +3153,7 @@ int32_t transReleaseCliHandle(void* handle) {
 
 static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx, SCliReq** pCliMsg) {
   int32_t code = 0;
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   SCliReq* pCliReq = NULL;
   SReqCtx* pCtx = taosMemoryCalloc(1, sizeof(SReqCtx));

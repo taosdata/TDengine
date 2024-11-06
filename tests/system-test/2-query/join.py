@@ -370,7 +370,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:cross db check")
         dbname1 = "db1"
-        tdSql.execute(f"create database {dbname1} duration 432000m")
+        tdSql.execute(f"create database {dbname1} duration 172800m")
         tdSql.execute(f"use {dbname1}")
         self.__create_tb(dbname=dbname1)
         self.__insert_data(dbname=dbname1)

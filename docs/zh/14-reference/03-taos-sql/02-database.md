@@ -30,6 +30,7 @@ database_option: {
   | SINGLE_STABLE {0 | 1}
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | DNODES value
   | TSDB_PAGESIZE value
   | WAL_LEVEL {1 | 2}
   | WAL_FSYNC_PERIOD value
@@ -70,6 +71,7 @@ database_option: {
 - TABLE_PREFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；例如，假定表名为 "v30001"，当 TSDB_PREFIX = 2 时 使用 "0001" 来决定分配到哪个 vgroup ，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup
 - TABLE_SUFFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；例如，假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时 使用 "v300" 来决定分配到哪个 vgroup ，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
 - TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
+- DNODES：指定 VNODE 所在的 DNODE 列表，如 '1,2,3'，以逗号区分且字符间不能有空格，仅企业版支持。
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。

@@ -462,8 +462,8 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
   if (pCfg->hashMethod != 1) return code;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
-    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-    return code;
+    code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    TAOS_RETURN(code);
   }
   if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return code;
   if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return code;
@@ -583,7 +583,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
   if (pCfg->s3ChunkSize <= 0) pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   if (pCfg->s3KeepLocal <= 0) pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  if (pCfg->s3Compact <= 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  if (pCfg->s3Compact < 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
@@ -746,7 +746,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
   int32_t  code = 0;
   SUserObj newUserObj = {0};
   SDbObj   dbObj = {0};
@@ -823,7 +823,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   SVgObj *pVgroups = NULL;
-  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups)) != 0) {
+  if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList)) != 0) {
     mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
@@ -925,6 +925,17 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#ifndef TD_ENTERPRISE
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
+  if (dnodeListStr[0] != 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  } else {
+    return 0;
+  }
+}
+#endif
+
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -932,6 +943,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
+  SArray      *dnodeList = NULL;
+
+  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
+  TSDB_CHECK_NULL(dnodeList, code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 #ifdef WINDOWS
@@ -975,9 +990,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
+  TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _OVER);
+
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -994,6 +1011,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateDbReq(&createReq);
+  taosArrayDestroy(dnodeList);
 
   TAOS_RETURN(code);
 }
@@ -1168,7 +1186,9 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
+
+  TSDB_CHECK_NULL(pArray, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);

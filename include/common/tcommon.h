@@ -154,6 +154,7 @@ typedef enum EStreamType {
   STREAM_TRANS_STATE,
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
+  STREAM_GET_RESULT,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -382,6 +383,10 @@ typedef struct STUidTagInfo {
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
 #define PRIMARY_KEY_COLUMN_INDEX        7
+
+//steam get result block column
+#define DATA_TS_COLUMN_INDEX            0
+#define DATA_VERSION_COLUMN_INDEX       1
 
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0

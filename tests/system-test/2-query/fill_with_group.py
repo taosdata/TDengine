@@ -344,9 +344,72 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(55)
 
-        # TODO Fix Me!
-        sql = "explain SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like '%asd');"
-        tdSql.error(sql, -2147473664) # Error: Planner internal error
+        sql = "SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like '%asd');"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(60)
+
+        sql = "SELECT count(*), timediff(_wend, last(ts)), timediff('2018-09-20 01:00:00', _wstart) FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' PARTITION BY concat(tbname, 'asd') INTERVAL(5m) having(concat(tbname, 'asd') like 'asd%');"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(0)
+        
+        sql = "SELECT c1 FROM meters PARTITION BY c1 HAVING c1 > 0 slimit 2 limit 10"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(20)
+
+        sql = "SELECT t1 FROM meters PARTITION BY t1 HAVING(t1 = 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(20000)
+
+        sql = "SELECT concat(t2, 'asd') FROM meters PARTITION BY t2 HAVING(t2 like '%5')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 'tb5asd')
+
+        sql = "SELECT concat(t2, 'asd') FROM meters PARTITION BY concat(t2, 'asd') HAVING(concat(t2, 'asd')like '%5%')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 'tb5asd')
+
+        sql = "SELECT avg(c1) FROM meters PARTITION BY tbname, t1 HAVING(t1 = 1)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+
+        sql = "SELECT count(*) FROM meters PARTITION BY concat(tbname, 'asd') HAVING(concat(tbname, 'asd') like '%asd')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*), concat(tbname, 'asd') FROM meters PARTITION BY concat(tbname, 'asd') HAVING(concat(tbname, 'asd') like '%asd')"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*) FROM meters PARTITION BY t1 HAVING(t1 < 4) order by t1 +1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(4)
+
+        sql = "SELECT count(*), t1 + 100 FROM meters PARTITION BY t1 HAVING(t1 < 4) order by t1 +1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(4)
+
+        sql = "SELECT count(*), t1 + 100 FROM meters PARTITION BY t1 INTERVAL(1d) HAVING(t1 < 4) order by t1 +1 desc"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(280)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' and count(*) = 118)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' and count(*) != 118)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(69)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd') order by count(*) asc limit 10"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(10)
+
+        sql = "SELECT count(*), concat(t3, 'asd') FROM meters PARTITION BY concat(t3, 'asd') INTERVAL(1d) HAVING(concat(t3, 'asd') like '%5asd' or concat(t3, 'asd') like '%3asd') order by count(*) asc limit 10000"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(140)
+
 
     def run(self):
         self.prepareTestEnv()

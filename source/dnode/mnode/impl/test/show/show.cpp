@@ -64,7 +64,7 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
   strcpy(connectReq.passwd, secretEncrypt);
-  strcpy(connectReq.sVer, version);
+  strcpy(connectReq.sVer, td_version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
