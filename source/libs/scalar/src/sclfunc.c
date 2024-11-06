@@ -42,6 +42,12 @@ static double radians(double v) {
 }
 
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
@@ -139,10 +145,20 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
@@ -288,10 +304,22 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _double_fn valFn) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(valFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t type = GET_PARAM_TYPE(pInput);
 
   SColumnInfoData *pInputData = pInput->columnData;
@@ -318,16 +346,28 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput,
                                        _double_fn_2 valFn) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(valFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SColumnInfoData     *pInputData[2];
   SColumnInfoData     *pOutputData = pOutput->columnData;
   _getDoubleValue_fn_t getValueFn[2];
 
   for (int32_t i = 0; i < inputNum; ++i) {
+    SCL_CHECK_NULL(pInput[i].columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
     pInputData[i] = pInput[i].columnData;
     SCL_ERR_RET(getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]), &getValueFn[i]));
   }
@@ -402,11 +442,24 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
   }
 
   pOutput->numOfRows = numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _float_fn f1,
                                 _double_fn d1) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(f1, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(d1, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t type = GET_PARAM_TYPE(pInput);
 
   SColumnInfoData *pInputData = pInput->columnData;
@@ -454,13 +507,25 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 /** String functions **/
 static int32_t tlength(char *input, int32_t type, VarDataLenT *len) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(len, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *len = varDataLen(input);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 uint8_t getCharLen(const unsigned char *str) {
