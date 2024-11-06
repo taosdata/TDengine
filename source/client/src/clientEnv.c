@@ -689,7 +689,7 @@ void doDestroyRequest(void *p) {
 
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to remove request from hash, code:%s", tstrerror(code));
+    tscWarn("failed to remove request from hash, code:%s", tstrerror(code));
   }
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 

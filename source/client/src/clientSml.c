@@ -1740,7 +1740,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   SSmlHandle  *info    = NULL;
   int          cnt     = 0;
   while (1) {
-    SML_CHECK_CODE(createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid, &request));
+    SML_CHECK_CODE(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &request, reqid));
     SSmlMsgBuf msg = {request->msgBufLen, request->msgBuf};
     request->code = smlBuildSmlInfo(taos, &info);
     SML_CHECK_CODE(request->code);
