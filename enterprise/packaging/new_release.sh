@@ -810,6 +810,7 @@ function make_mac_pkg() {
         sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
         sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$os_arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
+        sed -i '' "s|$communityDir/packaging/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
         /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
     else
         sudo chmod ugo+w /opt/tdengine/bin/remove.sh
@@ -823,7 +824,7 @@ function make_mac_pkg() {
         sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/mac_before_install_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-enterprise-client-$version-macOS-$os_arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|/opt/.*/release|$internalDir/release|g" $communityDir/packaging/tools/TDengine.pkgproj
-        sed -i '' "s|/opt.*/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
+        sed -i '' "s|/opt.*/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
         /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
     fi
 }
