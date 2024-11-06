@@ -40,7 +40,7 @@ def get_config(request):
 def setup_module(get_config):
     def run_cmd(command):
         print("CMD:", command)
-        result = subprocess.run(command, capture_output=True, text=True, shell=True)
+        result = subprocess.run(command, capture_output=True, text=False, shell=False)
         print("STDOUT:", result.stdout)
         print("STDERR:", result.stderr)
         print("Return Code:", result.returncode)
@@ -62,12 +62,12 @@ def setup_module(get_config):
         cmd = "mkdir -p ../../debug/build/bin/"
     subprocess.getoutput(cmd)
     if config["system"] == "Linux":  # add tmq_sim
-        cmd = "cp ../../../debug/build/bin/tmq_sim ../../debug/build/bin/."
+        cmd = "cp -rf ../../../debug/build/bin/tmq_sim ../../debug/build/bin/."
         subprocess.getoutput(cmd)
     if config["system"] == "Darwin":
-        cmd = "sudo cp /usr/local/bin/taos*  ../../debug/build/bin/"
+        cmd = "sudo cp -rf /usr/local/bin/taos*  ../../debug/build/bin/"
     elif config["system"] == "Windows":
-        cmd = r"xcopy C:\TDengine\taos*.exe ..\..\debug\build\bin"
+        cmd = r"xcopy  C:\TDengine\taos*.exe ..\..\debug\build\bin /Y"
     else:
         if config["baseVersion"] in OEM:
             cmd = '''sudo find /usr/bin -name 'prodb*' -exec sh -c 'for file; do cp "$file" "../../debug/build/bin/taos${file##/usr/bin/%s}"; done' sh {} +''' % (
