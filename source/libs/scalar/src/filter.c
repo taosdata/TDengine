@@ -180,7 +180,9 @@ __compar_fn_t gUint64SignCompare[] = {compareUint64Int8,  compareUint64Int16, co
 __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, compareUint64Uint32, compareUint64Val};
 
 int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool scalarMode) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(comparFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
                              type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
@@ -355,13 +357,24 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       break;
   }
 
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 int32_t filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr) {
-  int8_t compFuncIdx = 0;
-  int32_t code = filterGetCompFuncIdx(type, optr, &compFuncIdx, true);
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int8_t           compFuncIdx = 0;
+  FLT_CHECK_NULL(func, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  code = filterGetCompFuncIdx(type, optr, &compFuncIdx, true);
   *func = gDataCompare[compFuncIdx];
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -458,6 +471,14 @@ __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
 }
 
 static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void *pRight) {
+  if (pLeft == NULL && pRight == NULL) {
+    return 0;
+  }
+
+  if (pLeft == NULL || pRight == NULL) {
+    return -1;
+  }
+
   SFilterGroupCtx *left = *((SFilterGroupCtx **)pLeft), *right = *((SFilterGroupCtx **)pRight);
   if (left->colNum > right->colNum) return 1;
   if (left->colNum < right->colNum) return -1;
@@ -465,29 +486,36 @@ static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void 
 }
 
 int32_t filterInitUnitsFields(SFilterInfo *info) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
   info->unitSize = FILTER_DEFAULT_UNIT_SIZE;
   info->units = taosMemoryCalloc(info->unitSize, sizeof(SFilterUnit));
-  if (info->units == NULL) {
-    return terrno;
-  }
+  FLT_CHECK_NULL(info->units, code, lino, _return, terrno)
 
   info->fields[FLD_TYPE_COLUMN].num = 0;
   info->fields[FLD_TYPE_COLUMN].size = FILTER_DEFAULT_FIELD_SIZE;
   info->fields[FLD_TYPE_COLUMN].fields = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].size, sizeof(SFilterField));
-  if (info->fields[FLD_TYPE_COLUMN].fields == NULL) {
-    return terrno;
-  }
+  FLT_CHECK_NULL(info->fields[FLD_TYPE_COLUMN].fields, code, lino, _return, terrno)
+
   info->fields[FLD_TYPE_VALUE].num = 0;
   info->fields[FLD_TYPE_VALUE].size = FILTER_DEFAULT_FIELD_SIZE;
   info->fields[FLD_TYPE_VALUE].fields = taosMemoryCalloc(info->fields[FLD_TYPE_VALUE].size, sizeof(SFilterField));
-  if (info->fields[FLD_TYPE_VALUE].fields == NULL) {
-    return terrno;
-  }
+  FLT_CHECK_NULL(info->fields[FLD_TYPE_VALUE].fields, code, lino, _return, terrno)
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static FORCE_INLINE int32_t filterNewRange(SFilterRangeCtx *ctx, SFilterRange *ra, SFilterRangeNode **r) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ra, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(r, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   if (ctx->rf) {
     *r = ctx->rf;
@@ -503,10 +531,17 @@ static FORCE_INLINE int32_t filterNewRange(SFilterRangeCtx *ctx, SFilterRange *r
 
   FILTER_COPY_RA(&(*r)->ra, ra);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL ||
       type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
       type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -515,9 +550,7 @@ int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx)
   }
 
   *ctx = taosMemoryCalloc(1, sizeof(SFilterRangeCtx));
-  if (*ctx == NULL) {
-    return terrno;
-  }
+  FLT_CHECK_NULL(*ctx, code, lino, _return, terrno)
   (*ctx)->type = type;
   (*ctx)->options = options;
   (*ctx)->pCompareFunc = getComparFunc(type, 0);
@@ -526,10 +559,18 @@ int32_t filterInitRangeCtx(int32_t type, int32_t options, SFilterRangeCtx **ctx)
     return terrno;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterResetRangeCtx(SFilterRangeCtx *ctx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   ctx->status = 0;
 
   if (ctx->rf == NULL) {
@@ -550,23 +591,40 @@ int32_t filterResetRangeCtx(SFilterRangeCtx *ctx) {
 
   r->next = ctx->rs;
   ctx->rs = NULL;
-  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   FLT_ERR_RET(filterResetRangeCtx(ctx));
 
   ctx->type = type;
   ctx->options = options;
   ctx->pCompareFunc = getComparFunc(type, 0);
+  FLT_CHECK_NULL(ctx->pCompareFunc, code, lino, _return, terrno)
 
-  if (ctx->pCompareFunc == NULL) {
-    return terrno;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(cur, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ra, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(notNull, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int64_t tmp = 0;
 
   if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
@@ -589,30 +647,49 @@ int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull
     *notNull = false;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddRangeOptr(void *h, uint8_t raOptr, int32_t optr, bool *empty, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (optr == LOGIC_COND_TYPE_AND) {
     SET_AND_OPTR(ctx, raOptr);
     if (CHK_AND_OPTR(ctx) || (raOptr == FILTER_DUMMY_EMPTY_OPTR)) {
       FILTER_SET_FLAG(ctx->status, MR_ST_EMPTY);
+      FLT_CHECK_NULL(empty, code, lino, _return, TSDB_CODE_INVALID_PARA)
       *empty = true;
     }
   } else {
     SET_OR_OPTR(ctx, raOptr);
     if (CHK_OR_OPTR(ctx)) {
       FILTER_SET_FLAG(ctx->status, MR_ST_ALL);
+      FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
       *all = true;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ra, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (ctx->rs == NULL) {
@@ -748,10 +825,19 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ra, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   int64_t          tmp = 0;
 
@@ -765,10 +851,21 @@ int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
     // FILTER_CLR_FLAG(ra->eflag, RA_NULL);
   }
 
-  return filterAddRangeImpl(h, ra, optr);
+  FLT_ERR_JRET(filterAddRangeImpl(h, ra, optr));
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(dst, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
   SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
@@ -788,10 +885,19 @@ int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
     r = r->next;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterCopyRangeCtx(void *dst, void *src) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(dst, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
   SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
@@ -814,10 +920,18 @@ int32_t filterCopyRangeCtx(void *dst, void *src) {
     r = r->next;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterFinishRange(void *h) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (FILTER_GET_FLAG(ctx->status, MR_ST_FIN)) {
@@ -830,10 +944,7 @@ int32_t filterFinishRange(void *h) {
 
     while (r && r->next) {
       int64_t tmp = 1;
-      int32_t code = operateVal(&tmp, &r->ra.e, &tmp, OP_TYPE_ADD, ctx->type);
-      if (code != 0) {
-        return TSDB_CODE_APP_ERROR;
-      }
+      FLT_ERR_JRET(operateVal(&tmp, &r->ra.e, &tmp, OP_TYPE_ADD, ctx->type));
       if (ctx->pCompareFunc(&tmp, &r->next->ra.s) == 0) {
         rn = r->next;
         SIMPLE_COPY_VALUES((char *)&r->next->ra.s, (char *)&r->ra.s);
@@ -849,10 +960,18 @@ int32_t filterFinishRange(void *h) {
 
   FILTER_SET_FLAG(ctx->status, MR_ST_FIN);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterGetRangeNum(void *h, int32_t *num) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   FLT_ERR_RET(filterFinishRange(h));
 
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
@@ -866,10 +985,19 @@ int32_t filterGetRangeNum(void *h, int32_t *num) {
     r = r->next;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterGetRangeRes(void *h, SFilterRange *ra) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(h, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ra, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   FLT_ERR_RET(filterFinishRange(h));
 
   SFilterRangeCtx  *ctx = (SFilterRangeCtx *)h;
@@ -890,18 +1018,28 @@ int32_t filterGetRangeRes(void *h, SFilterRange *ra) {
 
   if (num == 0) {
     qError("no range result");
-    return TSDB_CODE_APP_ERROR;
+    return TSDB_CODE_QRY_FILTER_RANGE_ERROR;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr, bool *empty, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(sctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterRangeCtx *src = (SFilterRangeCtx *)sctx;
 
   if (src->isnull) {
     FLT_ERR_RET(filterAddRangeOptr(ctx, OP_TYPE_IS_NULL, optr, empty, all));
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
       *all = true;
     }
   }
@@ -909,6 +1047,7 @@ int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr,
   if (src->notnull) {
     FLT_ERR_RET(filterAddRangeOptr(ctx, OP_TYPE_IS_NOT_NULL, optr, empty, all));
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
       *all = true;
     }
   }
@@ -921,11 +1060,16 @@ int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr,
     }
 
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
       *all = true;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterFreeRangeCtx(void *h) {
@@ -956,13 +1100,18 @@ int32_t filterFreeRangeCtx(void *h) {
 }
 
 int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray *group) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(gp1, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gp2, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(group, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterGroup gp = {0};
 
   gp.unitNum = gp1->unitNum + gp2->unitNum;
   gp.unitIdxs = taosMemoryCalloc(gp.unitNum, sizeof(*gp.unitIdxs));
-  if (NULL == gp.unitIdxs) {
-    FLT_ERR_RET(terrno);
-  }
+  FLT_CHECK_NULL(gp.unitIdxs, code, lino, _return, terrno)
+
   (void)memcpy(gp.unitIdxs, gp1->unitIdxs, gp1->unitNum * sizeof(*gp.unitIdxs));
   (void)memcpy(gp.unitIdxs + gp1->unitNum, gp2->unitIdxs, gp2->unitNum * sizeof(*gp.unitIdxs));
 
@@ -973,10 +1122,18 @@ int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray *group
     FLT_ERR_RET(terrno);
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(group, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t leftSize = (int32_t)taosArrayGetSize(left);
   int32_t rightSize = (int32_t)taosArrayGetSize(right);
 
@@ -988,9 +1145,7 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
     SFilterGroup *gp = NULL;
     while ((gp = (SFilterGroup *)taosArrayPop(right)) != NULL) {
-      if (NULL == taosArrayPush(group, gp)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(group, gp), code, lino, _return, terrno)
     }
 
     return TSDB_CODE_SUCCESS;
@@ -999,9 +1154,7 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
   if (taosArrayGetSize(right) <= 0) {
     SFilterGroup *gp = NULL;
     while ((gp = (SFilterGroup *)taosArrayPop(left)) != NULL) {
-      if (NULL == taosArrayPush(group, gp)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(group, gp), code, lino, _return, terrno)
     }
 
     return TSDB_CODE_SUCCESS;
@@ -1009,24 +1162,27 @@ int32_t filterDetachCnfGroups(SArray *group, SArray *left, SArray *right) {
 
   for (int32_t l = 0; l < leftSize; ++l) {
     SFilterGroup *gp1 = taosArrayGet(left, l);
-    if (NULL == gp1) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(gp1, code, lino, _return, terrno)
 
     for (int32_t r = 0; r < rightSize; ++r) {
       SFilterGroup *gp2 = taosArrayGet(right, r);
-      if (NULL == gp2) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-      }
-
+      FLT_CHECK_NULL(gp2, code, lino, _return, terrno)
       FLT_ERR_RET(filterDetachCnfGroup(gp1, gp2, group));
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterGetFiledByDesc(SFilterFields *fields, int32_t type, void *v) {
+  if (NULL == fields) {
+    qError("invalid parameter of filterGetFiledByDesc");
+    return -1;
+  }
   for (uint32_t i = 0; i < fields->num; ++i) {
     if (nodesEqualNode(fields->fields[i].desc, v)) {
       return i;
@@ -1037,6 +1193,11 @@ int32_t filterGetFiledByDesc(SFilterFields *fields, int32_t type, void *v) {
 }
 
 int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t dataLen, bool *sameBuf) {
+  if (NULL == info || NULL == sameBuf) {
+    qError("invalid parameter of filterGetFiledByData");
+    return -1;
+  }
+
   if (type == FLD_TYPE_VALUE) {
     if (info->pctx.valHash == false) {
       qError("value hash is empty");
@@ -1057,9 +1218,13 @@ int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t d
 // set *data = 0 Besides, fields data value is a pointer, so dataLen should be POINTER_BYTES for better.
 int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen,
                        bool freeIfExists, int16_t *srcFlag) {
-  int32_t   idx = -1;
-  uint32_t *num;
-  bool      sameBuf = false;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          idx = -1;
+  uint32_t        *num;
+  bool             sameBuf = false;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(fid, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   num = &info->fields[type].num;
 
@@ -1130,14 +1295,27 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
   fid->type = type;
   fid->idx = idx;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilterField *field, SFilterFieldId *fid) {
-  int32_t code = filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL);
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(field, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  code = filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL);
 
   FILTER_SET_FLAG(field->flag, FLD_DATA_NO_FREE);
 
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -1171,6 +1349,13 @@ _return:
 
 int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint8_t optr2,
                           SFilterFieldId *right2, uint32_t *uidx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(left, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(uidx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     if (info->pctx.unitHash == NULL) {
       info->pctx.unitHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE,
@@ -1195,9 +1380,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     info->unitSize += FILTER_DEFAULT_UNIT_SIZE;
 
     void *tmp = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
-    if (tmp == NULL) {
-      return terrno;
-    }
+    FLT_CHECK_NULL(tmp, code, lino, _return, terrno)
     info->units = (SFilterUnit *)tmp;
     (void)memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
@@ -1251,7 +1434,11 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
 
   ++info->unitNum;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
@@ -1259,19 +1446,26 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 }
 
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(group, code, lino, _return, TSDB_CODE_INVALID_PARA)\
+
   if (group->unitNum >= group->unitSize) {
     group->unitSize += FILTER_DEFAULT_UNIT_SIZE;
 
     void *tmp = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
-    if (tmp == NULL) {
-      return terrno;
-    }
+    SCL_CHECK_NULL(tmp, code, lino, _return, terrno)
     group->unitIdxs = tmp;
   }
 
   group->unitIdxs[group->unitNum++] = unitIdx;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void filterFreeGroup(void *pItem) {
@@ -1285,23 +1479,26 @@ static void filterFreeGroup(void *pItem) {
 }
 
 int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(group, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(tree, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SOperatorNode *node = (SOperatorNode *)tree;
-  int32_t        ret = TSDB_CODE_SUCCESS;
   SFilterFieldId left = {0}, right = {0};
   FLT_ERR_RET(filterAddFieldFromNode(info, node->pLeft, &left));
   uint8_t  type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
   int32_t  len = 0;
   uint32_t uidx = 0;
-  int32_t  code = 0;
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
     SListCell     *cell = listNode->pNodeList->pHead;
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-    if (out.columnData == NULL) {
-      return terrno;
-    }
+    FLT_CHECK_NULL(out.columnData, code, lino, _return, terrno)
     out.columnData->info.type = type;
     out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
 
@@ -1367,15 +1564,24 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
     SFilterGroup fgroup = {0};
     FLT_ERR_RET(filterAddUnitToGroup(&fgroup, uidx));
 
-    if (NULL == taosArrayPush(group, &fgroup)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(group, &fgroup), code, lino, _return, terrno)
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u, uint32_t *uidx) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(dst, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(u, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterFieldId left, right, *pright = &right;
   uint8_t        type = FILTER_UNIT_DATA_TYPE(u);
   uint16_t       flag = 0;
@@ -1404,19 +1610,25 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
     pright = NULL;
   }
 
-  return filterAddUnit(dst, FILTER_UNIT_OPTR(u), &left, pright, uidx);
-}
+  code = filterAddUnit(dst, FILTER_UNIT_OPTR(u), &left, pright, uidx);
 
-int32_t filterAddUnitRight(SFilterInfo *info, uint8_t optr, SFilterFieldId *right, uint32_t uidx) {
-  SFilterUnit *u = &info->units[uidx];
-  u->compare.optr2 = optr;
-  u->right2 = *right;
-
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRangeCtx *ctx, uint32_t cidx,
                                   SFilterGroup *g, int32_t optr, SArray *res) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(dst, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(src, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(res, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterFieldId left, right, right2;
   uint32_t       uidx = 0;
 
@@ -1473,14 +1685,10 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
-      if (func == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(func, code, lino, _return, terrno)
       if (func(&ra->s, &ra->e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
-        if (data == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data, &ra->s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_EQUAL, &left, &right, &uidx));
@@ -1488,15 +1696,11 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         return TSDB_CODE_SUCCESS;
       } else {
         void *data = taosMemoryMalloc(sizeof(int64_t));
-        if (data == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data, &ra->s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         void *data2 = taosMemoryMalloc(sizeof(int64_t));
-        if (data2 == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data2, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data2, &ra->e);
         FLT_ERR_RET(filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true, NULL));
 
@@ -1511,9 +1715,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
-      if (data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(data, code, lino, _return, terrno)
       SIMPLE_COPY_VALUES(data, &ra->s);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
       FLT_ERR_RET(filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL,
@@ -1523,9 +1725,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
-      if (data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(data, code, lino, _return, terrno)
       SIMPLE_COPY_VALUES(data, &ra->e);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
       FLT_ERR_RET(filterAddUnit(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL,
@@ -1550,9 +1750,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   if (ctx->isnull) {
     FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx));
     FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
-    if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(res,g), code, lino, _return, terrno)
   }
 
   if (ctx->notnull) {
@@ -1565,9 +1763,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx));
     FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
-    if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(res,g), code, lino, _return, terrno)
   }
 
   if (!ctx->isrange) {
@@ -1587,29 +1783,21 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if ((!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
-      if (func == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(func, code, lino, _return, terrno)
       if (func(&r->ra.s, &r->ra.e) == 0) {
         void *data = taosMemoryMalloc(sizeof(int64_t));
-        if (data == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_EQUAL, &left, &right, &uidx));
         FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
       } else {
         void *data = taosMemoryMalloc(sizeof(int64_t));
-        if (data == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
         void *data2 = taosMemoryMalloc(sizeof(int64_t));
-        if (data2 == NULL) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(data2, code, lino, _return, terrno)
         SIMPLE_COPY_VALUES(data2, &r->ra.e);
         FLT_ERR_RET(filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true, NULL));
 
@@ -1620,9 +1808,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
       }
 
-      if (NULL == taosArrayPush(res,g)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(res,g), code, lino, _return, terrno)
 
       r = r->next;
 
@@ -1631,9 +1817,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if (!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
-      if (data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(data, code, lino, _return, terrno)
       SIMPLE_COPY_VALUES(data, &r->ra.s);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
       FLT_ERR_RET(filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL,
@@ -1643,9 +1827,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     if (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
       void *data = taosMemoryMalloc(sizeof(int64_t));
-      if (data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(data, code, lino, _return, terrno)
       SIMPLE_COPY_VALUES(data, &r->ra.e);
       FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true, NULL));
       FLT_ERR_RET(filterAddUnit(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL,
@@ -1658,25 +1840,29 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       FLT_ERR_RET(TSDB_CODE_QRY_FILTER_RANGE_ERROR);
     }
 
-    if (NULL == taosArrayPush(res,g)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(res,g), code, lino, _return, terrno);
 
     r = r->next;
   }
 
   g->unitNum = 0;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
   int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
   SArray            *preGroup = NULL;
   SArray            *newGroup = NULL;
   SArray            *resGroup = NULL;
   ENodeType          nType = nodeType(pNode);
   SFltBuildGroupCtx *ctx = (SFltBuildGroupCtx *)pContext;
+  FLT_CHECK_NULL(pNode, code, lino, _return, terrno)
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
     SLogicConditionNode *node = (SLogicConditionNode *)pNode;
@@ -1684,14 +1870,9 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         newGroup = taosArrayInit(4, sizeof(SFilterGroup));
-        if (NULL == newGroup) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(newGroup, code, lino, _return, terrno)
         resGroup = taosArrayInit(4, sizeof(SFilterGroup));
-        if (NULL == resGroup) {
-          FLT_ERR_RET(terrno);
-        }
-
+        FLT_CHECK_NULL(resGroup, code, lino, _return, terrno)
         SFltBuildGroupCtx tctx = {.info = ctx->info, .group = newGroup};
         nodesWalkExpr(cell->pNode, fltTreeToGroup, (void *)&tctx);
         FLT_ERR_JRET(tctx.code);
@@ -1708,9 +1889,7 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
         cell = cell->pNext;
       }
 
-      if (NULL == taosArrayAddAll(ctx->group, preGroup)) {
-        FLT_ERR_JRET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayAddAll(ctx->group, preGroup), code, lino, _return, terrno)
 
       taosArrayDestroy(preGroup);
 
@@ -1755,6 +1934,10 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
 
 _return:
 
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   taosArrayDestroyEx(newGroup, filterFreeGroup);
   taosArrayDestroyEx(preGroup, filterFreeGroup);
   taosArrayDestroyEx(resGroup, filterFreeGroup);
@@ -1765,7 +1948,13 @@ _return:
 }
 
 int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_t bufSize, int32_t *len) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t n = 0;
+  FLT_CHECK_NULL(str, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(buf, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(len, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
@@ -1839,7 +2028,11 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
 
   *len = n;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options) {
@@ -2032,6 +2225,10 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
 }
 
 void filterFreeColInfo(void *data) {
+  if (data == NULL) {
+    return;
+  }
+
   SFilterColInfo *info = (SFilterColInfo *)data;
 
   if (info->info == NULL) {
@@ -2053,6 +2250,10 @@ void filterFreeColInfo(void *data) {
 }
 
 void filterFreeColCtx(void *data) {
+  if (data == NULL) {
+    return;
+  }
+
   SFilterColCtx *ctx = (SFilterColCtx *)data;
 
   if (ctx->ctx) {
@@ -2097,6 +2298,10 @@ void filterFreeField(SFilterField *field, int32_t type) {
 }
 
 void filterFreePCtx(SFilterPCtx *pctx) {
+  if (pctx == NULL) {
+    return;
+  }
+
   taosHashCleanup(pctx->valHash);
   taosHashCleanup(pctx->unitHash);
 }
@@ -2150,34 +2355,11 @@ void filterFreeInfo(SFilterInfo *info) {
   }
 }
 
-int32_t filterHandleValueExtInfo(SFilterUnit *unit, char extInfo) {
-  if (extInfo == 0) {
-    fltError("filterHandleValueExtInfo get invalid extInfo : %d", extInfo);
-    return TSDB_CODE_APP_ERROR;
-  }
-
-  uint8_t optr = FILTER_UNIT_OPTR(unit);
-  switch (optr) {
-    case OP_TYPE_GREATER_THAN:
-    case OP_TYPE_GREATER_EQUAL:
-      unit->compare.optr = (extInfo > 0) ? FILTER_DUMMY_EMPTY_OPTR : OP_TYPE_IS_NOT_NULL;
-      break;
-    case OP_TYPE_LOWER_THAN:
-    case OP_TYPE_LOWER_EQUAL:
-      unit->compare.optr = (extInfo > 0) ? OP_TYPE_IS_NOT_NULL : FILTER_DUMMY_EMPTY_OPTR;
-      break;
-    case OP_TYPE_EQUAL:
-      unit->compare.optr = FILTER_DUMMY_EMPTY_OPTR;
-      break;
-    default:
-      fltError("unsupported operator type");
-      return TSDB_CODE_APP_ERROR;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t fltInitValFieldData(SFilterInfo *info) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
     if (unit->right.type != FLD_TYPE_VALUE) {
@@ -2225,15 +2407,11 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     if (dType->type == type) {
       size_t bufBytes = TMAX(dType->bytes, sizeof(int64_t));
       fi->data = taosMemoryCalloc(1, bufBytes);
-      if (fi->data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(fi->data, code, lino, _return, terrno)
       assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
     } else {
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-      if (out.columnData == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(out.columnData, code, lino, _return, terrno)
       out.columnData->info.type = type;
       out.columnData->info.precision = precision;
       if (!IS_VAR_DATA_TYPE(type)) {
@@ -2241,7 +2419,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       // todo refactor the convert
-      int32_t code = sclConvertValueToSclParam(var, &out, NULL);
+      code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         colDataDestroy(out.columnData);
         taosMemoryFreeClear(out.columnData);
@@ -2252,9 +2430,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       size_t bufBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData)
                                             : TMAX(out.columnData->info.bytes, sizeof(int64_t));
       fi->data = taosMemoryCalloc(1, bufBytes);
-      if (fi->data== NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(fi->data, code, lino, _return, terrno)
 
       size_t valBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData) : out.columnData->info.bytes;
       (void)memcpy(fi->data, out.columnData->pData, valBytes);
@@ -2276,10 +2452,19 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) {
+  if (func == NULL) {
+    fltError("filterDoComare get invalid function");
+    return false;
+  }
+
   int32_t ret = func(left, right);
 
   switch (optr) {
@@ -2329,6 +2514,12 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
 }
 
 int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *ctx, int32_t optr) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(u, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ctx, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t      type = FILTER_UNIT_DATA_TYPE(u);
   uint8_t      uoptr = FILTER_UNIT_OPTR(u);
   void        *val = FILTER_UNIT_VAL_DATA(info, u);
@@ -2379,10 +2570,20 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit *u, SFilterRangeCtx *c
 
   FLT_ERR_RET(filterAddRange(ctx, &ra, optr));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterCompareRangeCtx(SFilterRangeCtx *ctx1, SFilterRangeCtx *ctx2, bool *equal) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  FLT_CHECK_NULL(ctx1, code, lino, _error, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(ctx2, code, lino, _error, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(equal, code, lino, _error, TSDB_CODE_INVALID_PARA)
+
   FLT_CHK_JMP(ctx1->status != ctx2->status);
   FLT_CHK_JMP(ctx1->isnull != ctx2->isnull);
   FLT_CHK_JMP(ctx1->notnull != ctx2->notnull);
@@ -2410,21 +2611,30 @@ int32_t filterCompareRangeCtx(SFilterRangeCtx *ctx1, SFilterRangeCtx *ctx2, bool
 _return:
   *equal = false;
   return TSDB_CODE_SUCCESS;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx *gRes, uint32_t colIdx, bool *empty) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SFilterRangeCtx *ctx = NULL;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(empty, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SArray          *colArray = (SArray *)gRes->colInfo[colIdx].info;
   int32_t          size = (int32_t)taosArrayGetSize(colArray);
   int32_t          type = gRes->colInfo[colIdx].dataType;
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SFilterRangeCtx *ctx = NULL;
   FLT_ERR_JRET(filterInitRangeCtx(type, 0, &ctx));
 
   for (uint32_t i = 0; i < size; ++i) {
     SFilterUnit *u = taosArrayGetP(colArray, i);
-    if (NULL == u) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(u, code, lino, _return, terrno)
     uint8_t      optr = FILTER_UNIT_OPTR(u);
 
     FLT_ERR_RET(filterAddRangeOptr(ctx, optr, LOGIC_COND_TYPE_AND, empty, NULL));
@@ -2448,7 +2658,9 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx *gRes, uint32_t colI
 
 _return:
 
-  *empty = true;
+  if (empty) {
+    *empty = true;
+  }
 
   (void)filterFreeRangeCtx(ctx);  // No need to handle the return value.
 
@@ -2458,23 +2670,22 @@ _return:
 int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
   bool      empty = false;
   int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
   uint32_t  colIdxi = 0;
   uint32_t  gResIdx = 0;
-  uint32_t *colIdx = taosMemoryMalloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
-  if (colIdx == NULL) {
-    FLT_ERR_RET(terrno);
-  }
+  uint32_t *colIdx = NULL;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gResNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  colIdx = taosMemoryMalloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
+  FLT_CHECK_NULL(colIdx, code, lino, _return, terrno)
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup *g = info->groups + i;
 
     gRes[gResIdx] = taosMemoryCalloc(1, sizeof(SFilterGroupCtx));
-    if (gRes[gResIdx] == NULL) {
-      FLT_ERR_JRET(terrno);
-    }
+    FLT_CHECK_NULL(gRes[gResIdx], code, lino, _return, terrno)
     gRes[gResIdx]->colInfo = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
-    if (gRes[gResIdx]->colInfo == NULL) {
-      FLT_ERR_JRET(terrno);
-    }
+    FLT_CHECK_NULL(gRes[gResIdx]->colInfo, code, lino, _return, terrno)
     colIdxi = 0;
     empty = false;
 
@@ -2484,9 +2695,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
 
       if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
         gRes[gResIdx]->colInfo[cidx].info = (SArray *)taosArrayInit(4, POINTER_BYTES);
-        if (gRes[gResIdx]->colInfo[cidx].info == NULL) {
-          FLT_ERR_JRET(terrno);
-        }
+        FLT_CHECK_NULL(gRes[gResIdx]->colInfo[cidx].info, code, lino, _return, terrno)
         colIdx[colIdxi++] = cidx;
         ++gRes[gResIdx]->colNum;
       } else {
@@ -2500,9 +2709,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
 
     if (colIdxi > 1) {
       __compar_fn_t cmpFn = getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0);
-      if (cmpFn == NULL) {
-        FLT_ERR_JRET(terrno);
-      }
+      FLT_CHECK_NULL(cmpFn, code, lino, _return, terrno)
       taosSort(colIdx, colIdxi, sizeof(uint32_t), cmpFn);
     }
 
@@ -2539,6 +2746,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t
 
 _return:
   if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     filterFreeGroupCtx(gRes[gResIdx]);
   }
   taosMemoryFreeClear(colIdx);
@@ -2546,6 +2754,14 @@ _return:
 }
 
 bool filterIsSameUnits(SFilterColInfo *pCol1, SFilterColInfo *pCol2) {
+  if (pCol1 == NULL && pCol2 == NULL) {
+    return true;
+  }
+
+  if (pCol1 == NULL || pCol2 == NULL) {
+    return false;
+  }
+
   if (pCol1->type != pCol2->type) {
     return false;
   }
@@ -2583,7 +2799,13 @@ bool filterIsSameUnits(SFilterColInfo *pCol1, SFilterColInfo *pCol2) {
   return true;
 }
 
-void filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool *conflict) {
+int32_t filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool *conflict) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  FLT_CHECK_NULL(gRes1, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes2, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(conflict, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   uint32_t idx1 = 0, idx2 = 0, m = 0, n = 0;
   bool     equal = false;
 
@@ -2596,7 +2818,7 @@ void filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool
       idx2 = gRes2->colIdx[n];
       if (idx1 < idx2) {
         *conflict = true;
-        return;
+        return code;
       }
 
       if (idx1 > idx2) {
@@ -2605,12 +2827,12 @@ void filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool
 
       if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
         *conflict = true;
-        return;
+        return code;
       }
 
       if (!filterIsSameUnits(&gRes1->colInfo[idx1], &gRes2->colInfo[idx2])) {
         *conflict = true;
-        return;
+        return code;
       }
 
       // for long in operation
@@ -2618,7 +2840,7 @@ void filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool
         SFilterRangeCtx *ctx = gRes1->colInfo[idx1].info;
         if (ctx->pCompareFunc(&gRes1->colInfo[idx1].value, &gRes2->colInfo[idx2].value)) {
           *conflict = true;
-          return;
+          return code;
         }
       }
 
@@ -2629,12 +2851,16 @@ void filterCheckColConflict(SFilterGroupCtx *gRes1, SFilterGroupCtx *gRes2, bool
 
     if (!equal) {
       *conflict = true;
-      return;
+      return code;
     }
   }
 
   *conflict = false;
-  return;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, SFilterRangeCtx **ctx, int32_t optr, uint32_t cidx,
@@ -2661,9 +2887,18 @@ int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, SFilterRangeCtx **ctx, int32
 }
 
 int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilterGroupCtx **gRes2, bool *all) {
-  bool conflict = false;
+  bool             conflict = false;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SFilterRangeCtx *ctx = NULL;
+  SFilterColCtx    colCtx = {0};
+  SArray          *colCtxs = NULL;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes1, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes2, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
-  filterCheckColConflict(*gRes1, *gRes2, &conflict);
+  FLT_ERR_JRET(filterCheckColConflict(*gRes1, *gRes2, &conflict));
   if (conflict) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2674,13 +2909,8 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
   bool             numEqual = (*gRes1)->colNum == (*gRes2)->colNum;
   bool             equal = false;
   uint32_t         equal1 = 0, equal2 = 0, merNum = 0;
-  SFilterRangeCtx *ctx = NULL;
-  SFilterColCtx    colCtx = {0};
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SArray          *colCtxs = taosArrayInit((*gRes2)->colNum, sizeof(SFilterColCtx));
-  if (colCtxs == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  colCtxs = taosArrayInit((*gRes2)->colNum, sizeof(SFilterColCtx));
+  FLT_CHECK_NULL(colCtxs, code, lino, _return, terrno)
 
   for (; m < (*gRes1)->colNum; ++m) {
     idx1 = (*gRes1)->colIdx[m];
@@ -2727,9 +2957,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
           colCtx.colIdx = idx1;
           colCtx.ctx = ctx;
           ctx = NULL;
-          if (NULL == taosArrayPush(colCtxs, &colCtx)) {
-            FLT_ERR_JRET(terrno);
-          }
+          FLT_CHECK_NULL(taosArrayPush(colCtxs, &colCtx), code, lino, _return, terrno)
         }
       } else {
         FLT_ERR_JRET(filterCompareRangeCtx(ctx, (*gRes1)->colInfo[idx1].info, &equal));
@@ -2741,9 +2969,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
         colCtx.colIdx = idx1;
         colCtx.ctx = ctx;
         ctx = NULL;
-        if (NULL == taosArrayPush(colCtxs, &colCtx)) {
-          FLT_ERR_JRET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(colCtxs, &colCtx), code, lino, _return, terrno)
       }
 
       ++n;
@@ -2769,9 +2995,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx **gRes1, SFilter
 
   for (int32_t i = 0; i < ctxSize; ++i) {
     pctx = taosArrayGet(colCtxs, i);
-    if (NULL == pctx) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(pctx, code, lino, _return, terrno)
     colInfo = &(*gRes1)->colInfo[pctx->colIdx];
 
     filterFreeColInfo(colInfo);
@@ -2798,13 +3022,18 @@ _return:
 }
 
 int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gResNum, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (*gResNum <= 1) {
     return TSDB_CODE_SUCCESS;
   }
 
   taosSort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
 
-  int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  pEnd = 0, cStart = 0, cEnd = 0;
   uint32_t pColNum = 0, cColNum = 0;
   int32_t  movedNum = 0;
@@ -2887,27 +3116,28 @@ _return:
 
   FILTER_SET_FLAG(info->status, FI_STATUS_ALL);
 
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
-  size_t  groupSize = taosArrayGetSize(group);
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  size_t           groupSize = taosArrayGetSize(group);
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   info->groupNum = (uint32_t)groupSize;
 
   if (info->groupNum > 0) {
     info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
-    if (info->groups == NULL) {
-      FLT_ERR_JRET(terrno);
-    }
+    FLT_CHECK_NULL(info->groups, code, lino, _return, terrno)
   }
 
   for (size_t i = 0; i < groupSize; ++i) {
     SFilterGroup *pg = taosArrayGet(group, i);
-    if (NULL == pg) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(pg, code, lino, _return, terrno)
     pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     if (pg->unitFlags == NULL) {
       pg->unitNum = 0;
@@ -2918,11 +3148,24 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
   return TSDB_CODE_SUCCESS;
 
 _return:
-  info->groupNum = 0;
+  if (info) {
+    info->groupNum = 0;
+  }
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
 int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SArray          *group = NULL;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (!FILTER_GET_FLAG(info->status, FI_STATUS_REWRITE)) {
     qDebug("no need rewrite");
     return TSDB_CODE_SUCCESS;
@@ -2938,13 +3181,10 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   SFilterColInfo  *colInfo = NULL;
   int32_t          optr = 0;
   uint32_t         uidx = 0;
-  uint32_t         code = TSDB_CODE_SUCCESS;
-  SArray          *group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
   SFilterGroup     ng = {0};
 
-  if (group == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
+  FLT_CHECK_NULL(group, code, lino, _return, terrno)
 
   info->colRangeNum = oinfo.colRangeNum;
   info->colRange = oinfo.colRange;
@@ -2970,9 +3210,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
 
         for (int32_t n = 0; n < usize; ++n) {
           SFilterUnit *u = (SFilterUnit *)taosArrayGetP((SArray *)colInfo->info, n);
-          if (NULL == u) {
-            FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-          }
+          FLT_CHECK_NULL(u, code, lino, _return, terrno)
           code = filterAddUnitFromUnit(info, &oinfo, u, &uidx);
           FLT_ERR_JRET(code);
           code = filterAddUnitToGroup(&ng, uidx);
@@ -2992,9 +3230,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
     }
 
     if (ng.unitNum > 0) {
-      if (NULL == taosArrayPush(group, &ng)) {
-        FLT_ERR_JRET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(group, &ng), code, lino, _return, terrno)
       ng = (SFilterGroup){0};
     }
   }
@@ -3006,6 +3242,10 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   return 0;
 
 _return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   filterFreeGroup((void*)&ng);
 
   taosArrayDestroyEx(group, filterFreeGroup);
@@ -3019,11 +3259,16 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
   uint32_t        *idxs = NULL;
   uint32_t         colNum = 0;
   SFilterGroupCtx *res = NULL;
-  int32_t         code = TSDB_CODE_SUCCESS;
-  uint32_t        *idxNum = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxNum));
-  if (idxNum == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  uint32_t        *idxNum = NULL;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(gRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  idxNum = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxNum));
+  FLT_CHECK_NULL(idxNum, code, lino, _return, terrno)
+
   for (int32_t i = 0; i < gResNum; ++i) {
     for (uint32_t m = 0; m < gRes[i]->colNum; ++m) {
       SFilterColInfo *colInfo = &gRes[i]->colInfo[gRes[i]->colIdx[m]];
@@ -3047,9 +3292,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
 
     if (idxs == NULL) {
       idxs = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxs));
-      if (idxs == NULL) {
-        FLT_ERR_JRET(terrno);
-      }
+      FLT_CHECK_NULL(idxs, code, lino, _return, terrno)
     }
 
     idxs[colNum++] = i;
@@ -3114,6 +3357,10 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
   }
 
 _return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   taosMemoryFreeClear(idxNum);
   taosMemoryFreeClear(idxs);
 
@@ -3121,6 +3368,11 @@ _return:
 }
 
 int32_t filterPostProcessRange(SFilterInfo *info) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (uint32_t i = 0; i < info->colRangeNum; ++i) {
     SFilterRangeCtx  *ctx = info->colRange[i];
     SFilterRangeNode *r = ctx->rs;
@@ -3130,16 +3382,25 @@ int32_t filterPostProcessRange(SFilterInfo *info) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterGenerateComInfo(SFilterInfo *info) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   info->cunits = taosMemoryMalloc(info->unitNum * sizeof(*info->cunits));
+  FLT_CHECK_NULL(info->cunits, code, lino, _return, terrno)
   info->blkUnitRes = taosMemoryMalloc(sizeof(*info->blkUnitRes) * info->unitNum);
+  FLT_CHECK_NULL(info->blkUnitRes, code, lino, _return, terrno)
   info->blkUnits = taosMemoryMalloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
-  if (NULL == info->cunits || NULL == info->blkUnitRes || NULL == info->blkUnits) {
-    return terrno;
-  }
+  FLT_CHECK_NULL(info->blkUnits, code, lino, _return, terrno)
 
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
@@ -3165,10 +3426,19 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].dataType = FILTER_UNIT_DATA_TYPE(unit);
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterUpdateComUnits(SFilterInfo *info) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
@@ -3176,11 +3446,19 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
     info->cunits[i].colData = col->data;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
-  int32_t rmUnit = 0;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          rmUnit = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pDataStatis, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   (void)memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
 
@@ -3235,6 +3513,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
     }
 
     SColumnDataAgg *pDataBlockst = &pDataStatis[index];
+    FLT_CHECK_NULL(pDataBlockst, code, lino, _return, TSDB_CODE_INVALID_PARA)
     void           *minVal, *maxVal;
     float           minv = 0;
     float           maxv = 0;
@@ -3367,16 +3646,25 @@ _return:
 
   FLT_ERR_RET(filterDumpInfoToString(info, "Block Filter", 2));
 
-  return TSDB_CODE_SUCCESS;
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
-                                    int16_t numOfCols) {
+int32_t filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
+                                    int16_t numOfCols, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo *info = (SFilterInfo *)pinfo;
-  bool         all = true;
   uint32_t    *unitIdx = NULL;
 
   int8_t *p = (int8_t *)pRes->pData;
+  FLT_CHECK_NULL(p, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     // FILTER_UNIT_CLR_F(info);
@@ -3425,16 +3713,25 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoD
     }
 
     if (p[i] == 0) {
-      all = false;
+      *all = false;
     }
   }
-
-  return all;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumnInfoData *p, SColumnDataAgg *statis,
                                    int16_t numOfCols, bool *all, int32_t *result) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(p, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(result, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   *result = 0;
   if (statis && numOfRows >= FILTER_RM_UNIT_MIN_ROWS) {
     info->blkFlag = 0;
@@ -3455,7 +3752,7 @@ int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumn
         FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
-      *all = filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols);
+      FLT_ERR_JRET(filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols, all));
       goto _return;
     }
   }
@@ -3464,25 +3761,46 @@ int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumn
   FLT_RET(TSDB_CODE_SUCCESS);
 
 _return:
-  info->blkFlag = 0;
+  if (info) {
+    info->blkFlag = 0;
+  }
   result = 0;
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   FLT_RET(code);
 }
 
 static FORCE_INLINE int32_t filterExecuteImplAll(void *info, int32_t numOfRows, SColumnInfoData *p, SColumnDataAgg *statis,
                                                  int16_t numOfCols, int32_t *numOfQualified, bool *all) {
-  *all = true;
-  FLT_RET(TSDB_CODE_SUCCESS);
+  if (all) {
+    *all = true;
+    FLT_RET(TSDB_CODE_SUCCESS);
+  } else {
+    FLT_RET(TSDB_CODE_INVALID_PARA);
+  }
 }
 
 static FORCE_INLINE int32_t filterExecuteImplEmpty(void *info, int32_t numOfRows, SColumnInfoData *p,
                                                    SColumnDataAgg *statis, int16_t numOfCols, int32_t *numOfQualified, bool *all) {
-  *all = false;
-  FLT_RET(TSDB_CODE_SUCCESS);
+  if (all) {
+    *all = false;
+    FLT_RET(TSDB_CODE_SUCCESS);
+  } else {
+    FLT_RET(TSDB_CODE_INVALID_PARA);
+  }
 }
 
 static FORCE_INLINE int32_t filterExecuteImplIsNull(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
                                                     SColumnDataAgg *statis, int16_t numOfCols, int32_t *numOfQualified, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(numOfQualified, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo *info = (SFilterInfo *)pinfo;
   int8_t      *p = (int8_t *)pRes->pData;
   int32_t      result = 0;
@@ -3504,11 +3822,22 @@ static FORCE_INLINE int32_t filterExecuteImplIsNull(void *pinfo, int32_t numOfRo
     }
   }
 
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  FLT_RET(code);
 }
 
 static FORCE_INLINE int32_t filterExecuteImplNotNull(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
                                                      SColumnDataAgg *statis, int16_t numOfCols, int32_t *numOfQualified, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(numOfQualified, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo *info = (SFilterInfo *)pinfo;
   int32_t      result = 0;
 
@@ -3518,8 +3847,8 @@ static FORCE_INLINE int32_t filterExecuteImplNotNull(void *pinfo, int32_t numOfR
     FLT_RET(TSDB_CODE_SUCCESS);
   }
 
+  FLT_CHECK_NULL(pRes->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int8_t *p = (int8_t *)pRes->pData;
-
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
 
@@ -3531,11 +3860,22 @@ static FORCE_INLINE int32_t filterExecuteImplNotNull(void *pinfo, int32_t numOfR
     }
   }
 
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  FLT_RET(code);
 }
 
 int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
                             int16_t numOfCols, int32_t *numOfQualified, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(numOfQualified, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo  *info = (SFilterInfo *)pinfo;
   uint16_t      dataSize = info->cunits[0].dataSize;
   rangeCompFunc rfunc = gRangeCompare[info->cunits[0].rfunc];
@@ -3550,6 +3890,7 @@ int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *
     FLT_RET(TSDB_CODE_SUCCESS);
   }
 
+  FLT_CHECK_NULL(pRes->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int8_t *p = (int8_t *)pRes->pData;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -3571,11 +3912,22 @@ int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *
     }
   }
 
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  FLT_RET(code);
 }
 
 int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
                            int16_t numOfCols, int32_t *numOfQualified, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(numOfQualified, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo *info = (SFilterInfo *)pinfo;
   int32_t      result = 0;
 
@@ -3585,6 +3937,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     FLT_RET(TSDB_CODE_SUCCESS);
   }
 
+  FLT_CHECK_NULL(pRes->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int8_t *p = (int8_t *)pRes->pData;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -3600,9 +3953,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
       char   *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-      if (newColData == NULL) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(newColData, code, lino, _return, terrno)
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0) {
         qError("castConvert1 taosUcs4ToMbs error");
@@ -3626,11 +3977,22 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     }
   }
 
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  FLT_RET(code);
 }
 
 int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis, int16_t numOfCols,
                        int32_t *numOfQualified, bool *all) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  FLT_CHECK_NULL(pinfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pRes, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(all, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(numOfQualified, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   SFilterInfo *info = (SFilterInfo *)pinfo;
   int32_t      result = 0;
 
@@ -3640,6 +4002,7 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
     FLT_RET(TSDB_CODE_SUCCESS);
   }
 
+  FLT_CHECK_NULL(pRes->pData, code, lino, _return, TSDB_CODE_INVALID_PARA)
   int8_t *p = (int8_t *)pRes->pData;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -3675,9 +4038,7 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
             if (cunit->dataType == TSDB_DATA_TYPE_NCHAR &&
                 (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
               char   *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-              if (newColData == NULL) {
-                FLT_ERR_RET(terrno);
-              }
+              FLT_CHECK_NULL(newColData, code, lino, _return, terrno)
               int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
               if (len < 0) {
                 qError("castConvert1 taosUcs4ToMbs error");
@@ -3714,10 +4075,18 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
     }
   }
 
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  FLT_RET(code);
 }
 
 int32_t filterSetExecFunc(SFilterInfo *info) {
+  if (info == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (FILTER_ALL_RES(info)) {
     info->func = filterExecuteImplAll;
     return TSDB_CODE_SUCCESS;
@@ -3733,6 +4102,10 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (info->units == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (info->units[0].compare.optr == OP_TYPE_IS_NULL) {
     info->func = filterExecuteImplIsNull;
     return TSDB_CODE_SUCCESS;
@@ -3741,6 +4114,10 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
   if (info->units[0].compare.optr == OP_TYPE_IS_NOT_NULL) {
     info->func = filterExecuteImplNotNull;
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (info->cunits == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (info->cunits[0].rfunc >= 0) {
@@ -3753,12 +4130,13 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
 }
 
 int32_t filterPreprocess(SFilterInfo *info) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
   int32_t           gResNum = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
   SFilterGroupCtx **gRes = taosMemoryCalloc(info->groupNum, sizeof(SFilterGroupCtx *));
-  if (gRes == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  FLT_CHECK_NULL(gRes, code, lino, _return, terrno)
 
   FLT_ERR_JRET(filterMergeGroupUnits(info, gRes, &gResNum));
 
@@ -3792,12 +4170,22 @@ _return:
     filterFreeGroupCtx(gRes[i]);
   }
 
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   taosMemoryFreeClear(gRes);
 
   return code;
 }
 
 int32_t fltSetColFieldDataImpl(SFilterInfo *info, void *param, filer_get_col_from_id fp, bool fromColId) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(fp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (FILTER_ALL_RES(info) || FILTER_EMPTY_RES(info)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -3814,16 +4202,22 @@ int32_t fltSetColFieldDataImpl(SFilterInfo *info, void *param, filer_get_col_fro
 
   FLT_ERR_RET(filterUpdateComUnits(info));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   SArray *group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
-  if (group == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  FLT_CHECK_NULL(group, code, lino, _return, terrno)
 
   code = filterInitUnitsFields(info);
   if(TSDB_CODE_SUCCESS != code) {
@@ -3859,13 +4253,9 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   }
 
   info->unitRes = taosMemoryMalloc(info->unitNum * sizeof(*info->unitRes));
-  if (info->unitRes == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  FLT_CHECK_NULL(info->unitRes, code, lino, _return, terrno)
   info->unitFlags = taosMemoryMalloc(info->unitNum * sizeof(*info->unitFlags));
-  if (info->unitFlags == NULL) {
-    FLT_ERR_JRET(terrno);
-  }
+  FLT_CHECK_NULL(info->unitFlags, code, lino, _return, terrno)
   FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 0));
   return code;
 
@@ -3956,136 +4346,151 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
   }
 }
 
-int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
+int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2, int32_t *cmp) {
+  if (NULL == val1 || NULL == val2 || NULL == cmp) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (val2->kind == FLT_SCL_DATUM_KIND_NULL || val2->kind == FLT_SCL_DATUM_KIND_MIN ||
       val2->kind == FLT_SCL_DATUM_KIND_MAX) {
-    return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+    *cmp = (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+    return TSDB_CODE_SUCCESS;
   }
 
   switch (val2->kind) {
     case FLT_SCL_DATUM_KIND_UINT64: {
-      return fltSclCompareWithUInt64(val1, val2);
+      *cmp = fltSclCompareWithUInt64(val1, val2);
+      break;
     }
     case FLT_SCL_DATUM_KIND_INT64: {
-      return fltSclCompareWithInt64(val1, val2);
+      *cmp = fltSclCompareWithInt64(val1, val2);
+      break;
     }
     case FLT_SCL_DATUM_KIND_FLOAT64: {
-      return fltSclCompareWithFloat64(val1, val2);
+      *cmp = fltSclCompareWithFloat64(val1, val2);
+      break;
     }
     // TODO: varchar/nchar
     default:
+      *cmp = 0;
       qError("not supported kind when compare datum. kind2 : %d", val2->kind);
-      return 0;
-      break;
+      return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-bool fltSclLessPoint(SFltSclPoint *pt1, SFltSclPoint *pt2) {
+int32_t fltSclLessPoint(SFltSclPoint *pt1, SFltSclPoint *pt2, bool *less) {
+  if (NULL == pt1 || NULL == pt2 || NULL == less) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   // first value compare
-  int32_t cmp = fltSclCompareDatum(&pt1->val, &pt2->val);
+  int32_t cmp = 0;
+  FLT_ERR_RET(fltSclCompareDatum(&pt1->val, &pt2->val, &cmp));
   if (cmp != 0) {
-    return cmp < 0;
+    *less = cmp < 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pt1->start && pt2->start) {
-    return !pt1->excl && pt2->excl;
+    *less = !pt1->excl && pt2->excl;
   } else if (pt1->start) {
-    return !pt1->excl && !pt2->excl;
+    *less = !pt1->excl && !pt2->excl;
   } else if (pt2->start) {
-    return pt1->excl || pt2->excl;
+    *less = pt1->excl || pt2->excl;
+  } else {
+    *less = pt1->excl && !pt2->excl;
   }
-  return pt1->excl && !pt2->excl;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  // if pts1 or pts2 is NULL, len1 and len2 will be 0, and the while loop will not be executed.
+  FLT_CHECK_NULL(result, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   size_t len1 = taosArrayGetSize(pts1);
   size_t len2 = taosArrayGetSize(pts2);
   size_t i = 0;
   size_t j = 0;
   while (i < len1 && j < len2) {
     SFltSclPoint *pt1 = taosArrayGet(pts1, i);
+    FLT_CHECK_NULL(pt1, code, lino, _return, terrno)
     SFltSclPoint *pt2 = taosArrayGet(pts2, j);
-    if (NULL == pt1 || NULL == pt2) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-    }
-    bool          less = fltSclLessPoint(pt1, pt2);
+    FLT_CHECK_NULL(pt2, code, lino, _return, terrno)
+    bool          less = false;
+    FLT_ERR_RET(fltSclLessPoint(pt1, pt2, &less));
     if (less) {
-      if (NULL == taosArrayPush(result, pt1)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(result, pt1), code, lino, _return, terrno)
       ++i;
     } else {
-      if (NULL == taosArrayPush(result, pt2)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(result, pt2), code, lino, _return, terrno)
       ++j;
     }
   }
   if (i < len1) {
     for (; i < len1; ++i) {
       SFltSclPoint *pt1 = taosArrayGet(pts1, i);
-      if (NULL == pt1) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-      }
-      if (NULL == taosArrayPush(result, pt1)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(pt1, code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(result, pt1), code, lino, _return, terrno)
     }
   }
   if (j < len2) {
     for (; j < len2; ++j) {
       SFltSclPoint *pt2 = taosArrayGet(pts2, j);
-      if (NULL == pt2) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-      }
-      if (NULL == taosArrayPush(result, pt2)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(pt2, code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(result, pt2), code, lino, _return, terrno)
     }
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(merged, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   size_t len1 = taosArrayGetSize(pts1);
   size_t len2 = taosArrayGetSize(pts2);
   // first merge sort pts1 and pts2
   SArray *all = taosArrayInit(len1 + len2, sizeof(SFltSclPoint));
-  if (all == NULL) {
-    FLT_ERR_RET(terrno);
-  }
+  FLT_CHECK_NULL(all, code, lino, _return, terrno)
   FLT_ERR_RET(fltSclMergeSort(pts1, pts2, all));
   int32_t countRequired = (isUnion) ? 1 : 2;
   int32_t count = 0;
   for (int32_t i = 0; i < taosArrayGetSize(all); ++i) {
     SFltSclPoint *pt = taosArrayGet(all, i);
-    if (NULL == pt) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(pt, code, lino, _return, terrno)
     if (pt->start) {
       ++count;
       if (count == countRequired) {
-        if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(merged, pt), code, lino, _return, terrno)
       }
     } else {
       if (count == countRequired) {
-        if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(merged, pt), code, lino, _return, terrno)
       }
       --count;
     }
   }
   taosArrayDestroy(all);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t fltSclIntersect(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, false, merged); }
-
-int32_t fltSclUnion(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, true, merged); }
 
 typedef struct {
   SColumnNode  *colNode;
@@ -4095,32 +4500,40 @@ typedef struct {
 
 
 int32_t fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList, SFltSclColumnRange **colRange) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(colRangeList, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(colRange, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   for (int32_t i = 0; i < taosArrayGetSize(colRangeList); ++i) {
     *colRange = taosArrayGet(colRangeList, i);
-    if (NULL == colRange) {
-      return TSDB_CODE_OUT_OF_RANGE;
-    }
+    FLT_CHECK_NULL(*colRange, code, lino, _return, TSDB_CODE_INVALID_PARA)
     if (nodesEqualNode((SNode *)(*colRange)->colNode, (SNode *)colNode)) {
       return TSDB_CODE_SUCCESS;
     }
   }
-  // TODO(smj):wait for nodesCloneNode change it's return value, use terrno for now.
-  terrno = TSDB_CODE_SUCCESS;
   SColumnNode       *pColumnNode = NULL;
-  int32_t code = nodesCloneNode((SNode *)colNode, (SNode**)&pColumnNode);
-  FLT_ERR_RET(code);
+  FLT_ERR_RET(nodesCloneNode((SNode *)colNode, (SNode**)&pColumnNode));
   SFltSclColumnRange newColRange = {.colNode = pColumnNode, .points = taosArrayInit(4, sizeof(SFltSclPoint))};
-  if (NULL == newColRange.points) {
-    FLT_ERR_RET(terrno);
-  }
-  if (NULL == taosArrayPush(colRangeList, &newColRange)) {
-    FLT_ERR_RET(terrno);
-  }
+  FLT_CHECK_NULL(newColRange.points, code, lino, _return, terrno)
+  FLT_CHECK_NULL(taosArrayPush(colRangeList, &newColRange), code, lino, _return, terrno)
   *colRange = taosArrayGetLast(colRangeList);
-  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) {
+  if (datum == NULL || valNode == NULL) {
+    qError("invalid parameter in fltSclBuildDatumFromValueNode");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   datum->type = valNode->node.resType;
 
   if (valNode->isNull) {
@@ -4170,6 +4583,11 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
 }
 
 int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int64_t val) {
+  if (datum == NULL) {
+    qError("invalid parameter in fltSclBuildDatumFromBlockSmaValue");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
@@ -4208,28 +4626,27 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int
 
 int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAgg *pAgg, int32_t numOfRows,
                                      SArray *points) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(pAgg, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(colRange, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(points, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (pAgg->numOfNull == numOfRows) {
     SFltSclDatum datum = {.kind = FLT_SCL_DATUM_KIND_NULL};
     SFltSclPoint startPt = {.start = true, .excl = false, .val = datum};
     SFltSclPoint endPt = {.start = false, .excl = false, .val = datum};
-    if (NULL == taosArrayPush(points, &startPt)) {
-      FLT_ERR_RET(terrno);
-    }
-    if (NULL == taosArrayPush(points, &endPt)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+    FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
     return TSDB_CODE_SUCCESS;
   }
   if (pAgg->numOfNull > 0) {
     SFltSclDatum nullDatum = {.kind = FLT_SCL_DATUM_KIND_NULL};
     SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
     SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
-    if (NULL == taosArrayPush(points, &startPt)) {
-      FLT_ERR_RET(terrno);
-    }
-    if (NULL == taosArrayPush(points, &endPt)) {
-      FLT_ERR_RET(terrno);
-    }
+    FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+    FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
   }
   SFltSclDatum min = {0};
   FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&min, colRange->colNode->node.resType.type, pAgg->min));
@@ -4237,24 +4654,31 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   SFltSclDatum max = {0};
   FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&max, colRange->colNode->node.resType.type, pAgg->max));
   SFltSclPoint maxPt = {.excl = false, .start = false, .val = max};
-  if (NULL == taosArrayPush(points, &minPt)) {
-    FLT_ERR_RET(terrno);
+  FLT_CHECK_NULL(taosArrayPush(points, &minPt), code, lino, _return, terrno)
+  FLT_CHECK_NULL(taosArrayPush(points, &maxPt), code, lino, _return, terrno)
+
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  if (NULL == taosArrayPush(points, &maxPt)) {
-    FLT_ERR_RET(terrno);
-  }
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                            bool *keep) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pDataStatis, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(keep, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, i);
-      if (NULL == colRange) {
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-      }
+      FLT_CHECK_NULL(colRange, code, lino, _return, terrno)
       bool                foundCol = false;
       int32_t             j = 0;
       for (; j < numOfCols; ++j) {
@@ -4266,17 +4690,13 @@ int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32
       if (foundCol) {
         SColumnDataAgg *pAgg = &pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
-        if (NULL == points) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(points, code, lino, _return, terrno)
         FLT_ERR_RET(fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points));
         qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows,
                pAgg->max, pAgg->min);
 
         SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
-        if (NULL == merged) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(merged, code, lino, _return, terrno)
         FLT_ERR_RET(fltSclIntersect(points, colRange->points, merged));
         bool isIntersect = taosArrayGetSize(merged) != 0;
         qDebug("filter range execute, scalar mode, column range found. colId: %d colName: %s has overlap: %d",
@@ -4379,7 +4799,12 @@ int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32
   }
 
   *keep = ret;
-  FLT_RET(TSDB_CODE_SUCCESS);
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStrict) {
@@ -4392,6 +4817,11 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
   int32_t          code = 0;
   bool             empty = false, all = false;
   uint32_t         emptyGroups = 0;
+  int32_t          lino = 0;
+
+  FLT_CHECK_NULL(info, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(win, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(isStrict, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   FLT_ERR_JRET(filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP, &prev));
   FLT_ERR_JRET(filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP, &tmpc));
@@ -4476,17 +4906,28 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
 
 _return:
 
-  *win = TSWINDOW_DESC_INITIALIZER;
+  if (win) {
+    *win = TSWINDOW_DESC_INITIALIZER;
+  }
 
   (void)filterFreeRangeCtx(prev);  // No need to handle the return value.
   (void)filterFreeRangeCtx(tmpc);  // No need to handle the return value.
 
   qDebug("qFilter time range:[%" PRId64 "]-[%" PRId64 "]", win->skey, win->ekey);
 
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
 static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
+  if (point == NULL || d == NULL) {
+    qError("invalid parameter in fltSclGetTimeStampDatum");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   *d = point->val;
   d->kind = FLT_SCL_DATUM_KIND_INT64;
 
@@ -4534,6 +4975,11 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
+  int32_t      lino = 0;
+
+  FLT_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(win, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(isStrict, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   *isStrict = true;
 
@@ -4544,17 +4990,14 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
     SOperatorNode *optNode = (SOperatorNode *) pNode;
     if (taosArrayGetSize(colRanges) == 1) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
-      if (NULL == colRange) {
-        FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-      }
+      FLT_CHECK_NULL(colRange, code, lino, _return, terrno)
       SArray             *points = colRange->points;
       if (taosArrayGetSize(points) == 2) {
         *win = TSWINDOW_DESC_INITIALIZER;
         SFltSclPoint *startPt = taosArrayGet(points, 0);
+        FLT_CHECK_NULL(startPt, code, lino, _return, terrno)
         SFltSclPoint *endPt = taosArrayGet(points, 1);
-        if (NULL == startPt || NULL == endPt) {
-          FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-        }
+        FLT_CHECK_NULL(endPt, code, lino, _return, terrno)
         SFltSclDatum  start;
         SFltSclDatum  end;
         FLT_ERR_JRET(fltSclGetTimeStampDatum(startPt, &start));
@@ -4580,90 +5023,22 @@ _return:
 
   filterFreeInfo(info);
 
-  FLT_RET(code);
-}
-
-int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar) {
-  if (FILTER_EMPTY_RES(info) || FILTER_ALL_RES(info)) {
-    return TSDB_CODE_SUCCESS;
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      SFilterField nfi = {0};
-      nfi.desc = fi->desc;
-      int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
-      nfi.data = taosMemoryMalloc(rows * bytes);
-      if (nfi.data == NULL) {
-        FLT_ERR_RET(terrno);
-      }
-      int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
-      for (int32_t j = 0; j < rows; ++j) {
-        char   *src = FILTER_GET_COL_FIELD_DATA(fi, j);
-        char   *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
-        int32_t len = 0;
-        char   *varSrc = varDataVal(src);
-        size_t  k = 0, varSrcLen = varDataLen(src);
-        while (k < varSrcLen && varSrc[k++] == -1) {
-        }
-        if (k == varSrcLen) {
-          /* NULL */
-          varDataLen(dst) = (VarDataLenT)varSrcLen;
-          varDataCopy(dst, src);
-          continue;
-        }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len);
-        if (!ret) {
-          qError("filterConverNcharColumns taosMbsToUcs4 error");
-          return TSDB_CODE_SCALAR_CONVERT_ERROR;
-        }
-        varDataLen(dst) = len;
-      }
-
-      fi->data = nfi.data;
-
-      *gotNchar = true;
-    }
-  }
-
-  if (*gotNchar) {
-    FLT_ERR_RET(filterUpdateComUnits(info));
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t filterFreeNcharColumns(SFilterInfo *info) {
-  for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    SFilterField *fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
-    int32_t       type = FILTER_GET_COL_FIELD_TYPE(fi);
-    if (type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFreeClear(fi->data);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
-  if (NULL == stat->nodeList) {
-    stat->nodeList = taosArrayInit(10, POINTER_BYTES);
-    if (NULL == stat->nodeList) {
-      FLT_ERR_RET(terrno);
-    }
-  }
-
-  if (NULL == taosArrayPush(stat->nodeList, &pNode)) {
-    FLT_ERR_RET(terrno);
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
+  if (NULL == pNode || NULL == *pNode || NULL == pContext) {
+    fltError("invalid parameter in fltReviseRewriter");
+    if (NULL != stat) {
+      stat->code = TSDB_CODE_INVALID_PARA;
+    }
+    return DEAL_RES_ERROR;
+  }
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pNode)) {
     SLogicConditionNode *node = (SLogicConditionNode *)*pNode;
@@ -4883,6 +5258,10 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   int32_t code = 0;
+  if (NULL == pStat) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_ERR_JRET(pStat->code);
@@ -4903,6 +5282,12 @@ _return:
 }
 
 int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+
+  FLT_CHECK_NULL(oper, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(points, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   switch (oper->type) {
     case OP_TYPE_GREATER_THAN: {
       SFltSclDatum start;
@@ -4910,12 +5295,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint startPt = {.start = true, .excl = true, .val = start};
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_GREATER_EQUAL: {
@@ -4924,12 +5305,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_LOWER_THAN: {
@@ -4938,12 +5315,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint endPt = {.start = false, .excl = true, .val = end};
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_LOWER_EQUAL: {
@@ -4952,12 +5325,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_EQUAL: {
@@ -4965,12 +5334,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->valNode));
       SFltSclPoint startPt = {.start = true, .excl = false, .val = valDatum};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = valDatum};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_NOT_EQUAL: {
@@ -4980,23 +5345,15 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
         SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
         SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
         SFltSclPoint endPt = {.start = false, .excl = true, .val = valDatum};
-        if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(terrno);
-        }
-        if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+        FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       }
       {
         SFltSclPoint startPt = {.start = true, .excl = true, .val = valDatum};
         SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
         SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
-        if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(terrno);
-        }
-        if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+        FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       }
       break;
     }
@@ -5004,12 +5361,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclDatum nullDatum = {.kind = FLT_SCL_DATUM_KIND_NULL};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_IS_NOT_NULL: {
@@ -5017,12 +5370,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
       SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
-      if (NULL == taosArrayPush(points, &startPt)) {
-        FLT_ERR_RET(terrno);
-      }
-      if (NULL == taosArrayPush(points, &endPt)) {
-        FLT_ERR_RET(terrno);
-      }
+      FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+      FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
       break;
     }
     case OP_TYPE_IN: {
@@ -5045,12 +5394,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
         }
         SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
         SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
-        if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(terrno);
-        }
-        if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(terrno);
-        }
+        FLT_CHECK_NULL(taosArrayPush(points, &startPt), code, lino, _return, terrno)
+        FLT_CHECK_NULL(taosArrayPush(points, &endPt), code, lino, _return, terrno)
         break;
     }
     default: {
@@ -5058,11 +5403,18 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       break;
     }
   }
-  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 // TODO: process DNF composed of CNF
 int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
+  // no need to check these two parameters
   size_t sz = taosArrayGetSize(sclOpListCNF);
   for (int32_t i = 0; i < sz; ++i) {
     SFltSclOperator    *sclOper = taosArrayGet(sclOpListCNF, i);
@@ -5094,6 +5446,10 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
 }
 
 static bool fltSclIsCollectableNode(SNode *pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+
   if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
     return false;
   }
@@ -5118,6 +5474,12 @@ static bool fltSclIsCollectableNode(SNode *pNode) {
 }
 
 static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+
+  FLT_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(sclOpList, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (!fltSclIsCollectableNode(pNode)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5125,12 +5487,10 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
   SOperatorNode *pOper = (SOperatorNode *)pNode;
 
   SValueNode *valNode = (SValueNode *)pOper->pRight;
+  FLT_CHECK_NULL(valNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
     SNode* pLeft = NULL, *pRight = NULL;
-    int32_t code = nodesCloneNode(pOper->pLeft, &pLeft);
-    if (TSDB_CODE_SUCCESS != code) {
-      FLT_ERR_RET(code);
-    }
+    SCL_ERR_RET(nodesCloneNode(pOper->pLeft, &pLeft));
     code = nodesCloneNode(pOper->pRight, &pRight);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode(pLeft);
@@ -5146,10 +5506,21 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+
+  FLT_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(sclOpList, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5167,10 +5538,19 @@ static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpLi
   FOREACH(pExpr, pLogicCond->pParameterList) {
     FLT_ERR_RET(fltSclCollectOperatorFromNode(pExpr, sclOpList));
   }
-  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
+  if (NULL == pNode || NULL == sclOpList) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
     FLT_ERR_RET(fltSclCollectOperatorFromNode(pNode, sclOpList));
   } else if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
@@ -5180,51 +5560,67 @@ static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
-  SArray *sclOpList = taosArrayInit(16, sizeof(SFltSclOperator));
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == sclOpList) {
-    FLT_ERR_RET(terrno);
-  }
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SArray      *sclOpList = NULL;
+  FLT_CHECK_NULL(pNode, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pInfo, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  sclOpList = taosArrayInit(16, sizeof(SFltSclOperator));
+  FLT_CHECK_NULL(sclOpList, code, lino, _return, terrno)
   FLT_ERR_JRET(fltSclCollectOperators(*pNode, sclOpList));
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
-  if (NULL == colRangeList) {
-    FLT_ERR_JRET(terrno);
-  }
+  FLT_CHECK_NULL(colRangeList, code, lino, _return, terrno)
   FLT_ERR_JRET(fltSclProcessCNF(sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {
     SFltSclOperator *sclOp = taosArrayGet(sclOpList, i);
-    if (NULL == sclOp) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(sclOp, code, lino, _return, terrno)
     nodesDestroyNode((SNode *)sclOp->colNode);
     nodesDestroyNode((SNode *)sclOp->valNode);
   }
 _return:
   taosArrayDestroy(sclOpList);
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
 int32_t fltGetDataFromColId(void *param, int32_t id, void **data) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  FLT_CHECK_NULL(param, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(data, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
   SArray *pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
 
   for (int32_t j = 0; j < numOfCols; ++j) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, j);
-    if (NULL == pColInfo) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
-    }
+    FLT_CHECK_NULL(pColInfo, code, lino, _return, terrno)
     if (id == pColInfo->info.colId) {
       *data = pColInfo;
       break;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  FLT_CHECK_NULL(param, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(data, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
   SArray *pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
   if (id < 0 || id >= numOfCols || id >= taosArrayGetSize(pDataBlock)) {
@@ -5234,12 +5630,15 @@ int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
   }
 
   SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, id);
-  if (NULL == pColInfo) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
+  FLT_CHECK_NULL(pColInfo, code, lino, _return, terrno)
   *data = pColInfo;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
@@ -5308,20 +5707,26 @@ _return:
 int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                       int16_t numOfCols, int32_t *pResultStatus) {
   if (NULL == info) {
-    *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
-    return TSDB_CODE_SUCCESS;
+    if (pResultStatus) {
+      *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
   int32_t      code = TSDB_CODE_SUCCESS;
   SScalarParam output = {0};
   SDataType    type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int32_t      lino = 0;
+  FLT_CHECK_NULL(pSrc, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(p, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  FLT_CHECK_NULL(pResultStatus, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   FLT_ERR_JRET(sclCreateColumnInfoData(&type, pSrc->info.rows, &output));
 
   if (info->scalarMode) {
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
-    if (NULL == pList) {
-      FLT_ERR_JRET(terrno);
-    }
+    FLT_CHECK_NULL(pList, code, lino, _return, terrno)
     if (NULL == taosArrayPush(pList, &pSrc)) {
       taosArrayDestroy(pList);
       FLT_ERR_JRET(terrno);
@@ -5378,7 +5783,12 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
   return TSDB_CODE_SUCCESS;
 _return:
   sclFreeParam(&output);
-  *p = NULL;
+  if (p) {
+    *p = NULL;
+  }
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -5390,6 +5800,10 @@ typedef struct SClassifyConditionCxt {
 } SClassifyConditionCxt;
 
 static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
+  if (NULL == pContext || NULL == pNode) {
+    qError("invalid param in classifyConditionImpl");
+    return DEAL_RES_ERROR;
+  }
   SClassifyConditionCxt *pCxt = (SClassifyConditionCxt *)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode *pCol = (SColumnNode *)pNode;
@@ -5429,10 +5843,11 @@ EConditionType filterClassifyCondition(SNode *pNode) {
 
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {
   SNodeList *pCondCols = NULL;
-  int32_t code = nodesMakeList(&pCondCols);
-  if (TSDB_CODE_SUCCESS!= code) {
-    return code;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if (NULL == res) {
+    return TSDB_CODE_INVALID_PARA;
   }
+  FLT_ERR_RET(nodesMakeList(&pCondCols));
   code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   if (code == TSDB_CODE_SUCCESS) {
     if (LIST_LENGTH(pCondCols) >= 2) {
@@ -5455,9 +5870,12 @@ int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {
 
 static int32_t partitionLogicCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                                   SNode **pOtherCond) {
-  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)(*pCondition);
+  if (NULL == *pCondition) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)(*pCondition);
 
   SNodeList *pPrimaryKeyConds = NULL;
   SNodeList *pTagIndexConds = NULL;
@@ -5579,6 +5997,10 @@ static int32_t partitionLogicCond(SNode **pCondition, SNode **pPrimaryKeyCond, S
 
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                             SNode **pOtherCond) {
+  if (NULL == *pCondition) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCondition) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)*pCondition)->condType) {
     return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);

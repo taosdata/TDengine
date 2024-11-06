@@ -220,11 +220,11 @@ int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
         SET_DOUBLE_VAL(dst, GET_DOUBLE_VAL(s1) + GET_DOUBLE_VAL(s2));
         break;
       default: {
-        return -1;
+        return TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE;
       }
     }
   } else {
-    return -1;
+    return TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE;
   }
 
   return 0;
