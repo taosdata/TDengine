@@ -693,8 +693,8 @@ pub(super) async fn get_task_csv_files(
     let task_id = id.into_inner();
     let task = task_store.get(task_id).await;
     match task {
-        Ok(Some(_)) => {
-            let csv_files = get_csv_files_from_task(Some(task_id)).await;
+        Ok(Some(task)) => {
+            let csv_files = get_csv_files_from_task(Some(task_id), &task.from).await;
             match csv_files {
                 Ok(csv_files) => serde_json::to_string(&csv_files).unwrap(),
                 Err(err) => {

@@ -888,6 +888,54 @@ impl std::fmt::Debug for CsvSource {
             .finish()
     }
 }
+
+pub fn get_paths_from_dsn_and_breakpoints(
+    task_id: Option<i64>,
+    dsn: &mut Dsn,
+    breakpoints: &HashMap<String, usize>,
+) -> anyhow::Result<Vec<String>> {
+    // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
+    let dsn_paths = match &dsn.path {
+        Some(path) => {
+            if path.trim().is_empty() {
+                bail!("CSV path should not be empty");
+            }
+            path.split(",").collect_vec()
+        }
+        None => return Err(anyhow!("csv path is null")),
+    };
+
+    let mut paths = Vec::new();
+    for path in dsn_paths {
+        let csv_paths = CsvSource::csv_path(path)?;
+        for csv_path in csv_paths {
+            paths.push(csv_path);
+        }
+    }
+
+    // record the files in breakpoint to file list
+    breakpoints.iter().for_each(|(path, rows)| {
+        add_csv_file_to_task(task_id, path, FileStatus::Completed, *rows);
+    });
+
+    // filter by breakpoint
+    let paths = paths
+        .into_iter()
+        .filter(|path| {
+            if breakpoints.contains_key(path) {
+                tracing::info!("file '{path}' is already processed, skip it");
+                false
+            } else {
+                // record to file list, the status is not started
+                add_csv_file_to_task(task_id, path, FileStatus::NotStarted, 0);
+                // keep the file
+                true
+            }
+        })
+        .collect_vec();
+    Ok(paths)
+}
+
 impl CsvSource {
     fn new(
         task_id: Option<i64>,
@@ -895,49 +943,10 @@ impl CsvSource {
         sender: MsgSender,
         metrics_arc: Arc<CoreMetrics>,
     ) -> Result<CsvSource> {
-        // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
-        //  ?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
-        let dsn_paths = match &dsn.path {
-            Some(path) => {
-                if path.trim().is_empty() {
-                    bail!("CSV path should not be empty");
-                }
-                path.split(",").collect_vec()
-            }
-            None => return Err(anyhow!("csv path is null")),
-        };
-
-        let mut paths = Vec::new();
-        for path in dsn_paths {
-            let csv_paths = CsvSource::csv_path(path)?;
-            for csv_path in csv_paths {
-                paths.push(csv_path);
-            }
-        }
-
         // get breakpoint
         let breakpoints = get_breakpoint(task_id).unwrap_or_default();
-
-        // record the files in breakpoint to file list
-        breakpoints.iter().for_each(|(path, rows)| {
-            add_csv_file_to_task(task_id, path, FileStatus::Completed, *rows);
-        });
-
-        // filter by breakpoint
-        let paths = paths
-            .into_iter()
-            .filter(|path| {
-                if breakpoints.contains_key(path) {
-                    tracing::info!("file '{path}' is already processed, skip it");
-                    false
-                } else {
-                    // record to file list, the status is not started
-                    add_csv_file_to_task(task_id, path, FileStatus::NotStarted, 0);
-                    // keep the file
-                    true
-                }
-            })
-            .collect_vec();
+        // get paths
+        let paths = get_paths_from_dsn_and_breakpoints(task_id, dsn, &breakpoints)?;
 
         let has_header: bool = dsn
             .get("has_header")
@@ -1575,12 +1584,23 @@ pub struct TaskFile {
 
 static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new(scc::HashMap::new);
 
-pub async fn get_csv_files_from_task(task_id: Option<i64>) -> anyhow::Result<Vec<TaskFile>> {
-    let task_id = format!("{}", task_id.unwrap_or(0));
-    if let Some(files) = TASK_FILES.get_async(&task_id).await {
+pub async fn get_csv_files_from_task(
+    task_id: Option<i64>,
+    from: &String,
+) -> anyhow::Result<Vec<TaskFile>> {
+    let task_id_str = format!("{}", task_id.unwrap_or(0));
+    if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
         Ok(files.get().clone())
     } else {
-        Ok(vec![])
+        // 通过 dsn 与 breakpoint 重新生成文件列表
+        let dsn: Dsn = from.parse()?;
+        let breakpoints = get_breakpoint(task_id).unwrap_or_default();
+        let _ = get_paths_from_dsn_and_breakpoints(task_id, &mut dsn.clone(), &breakpoints)?;
+        if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
+            Ok(files.get().clone())
+        } else {
+            Ok(vec![])
+        }
     }
 }
 
