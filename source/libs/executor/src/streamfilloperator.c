@@ -1270,7 +1270,9 @@ static int32_t doStreamForceFillImpl(SOperatorInfo* pOperator) {
       TSKEY  resTs = tsCol[i];
       while (resTs < (*pTs)) {
         SWinKey key = {.groupId = groupId, .ts = resTs};
-        taosArrayPush(pInfo->pUpdated, &key);
+        void* pPushRes = taosArrayPush(pInfo->pUpdated, &key);
+        QUERY_CHECK_NULL(pPushRes, code, lino, _end, terrno);
+
         if (IS_FILL_CONST_VALUE(pFillSup->type)) {
           break;
         }
