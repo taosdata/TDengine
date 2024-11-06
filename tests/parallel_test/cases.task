@@ -74,6 +74,8 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
