@@ -6,6 +6,8 @@ endif()
 
 add_library(common STATIC ${COMMON_SRC})
 
+add_dependencies(common lemon_target)
+
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()

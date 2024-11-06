@@ -2,6 +2,7 @@
 
 ExternalProject_Add(
     lemon
+    SOURCE_DIR ${TD_CONTRIB_DIR}/lemon
     CONFIGURE_COMMAND ""
     BUILD_COMMAND "${C_COMPILER_LEMON}" -o ${TD_CONTRIB_DIR}/lemon/lemon ${TD_CONTRIB_DIR}/lemon/lemon.c
     INSTALL_COMMAND ""

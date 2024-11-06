@@ -9,15 +9,17 @@ add_custom_command(
     COMMAND echo "Running lemon process in ${TD_SOURCE_DIR}/source/libs/parser/inc"
     COMMAND ${TD_CONTRIB_DIR}/lemon/lemon sql.y || true
     COMMAND echo "copy sql.c from ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c to ${TD_SOURCE_DIR}/source/libs/parser/src/"
-    COMMAND cp ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c ${TD_SOURCE_DIR}/source/libs/parser/src/
+    COMMAND mv ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.c ${TD_SOURCE_DIR}/source/libs/parser/src/
+    COMMAND mv ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.h ${TD_SOURCE_DIR}/include/common/ttokenauto.h
     COMMAND echo "lemon process completed."
     DEPENDS ${TD_SOURCE_DIR}/source/libs/parser/inc/sql.y
     WORKING_DIRECTORY ${TD_SOURCE_DIR}/source/libs/parser/inc
     COMMENT "Generating sql.c using lemon"
 )
 
-add_custom_target(lemon_target
+add_custom_target(lemon_target ALL
     DEPENDS ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c
+    DEPENDS ${TD_SOURCE_DIR}/include/common/ttokenauto.h
 )
 
 list(APPEND PARSER_SRC ${TD_SOURCE_DIR}/source/libs/parser/src/sql.c)
