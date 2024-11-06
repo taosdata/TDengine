@@ -1758,6 +1758,7 @@ typedef struct {
   int64_t cacheSize;
   int64_t walSize;
   int64_t metaSize;
+  int64_t rawDataSize;
 } SDbSizeStatisInfo;
 
 typedef struct {

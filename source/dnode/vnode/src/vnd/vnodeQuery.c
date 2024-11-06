@@ -895,9 +895,10 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
     dirSize[i] = size;
   }
 
-  pInfo->l1Size = dirSize[0];
+  pInfo->l1Size = dirSize[0] - dirSize[3];
   pInfo->walSize = dirSize[1];
   pInfo->metaSize = dirSize[2];
+  pInfo->cacheSize = dirSize[3];
 
   return 0;
 }
