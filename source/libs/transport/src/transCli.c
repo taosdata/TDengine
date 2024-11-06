@@ -620,7 +620,7 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   int32_t code = 0;
   int64_t qId = taosHton64(pHead->qid);
   if (qId == 0) {
-    return 0;
+    return TSDB_CODE_RPC_NO_STATE;
   }
 
   STransCtx* pCtx = taosHashGet(conn->pQTable, &qId, sizeof(qId));
@@ -1608,7 +1608,6 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
-    if (ret == )
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
   }
