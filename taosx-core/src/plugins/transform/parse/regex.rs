@@ -57,7 +57,7 @@ impl ExtractRule<'_> {
 impl Regex {
     fn extract_rule(&self) -> ExtractRule {
         let names = self.regex.capture_names().flatten().collect_vec();
-        dbg!(&names);
+        // dbg!(&names);
         if !names.is_empty() {
             // TODO: extract by capture names
             return ExtractRule::CaptureNames(names);

@@ -1,0 +1,43 @@
+$env:HOST = "localhost"
+$env:ROOT_DIR = (Get-Location).Path
+
+$env:TAOS_EXPLORER_HOST = $env:HOST
+$env:TAOS_EXPLORER_PORT = 6060    # optional
+$env:TAOSX_HOST = $env:HOST
+$env:TAOSX_PORT = 6050            # optional
+
+$env:TAOSADAPTER_HOST = $env:HOST
+$env:TAOSD_HOST = $env:HOST
+
+$env:TAOSX_LINUX_AGENT_HOST = $env:HOST
+$env:TAOSX_WINDOWS_AGENT_HOST = "192.168.0.34"
+
+$env:TAOSX_LINUX_AGENT_ID = 1
+$env:TAOSX_WINDOWS_AGENT_ID = 2
+
+# Explorer login username/password, optional
+$env:EXPLORER_USERNAME = "root"
+$env:EXPLORER_PASSWORD = "taosdata"
+
+$env:TAOSD_SOURCE_HOST = "192.168.1.45"
+$env:TAOSBENCHMARK_HOST = $env:HOST
+
+$env:TAOS_GRANT_BINARY = "192.168.2.13:/data/common/activation-code/taosGrant"
+
+$env:RETRY_CHECK_METRICS = 10
+
+$env:DELETE_TASK = "True"
+$env:DELETE_DB = "True"
+
+# For performance cases
+# $env:BRANCH_NAME = dev
+# $env:TAOSD_LOG_HOST = 192.168.1.62
+
+# For tmq/legacy performance cases
+# 1. source driver: taos or tmq
+# 2. target/source protocol: ws or native
+# $env:DRIVER = taos
+# $env:TARGET_PROTOCOL = ws
+# $env:SOURCE_PROTOCOL = native
+
+# end

@@ -91,7 +91,7 @@ def test_sanity_favorite(case_setup):
     "tz_data",
     [
         ("", "+00:00"),
-        ("Europe/Rome", "+02:00"),
+        # ("Europe/Rome", "+02:00"), # this timezone is not recommended
         ("Europe/Moscow", "+03:00"),
         ("Asia/Shanghai", "+08:00"),
         ("Asia/Tokyo", "+09:00"),

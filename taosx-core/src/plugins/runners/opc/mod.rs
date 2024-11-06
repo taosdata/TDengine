@@ -602,6 +602,8 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
             "Get OPC datasets error:\n{}",
             error
         );
+        let error = filter_opc_log(error.to_string()).await;
+
         let pattern =
             regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
         let matches = pattern.captures(&error);
@@ -615,6 +617,19 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
 
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
     Ok(res)
+}
+
+/// 过滤 opc 错误日志，去掉 info 日志
+pub async fn filter_opc_log<S: AsRef<str>>(error_log: S) -> String {
+    let mut error = String::new();
+    for line in error_log.as_ref().lines() {
+        if line.contains(" info ") || line.contains(" trace ") || line.contains(" debug ") {
+            continue;
+        }
+        error.push_str(line);
+        error.push('\n');
+    }
+    error.trim_end().to_string() // remove last '\n'
 }
 
 /// 连通性检查
@@ -908,5 +923,19 @@ mod tests {
         let opc_type = OpcType::from_dsn(&dsn);
         assert!(opc_type.is_err());
         assert_eq!("unknown opc protocol", opc_type.unwrap_err().to_string());
+    }
+
+    #[tokio::test]
+    async fn test_filter_opc_log() {
+        let log = r#"
+10/28 18:48:50.269658 00071305 info "get max node per read success 10000" id=0 model=points
+10/28 18:48:50.269698 00071305 panic "get all points error" error=invalid points regex: error parsing regexp: invalid or unsupported Perl syntax: `(?!` model=points
+panic: (*logrus.Entry) 0xc00034aaf0
+        "#;
+        let expect = r#"
+10/28 18:48:50.269698 00071305 panic "get all points error" error=invalid points regex: error parsing regexp: invalid or unsupported Perl syntax: `(?!` model=points
+panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
+        let res = filter_opc_log(log).await;
+        assert_eq!(res, expect);
     }
 }

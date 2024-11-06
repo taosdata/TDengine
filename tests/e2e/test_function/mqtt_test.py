@@ -71,7 +71,7 @@ def mqtt_sanity_test(env_data, case_data, mqttconfigfile):
     r = task.get_task_status(task_id)
     assert (
         r["status"] == "running"
-    ), f"task status should be running after creation, but got {r['status']}, reason: {r['reason']}"
+    ), f"task status should be running after creation, but got {r['status']}, reason: {r['reason']}, task info: {task_info}"
 
     mqtt1 = MQTTPub(mqttconfigfile)
     mqtt1.start()
@@ -100,6 +100,7 @@ def test_case_base_transformer(with_agent, input_data):
     mqtt_test_logger.info("start test...sanity case: transformer(json)")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
+    case_data["from"]["client_id"] = "client" + str(random.randint(1, 10000))
     if not with_agent:
         case_data.pop("via")
 
@@ -139,6 +140,7 @@ def test_case_topics(input_data):
     case_data = copy.deepcopy(case_data_orig)
     case_data["from"]["topics"] = "testmqtt/2/+::2,testmqtt/3/#::2"
     case_data["from"]["version"] = "5.0"
+    case_data["from"]["client_id"] = "client" + str(random.randint(1, 10000))
 
     metrics = mqtt_sanity_test(env_data, case_data, "mqtt/mqtt.yaml")
     rows_count = TaosAdapter.check_db_count(
@@ -166,6 +168,7 @@ def test_case_auth(input_data):
     case_data["from"]["fromhost"] = f"mqtt://{env_data['data_source']['mqtt'][1]}"
     case_data["from"]["log_level"] = "debug"
     case_data["from"]["version"] = "3.1.1"
+    case_data["from"]["client_id"] = "client" + str(random.randint(1, 10000))
 
     metrics = mqtt_sanity_test(env_data, case_data, "mqtt/mqtt-auth.yaml")
     rows_count = TaosAdapter.check_db_count(
@@ -190,6 +193,7 @@ def test_case_ssl(input_data):
     mqtt_test_logger.info("start test...sanity case: ssl")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
+    case_data["from"]["client_id"] = "client" + str(random.randint(1, 10000))
 
     ca_file = "mqtt/ssl/ca.crt"
     client_cert_file = "mqtt/ssl/client.crt"

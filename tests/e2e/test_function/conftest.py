@@ -17,15 +17,15 @@ def global_setup(request):
     conftest_logger.info("delete all tasks...")
     env_data = Util.get_env_data()
     task = Task(env_data, None)
-    task.delete_all_tasks()
+    # task.delete_all_tasks()
     start_time = int(time.time() * 1000)
 
     yield env_data
 
     conftest_logger.info("after all tests...")
     conftest_logger.info("delete all ci dbs...")
-    TaosAdapter.drop_ci_topics(env_data["taosd_host"])
-    TaosAdapter.drop_ci_dbs(env_data["taosd_host"])
+    # TaosAdapter.drop_ci_topics(env_data["taosd_host"])
+    # TaosAdapter.drop_ci_dbs(env_data["taosd_host"])
 
     # For performance test, clean up database and send result to feishu
     is_perf_test = False

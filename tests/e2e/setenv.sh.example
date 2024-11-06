@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export HOST=192.168.2.11
+export HOST=localhost
 export ROOT_DIR=$(pwd)
 
 export TAOS_EXPLORER_HOST=$HOST
@@ -12,7 +12,7 @@ export TAOSADAPTER_HOST=$HOST
 export TAOSD_HOST=$HOST
 
 export TAOSX_LINUX_AGENT_HOST=$HOST
-export TAOSX_WINDOWS_AGENT_HOST=$HOST
+export TAOSX_WINDOWS_AGENT_HOST=192.168.0.34
 
 export TAOSX_LINUX_AGENT_ID=1
 export TAOSX_WINDOWS_AGENT_ID=2

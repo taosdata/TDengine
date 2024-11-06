@@ -807,14 +807,10 @@ impl TaskJob {
             // cancel spawned task.
             let mut state = self.task.state.write().await;
             if state.is_idle() {
-                // Job has not been ticked yet (one it's ticked, state should be running)
-
-                // Send stopped state directly.
-                self.global.send_task_activity(TaskActivity::stopped(id));
-
-                // Set task state to stopping so that it will be stopped when it's ticked properly.
+                // Set Task state to stopped directly.
                 state.stopped();
             } else {
+                // Set task state to stopping so that it will be stopped when it's ticked properly.
                 state.stop();
             }
         };
