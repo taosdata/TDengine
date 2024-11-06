@@ -949,8 +949,10 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
     if (pIter == NULL) break;
 
-    if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_DB ||
-        pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL) {
+      thisConflict = true;
+    }
+    if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
     }
 
