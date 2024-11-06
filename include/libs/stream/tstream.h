@@ -114,7 +114,7 @@ enum {
 
 enum {
   TASK_TRIGGER_STATUS__INACTIVE = 1,
-  TASK_TRIGGER_STATUS__ACTIVE,
+  TASK_TRIGGER_STATUS__MAY_ACTIVE,
 };
 
 typedef enum {
@@ -295,9 +295,10 @@ typedef struct SStreamStatus {
   int32_t          schedIdleTime;  // idle time before invoke again
   int64_t          lastExecTs;     // last exec time stamp
   int32_t          inScanHistorySentinel;
-  bool             appendTranstateBlock;  // has append the transfer state data block already
+  bool             appendTranstateBlock;  // has appended the transfer state data block already
   bool             removeBackendFiles;    // remove backend files on disk when free stream tasks
   SConsenChkptInfo consenChkptInfo;
+  STimeWindow      latestForceWindow;     // latest generated time window, only valid in
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -306,14 +307,16 @@ typedef struct SDataRange {
 } SDataRange;
 
 typedef struct SSTaskBasicInfo {
-  int32_t nodeId;  // vgroup id or snode id
-  SEpSet  epSet;
-  SEpSet  mnodeEpset;  // mnode epset for send heartbeat
-  int32_t selfChildId;
-  int32_t totalLevel;
-  int8_t  taskLevel;
-  int8_t  fillHistory;      // is fill history task or not
-  int64_t delaySchedParam;  // in msec
+  int32_t   nodeId;  // vgroup id or snode id
+  SEpSet    epSet;
+  SEpSet    mnodeEpset;  // mnode epset for send heartbeat
+  int32_t   selfChildId;
+  int32_t   trigger;
+  int8_t    taskLevel;
+  int8_t    fillHistory;      // is fill history task or not
+  int64_t   delaySchedParam;  // in msec
+  int64_t   watermark;        // extracted from operators
+  SInterval interval;
 } SSTaskBasicInfo;
 
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
@@ -544,8 +547,9 @@ typedef struct STaskUpdateEntry {
 
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                       SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5, SStreamTask** pTask);
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+                       int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
+                       SStreamTask** pTask);
 void    tFreeStreamTask(void* pTask);
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);

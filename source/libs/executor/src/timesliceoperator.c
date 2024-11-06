@@ -169,12 +169,12 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
+bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
   return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0);
 }
 
-static bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
+bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
   return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_isfilled") == 0);
 }
@@ -224,7 +224,7 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
   return false;
 }
 
-static bool isInterpFunc(SExprInfo* pExprInfo) {
+bool isInterpFunc(SExprInfo* pExprInfo) {
   int32_t functionType = pExprInfo->pExpr->_function.functionType;
   return (functionType == FUNCTION_TYPE_INTERP);
 }
@@ -239,7 +239,7 @@ static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
   return (functionType == FUNCTION_TYPE_GROUP_CONST_VALUE);
 }
 
-static bool getIgoreNullRes(SExprSupp* pExprSup) {
+bool getIgoreNullRes(SExprSupp* pExprSup) {
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
 
@@ -256,7 +256,7 @@ static bool getIgoreNullRes(SExprSupp* pExprSup) {
   return false;
 }
 
-static bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
+bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
   if (!ignoreNull) {
     return false;
   }
