@@ -390,6 +390,7 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
     idata.info.precision = pDescNode->dataType.precision;
+    idata.info.noData = pDescNode->reserve;
 
     code = blockDataAppendColInfo(pBlock, &idata);
     if (code != TSDB_CODE_SUCCESS) {

@@ -872,15 +872,25 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
-  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
-  blockDataCheck(p, false);
-  return (code == 0)? p:NULL;
+  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(p);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("blockDataCheck failed, code:%s", tstrerror(code));
+    }
+  }
+  return (code == 0) ? p : NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
-  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
-  blockDataCheck(p, false);
+  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(p);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("blockDataCheck failed, code:%s", tstrerror(code));
+    }
+  }
   return (code == 0)? p:NULL;
 }
 

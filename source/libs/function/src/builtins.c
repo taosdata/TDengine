@@ -1385,9 +1385,12 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
-  int32_t count = TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
-
-  int32_t resLen = orgLen * count;
+  int32_t resLen;
+  if (nodeType(nodesListGetNode(pFunc->pParameterList, 1)) == QUERY_NODE_VALUE) {
+    resLen = orgLen * TMAX((int32_t)((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i, 1);
+  } else {
+    resLen = TSDB_MAX_BINARY_LEN;
+  }
   pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
   return TSDB_CODE_SUCCESS;
 }
@@ -1535,14 +1538,16 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  pFunc->node.resType = (SDataType){.bytes = dt.bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
 
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_VARCHAR].bytes, .type = TSDB_DATA_TYPE_VARCHAR};
+  SDataType dt = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  pFunc->node.resType = (SDataType){.bytes = dt.bytes, .type = TSDB_DATA_TYPE_VARCHAR};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1613,7 +1618,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       break;
     case FUNCTION_TYPE_BLOCK_DIST:
     case FUNCTION_TYPE_BLOCK_DIST_INFO:
-      bytes = 128;
+      bytes = sizeof(STableBlockDistInfo);
       break;
     case FUNCTION_TYPE_TO_CHAR:
       bytes = 4096;
@@ -1655,7 +1660,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_TIMEZONE:
-      bytes = TD_TIMEZONE_LEN;
+      bytes = timeZoneStrLen();
       break;
     case FUNCTION_TYPE_IRATE_PARTIAL:
       bytes = getIrateInfoSize((pFunc->hasPk) ? pFunc->pkBytes : 0) + VARSTR_HEADER_SIZE;

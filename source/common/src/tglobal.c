@@ -119,6 +119,7 @@ bool     tsMonitorForceV2 = true;
 // audit
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
+bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
 
 // telem
@@ -137,8 +138,9 @@ bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
 #endif
-char *tsClientCrashReportUri = "/ccrashreport";
-char *tsSvrCrashReportUri = "/dcrashreport";
+char  *tsClientCrashReportUri = "/ccrashreport";
+char  *tsSvrCrashReportUri = "/dcrashreport";
+int8_t tsSafetyCheckLevel = TSDB_SAFETY_CHECK_LEVELL_NORMAL;
 
 // schemaless
 bool tsSmlDot2Underline = true;
@@ -610,6 +612,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
@@ -777,6 +780,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditDelete", tsEnableAuditDelete, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
@@ -1305,6 +1309,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
   tsmaDataDeleteMark = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
+  tsSafetyCheckLevel = pItem->i32;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1489,6 +1496,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditCreateTable");
   tsEnableAuditCreateTable = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditDelete");
+  tsEnableAuditDelete = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
@@ -2049,7 +2059,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
-                                         {"maxTsmaNum", &tsMaxTsmaNum}};
+                                         {"maxTsmaNum", &tsMaxTsmaNum},
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2305,7 +2316,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
-                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
