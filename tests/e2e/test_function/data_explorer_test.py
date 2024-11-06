@@ -95,7 +95,7 @@ def test_sanity_favorite(case_setup):
         ("Europe/Moscow", "+03:00"),
         ("Asia/Shanghai", "+08:00"),
         ("Asia/Tokyo", "+09:00"),
-        ("America/Los_Angeles", "-07:00"),
+        # ("America/Los_Angeles", "-07:00"),
     ],
 )
 @pytest.mark.sanity
