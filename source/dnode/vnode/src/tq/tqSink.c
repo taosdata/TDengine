@@ -451,20 +451,19 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   req.igNotExists = true;
 
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-  char tbName[TSDB_TABLE_NAME_LEN + 1] = {0};
-  for (int32_t i = 0; i < rows; ++i) {
-    void* pData = colDataGetVarData(pTbNameCol, i);
-    memcpy(tbName, varDataVal(pData), varDataLen(pData));
-    tbName[varDataLen(pData) + 1] = 0;
-    req.name = tbName;
-    if (taosArrayPush(batchReq.pArray, &req) == NULL) {
-      TSDB_CHECK_CODE(terrno, lino, _exit);
-    }
+  char             tbName[TSDB_TABLE_NAME_LEN + 1] = {0};
+  int32_t          i = 0;
+  void*            pData = colDataGetVarData(pTbNameCol, i);
+  memcpy(tbName, varDataVal(pData), varDataLen(pData));
+  tbName[varDataLen(pData) + 1] = 0;
+  req.name = tbName;
+  if (taosArrayPush(batchReq.pArray, &req) == NULL) {
+    TSDB_CHECK_CODE(terrno, lino, _exit);
   }
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
-  // only one row
+
   code = metaGetTableEntryByName(&mr, tbName);
   if (TSDB_CODE_SUCCESS == code && isValidDstChildTable(&mr, TD_VID(pVnode), tbName, pTask->outputInfo.tbSink.stbUid)) {
     STableSinkInfo* pTableSinkInfo = NULL;
@@ -478,13 +477,9 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   code = tqPutReqToQueue(pVnode, &batchReq, encodeDropChildTableForRPC, TDMT_VND_DROP_TABLE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  for (int32_t i = 0; i < rows; ++i) {
-    void* pData = colDataGetVarData(pTbNameCol, i);
-    memcpy(tbName, varDataVal(pData), varDataLen(pData));
-    tbName[varDataLen(pData) + 1] = 0;
-    code = doWaitForDstTableDropped(pVnode, pTask, tbName);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+
+  code = doWaitForDstTableDropped(pVnode, pTask, tbName);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (batchReq.pArray) {

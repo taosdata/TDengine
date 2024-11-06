@@ -527,9 +527,13 @@ _end:
 
 int32_t streamStateDeleteParName(SStreamState* pState, int64_t groupId) {
   int32_t code = tSimpleHashRemove(pState->parNameMap, &groupId, sizeof(int64_t));
-  qTrace("catche %s at line %d res %d", __func__, __LINE__, code);
+  if (TSDB_CODE_SUCCESS != code) {
+    qWarn("failed to remove parname from cache, code:%d", code);
+  }
   code = streamStateDeleteParName_rocksdb(pState, groupId);
-  qTrace("disk %s at line %d res %d", __func__, __LINE__, code);
+  if (TSDB_CODE_SUCCESS != code) {
+    qWarn("failed to remove parname from rocksdb, code:%d", code);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
