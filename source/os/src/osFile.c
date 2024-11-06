@@ -420,7 +420,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   }
 
   int64_t res = 0;
-  DWORD bytesRead;
+  DWORD   bytesRead;
   if (!ReadFile(pFile->hFile, buf, count, &bytesRead, NULL)) {
     DWORD errCode = GetLastError();
     terrno = TAOS_SYSTEM_WINAPI_ERROR(errCode);

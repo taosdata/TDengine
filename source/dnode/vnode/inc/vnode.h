@@ -80,7 +80,7 @@ int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
 int32_t   vnodeGetArbToken(SVnode *pVnode, char *outToken);
-int32_t   vnodeGetDBSize(void *pVnode, int64_t *dataSize, int64_t *walSize, int64_t *metaSize);
+int32_t   vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo);
 
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm);
 

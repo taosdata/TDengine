@@ -2030,7 +2030,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
     setOperatorCompleted(pOperator);
     return NULL;
-    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+    // return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   }
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
@@ -2048,12 +2048,20 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t     numOfCols = 0;
   int32_t     vgId = 0;
   int64_t     dbSize = 0;
+  int64_t     memSize = 0;
+  int64_t     l1Size = 0;
+  int64_t     l2Size = 0;
+  int64_t     l3Size = 0;
   int64_t     walSize = 0;
   int64_t     metaSize = 0;
+  int64_t     s3Size = 0;
 
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
-  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &dbSize, &walSize, &metaSize);
+  SDbSizeStatisInfo info = {0};
+  info.vgId = vgId;
+
+  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &info);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SName sn = {0};
@@ -2072,8 +2080,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-
   SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
   code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2089,30 +2095,30 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // memtable
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&memSize, false);  // memtable
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l1_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l1Size, false);  // l1_size
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l2_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l2Size, false);  // l2_size
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l3_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l3Size, false);  // l3_size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // s3_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&s3Size, false);  // s3_size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
 

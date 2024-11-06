@@ -279,7 +279,7 @@ typedef struct SStoreMeta {
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
-  int32_t (*getDBSize)(void* pVnode, int64_t* dataSize, int64_t* walSize, int64_t* metaSize);
+  int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
