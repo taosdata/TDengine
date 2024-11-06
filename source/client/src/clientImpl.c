@@ -2873,6 +2873,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
+    clientOperateReport(pParam->pRequest);
   }
 
   if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {

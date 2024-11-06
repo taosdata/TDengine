@@ -1022,6 +1022,7 @@ typedef struct {
   char          sDetailVer[128];
   int64_t       whiteListVer;
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1826,6 +1827,17 @@ typedef struct {
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 void    tFreeSStatisReq(SStatisReq* pReq);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  char    table[TSDB_TABLE_NAME_LEN];
+  char    operation[AUDIT_OPERATION_LEN];
+  int32_t sqlLen;
+  char*   pSql;
+} SAuditReq;
+int32_t tSerializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+int32_t tDeserializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
+void    tFreeSAuditReq(SAuditReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -3415,6 +3427,7 @@ typedef struct {
   int32_t       svrTimestamp;
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
