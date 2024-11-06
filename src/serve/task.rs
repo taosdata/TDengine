@@ -854,6 +854,7 @@ pub struct FileMeta {
 pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
+    file_pattern: Option<String>,
     has_header: bool,
     skip: Option<usize>,
     delimiter: Option<String>,
@@ -888,9 +889,20 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header, skip, delimiter, quote, comment, sample) = (
+    let (
+        filepath_or_filedir,
+        file_type,
+        file_pattern,
+        has_header,
+        skip,
+        delimiter,
+        quote,
+        comment,
+        sample,
+    ) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
+        filemeta_request.file_pattern,
         filemeta_request.has_header,
         filemeta_request.skip.unwrap_or(0),
         filemeta_request.delimiter.unwrap_or_default(),
@@ -940,6 +952,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .collect_vec();
             let csv_header = taosx_core::csv_header(
                 filepath_or_filedir,
+                file_pattern,
                 has_header,
                 skip,
                 Some(delimiter),

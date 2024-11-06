@@ -85,6 +85,7 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
 
 pub async fn csv_header(
     paths: Vec<impl AsRef<str>>,
+    file_pattern: Option<String>,
     has_header: bool,
     skip: usize,
     delimiter: Option<u8>,
@@ -106,7 +107,7 @@ pub async fn csv_header(
         null_pattern: None,
         concurrent: 16,
         keep_processed_files: true,
-        file_pattern: None,
+        file_pattern: file_pattern.clone(),
         new_file_notify: false,
         notify_interval: Duration::from_secs(60),
         sort: 1,
@@ -132,6 +133,7 @@ pub async fn csv_header(
         if let Some(path) = paths.first() {
             values = CsvSource::sample(
                 path.as_ref(),
+                file_pattern,
                 has_header,
                 skip,
                 delimiter,
@@ -679,6 +681,10 @@ impl CsvOption {
             tokio::task::spawn_blocking(move || CsvSource::csv_path(clone_read_path.as_ref()))
                 .await?
                 .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
+
+        // filter by file pattern
+        let paths = filter_paths_by_pattern(paths, self.file_pattern.clone())?;
+
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
         }
@@ -934,6 +940,25 @@ pub fn get_paths_from_dsn_and_breakpoints(
     Ok(paths)
 }
 
+pub fn filter_paths_by_pattern(
+    paths: Vec<String>,
+    file_pattern: Option<String>,
+) -> anyhow::Result<Vec<String>> {
+    let paths = if let Some(file_pattern) = file_pattern {
+        let re = Regex::new(&file_pattern)?;
+        paths
+            .into_iter()
+            .filter(|path| {
+                let file_name = Path::new(path).file_name().unwrap().to_str().unwrap();
+                re.is_match(file_name)
+            })
+            .collect_vec()
+    } else {
+        paths
+    };
+    Ok(paths)
+}
+
 impl CsvSource {
     fn new(
         task_id: Option<i64>,
@@ -1113,18 +1138,7 @@ impl CsvSource {
         };
 
         // filter by file pattern
-        let paths = if let Some(file_pattern) = &option.file_pattern {
-            let re = Regex::new(file_pattern)?;
-            paths
-                .into_iter()
-                .filter(|path| {
-                    let file_name = Path::new(path).file_name().unwrap().to_str().unwrap();
-                    re.is_match(file_name)
-                })
-                .collect_vec()
-        } else {
-            paths
-        };
+        let paths = filter_paths_by_pattern(paths, option.file_pattern.clone())?;
 
         // sort files by sort
         let paths = paths
@@ -1199,6 +1213,7 @@ impl CsvSource {
 
     async fn sample(
         read_path: &str,
+        file_pattern: Option<String>,
         has_header: bool,
         skip: usize,
         delimiter: Option<u8>,
@@ -1207,6 +1222,10 @@ impl CsvSource {
         sample: usize,
     ) -> Result<Vec<Vec<String>>> {
         let paths = CsvSource::csv_path(read_path)?;
+
+        // filter by file pattern
+        let paths = filter_paths_by_pattern(paths, file_pattern)?;
+
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
         }
@@ -1696,9 +1715,10 @@ mod tests {
             .to_string();
         create_csv_file(&path).await.unwrap();
 
-        let samples = CsvSource::sample(&path, true, 1, Some(b','), Some(b'"'), Some(b'#'), 1)
-            .await
-            .unwrap();
+        let samples =
+            CsvSource::sample(&path, None, true, 1, Some(b','), Some(b'"'), Some(b'#'), 1)
+                .await
+                .unwrap();
 
         assert_eq!(
             samples,
