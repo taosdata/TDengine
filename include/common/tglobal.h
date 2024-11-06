@@ -194,10 +194,10 @@ extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxInsertBatchRows;
 
 // build info
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char buildinfo[];
+extern char td_version[];
+extern char td_compatible_version[];
+extern char td_gitinfo[];
+extern char td_buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];

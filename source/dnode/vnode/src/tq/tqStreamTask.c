@@ -79,7 +79,7 @@ static void doStartScanWal(void* param, void* tmrId) {
 
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
-  SStreamMeta* pMeta = taosAcquireRef(streamMetaId, pParam->metaId);
+  SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
     tqError("metaRid:%" PRId64 " not valid now, stream meta has been freed", pParam->metaId);
     taosMemoryFree(pParam);
@@ -97,7 +97,7 @@ static void doStartScanWal(void* param, void* tmrId) {
     tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
   }
 
-  code = taosReleaseRef(streamMetaId, pParam->metaId);
+  code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
   if (code) {
     tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
             tstrerror(code));

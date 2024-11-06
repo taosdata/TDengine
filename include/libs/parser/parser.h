@@ -65,7 +65,7 @@ typedef struct SParseCsvCxt {
   const char* pLastSqlPos;  // the location of the last parsed sql
 } SParseCsvCxt;
 
-typedef void(*setQueryFn)(int64_t);
+typedef void (*setQueryFn)(int64_t);
 
 typedef struct SParseContext {
   uint64_t         requestId;
@@ -147,6 +147,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
+int32_t qBuildStmtStbColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_STB** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);

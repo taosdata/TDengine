@@ -675,10 +675,10 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "os version", info.version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "os machine", info.machine, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "version", version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "compatible_version", compatible_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "version", td_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "compatible_version", td_compatible_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1645,6 +1645,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "checkpointInterval");
   tsStreamCheckpointInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "concurrentCheckpoint");
+  tsMaxConcurrentCheckpoint = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamSinkDataRate");
   tsSinkDataRate = pItem->fval;

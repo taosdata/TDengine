@@ -88,8 +88,8 @@ static void destroyGroupOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSup);
 
   if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      false);
     pInfo->pOperator = NULL;
   }
 

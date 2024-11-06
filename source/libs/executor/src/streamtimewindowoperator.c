@@ -476,8 +476,8 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      false);
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);

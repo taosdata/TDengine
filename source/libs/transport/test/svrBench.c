@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.idleTime = 2 * 1500;
 
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
   rpcDebugFlag = 131;
   rpcInit.compressSize = -1;
 
@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_SERVER;
 
   initLogEnv();
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to start RPC server");
