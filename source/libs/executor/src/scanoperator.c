@@ -1461,6 +1461,18 @@ static void destroyTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
+  if (pBlock && dataRequireFlag == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+      if (pCol) {
+        pCol->info.noData = true;
+      }
+    }
+  }
+}
+
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -1511,6 +1523,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  resetClolumnReserve(pInfo->pResBlock, pInfo->base.dataBlockLoadFlag);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
 
   code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
@@ -2102,6 +2115,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
@@ -2139,7 +2153,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     QUERY_CHECK_CODE(code, lino, _end);
 
     colDataSetNULL(pDestCalStartTsCol, i);
-    colDataSetNULL(pDestCalEndTsCol, i);
+    colDataSetNULL(pDestTableNameInxCol, i);
     pDestBlock->info.rows++;
   }
 
@@ -2192,6 +2206,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
@@ -2219,6 +2234,8 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
 
     code = colDataSetVal(pDestCalEndTsCol, i, (const char*)&range.win.ekey, false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pDestTableNameInxCol, i);
 
     pDestBlock->info.rows++;
   }
@@ -2274,6 +2291,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   SColumnInfoData* pGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestTableNameInxCol = taosArrayGet(pDestBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
   for (int32_t i = 0; i < pSrcBlock->info.rows;) {
     uint64_t srcUid = srcUidData[i];
     uint64_t groupId = srcGp[i];
@@ -2305,6 +2323,8 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
 
     code = colDataSetVal(pGpCol, pDestBlock->info.rows, (const char*)(&groupId), false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    colDataSetNULL(pDestTableNameInxCol,  pDestBlock->info.rows);
 
     pDestBlock->info.rows++;
   }
@@ -3061,6 +3081,7 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
       colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, TABLE_NAME_COLUMN_INDEX), j);
       j++;
     }
   }
@@ -3657,6 +3678,9 @@ FETCH_NEXT_BLOCK:
     // printDataBlock(pInfo->pCheckpointRes, "stream scan ck", GET_TASKID(pTaskInfo));
     (*ppRes) = pInfo->pCheckpointRes;
     return code;
+  } else {
+    qError("stream scan error, invalid block type %d, %s", pInfo->blockType, id);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
 _end:

@@ -2902,7 +2902,7 @@ static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t rewriteClentVersionFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pVer = taosStrdup((void*)version);
+  char* pVer = taosStrdup((void*)td_version);
   if (NULL == pVer) {
     return terrno;
   }
@@ -10888,7 +10888,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
             parseNatualDuration(str, strlen(str), &minDelay, &pVal->unit, pVal->node.resType.precision, false)) {
       if (pVal->datum.i < minDelay) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "stream max delay must be bigger than 5 session");
+                                       "stream max delay must be bigger than 5 seconds");
       }
     }
   }

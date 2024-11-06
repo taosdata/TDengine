@@ -334,10 +334,14 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
 
 int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  int32_t code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
-  blockDataCheck(*ppBlock, false);
+  int32_t        code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   if (code) {
     qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
+  } else {
+    code = blockDataCheck(*ppBlock);
+    if (code) {
+      qError("failed to check block data, %s code:%s", __func__, tstrerror(code));
+    }
   }
   return code;
 }
@@ -630,7 +634,8 @@ int32_t fetchNextGroupSortDataBlock(void* param, SSDataBlock** ppBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (block != NULL) {
-      blockDataCheck(block, false);
+      code = blockDataCheck(block);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (block->info.id.groupId == grpSortOpInfo->currGroupId) {
         grpSortOpInfo->childOpStatus = CHILD_OP_SAME_GROUP;
         *ppBlock = block;

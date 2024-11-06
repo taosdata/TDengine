@@ -6,7 +6,7 @@
     "user": "root",
     "password": "taosdata",
     "connection_pool_size": 8,
-    "num_of_records_per_req": 5000,
+    "num_of_records_per_req": 4000,
     "prepared_rand": 500,
     "thread_count": 4,
     "create_table_thread_count": 1,
@@ -15,11 +15,11 @@
         {
             "dbinfo": {
                 "name": "db",
-                "drop": "no",
-                "vgroups": 2,
-                "replica": 1,
+                "drop": "yes",
+                "vgroups": 3,
+                "replica": 3,
                 "duration":"10d",
-                "s3_keeplocal":"30d", 
+                "s3_keeplocal":"30d",
                 "s3_chunkpages":"131072",
                 "tsdb_pagesize":"1",
                 "s3_compact":"1",
@@ -31,12 +31,12 @@
             "super_tables": [
                 {
                     "name": "stb",
-                    "child_table_exists": "yes",
-                    "childtable_count": 6,
-                    "insert_rows": 1000000,
+                    "child_table_exists": "no",
+                    "childtable_count": 500,
+                    "insert_rows": 200000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
-                    "timestamp_step": 50,
+                    "timestamp_step": 100,
                     "start_timestamp": 1600000000000,
                     "columns": [
                         { "type": "bool",        "name": "bc"},
@@ -64,3 +64,4 @@
         }
     ]
 }
+
