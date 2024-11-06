@@ -424,9 +424,6 @@ void printFileSet(SArray* fileSet) {
 
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
-  if (pWal->cfg.level == TAOS_WAL_SKIP) {
-    return TSDB_CODE_SUCCESS;
-  }
   int32_t     code = 0;
   const char* logPattern = "^[0-9]+.log$";
   const char* idxPattern = "^[0-9]+.idx$";
