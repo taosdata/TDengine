@@ -156,7 +156,7 @@ SHOW ANODES;
 SHOW ANODES FULL;
 ```
 
-#### 强制刷新 TDengine 集群中分析算法缓存
+#### 强制刷新集群中的分析算法缓存
 ```SQL
 UPDATE ANODE {node_id}
 UPDATE ALL ANODES
