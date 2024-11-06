@@ -1,0 +1,188 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648700000000,1,1,1,1.0) (1648710000000,100,100,100,100.0) (1648720000000,10,10,10,10.0);
+
+$loop_count = 0
+
+loop0:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 20001 then
+  print ======rows=$rows
+  goto loop0
+endi
+
+print step2
+print =============== create database
+sql create database test2 vgroups 1;
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648700000000,1,1,1,1.0) (1648710000000,100,100,100,100.0) (1648720000000,10,10,10,10.0);
+
+$loop_count = 0
+
+loop2:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 20001 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+print step3
+print =============== create database
+sql create database test3 vgroups 1;
+sql use test3;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(NULL);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648700000000,1,1,1,1.0) (1648710000000,100,100,100,100.0) (1648720000000,10,10,10,10.0);
+
+$loop_count = 0
+
+loop3:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 20001 then
+  print ======rows=$rows
+  goto loop3
+endi
+
+print step4
+print =============== create database
+sql create database test4 vgroups 1;
+sql use test4;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(value, 1,2,3,4);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648700000000,1,1,1,1.0) (1648710000000,100,100,100,100.0) (1648720000000,10,10,10,10.0);
+
+$loop_count = 0
+
+loop4:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 20001 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print step5
+print =============== create database
+sql create database test5 vgroups 1;
+sql use test5;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648700000000,1,1,1,1.0) (1648710000000,100,100,100,100.0) (1648720000000,10,10,10,10.0);
+
+$loop_count = 0
+
+loop5:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 20001 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

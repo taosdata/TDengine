@@ -175,8 +175,8 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
-      int32_t len = pSrc->node.resType.bytes + 1;
-      pDst->datum.p = taosMemoryCalloc(1, len);
+      int32_t len = varDataTLen(pSrc->datum.p);
+      pDst->datum.p = taosMemoryCalloc(1, len + 1);
       if (NULL == pDst->datum.p) {
         return terrno;
       }
@@ -678,9 +678,12 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
+  COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -789,7 +792,7 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(destHasPrimayKey);
+  COPY_SCALAR_FIELD(destHasPrimaryKey);
   return TSDB_CODE_SUCCESS;
 }
 

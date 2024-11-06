@@ -237,6 +237,7 @@ typedef struct SElapsedInfo {
 } SElapsedInfo;
 
 typedef struct STwaInfo {
+  double      dTwaRes;
   double      dOutput;
   int64_t     numOfElems;
   SPoint1     p;

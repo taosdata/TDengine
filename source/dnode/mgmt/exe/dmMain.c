@@ -297,12 +297,13 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, version, compatible_version);
-  printf("git: %s\n", gitinfo);
+  printf("%s\n%sd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
+         td_compatible_version);
+  printf("git: %s\n", td_gitinfo);
 #ifdef TD_ENTERPRISE
-  printf("gitOfInternal: %s\n", gitinfoOfInternal);
+  printf("gitOfInternal: %s\n", td_gitinfoOfInternal);
 #endif
-  printf("build: %s\n", buildinfo);
+  printf("build: %s\n", td_buildinfo);
 }
 
 static void dmPrintHelp() {

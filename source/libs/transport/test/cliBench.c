@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
   }
 
   initLogEnv();
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");

@@ -272,11 +272,19 @@ if(${TD_DARWIN})
 endif(${TD_DARWIN})
 
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
+
+if(${TD_DARWIN})
+    target_compile_options(zlibstatic PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
 target_include_directories(
     zlibstatic
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
 )
+
+if(${TD_DARWIN})
+    target_compile_options(zlib PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
 target_include_directories(
     zlib
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib

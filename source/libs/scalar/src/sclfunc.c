@@ -2085,7 +2085,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           (void)memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
-          NUM_TO_STRING(inputType, input, bufSize, buf);
+          int32_t outputSize = (outputLen - VARSTR_HEADER_SIZE) < bufSize ? (outputLen - VARSTR_HEADER_SIZE + 1): bufSize;
+          NUM_TO_STRING(inputType, input, outputSize, buf);
           int32_t len = (int32_t)strlen(buf);
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
           (void)memcpy(varDataVal(output), buf, len);
@@ -2413,7 +2414,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 
     char *ts = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
-    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
+    len = TMIN(TS_FORMAT_MAX_LEN - VARSTR_HEADER_SIZE, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
       (void)strncpy(format, varDataVal(formatData), len);
       format[len] = '\0';
@@ -2660,6 +2661,10 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t timeZoneStrLen() {
+  return sizeof(VarDataLenT) + strlen(tsTimezoneStr);
 }
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

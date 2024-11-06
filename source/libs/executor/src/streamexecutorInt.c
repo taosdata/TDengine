@@ -28,3 +28,8 @@ bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) {
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) {
   pBasicInfo->updateOperatorInfo = false;
 }
+
+void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  pBasicInfo->primaryPkIndex = -1;
+  pBasicInfo->updateOperatorInfo = false;
+}

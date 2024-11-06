@@ -238,13 +238,18 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
 }
 
 static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTaskId *pId) {
-  STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+  STaskId      id = {.streamId = pId->streamId, .taskId = pId->taskId};
+  SStreamTask *pTask = NULL;
+
   streamMetaRLock(pMeta);
-  SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (ppTask && *ppTask) {
-    pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
-    pItem->fetchResultVer = (*ppTask)->info.delaySchedParam;
+
+  int32_t code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+  if (code == 0) {
+    pItem->submitReqVer = pTask->chkInfo.checkpointVer;
+    pItem->fetchResultVer = pTask->info.delaySchedParam;
+    streamMetaReleaseTask(pMeta, pTask);
   }
+
   streamMetaRUnLock(pMeta);
 }
 

@@ -162,10 +162,14 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
+  pStore->streamStateGetPrev = streamStateGetPrev;
 
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
+  pStore->streamStateFillAddIfNotExist = streamStateFillAddIfNotExist;
   pStore->streamStateFillDel = streamStateFillDel;
+  pStore->streamStateFillGetNext = streamStateFillGetNext;
+  pStore->streamStateFillGetPrev = streamStateFillGetPrev;
 
   pStore->streamStateCurNext = streamStateCurNext;
   pStore->streamStateCurPrev = streamStateCurPrev;
@@ -176,8 +180,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillSeekKeyPrev = streamStateFillSeekKeyPrev;
   pStore->streamStateFreeCur = streamStateFreeCur;
 
-  pStore->streamStateGetGroupKVByCur = streamStateGetGroupKVByCur;
+  pStore->streamStateFillGetGroupKVByCur = streamStateFillGetGroupKVByCur;
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
+
+  pStore->streamStateSetFillInfo = streamStateSetFillInfo;
+  pStore->streamStateClearExpiredState = streamStateClearExpiredState;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
   pStore->streamStateSessionPut = streamStateSessionPut;
@@ -213,6 +220,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
+
+  pStore->streamStateGroupPut = streamStateGroupPut;
+  pStore->streamStateGroupGetCur = streamStateGroupGetCur;
+  pStore->streamStateGroupCurNext = streamStateGroupCurNext;
+  pStore->streamStateGroupGetKVByCur = streamStateGroupGetKVByCur;
 
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;
