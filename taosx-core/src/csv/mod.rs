@@ -201,7 +201,7 @@ async fn csv_to_taos_with_channel(
             // notify new files
             if source.option.new_file_notify {
                 // processing new files
-                let _ = tokio::spawn({
+                tokio::spawn({
                     let cancel_clone = cancel_clone.clone();
                     let from_clone = from_clone.clone();
                     async move {
@@ -247,19 +247,17 @@ async fn csv_to_taos_with_channel(
                         }
                         Ok::<(), anyhow::Error>(())
                     }
-                })
-                .instrument(Span::current());
+                    .instrument(Span::current())
+                });
                 // add a watcher to monitor the new files
                 let mut watcher = notify::recommended_watcher({
-                    move |event: notify::Result<notify::Event>| {
-                        let _ = match event {
-                            Ok(event) => {
-                                process_notify_event(task_id, event);
-                            }
-                            Err(e) => {
-                                tracing::error!("CSV source, notify event error: {e}");
-                            }
-                        };
+                    move |event: notify::Result<notify::Event>| match event {
+                        Ok(event) => {
+                            process_notify_event(task_id, event);
+                        }
+                        Err(e) => {
+                            tracing::error!("CSV source, notify event error: {e}");
+                        }
                     }
                 })?;
                 // set poll interval
@@ -1073,7 +1071,7 @@ impl CsvSource {
         let notify_interval = dsn
             .get("notify_interval")
             .and_then(|v| {
-                let duration = utils::parse_duration(&v);
+                let duration = utils::parse_duration(v);
                 match duration {
                     Ok(duration) => Some(duration),
                     Err(_) => {
@@ -1172,7 +1170,7 @@ impl CsvSource {
         // extra metrics
         let total_csv_files = breakpoints.len() + paths.len();
         let total_csv_files_completed = breakpoints.len();
-        let total_csv_files_completed_rows = breakpoints.values().map(|v| v).sum::<usize>();
+        let total_csv_files_completed_rows = breakpoints.values().sum::<usize>();
 
         let metrics = metrics_arc.ipc();
         metrics.set_extra_metric(&TOTAL_CSV_FILES, total_csv_files as u64);
@@ -1271,8 +1269,8 @@ impl CsvSource {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();
-            let task_id = self.task_id.clone();
-            let keep_processed_files = self.keep_processed_files.clone();
+            let task_id = self.task_id;
+            let keep_processed_files = self.keep_processed_files;
             let metrics_arc = metrics_arc.clone();
             // let total = total.clone();
             let future = tokio::spawn(
@@ -1533,11 +1531,11 @@ pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> 
     let task_id = format!("{}", task_id.unwrap_or(0));
     let amount = format!("{}", amount);
     // set breakpoint, if failed, retry after 1s
-    let mut result = breakpoints::breakpoints_set(&task_id, &path, &amount);
+    let mut result = breakpoints::breakpoints_set(&task_id, path, &amount);
     while let Err(e) = result {
         tracing::error!("set breakpoint for task {task_id} failed, error: {e}, retry after 1s");
         tokio::time::sleep(Duration::from_secs(1)).await;
-        result = breakpoints::breakpoints_set(&task_id, &path, &amount);
+        result = breakpoints::breakpoints_set(&task_id, path, &amount);
     }
     tracing::info!("set breakpoint for task {task_id} success, '{path}: {amount}'");
     Ok(())
@@ -1586,7 +1584,7 @@ static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new
 
 pub async fn get_csv_files_from_task(
     task_id: Option<i64>,
-    from: &String,
+    from: &str,
 ) -> anyhow::Result<Vec<TaskFile>> {
     let task_id_str = format!("{}", task_id.unwrap_or(0));
     if let Some(files) = TASK_FILES.get_async(&task_id_str).await {

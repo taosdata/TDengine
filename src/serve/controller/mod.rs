@@ -3592,7 +3592,7 @@ mod tests {
 
     #[test]
     fn test_parse_csv() {
-        let dsn = Dsn::from_str(&format!("csv:./ab.csv,./cd.csv?param=1")).unwrap();
+        let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
         dbg!(&dsn);
         assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
     }
