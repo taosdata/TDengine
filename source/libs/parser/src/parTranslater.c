@@ -10559,8 +10559,8 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
   if (NULL == pFunc) {
     return code;
   }
-  strcpy(pFunc->functionName, "_irowts");
-  strcpy(pFunc->node.userAlias, "_irowts");
+  tstrncpy(pFunc->functionName, "_irowts", tListLen(pFunc->functionName));
+  tstrncpy(pFunc->node.userAlias, "_irowts", tListLen(pFunc->node.userAlias));
   char* defaultName[] = {"_irowts", NULL};
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);

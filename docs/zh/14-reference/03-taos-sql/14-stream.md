@@ -150,7 +150,7 @@ SELECT * from information_schema.`ins_streams`;
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）
 
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
-4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）和 INTERP 函数；FILL_HISTORY必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持PREV 、NULL、 NONE、VALUE。
+4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持PREV 、NULL、 NONE、VALUE。
 
 由于窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，则事件时间无法更新，可能导致无法得到最新的计算结果。
 
