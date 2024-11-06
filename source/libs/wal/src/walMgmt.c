@@ -90,6 +90,29 @@ static int32_t walInitLock(SWal *pWal) {
   return 0;
 }
 
+int32_t walInitWriteFileForSkip(SWal *pWal) {
+  TdFilePtr pIdxTFile, pLogTFile;
+  int64_t   fileFirstVer = 0;
+
+  char fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, fileFirstVer, fnameStr);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxTFile == NULL) {
+    TAOS_RETURN(terrno);
+  }
+  walBuildLogName(pWal, fileFirstVer, fnameStr);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pLogTFile == NULL) {
+    TAOS_RETURN(terrno);
+  }
+  // switch file
+  pWal->pIdxFile = pIdxTFile;
+  pWal->pLogFile = pLogTFile;
+  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
   int32_t code = 0;
   SWal   *pWal = taosMemoryCalloc(1, sizeof(SWal));
@@ -165,17 +188,24 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   if (code < 0) {
     wWarn("vgId:%d, failed to load meta since %s", pWal->cfg.vgId, tstrerror(code));
   }
+  if (pWal->cfg.level != TAOS_WAL_SKIP) {
+    code = walCheckAndRepairMeta(pWal);
+    if (code < 0) {
+      wError("vgId:%d, cannot open wal since repair meta file failed since %s", pWal->cfg.vgId, tstrerror(code));
+      goto _err;
+    }
 
-  code = walCheckAndRepairMeta(pWal);
-  if (code < 0) {
-    wError("vgId:%d, cannot open wal since repair meta file failed since %s", pWal->cfg.vgId, tstrerror(code));
-    goto _err;
-  }
-
-  code = walCheckAndRepairIdx(pWal);
-  if (code < 0) {
-    wError("vgId:%d, cannot open wal since repair idx file failed since %s", pWal->cfg.vgId, tstrerror(code));
-    goto _err;
+    code = walCheckAndRepairIdx(pWal);
+    if (code < 0) {
+      wError("vgId:%d, cannot open wal since repair idx file failed since %s", pWal->cfg.vgId, tstrerror(code));
+      goto _err;
+    }
+  } else {
+    code = walInitWriteFileForSkip(pWal);
+    if (code < 0) {
+      wError("vgId:%d, cannot open wal since init write file for wal_level = 0 failed since %s", pWal->cfg.vgId, tstrerror(code));
+      goto _err;
+    }
   }
 
   // add ref
@@ -216,6 +246,14 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
         ", new walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64,
         pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize,
         pCfg->level, pCfg->fsyncPeriod, pCfg->retentionPeriod, pCfg->retentionSize);
+
+  if (pWal->cfg.level == TAOS_WAL_SKIP && pCfg->level != TAOS_WAL_SKIP) {
+    wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);
+    taosRemoveDir(pWal->path);
+    if (taosMkDir(pWal->path) != 0) {
+      wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    }
+  }
 
   pWal->cfg.level = pCfg->level;
   pWal->cfg.fsyncPeriod = pCfg->fsyncPeriod;
