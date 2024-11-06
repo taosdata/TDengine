@@ -70,6 +70,8 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 **下面是配置文件的示例：**
 
 ```toml
+# The ID of the currently running instance of the component that generated the QID,
+# default is 64.
 instanceId = 64
 
 # Listening port, default is 6043.
