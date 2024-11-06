@@ -548,8 +548,8 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(numOfCols);
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols + dataEncodeBufSize;
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -574,7 +574,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     pStart += sizeof(SSysTableSchema);
   }
 
-  int32_t len = blockEncode(pBlock, pStart, numOfCols);
+  int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, numOfCols);
   if (len < 0) {
     dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);

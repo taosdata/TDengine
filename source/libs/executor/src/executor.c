@@ -700,12 +700,12 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
     pTaskInfo->paramSet = true;
     code = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam, &pRes);
-    blockDataCheck(pRes, false);
   } else {
     code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, &pRes);
-    blockDataCheck(pRes, false);
   }
 
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = blockDataCheck(pRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pRes == NULL) {
@@ -750,7 +750,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     }
 
     code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, &pRes);
-    blockDataCheck(pRes, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = blockDataCheck(pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -849,7 +850,11 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 
-  blockDataCheck(*pRes, false);
+  code = blockDataCheck(*pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
 
   uint64_t el = (taosGetTimestampUs() - st);
 

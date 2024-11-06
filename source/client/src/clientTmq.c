@@ -2869,8 +2869,7 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
     pRspObj->resInfo.precision = precision;
 
     pRspObj->resInfo.totalRows += pRspObj->resInfo.numOfRows;
-    int32_t code = setResultDataPtr(&pRspObj->resInfo, pRspObj->resInfo.fields, pRspObj->resInfo.numOfCols,
-                                    pRspObj->resInfo.numOfRows, convertUcs4);
+    int32_t code = setResultDataPtr(&pRspObj->resInfo, convertUcs4);
     if (code != 0) {
       return code;
     }
