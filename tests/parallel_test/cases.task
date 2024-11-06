@@ -44,7 +44,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
-,,n,army,./pytest.sh python3 ./test.py -f user/test_passwd.py
+,,y,army,./pytest.sh python3 ./test.py -f user/test_passwd.py
 ,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
