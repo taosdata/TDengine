@@ -10567,6 +10567,9 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+  }
 
   if (TSDB_CODE_SUCCESS == code && STREAM_CREATE_STABLE_TRUE == pReq->createStb) {
     SColumnDefNode* pColDef = NULL;
@@ -10580,9 +10583,7 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
     if (TSDB_CODE_SUCCESS == code) code = nodesListPushFront(pCols, (SNode*)pColDef);
     if (TSDB_CODE_SUCCESS != code) nodesDestroyNode((SNode*)pColDef);
   }
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pFunc);
-  }
+
   return code;
 }
 
