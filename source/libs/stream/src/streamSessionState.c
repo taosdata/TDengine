@@ -20,12 +20,10 @@
 #include "tcommon.h"
 #include "tsimplehash.h"
 
-typedef int (*__session_compare_fn_t)(const SSessionKey* pWin, const void* pDatas, int pos);
-
-int sessionStateKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos) {
+int sessionStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
   SRowBuffPos* pPos2 = taosArrayGetP(pDatas, pos);
   SSessionKey* pWin2 = (SSessionKey*)pPos2->pKey;
-  return sessionWinKeyCmpr(pWin1, pWin2);
+  return sessionWinKeyCmpr((SSessionKey*)pWin1, pWin2);
 }
 
 int sessionStateRangeKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos) {
@@ -79,7 +77,7 @@ bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
   return false;
 }
 
-SStreamStateCur* createSessionStateCursor(SStreamFileState* pFileState) {
+SStreamStateCur* createStateCursor(SStreamFileState* pFileState) {
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -536,7 +534,7 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
   }
 
   if (index >= 0) {
-    pCur = createSessionStateCursor(pFileState);
+    pCur = createStateCursor(pFileState);
     if (pCur == NULL) {
       return NULL;
     }
@@ -580,7 +578,7 @@ static void checkAndTransformCursor(SStreamFileState* pFileState, const uint64_t
   if (taosArrayGetSize(pWinStates) > 0 &&
       (code == TSDB_CODE_FAILED || sessionStateKeyCompare(&key, pWinStates, 0) >= 0)) {
     if (!(*ppCur)) {
-      (*ppCur) = createSessionStateCursor(pFileState);
+      (*ppCur) = createStateCursor(pFileState);
     }
     transformCursor(pFileState, *ppCur);
   } else if (*ppCur) {
@@ -640,7 +638,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     }
     pBuffCur->buffIndex = 0;
   } else if (taosArrayGetSize(pWinStates) > 0) {
-    pBuffCur = createSessionStateCursor(pFileState);
+    pBuffCur = createStateCursor(pFileState);
     if (pBuffCur == NULL) {
       return NULL;
     }

@@ -500,7 +500,9 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   STaskStateTrans* pTrans = pSM->pActiveTrans;
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
-
+    // when trying to finish current event successfully, another event with high priorities, such as dropping/stop, has
+    // interrupted this procedure, and changed the status after freeing the activeTrans, resulting in the failure of
+    // processing of current event.
     if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__PAUSE && s != TASK_STATUS__STOP && s != TASK_STATUS__UNINIT &&
         s != TASK_STATUS__READY) {
       stError("s-task:%s invalid task status:%s on handling event:%s success", id, pSM->current.name,

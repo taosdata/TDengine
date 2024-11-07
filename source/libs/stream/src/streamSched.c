@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "ttime.h"
 #include "streamInt.h"
 #include "ttimer.h"
 
@@ -20,18 +21,54 @@ static void streamTaskResumeHelper(void* param, void* tmrId);
 static void streamTaskSchedHelper(void* param, void* tmrId);
 
 void streamSetupScheduleTrigger(SStreamTask* pTask) {
-  int64_t delayParam = pTask->info.delaySchedParam;
-  if (delayParam != 0 && pTask->info.fillHistory == 0) {
-    int64_t* pTaskRefId = NULL;
-    int32_t  code = streamTaskAllocRefId(pTask, &pTaskRefId);
-    if (code == 0) {
-      stDebug("s-task:%s refId:%" PRId64 " enable the scheduler trigger, delay:%" PRId64, pTask->id.idStr,
-              pTask->id.refId, delayParam);
+  int64_t     delay = 0;
+  int32_t     code = 0;
+  const char* id = pTask->id.idStr;
+  int64_t* pTaskRefId = NULL;
 
-      streamTmrStart(streamTaskSchedHelper, (int32_t)delayParam, pTaskRefId, streamTimer,
-                     &pTask->schedInfo.pDelayTimer, pTask->pMeta->vgId, "sched-tmr");
-      pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
+  if (pTask->info.fillHistory == 1) {
+    return;
+  }
+
+  // dynamic set the trigger & triggerParam for STREAM_TRIGGER_FORCE_WINDOW_CLOSE
+  if ((pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) && (pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
+    int64_t   waterMark = 0;
+    SInterval interval = {0};
+    STimeWindow lastTimeWindow = {0};
+    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow);
+    if (code) {
+      stError("s-task:%s failed to init scheduler info, code:%s", id, tstrerror(code));
+      return;
     }
+
+    pTask->status.latestForceWindow = lastTimeWindow;
+    pTask->info.delaySchedParam = interval.sliding;
+    pTask->info.watermark = waterMark;
+    pTask->info.interval = interval;
+
+    // calculate the first start timestamp
+    int64_t now = taosGetTimestamp(interval.precision);
+    STimeWindow curWin = getAlignQueryTimeWindow(&pTask->info.interval, now);
+    delay = (curWin.ekey + 1) - now + waterMark;
+
+    stInfo("s-task:%s extract interval info from executor, wm:%" PRId64 " interval:%" PRId64 " unit:%c sliding:%" PRId64
+           " unit:%c, initial start after:%" PRId64,
+           id, waterMark, interval.interval, interval.intervalUnit, interval.sliding, interval.slidingUnit, delay);
+  } else {
+    delay = pTask->info.delaySchedParam;
+    if (delay == 0) {
+      return;
+    }
+  }
+
+  code = streamTaskAllocRefId(pTask, &pTaskRefId);
+  if (code == 0) {
+    stDebug("s-task:%s refId:%" PRId64 " enable the scheduler trigger, delay:%" PRId64, pTask->id.idStr,
+            pTask->id.refId, delay);
+
+    streamTmrStart(streamTaskSchedHelper, (int32_t)delay, pTaskRefId, streamTimer,
+                    &pTask->schedInfo.pDelayTimer, pTask->pMeta->vgId, "sched-tmr");
+    pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 }
 
@@ -142,6 +179,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   const char*  id = pTask->id.idStr;
   int32_t      nextTrigger = (int32_t)pTask->info.delaySchedParam;
   int32_t      vgId = pTask->pMeta->vgId;
+  int32_t      code = 0;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
   stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
@@ -161,43 +199,76 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     return;
   }
 
+  if (streamTaskShouldPause(pTask)) {
+    stDebug("s-task:%s is paused, check in nextTrigger:%ds", id, nextTrigger/1000);
+    streamTmrStart(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer, vgId,
+                   "sched-run-tmr");
+  }
+
   if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
-    if (status == TASK_TRIGGER_STATUS__ACTIVE) {
-      SStreamTrigger* pTrigger;
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      SStreamTrigger* pTrigger = NULL;
 
-      int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&pTrigger);
-      if (code) {
-        stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
-                nextTrigger);
-        terrno = code;
-        goto _end;
+      while (1) {
+        code = streamCreateForcewindowTrigger(&pTrigger, pTask->info.delaySchedParam, &pTask->info.interval,
+                                              &pTask->status.latestForceWindow, id);
+        if (code != 0) {
+          stError("s-task:%s failed to prepare force window close trigger, code:%s, try again in %dms", id,
+                  tstrerror(code), nextTrigger);
+          goto _end;
+        }
+
+        // in the force window close model, status trigger does not matter. So we do not set the trigger model
+        code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+        if (code != TSDB_CODE_SUCCESS) {
+          stError("s-task:%s failed to put retrieve aggRes block into q, code:%s", pTask->id.idStr, tstrerror(code));
+          goto _end;
+        }
+
+        // check whether the time window gaps exist or not
+        int64_t now = taosGetTimestamp(pTask->info.interval.precision);
+        int64_t intervalEndTs = pTrigger->pBlock->info.window.skey + pTask->info.interval.interval;
+
+        // there are gaps, needs to be filled
+        STimeWindow w = pTrigger->pBlock->info.window;
+        w.ekey = w.skey + pTask->info.interval.interval;
+        if (w.skey <= pTask->status.latestForceWindow.skey) {
+          stFatal("s-task:%s invalid new time window in force_window_close model, skey:%" PRId64
+                  " should be greater than latestForceWindow skey:%" PRId64,
+                  pTask->id.idStr, w.skey, pTask->status.latestForceWindow.skey);
+        }
+
+        pTask->status.latestForceWindow = w;
+        if (intervalEndTs + pTask->info.watermark + pTask->info.interval.interval > now) {
+          break;
+        } else {
+          stDebug("s-task:%s gap exist for force_window_close, current force_window_skey:%" PRId64, id, w.skey);
+        }
       }
 
-      pTrigger->type = STREAM_INPUT__GET_RES;
-      pTrigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-      if (pTrigger->pBlock == NULL) {
-        taosFreeQitem(pTrigger);
-
-        stError("s-task:%s failed to build retrieve data trigger, code:out of memory, try again in %dms", id,
+    } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
+      SStreamTrigger* pTrigger = NULL;
+      code = streamCreateSinkResTrigger(&pTrigger);
+      if (code) {
+        stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);
         goto _end;
       }
 
       atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
-      pTrigger->pBlock->info.type = STREAM_GET_ALL;
 
       code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to put retrieve block into trigger, code:%s", pTask->id.idStr, tstrerror(code));
+        stError("s-task:%s failed to put retrieve aggRes block into q, code:%s", pTask->id.idStr, tstrerror(code));
         goto _end;
       }
+    }
 
-      code = streamTrySchedExec(pTask);
-      if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
-      }
+    code = streamTrySchedExec(pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
     }
   }
 

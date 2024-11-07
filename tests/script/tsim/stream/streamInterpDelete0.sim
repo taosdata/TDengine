@@ -1,0 +1,507 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(prev);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop0:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop0
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop0
+endi
+
+if $data11 != 8 then
+  print ======data11=$data11
+  goto loop0
+endi
+
+if $data21 != 10 then
+  print ======data21=$data21
+  goto loop0
+endi
+
+if $data31 != 15 then
+  print ======data31=$data31
+  goto loop0
+endi
+
+if $data41 != 15 then
+  print ======data41=$data41
+  goto loop0
+endi
+
+print 1 sql delete from t1 where ts >= 1648791215000 and ts <= 1648791216000;
+sql delete from t1 where ts >= 1648791215000 and ts <= 1648791216000;
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop1:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop1
+endi
+
+if $data11 != 8 then
+  print ======data11=$data11
+  goto loop1
+endi
+
+if $data21 != 8 then
+  print ======data21=$data21
+  goto loop1
+endi
+
+if $data31 != 8 then
+  print ======data31=$data31
+  goto loop1
+endi
+
+if $data41 != 8 then
+  print ======data41=$data41
+  goto loop1
+endi
+
+
+print 2 sql delete from t1 where ts >= 1648791212000 and ts <= 1648791213000;
+sql delete from t1 where ts >= 1648791212000 and ts <= 1648791213000;
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop2:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop2
+endi
+
+if $data11 != 8 then
+  print ======data11=$data11
+  goto loop2
+endi
+
+if $data21 != 8 then
+  print ======data21=$data21
+  goto loop2
+endi
+
+if $data31 != 8 then
+  print ======data31=$data31
+  goto loop2
+endi
+
+print 3 sql delete from t1 where ts >= 1648791217000 and ts <= 1648791218000;
+sql delete from t1 where ts >= 1648791217000 and ts <= 1648791218000
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(prev);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop3:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop3
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop3
+endi
+
+
+print step2
+print =============== create database
+sql create database test2 vgroups 1;
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791212001,1,1,1,1.0) (1648791214000,8,1,1,1.0) (1648791215000,10,1,1,1.0) (1648791215009,15,1,1,1.0) (1648791217001,4,1,1,1.0);
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop4:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop4
+endi
+
+if $data11 != 8 then
+  print ======data11=$data11
+  goto loop4
+endi
+
+if $data21 != 10 then
+  print ======data21=$data21
+  goto loop4
+endi
+
+if $data31 != 4 then
+  print ======data31=$data31
+  goto loop4
+endi
+
+if $data41 != 4 then
+  print ======data41=$data41
+  goto loop4
+endi
+
+print 1 sql delete from t1 where ts >= 1648791215000 and ts <= 1648791216000;
+sql delete from t1 where ts >= 1648791215000 and ts <= 1648791216000;
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop5:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop5
+endi
+
+if $data11 != 8 then
+  print ======data11=$data11
+  goto loop5
+endi
+
+if $data21 != 4 then
+  print ======data21=$data21
+  goto loop5
+endi
+
+if $data31 != 4 then
+  print ======data31=$data31
+  goto loop5
+endi
+
+if $data41 != 4 then
+  print ======data41=$data41
+  goto loop5
+endi
+
+
+print 2 sql delete from t1 where ts >= 1648791212000 and ts <= 1648791213000;
+sql delete from t1 where ts >= 1648791212000 and ts <= 1648791213000;
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop6:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+if $data11 != 4 then
+  print ======data11=$data11
+  goto loop6
+endi
+
+if $data21 != 4 then
+  print ======data21=$data21
+  goto loop6
+endi
+
+if $data31 != 4 then
+  print ======data31=$data31
+  goto loop6
+endi
+
+print 3 sql delete from t1 where ts >= 1648791217000 and ts <= 1648791218000;
+sql delete from t1 where ts >= 1648791217000 and ts <= 1648791218000
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(next);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+
+loop7:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+# row 0
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop7
+endi
+
+# row 0
+if $data01 != 8 then
+  print ======data01=$data01
+  goto loop7
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

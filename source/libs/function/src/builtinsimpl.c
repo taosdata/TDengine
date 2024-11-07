@@ -4266,6 +4266,10 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
 
   numOfElems = pInput->numOfRows;  // since this is the primary timestamp, no need to exclude NULL values
   if (numOfElems == 0) {
+    // for stream
+    if (pCtx->end.key != INT64_MIN) {
+      pInfo->max = pCtx->end.key + 1;
+    }
     goto _elapsed_over;
   }
 
@@ -6207,11 +6211,11 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     pResInfo->numOfRes = 0;
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
-      pInfo->dOutput = pInfo->p.val;
+      pInfo->dTwaRes = pInfo->p.val;
     } else if (pInfo->win.ekey == INT64_MAX || pInfo->win.skey == INT64_MIN) {  // no data in timewindow
-      pInfo->dOutput = 0;
+      pInfo->dTwaRes = 0;
     } else {
-      pInfo->dOutput = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
+      pInfo->dTwaRes = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
     }
 
     pResInfo->numOfRes = 1;

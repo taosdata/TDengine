@@ -818,8 +818,8 @@ _end:
   }
 }
 
-int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                         SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   SCountWinodwPhysiNode*       pCountNode = (SCountWinodwPhysiNode*)pPhyNode;
@@ -869,7 +869,8 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->primaryTsIndex = ((SColumnNode*)pCountNode->window.pTspk)->slotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState,
                                 sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
-                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
+                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex,
+                                STREAM_STATE_BUFF_SORT, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->streamAggSup.windowCount = pCountNode->windowCount;
@@ -903,7 +904,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
-  pInfo->destHasPrimaryKey = pCountNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pCountNode->window.destHasPrimaryKey;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, true,

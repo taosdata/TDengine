@@ -26,7 +26,7 @@ from frame.sql import *
 from frame.caseBase import *
 from frame import *
 
-initial_hash_resinfoInt = "e739cde34b98f13dd9ad696d18f060cc"
+initial_hash_resinfoInt = "fbfd69d6f0aa6e015a7b5475b33ee8c8"
 initial_hash_resinfo = "172d04aa7af0d8cd2e4d9df284079958"
 
 class TDTestCase(TBase):
@@ -43,6 +43,7 @@ class TDTestCase(TBase):
         resinfoIntFile = etool.curFile(__file__, "../../../../source/libs/function/inc/functionResInfoInt.h")
         resinfoFile = etool.curFile(__file__, "../../../../include/libs/function/functionResInfo.h")
         current_hash = self.get_file_hash(resinfoIntFile)
+        tdLog.info(current_hash)
         if current_hash != initial_hash_resinfoInt:
             tdLog.exit(f"{resinfoIntFile} has been modified.")
         else:

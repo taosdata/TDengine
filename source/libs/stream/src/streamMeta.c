@@ -723,7 +723,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
 
   pTask->id.refId = refId = taosAddRef(streamTaskRefPool, pTask);
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask->id.refId, sizeof(int64_t));
-  if (code) {
+  if (code) {  // todo remove it from task list
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
 
     int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
@@ -753,9 +753,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   if (pTask->info.fillHistory == 0) {
     int32_t val = atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
   }
-
-  // enable the scheduler for stream tasks
-  streamSetupScheduleTrigger(pTask);
 
   *pAdded = true;
   return code;
@@ -885,6 +882,14 @@ static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
     if (code) {
       stError("s-task:%s vgId:%d failed to send checkpoint-source rsp, code:%s", pTask->id.idStr, pTask->pMeta->vgId,
               tstrerror(code));
+    }
+  }
+
+  // let's kill the query procedure within stream, to end it ASAP.
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
     }
   }
   return code;
@@ -1158,9 +1163,6 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       }
       continue;
     }
-
-    // enable the scheduler for stream tasks after acquire the task RefId.
-    streamSetupScheduleTrigger(pTask);
 
     stInfo("s-task:0x%x vgId:%d set refId:%"PRId64, (int32_t) id.taskId, vgId, pTask->id.refId);
     if (pTask->info.fillHistory == 0) {

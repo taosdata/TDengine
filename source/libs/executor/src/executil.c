@@ -450,8 +450,8 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   STransTagExprCtx* pCtx = pContext;
-  SMetaReader* mr = pCtx->pReader;
-  bool isTagCol = false, isTbname = false;
+  SMetaReader*      mr = pCtx->pReader;
+  bool              isTagCol = false, isTbname = false;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)*pNode;
     if (pCol->colType == COLUMN_TYPE_TBNAME)
@@ -573,7 +573,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
 
 static EDealRes getColumn(SNode** pNode, void* pContext) {
   tagFilterAssist* pData = (tagFilterAssist*)pContext;
-  SColumnNode* pSColumnNode = NULL;
+  SColumnNode*     pSColumnNode = NULL;
   if (QUERY_NODE_COLUMN == nodeType((*pNode))) {
     pSColumnNode = *(SColumnNode**)pNode;
   } else if (QUERY_NODE_FUNCTION == nodeType((*pNode))) {
@@ -596,7 +596,7 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  void*            data = taosHashGet(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
+  void* data = taosHashGet(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
   if (!data) {
     int32_t tempRes =
         taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
@@ -1637,7 +1637,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
   }
 
   SNodeList* groupNew = NULL;
-  int32_t code = nodesCloneList(pGroupNode, &groupNew);
+  int32_t    code = nodesCloneList(pGroupNode, &groupNew);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
     return code;
@@ -1919,7 +1919,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
         pExprNode->_function.functionName[len] == 0) {
       pFuncNode->pParameterList = NULL;
-      int32_t code = nodesMakeList(&pFuncNode->pParameterList);
+      int32_t     code = nodesMakeList(&pFuncNode->pParameterList);
       SValueNode* res = NULL;
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
@@ -2925,6 +2925,10 @@ char* getStreamOpName(uint16_t opType) {
       return "stream event";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       return "stream count";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
+      return "stream interp";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+      return "interval continue";
   }
   return "";
 }
@@ -2952,7 +2956,9 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
   } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s %s: Block is Empty. block type %d", taskIdStr, flag, opStr, pBlock->info.type);
+    qDebug("%s===stream===%s %s: Block is Empty. block type %d.skey:%" PRId64 ",ekey:%" PRId64 ",version%" PRId64,
+           taskIdStr, flag, opStr, pBlock->info.type, pBlock->info.window.skey, pBlock->info.window.ekey,
+           pBlock->info.version);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {
