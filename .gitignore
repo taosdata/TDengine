@@ -132,4 +132,4 @@ tools/taos-tools
 tools/taosws-rs
 tags
 .clangd
-!packaging/smoke_test/pytest_require.txt
+!packaging/smokeTest/pytest_require.txt
