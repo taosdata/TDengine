@@ -64,6 +64,10 @@ static void    udfWatchUdfd(void *args);
 void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
+  if(pData == NULL) {
+    fnError("udfd process data is NULL");
+    return;
+  }
   if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
     fnInfo("udfd process exit due to SIGINT or dnode-mgmt called stop");
   } else {
