@@ -122,6 +122,7 @@ alter_database_option: {
   | KEEP value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | MINROWS value
 }
 ```
 
