@@ -5732,7 +5732,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tb));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->filterTb));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->compactId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->compactId1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withFull));
   tEndEncode(&encoder);
 
@@ -5760,9 +5760,9 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->filterTb));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->compactId));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->compactId1));
   } else {
-    pReq->compactId = -1;
+    pReq->compactId1 = -1;
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, (int8_t *)&pReq->withFull));

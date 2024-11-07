@@ -526,6 +526,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
+  dInfo("retrieve table:%s, user:%s, compactId:%" PRId64, retrieveReq.tb, retrieveReq.user, retrieveReq.compactId1);
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     code = TSDB_CODE_MND_NO_RIGHTS;

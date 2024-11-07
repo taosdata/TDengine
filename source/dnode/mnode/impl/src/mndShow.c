@@ -132,6 +132,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_COMPACT;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
@@ -232,7 +234,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
 
-  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb, retrieveReq.compactId1);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));

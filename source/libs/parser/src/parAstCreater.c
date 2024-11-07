@@ -2812,6 +2812,18 @@ _err:
   return NULL;
 }
 
+SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTransactionDetailsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pTransactionId = pTransactionIdNode;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pTransactionIdNode);
+  return NULL;
+}
+
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);

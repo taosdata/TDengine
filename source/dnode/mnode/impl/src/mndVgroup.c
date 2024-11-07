@@ -2752,12 +2752,15 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
 
   mndTransSetSerial(pTrans);
 
-  if (pNewVgroup->replica == 1 && pNewDb->cfg.replications == 3) {
+  if (pNewDb->cfg.replications == 3) {
+    mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
     mInfo("db:%s, vgId:%d, will add 2 vnodes, vn:0 dnode:%d", pVgroup->dbName, pVgroup->vgId,
           pVgroup->vnodeGid[0].dnodeId);
 
     // add second
-    TAOS_CHECK_RETURN(mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
+    if (pNewVgroup->replica == 1){
+      TAOS_CHECK_RETURN(mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
+    }
 
     // learner stage
     pNewVgroup->vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
@@ -2776,7 +2779,9 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, pNewVgroup));
 
     // add third
-    TAOS_CHECK_RETURN(mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
+    if (pNewVgroup->replica == 2){
+      TAOS_CHECK_RETURN (mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
+    }
 
     pNewVgroup->vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     pNewVgroup->vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
@@ -2788,7 +2793,8 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pNewDb, pNewVgroup, &pNewVgroup->vnodeGid[2]));
 
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, pNewVgroup));
-  } else if (pNewVgroup->replica == 3 && pNewDb->cfg.replications == 1) {
+  } else if (pNewDb->cfg.replications == 1) {
+    mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
     mInfo("db:%s, vgId:%d, will remove 2 vnodes, vn:0 dnode:%d vn:1 dnode:%d vn:2 dnode:%d", pVgroup->dbName,
           pVgroup->vgId, pVgroup->vnodeGid[0].dnodeId, pVgroup->vnodeGid[1].dnodeId, pVgroup->vnodeGid[2].dnodeId);
 
@@ -2805,9 +2811,9 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     TAOS_CHECK_RETURN(mndRemoveVnodeFromVgroup(pMnode, pTrans, pNewVgroup, pArray, &del2));
     TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pNewDb, pNewVgroup, &del2, true));
     TAOS_CHECK_RETURN(
-        mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, pNewVgroup, pNewVgroup->vnodeGid[0].dnodeId));
+      mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, pNewVgroup, pNewVgroup->vnodeGid[0].dnodeId));
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, pNewVgroup));
-  } else if (pNewVgroup->replica == 1 && pNewDb->cfg.replications == 2) {
+  } else if (pNewDb->cfg.replications == 2) {
     mInfo("db:%s, vgId:%d, will add 1 vnode, vn:0 dnode:%d", pVgroup->dbName, pVgroup->vgId,
           pVgroup->vnodeGid[0].dnodeId);
 

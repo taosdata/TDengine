@@ -995,7 +995,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  //if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
   if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
@@ -1236,6 +1236,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
     TAOS_RETURN(code);
   }
   mInfo("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
+  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled, pTrans->killMode);
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
@@ -1243,6 +1244,8 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   TAOS_CHECK_GOTO(mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew), NULL, _OVER);
+
+  mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled, pTrans->killMode);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 

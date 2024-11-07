@@ -404,6 +404,11 @@ typedef struct SShowCompactDetailsStmt {
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
 
+typedef struct SShowTransactionDetailsStmt {
+  ENodeType type;
+  SNode*    pTransactionId;
+} SShowTransactionDetailsStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {

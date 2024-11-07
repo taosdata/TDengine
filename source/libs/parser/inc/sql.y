@@ -562,6 +562,7 @@ cmd ::= SHOW BNODES.                                                            
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
+cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
