@@ -162,6 +162,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_ANODE,
   TSDB_MGMT_TABLE_ANODE_FULL,
   TSDB_MGMT_TABLE_USAGE,
+  TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -391,6 +392,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_VIEWS_STMT,
   QUERY_NODE_SHOW_COMPACTS_STMT,
   QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,
+  QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
   QUERY_NODE_SHOW_GRANTS_FULL_STMT,
   QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
   QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
@@ -2252,7 +2254,7 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
-  int64_t compactId;  // for compact
+  int64_t compactId1;  // for compact
   bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
