@@ -35,6 +35,9 @@
 extern SConfig* tsCfg;
 
 static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
+  if (NULL == pBlock || NULL == pRsp) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
   size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
@@ -216,6 +219,9 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
 
 static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode) {
   SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
+  if (NULL == pDesc || NULL == pDesc->pMeta) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = NULL;
@@ -505,7 +511,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
-void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
+static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
 #define LTYPE_LEN (32 + 60)  // 60 byte for compress info
@@ -539,7 +545,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
+static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
@@ -558,7 +564,7 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
+static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -566,7 +572,7 @@ void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
+static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
@@ -643,7 +649,7 @@ _exit:
   return code;
 }
 
-void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
+static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
   if (pCfg->commentLen > 0) {
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                       " COMMENT '%s'", pCfg->pComment);
@@ -997,7 +1003,7 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
   return code;
 }
 
-int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
+static int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
 
   int32_t index = 0;
