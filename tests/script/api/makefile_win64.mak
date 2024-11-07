@@ -2,7 +2,7 @@
 
 TARGET = passwdTest.exe
 CC = cl
-CFLAGS = /W4 /EHsc /I"C:\TDengine\include" /D_WINDOWS
+CFLAGS = /W4 /EHsc /I"C:\TDengine\include" /DWINDOWS
 LDFLAGS = /link /LIBPATH:"C:\TDengine\driver" taos.lib
 
 SRCS = passwdTest.c
