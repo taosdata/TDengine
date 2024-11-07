@@ -234,16 +234,16 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 
 升级 TDengine 后，如果流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
 
-1.修改 taos.cfg，添加disableStream 1
+1.修改 taos.cfg，添加 disableStream 1
 
 2.重启 taosd。如果启动失败，需要手动修改文件夹名字：$dataDir/vnode/vnode*/tq/stream，$dataDir指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似vnode1 、vnode2...vnode* 的目录，全部需要修改里面的tq/stream目录的名字，改为vnode1.bk 、vnode2.bk ... vnode*.bk
 
-3.启动 taos，
+3.启动 taos
 
 ```sql
-drop stream xxxx; ---- xxx指stream name
-flush database stream_source_db; ----流计算读取数据的超级表所在的database；
-flush database stream_dest_db; -----流计算写入数据的超级表所在的database；
+drop stream xxxx;                ---- xxx 指stream name
+flush database stream_source_db; ---- 流计算读取数据的超级表所在的 database
+flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的 database
 ```
 
 举例：
