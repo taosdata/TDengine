@@ -287,7 +287,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SConfigReq req = {0};
 
-  req.cver = configVersion;
+  req.cver = tsConfigVersion;
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
   int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);

@@ -57,7 +57,7 @@ static void *dmConfigThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    if (pMgmt->pData->dropped || pMgmt->pData->stopped || configInited) break;
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;

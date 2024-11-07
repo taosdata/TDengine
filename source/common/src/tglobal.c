@@ -43,8 +43,8 @@ char          tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 char          tsVersionName[16] = "community";
 uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
-int32_t       configVersion = 0;
-int32_t       configInited = 0;
+int32_t       tsConfigVersion = 0;
+int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
 char          tsEncryptAlgorithm[16] = {0};
@@ -649,7 +649,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX,
-<<<<<<< HEAD
                                 CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
