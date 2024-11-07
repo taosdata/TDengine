@@ -988,3 +988,14 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   }
   return TSDB_CODE_SUCCESS;
 }
+int32_t transCvtUvErrno(int32_t code) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_THIRDPARTY_ERROR;
+#else
+  if (code < 0) {
+    return TAOS_SYSTEM_ERROR(-code);
+  }
+  return code;
+#endif
+
+}

@@ -511,6 +511,9 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
+
+int32_t transCvtUvErrno(int32_t code);
+
 #ifdef __cplusplus
 }
 #endif
