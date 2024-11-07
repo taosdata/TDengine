@@ -900,7 +900,9 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
   pInfo->metaSize = dirSize[2];
   pInfo->cacheSize = dirSize[3];
 
-  return 0;
+  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
+
+  return code;
 }
 
 int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {

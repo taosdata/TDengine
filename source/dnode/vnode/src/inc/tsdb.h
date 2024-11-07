@@ -1073,6 +1073,8 @@ int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
 
 void tsdbRemoveFile(const char *path);
 
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size); 
+k
 #define taosCloseFileWithLog(fd)         \
   do {                                   \
     if (taosCloseFile(fd) < 0) {         \
