@@ -57,6 +57,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndProcessCompactVgroupsReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -76,6 +77,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DB, mndProcessDropDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_VGROUPS, mndProcessCompactVgroupsReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB, mndProcessS3MigrateDbReq);

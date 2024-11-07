@@ -8080,6 +8080,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
+    case TDMT_MND_COMPACT_VGROUPS: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactVgroupsReq, pReq);
+      break;
+    }
 
     case TDMT_MND_TMQ_DROP_TOPIC: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);

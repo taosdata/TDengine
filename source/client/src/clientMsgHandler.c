@@ -845,6 +845,7 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
     case TDMT_MND_SHOW_VARIABLES:
       return processShowVariablesRsp;
     case TDMT_MND_COMPACT_DB:
+    case TDMT_MND_COMPACT_VGROUPS:
       return processCompactDbRsp;  
     default:
       return genericRspCallback;

@@ -457,7 +457,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {
-    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
+    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
   } else {
     mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
   }
