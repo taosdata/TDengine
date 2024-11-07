@@ -20,12 +20,27 @@
  *  passwdTest.c
  *   - Run the test case in clear TDengine environment with default root passwd 'taosdata'
  */
+#ifdef WINDOWS
+#include <winsock2.h>
+#include <windows.h>
+#include <stdint.h>
 
+#ifndef PRId64
+#define PRId64 "I64d"
+#endif
+
+#ifndef PRIu64
+#define PRIu64 "I64u"
+#endif
+
+#else
 #include <inttypes.h>
+#include <unistd.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include "taos.h"  // TAOS header file
 
 #define nDup     1
@@ -49,6 +64,16 @@ void passVerTestMulti(const char *host, char *qstr);
 void sysInfoTest(TAOS *taos, const char *host, char *qstr);
 void userDroppedTest(TAOS *taos, const char *host, char *qstr);
 void clearTestEnv(TAOS *taos, const char *host, char *qstr);
+
+void taosMsleep(int64_t ms) {
+  if (ms < 0) return;
+#ifdef WINDOWS
+  Sleep(ms);
+#else
+  usleep(ms * 1000);
+#endif
+}
+	
 
 int   nPassVerNotified = 0;
 int   nUserDropped = 0;
@@ -283,20 +308,20 @@ void passVerTestMulti(const char *host, char *qstr) {
     printf("%s:%d [%d] second(s) elasped, passVer notification received:%d, total:%d\n", __func__, __LINE__, i,
            nPassVerNotified, nConn);
     if (nPassVerNotified >= nConn) break;
-    sleep(1);
+    taosMsleep(1000);
   }
 
   // close the taos_conn
   for (int i = 0; i < nRoot; ++i) {
     taos_close(taos[i]);
     printf("%s:%d close taos[%d]\n", __func__, __LINE__, i);
-    // sleep(1);
+    // taosMsleep(1000);
   }
 
   for (int i = 0; i < nUser; ++i) {
     taos_close(taosu[i]);
     printf("%s:%d close taosu[%d]\n", __func__, __LINE__, i);
-    // sleep(1);
+    // taosMsleep(1000);
   }
 
   fprintf(stderr, "######## %s #########\n", __func__);
@@ -356,7 +381,7 @@ _REP:
 
   fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
   for (int i = 1; i <= 2; ++i) {
-    sleep(1);
+    taosMsleep(1000);
   }
 
   res = taos_query(taos[0], qstr);
@@ -372,7 +397,7 @@ _REP:
   queryDB(taosRoot, "alter user user0 sysinfo 1");
   fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
   for (int i = 1; i <= 2; ++i) {
-    sleep(1);
+    taosMsleep(1000);
   }
 
   if(++nRep < 5) {
@@ -426,7 +451,7 @@ _loop:
     printf("%s:%d [%d] second(s) elasped, user dropped notification received:%d, total:%d\n", __func__, __LINE__, i,
            nUserDropped, nConn);
     if (nUserDropped >= nConn) break;
-    sleep(1);
+    taosMsleep(1000);
   }
 
   for (int i = 0; i < nTestUsers; ++i) {
