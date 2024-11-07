@@ -37,6 +37,7 @@
 #include "tdef.h"
 #include "tvariant.h"
 #include "stub.h"
+#include "../inc/tmempoolInt.h"
 
 
 namespace {
@@ -155,9 +156,10 @@ typedef struct {
 } SMPTestJobCtx;
 
 typedef struct {
-  int64_t        jobQuota;
+  int32_t        jobQuota;
   bool           reserveMode;
   int64_t        upperLimitSize;
+  int32_t        reserveSize;
   int32_t        threadNum;
   int32_t        randTask;
 } SMPTestParam;
@@ -487,7 +489,7 @@ int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
   return TSDB_CODE_SUCCESS;
 }
 
-void mptRetireJobsCb(void* pHandle, int64_t retireSize, int32_t errCode) {
+void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
   SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashIterate(mptCtx.pJobs, NULL);
   uint64_t jobId = 0;
   int64_t retiredSize = 0;
@@ -514,37 +516,36 @@ void mptRetireJobsCb(void* pHandle, int64_t retireSize, int32_t errCode) {
 }
 
 
-void mptRetireJobCb(SMemPoolJob* mpJob, int32_t errCode) {
-  SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashGet(mptCtx.pJobs, &mpJob->jobId, sizeof(mpJob->jobId));
+void mptRetireJobCb(uint64_t jobId, int32_t errCode) {
+  SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashGet(mptCtx.pJobs, &jobId, sizeof(jobId));
   if (NULL == pJob) {
-    uError("QID:0x%" PRIx64 " fail to get job from job hash", mpJob->jobId);
+    uError("QID:0x%" PRIx64 " fail to get job from job hash", jobId);
     return;
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    uInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, mpJob->jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
+    uInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
   } else {
-    uDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, mpJob->jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
+    uDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
 
 void mptInitPool(void) {
   SMemPoolCfg cfg = {0};
 
-  cfg.reserveMode = mptCtx.param.reserveMode;
   if (!mptCtx.param.reserveMode) {
-    cfg.upperLimitSize = mptCtx.param.upperLimitSize;
+    //cfg.upperLimitSize = mptCtx.param.upperLimitSize;
   } else {
     int64_t memSize = 0;
     ASSERT_TRUE(0 == taosGetSysAvailMemory(&memSize));
-    cfg.reserveSize = memSize / 1048576UL * MP_DEFAULT_RESERVE_MEM_PERCENT / 100;
+    cfg.reserveSize = &mptCtx.param.reserveSize;
   }
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
   cfg.chunkSize = 1048576;
-  cfg.jobQuota = mptCtx.param.jobQuota;
-  cfg.cb.retireJobsFp = mptRetireJobsCb;
-  cfg.cb.retireJobFp  = mptRetireJobCb;
+  cfg.jobQuota = &mptCtx.param.jobQuota;
+  cfg.cb.failFp = mptRetireJobsCb;
+  cfg.cb.reachFp  = mptRetireJobCb;
 
   ASSERT_TRUE(0 == taosMemPoolOpen("testQMemPool", &cfg, &mptCtx.memPoolHandle));
 }

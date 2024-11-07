@@ -115,7 +115,7 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
   char id[sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_TEID(id, tId, eId);
 
-  QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pJob->memInfo));
+  QW_ERR_JRET(taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo));
 
   code = taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
   if (TSDB_CODE_SUCCESS != code) {

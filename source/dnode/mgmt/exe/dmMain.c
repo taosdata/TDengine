@@ -25,6 +25,7 @@
 #endif
 #include "dmUtil.h"
 #include "tcs.h"
+#include "qworker.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
