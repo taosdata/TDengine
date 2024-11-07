@@ -21,6 +21,10 @@
 #include "tarray.h"
 #include "tgrant.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef GRANT_VALUE
 #define GRANT_EXPIRE_DAY      atoi(GRANT_VALUE)
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
@@ -411,7 +415,11 @@ typedef struct {
     struct {
       int64_t csvExpireSec : 40;
       int64_t curSubscriptions : 16;
-      int64_t reserve4 : 8;
+      int64_t checkUpTime : 1;
+      int64_t checkMachineCode : 1;
+      int64_t checkHistoricalActive : 1;
+      int64_t skipOldActiveIfParseFail : 1;
+      int64_t reserve4 : 4;
     };
   };
   union {
@@ -510,5 +518,9 @@ int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqMergeActiveCode(SGrantUniqObj *_new, SGrantUniqObj *old, SGrantUniqObj *merge);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
