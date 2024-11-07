@@ -49,6 +49,8 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
+int32_t              configVersion;
+int32_t              configInited;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsNumOfSupportVnodes;
 extern char          tsEncryptAlgorithm[];
@@ -154,7 +156,7 @@ extern bool     tsEnableCrashReport;
 extern char    *tsTelemUri;
 extern char    *tsClientCrashReportUri;
 extern char    *tsSvrCrashReportUri;
-extern int8_t  tsSafetyCheckLevel;
+extern int8_t   tsSafetyCheckLevel;
 enum {
   TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
   TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,

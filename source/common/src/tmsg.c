@@ -1600,6 +1600,38 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
@@ -2221,10 +2253,10 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  int32_t      numOfAlgos = 0;
-  int32_t      nameLen;
-  int32_t      type;
-  char         name[TSDB_ANAL_ALGO_KEY_LEN];
+  int32_t  numOfAlgos = 0;
+  int32_t  nameLen;
+  int32_t  type;
+  char     name[TSDB_ANAL_ALGO_KEY_LEN];
   SAnalUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));

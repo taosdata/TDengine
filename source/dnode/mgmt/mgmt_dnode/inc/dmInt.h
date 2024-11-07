@@ -28,6 +28,7 @@ typedef struct SDnodeMgmt {
   const char                  *path;
   const char                  *name;
   TdThread                     statusThread;
+  TdThread                     configThread;
   TdThread                     statusInfoThread;
   TdThread                     notifyThread;
   TdThread                     monitorThread;
@@ -50,6 +51,7 @@ typedef struct SDnodeMgmt {
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+void    dmSendConfigReq(SDnodeMgmt *pMgmt);
 void    dmUpdateStatusInfo(SDnodeMgmt *pMgmt);
 void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

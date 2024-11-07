@@ -1807,6 +1807,14 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
+  int32_t cver;
+} SConfigReq;
+
+int32_t tSerializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+int32_t tDeserializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
+// void    tFreeSStatusReq(SStatusReq* pReq);
+
+typedef struct {
   int32_t dnodeId;
   char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeInfoReq;

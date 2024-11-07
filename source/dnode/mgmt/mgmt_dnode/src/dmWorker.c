@@ -47,6 +47,35 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmConfigThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-config");
+
+  int32_t upTimeCount = 0;
+  int64_t upTime = 0;
+
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped || configInited) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsStatusInterval) {
+      dmSendConfigReq(pMgmt);
+      lastTime = curTime;
+
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
+      }
+    }
+  }
+
+  return NULL;
+}
+
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -309,6 +338,22 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartConfigThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->configThread, &thAttr, dmConfigThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create config thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("config-status", "initialized");
+  return 0;
+}
+
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
@@ -329,6 +374,13 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     (void)taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
+  }
+}
+
+void dmStopConfigThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->configThread)) {
+    (void)taosThreadJoin(pMgmt->configThread, NULL);
+    taosThreadClear(&pMgmt->configThread);
   }
 }
 

@@ -283,6 +283,54 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
+void dmSendConfigReq(SDnodeMgmt *pMgmt) {
+  int32_t    code = 0;
+  SConfigReq req = {0};
+
+  req.cver = configVersion;
+  dDebug("send config req to mnode, configVersion:%d", req.cver);
+
+  int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize status req since %s", tstrerror(contLen));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeSConfigReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize status req since %s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_CONFIG,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SRpcMsg rpcRsp = {0};
+
+  SEpSet epSet = {0};
+  int8_t epUpdated = 0;
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
+
+  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
+  code =
+      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  if (code != 0) {
+    dError("failed to send status req since %s", tstrerror(code));
+    return;
+  }
+
+  if (rpcRsp.code != 0) {
+  } else {
+  }
+}
+
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
   SMonVloadInfo vinfo = {0};
   dDebug("begin to get vnode loads");
