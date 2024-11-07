@@ -282,7 +282,8 @@ void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t  taosGranted(int8_t type);
 int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
-int32_t persistLocalConfig(SConfig *pCfg);
+int32_t persistGlobalConfig(const char *path, int32_t version);
+int32_t persistLocalConfig(const char *path);
 int32_t localConfigSerialize(SArray *array, char **serialized);
 int32_t tSerializeSConfigArray(void *buf, int32_t bufLen, SArray *array);
 int32_t tDeserializeSConfigArray(void *buf, int32_t bufLen, SArray *pReq);

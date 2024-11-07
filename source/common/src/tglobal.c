@@ -1932,7 +1932,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   cfgDumpCfg(tsCfg, tsc, false);
   if (!tsc) {
-    if ((code = persistLocalConfig(tsCfg)) != 0) {
+    if ((code = persistLocalConfig(tsDataDir)) != 0) {
       goto _exit;
     }
   }
@@ -2482,38 +2482,57 @@ int8_t taosGranted(int8_t type) {
   return 0;
 }
 
-int32_t persistLocalConfig(SConfig *pCfg) {
-  // TODO: just tmp ,refactor later
-  int32_t   code = 0;
-  char     *buffer = NULL;
-  TdFilePtr pFile = NULL;
-  char      filepath[CONFIG_FILE_LEN] = {0};
-  char      filename[CONFIG_FILE_LEN] = {0};
-  snprintf(filepath, sizeof(filepath), "%s%sconfig", tsDataDir, TD_DIRSEP);
-  snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized) {
+  char   buf[30];
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  cJSON_AddNumberToObject(json, "version", version);
+  int sz = taosArrayGetSize(array);
 
-  // TODO(beryl) need to check if the file is existed
-  if (taosMkDir(filepath) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create dir:%s since %s", filepath, tstrerror(code));
-    TAOS_RETURN(code);
+  cJSON *cField = cJSON_CreateObject();
+  if (cField == NULL) {
+    cJSON_Delete(json);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TdFilePtr pConfigFile =
-      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-
-  if (pConfigFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to open file:%s since %s", filename, tstrerror(code));
-    TAOS_RETURN(code);
+  // cjson only support int32_t or double
+  // string are used to prohibit the loss of precision
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          cJSON_AddBoolToObject(cField, item->name, item->bval);
+          break;
+        case CFG_DTYPE_INT32:
+          cJSON_AddNumberToObject(cField, item->name, item->i32);
+          break;
+        case CFG_DTYPE_INT64:
+          (void)sprintf(buf, "%" PRId64, item->i64);
+          cJSON_AddStringToObject(cField, item->name, buf);
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          (void)sprintf(buf, "%f", item->fval);
+          cJSON_AddStringToObject(cField, item->name, buf);
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          cJSON_AddStringToObject(cField, item->name, item->str);
+          break;
+      }
+    }
   }
-  char *serialized = NULL;
-  code = localConfigSerialize(cfgGetLocalCfg(pCfg), &serialized);
-  if (code != TSDB_CODE_SUCCESS) {
-    uError("failed to serialize local config since %s", tstrerror(code));
-    TAOS_RETURN(code);
-  }
-  taosWriteFile(pConfigFile, serialized, strlen(serialized));
+  cJSON_AddItemToObject(json, "configs", cField);
+  *serialized = cJSON_Print(json);
+  cJSON_Delete(json);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2567,5 +2586,75 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
   cJSON_AddItemToObject(json, "configs", cField);
   *serialized = cJSON_Print(json);
   cJSON_Delete(json);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t persistGlobalConfig(const char *path, int32_t version) {
+  // TODO: just tmp ,refactor later
+  int32_t   code = 0;
+  char     *buffer = NULL;
+  TdFilePtr pFile = NULL;
+  char      filepath[CONFIG_FILE_LEN] = {0};
+  char      filename[CONFIG_FILE_LEN] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
+  snprintf(filename, sizeof(filename), "%s%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP);
+
+  // TODO(beryl) need to check if the file is existed
+  if (taosMkDir(filepath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to create dir:%s since %s", filepath, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TdFilePtr pConfigFile =
+      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+
+  if (pConfigFile == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to open file:%s since %s", filename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  char *serialized = NULL;
+  code = globalConfigSerialize(version, cfgGetGlobalCfg(tsCfg), &serialized);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to serialize local config since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  taosWriteFile(pConfigFile, serialized, strlen(serialized));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t persistLocalConfig(const char *path) {
+  // TODO: just tmp ,refactor later
+  int32_t   code = 0;
+  char     *buffer = NULL;
+  TdFilePtr pFile = NULL;
+  char      filepath[CONFIG_FILE_LEN] = {0};
+  char      filename[CONFIG_FILE_LEN] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
+  snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
+
+  // TODO(beryl) need to check if the file is existed
+  if (taosMkDir(filepath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to create dir:%s since %s", filepath, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TdFilePtr pConfigFile =
+      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+
+  if (pConfigFile == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to open file:%s since %s", filename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  char *serialized = NULL;
+  code = localConfigSerialize(cfgGetLocalCfg(tsCfg), &serialized);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to serialize local config since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  taosWriteFile(pConfigFile, serialized, strlen(serialized));
   return TSDB_CODE_SUCCESS;
 }

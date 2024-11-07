@@ -45,18 +45,7 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return code;
 }
 
-static void mmBuildConfigForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
-  pOption->deploy = true;
-  pOption->msgCb = pMgmt->msgCb;
-  pOption->dnodeId = pMgmt->pData->dnodeId;
-  pOption->selfIndex = 0;
-  pOption->numOfReplicas = 1;
-  pOption->numOfTotalReplicas = 1;
-  pOption->replicas[0].id = 1;
-  pOption->replicas[0].port = tsServerPort;
-  tstrncpy(pOption->replicas[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  pOption->lastIndex = SYNC_INDEX_INVALID;
-}
+static void mmBuildConfigForDeploy(SMnodeMgmt *pMgmt) { persistGlobalConfig(pMgmt->path, 0); }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
   pOption->deploy = true;
@@ -133,7 +122,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     dInfo("mnode start to deploy");
     pMgmt->pData->dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
-    
+    mmBuildConfigForDeploy(pMgmt);
   } else {
     dInfo("mnode start to open");
     mmBuildOptionForOpen(pMgmt, &option);
