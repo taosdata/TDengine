@@ -10489,7 +10489,8 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateCompactRange(pCxt, NULL /* TODO */, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+    code =
+        translateCompactRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.timeRange);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

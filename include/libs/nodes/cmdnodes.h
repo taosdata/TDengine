@@ -160,6 +160,7 @@ typedef struct SCompactDatabaseStmt {
 
 typedef struct SCompactVgroupsStmt {
   ENodeType  type;
+  SNode*     pDbName;
   SNodeList* vgidList;
   SNode*     pStart;
   SNode*     pEnd;

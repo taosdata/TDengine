@@ -1245,6 +1245,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
       nodesDestroyNode(pStmt->pEnd);

@@ -2115,12 +2115,18 @@ _err:
   return NULL;
 }
 
-SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNodeList* vgidList, SNode* pStart, SNode* pEnd) {
+SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, NULL, true));
+  if (NULL == pDbName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
+    pCxt->errCode = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    CHECK_PARSER_STATUS(pCxt);
+  }
   SCompactVgroupsStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  pStmt->pDbName = pDbName;
   pStmt->vgidList = vgidList;
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
