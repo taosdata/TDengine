@@ -81,6 +81,7 @@ static const char *am_pm[2] = {"AM", "PM"};
 #endif
 
 char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
+  if (!buf || !fmt || !tm) return NULL;
 #ifdef WINDOWS
   char        c;
   const char *bp;
@@ -345,6 +346,9 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 }
 
 int32_t taosGetTimeOfDay(struct timeval *tv) {
+  if (tv == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
 #ifdef WINDOWS
   LARGE_INTEGER t;
@@ -365,12 +369,15 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
 #endif
 }
 
-time_t taosTime(time_t *t) { 
+int32_t taosTime(time_t *t) {
+  if (t == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   time_t r = time(t); 
   if (r == (time_t)-1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(errno);
   }
-  return r;
+  return 0;
 }
 
 /*

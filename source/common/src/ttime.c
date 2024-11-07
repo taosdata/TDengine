@@ -30,7 +30,7 @@ static int64_t m_deltaUtc = 0;
 
 void deltaToUtcInitOnce() {
   struct tm tm = {0};
-  if (taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm) != 0) {
+  if (taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm) == NULL) {
     uError("failed to parse time string");
   }
   m_deltaUtc = (int64_t)taosMktime(&tm);
