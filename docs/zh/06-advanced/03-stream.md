@@ -236,7 +236,7 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 
 1.修改 taos.cfg，添加disableStream 1
 
-2.启动 taosd
+2.重启 taosd
 
 3.启动 taos，
 
