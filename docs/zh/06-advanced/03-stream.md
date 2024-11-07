@@ -229,3 +229,29 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 ```
 
 没有指定 IF EXISTS，如果该 stream 不存在，则报错。如果存在，则恢复流计算。指定了 IF EXISTS，如果 stream 不存在，则返回成功。如果存在，则恢复流计算。如果指定 IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
+
+### 流计算升级故障恢复
+
+升级导致流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
+1.修改taos.cfg，添加disableStream 1
+2.启动taosd
+3.启动taos，
+
+```sql
+drop stream xxxx; ---- xxx指stream name
+flush database stream_source_db; ----流计算读取数据的超级表所在的database；
+flush database stream_dest_db; -----流计算写入数据的超级表所在的database；
+```
+
+举例：
+
+```sql
+create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
+drop database streams1;
+flush database test;
+flush database test1;
+```
+
+4.关闭taosd
+5.修改taos.cfg，去掉disableStream 1，或将disableStream改为 0
+6.启动taosd
