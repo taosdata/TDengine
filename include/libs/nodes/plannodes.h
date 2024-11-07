@@ -194,14 +194,26 @@ typedef struct SIndefRowsFuncLogicNode {
   bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
+typedef struct SStreamNodeOption {
+  int8_t  triggerType;
+  int64_t watermark;
+  int64_t deleteMark;
+  int8_t  igExpired;
+  int8_t  igCheckUpdate;
+  int8_t  destHasPrimaryKey;
+} SStreamNodeOption;
+
 typedef struct SInterpFuncLogicNode {
-  SLogicNode  node;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SLogicNode    node;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  int8_t        precision;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
@@ -505,16 +517,20 @@ typedef struct SIndefRowsFuncPhysiNode {
 } SIndefRowsFuncPhysiNode;
 
 typedef struct SInterpFuncPhysiNode {
-  SPhysiNode  node;
-  SNodeList*  pExprs;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  int8_t      intervalUnit;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SPhysiNode    node;
+  SNodeList*    pExprs;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  int8_t        precision;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncPhysiNode;
+
+typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
@@ -650,7 +666,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  int8_t     destHasPrimayKey;
+  int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 

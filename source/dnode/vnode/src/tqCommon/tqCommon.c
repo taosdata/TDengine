@@ -88,6 +88,8 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     }
   }
 
+  streamSetupScheduleTrigger(pTask);
+
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqDebug("s-task:%s vgId:%d expand stream task completed, elapsed time:%.2fsec", pTask->id.idStr, vgId, el);
 
@@ -614,6 +616,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   int32_t taskId = -1;
   int64_t streamId = -1;
   bool    added = false;
+  int32_t size = sizeof(SStreamTask);
 
   if (tsDisableStream) {
     tqInfo("vgId:%d stream disabled, not deploy stream tasks", vgId);
@@ -623,7 +626,6 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   tqDebug("vgId:%d receive new stream task deploy msg, start to build stream task", vgId);
 
   // 1.deserialize msg and build task
-  int32_t      size = sizeof(SStreamTask);
   SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
     tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);

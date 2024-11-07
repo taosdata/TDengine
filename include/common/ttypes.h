@@ -298,6 +298,7 @@ typedef struct {
 #define IS_VALID_UINT64(_t)    ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
+#define IS_INVALID_TYPE(_t)    ((_t) < TSDB_DATA_TYPE_NULL || (_t) >= TSDB_DATA_TYPE_MAX)
 
 #define IS_CONVERT_AS_SIGNED(_t) \
   (IS_SIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))

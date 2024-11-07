@@ -40,6 +40,7 @@ exclude_dirs = [
 # List of files to exclude
 exclude_source_files = [
     f"{TD_project_path}/community/source/libs/parser/src/sql.c",
+    f"{TD_project_path}/community/source/libs/parser/inc/sql.c",
     f"{TD_project_path}/community/source/util/src/tlog.c",
     f"{TD_project_path}/community/include/util/tlog.h"
 ]

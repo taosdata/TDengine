@@ -145,7 +145,8 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBlock, SStreamRetrieveReq* req) {
   SRetrieveTableRsp* pRetrieve = NULL;
 
-  int32_t len = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
+  int32_t len = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
 
   pRetrieve = taosMemoryCalloc(1, len);
   if (pRetrieve == NULL) return terrno;
@@ -162,7 +163,7 @@ static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBl
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
   pRetrieve->version = htobe64(pBlock->info.version);
 
-  int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, dataEncodeSize, numOfCols);
   if (actualLen < 0) {
     taosMemoryFree(pRetrieve);
     return terrno;
@@ -1247,7 +1248,8 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
 }
 
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
-  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
+  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
     return terrno;
@@ -1269,7 +1271,7 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
   int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);
 
-  int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, numOfCols);
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, dataEncodeSize, numOfCols);
   if (actualLen < 0) {
     taosMemoryFree(buf);
     return terrno;
