@@ -14,18 +14,17 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tanal.h"
-#include "tmsg.h"
+#include "tanalytics.h"
 #include "ttypes.h"
 #include "tutil.h"
 
-#ifdef USE_ANAL
+#ifdef USE_ANALYTICS
 #include <curl/curl.h>
 #define ANAL_ALGO_SPLIT ","
 
 typedef struct {
   int64_t       ver;
-  SHashObj     *hash;  // algoname:algotype -> SAnalUrl
+  SHashObj     *hash;  // algoname:algotype -> SAnalyticsUrl
   TdThreadMutex lock;
 } SAlgoMgmt;
 
@@ -69,7 +68,7 @@ EAnalAlgoType taosAnalAlgoInt(const char *name) {
   return ANAL_ALGO_TYPE_END;
 }
 
-int32_t taosAnalInit() {
+int32_t taosAnalyticsInit() {
   if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
     uError("failed to init curl");
     return -1;
@@ -94,14 +93,14 @@ int32_t taosAnalInit() {
 static void taosAnalFreeHash(SHashObj *hash) {
   void *pIter = taosHashIterate(hash, NULL);
   while (pIter != NULL) {
-    SAnalUrl *pUrl = (SAnalUrl *)pIter;
+    SAnalyticsUrl *pUrl = (SAnalyticsUrl *)pIter;
     taosMemoryFree(pUrl->url);
     pIter = taosHashIterate(hash, pIter);
   }
   taosHashCleanup(hash);
 }
 
-void taosAnalCleanup() {
+void taosAnalyticsCleanup() {
   curl_global_cleanup();
   if (taosThreadMutexDestroy(&tsAlgos.lock) != 0) {
     uError("failed to destroy anal lock");
@@ -170,7 +169,7 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
   char *unused = strntolower(name, name, nameLen);
 
   if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
-    SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
+    SAnalyticsUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
     if (pUrl != NULL) {
       tstrncpy(url, pUrl->url, urlLen);
       uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
@@ -406,7 +405,7 @@ static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
     return terrno;
   }
 
-  pBuf->pCols = taosMemoryCalloc(numOfCols, sizeof(SAnalColBuf));
+  pBuf->pCols = taosMemoryCalloc(numOfCols, sizeof(SAnalyticsColBuf));
   if (pBuf->pCols == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   pBuf->numOfCols = numOfCols;
 
@@ -415,7 +414,7 @@ static int32_t tsosAnalJsonBufOpen(SAnalBuf *pBuf, int32_t numOfCols) {
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SAnalColBuf *pCol = &pBuf->pCols[i];
+    SAnalyticsColBuf *pCol = &pBuf->pCols[i];
     snprintf(pCol->fileName, sizeof(pCol->fileName), "%s-c%d", pBuf->fileName, i);
     pCol->filePtr =
         taosOpenFile(pCol->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
@@ -549,7 +548,7 @@ static int32_t taosAnalJsonBufWriteDataEnd(SAnalBuf *pBuf) {
 
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
     for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
-      SAnalColBuf *pCol = &pBuf->pCols[i];
+      SAnalyticsColBuf *pCol = &pBuf->pCols[i];
 
       code = taosFsyncFile(pCol->filePtr);
       if (code != 0) return code;
@@ -591,7 +590,7 @@ int32_t taosAnalJsonBufClose(SAnalBuf *pBuf) {
 
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
     for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
-      SAnalColBuf *pCol = &pBuf->pCols[i];
+      SAnalyticsColBuf *pCol = &pBuf->pCols[i];
       if (pCol->filePtr != NULL) {
         code = taosFsyncFile(pCol->filePtr);
         if (code != 0) return code;
@@ -613,7 +612,7 @@ void taosAnalBufDestroy(SAnalBuf *pBuf) {
 
   if (pBuf->bufType == ANAL_BUF_TYPE_JSON_COL) {
     for (int32_t i = 0; i < pBuf->numOfCols; ++i) {
-      SAnalColBuf *pCol = &pBuf->pCols[i];
+      SAnalyticsColBuf *pCol = &pBuf->pCols[i];
       if (pCol->fileName[0] != 0) {
         if (pCol->filePtr != NULL) (void)taosCloseFile(&pCol->filePtr);
         if (taosRemoveFile(pCol->fileName) != 0) {
@@ -729,8 +728,8 @@ static int32_t taosAnalBufGetCont(SAnalBuf *pBuf, char **ppCont, int64_t *pContL
 
 #else
 
-int32_t taosAnalInit() { return 0; }
-void    taosAnalCleanup() {}
+int32_t taosAnalyticsInit() { return 0; }
+void    taosAnalyticsCleanup() {}
 SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf) { return NULL; }
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
