@@ -43,6 +43,9 @@ if not exist %target_dir%\\cfg (
 if not exist %target_dir%\\include (
     mkdir %target_dir%\\include
 )
+if not exist %target_dir%\\share (
+    mkdir %target_dir%\\share
+)
 if not exist %target_dir%\\driver (
     mkdir %target_dir%\\driver
 )
@@ -67,6 +70,7 @@ copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
+xcopy %binary_dir%\\build\\share\\* %target_dir%\\share > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %target_dir% > nul
 )

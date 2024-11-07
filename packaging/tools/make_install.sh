@@ -52,6 +52,8 @@ else
     installDir="/usr/local/taos"
   fi
 fi
+
+timezone_dir="/usr/local/share/timezone"
 install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 cfg_dir="${installDir}/cfg"
@@ -378,6 +380,11 @@ function install_header() {
   ${csudo}chmod 644 ${install_main_dir}/include/*
 }
 
+function install_timezone(){
+  ${csudo}mkdir -p ${timezone_dir}
+  ${csudo}cp -rf ${binary_dir}/build/share/timezone/* ${timezone_dir} && ${csudo}chmod 644 ${timezone_dir}/*
+}
+
 function install_config() {
   if [ ! -f ${cfg_install_dir}/${configFile} ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
@@ -634,6 +641,7 @@ function update_TDengine() {
   install_log
   install_header
   install_lib
+  install_timezone
   #  install_connector
   install_examples
   install_bin
@@ -699,6 +707,7 @@ function install_TDengine() {
   install_log
   install_header
   install_lib
+  install_timezone
   #  install_connector
   install_examples
   install_bin

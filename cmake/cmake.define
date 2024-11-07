@@ -6,12 +6,14 @@ set(TD_BUILD_KEEPER_INTERNAL FALSE)
 # set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
+SET(SHARE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/share)
 SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
 
 MESSAGE(STATUS "Project source directory: " ${PROJECT_SOURCE_DIR})
 MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
 MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
+MESSAGE(STATUS "Project share files output path: " ${SHARE_OUTPUT_PATH})
 
 IF(NOT DEFINED TD_GRANT)
     SET(TD_GRANT FALSE)

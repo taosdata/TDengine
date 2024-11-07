@@ -106,6 +106,8 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
 # xz
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -631,6 +633,11 @@ endif(${BUILD_PCRE2})
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
     add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
 endif()
+
+execute_process(
+        COMMAND make TZDIR=${SHARE_OUTPUT_PATH}/timezone all posix_only
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+)
 
 # ================================================================================================
 # Build test
