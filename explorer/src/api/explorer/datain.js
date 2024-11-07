@@ -550,3 +550,11 @@ export function getOpcCsvHeader(taskId) {
         method: "get",
     });
 }
+
+export function checkFileExist(filePath) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/check_exists?file_path=${filePath}`,
+        method: "get",
+    });
+  }

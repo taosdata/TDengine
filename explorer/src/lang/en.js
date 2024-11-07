@@ -1583,6 +1583,8 @@ export default {
     csvFileSort: 'Processing Order',
     csvFileSortDesc: 'The order in which the system processes the file list is valid for both the initial file list and the newly added file list monitored in the same batch. Different monitoring batches are processed in chronological order; If there are subdirectories in the listening directory, the same level directory processes files first and then the subdirectories.',
     supportCharacter: 'The file name can contain only the following characters: Chinese, uppercase and lowercase letters, digits, Spaces, %, $, @, dots, hyphens, underscores, and brackets (including parentheses, square brackets, braces, and Chinese brackets).',
+    csvFileNotExist: 'File have been deleted or moved',
+    csvFileCheckError: 'Fetch file:',
     ms: "ms",
     μs: "μs",
     ns: "ns",

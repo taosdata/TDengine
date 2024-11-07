@@ -278,11 +278,7 @@ export default {
       return;
     }
 
-    this.isModifying = this.$store.state.app.currentEditID > 0;
-    if (!this.isModifying) {
-      this.$store.commit("app/SET_CSV_FILE_LISTENER", this.fileForm);
-      return;
-    }
+    this.isModifying = !this.sourceParent.isCopyable && this.$store.state.app.currentEditID > 0;
 
     let csvFileConfig = this.$store.state.app.csvFileListener;
     for (let configItem in csvFileConfig) {
