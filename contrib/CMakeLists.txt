@@ -184,6 +184,17 @@ if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+find_program(C_COMPILER_LEMON NAMES gcc)
+if(C_COMPILER_LEMON)
+    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+else()
+    set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+endif()
+
+# lemon
+cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -261,11 +272,19 @@ if(${TD_DARWIN})
 endif(${TD_DARWIN})
 
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
+
+if(${TD_DARWIN})
+    target_compile_options(zlibstatic PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
 target_include_directories(
     zlibstatic
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
 )
+
+if(${TD_DARWIN})
+    target_compile_options(zlib PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
 target_include_directories(
     zlib
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib

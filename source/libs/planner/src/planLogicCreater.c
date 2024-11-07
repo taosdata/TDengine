@@ -923,6 +923,15 @@ static bool isInterpFunc(int32_t funcId) {
   return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
 }
 
+static void initStreamOption(SLogicPlanContext* pCxt, SStreamNodeOption* pOption) {
+  pOption->triggerType = pCxt->pPlanCxt->triggerType;
+  pOption->watermark = pCxt->pPlanCxt->watermark;
+  pOption->deleteMark = pCxt->pPlanCxt->deleteMark;
+  pOption->igExpired = pCxt->pPlanCxt->igExpired;
+  pOption->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  pOption->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
+}
+
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -957,11 +966,17 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
     pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
+    pInterpFunc->intervalUnit = ((SValueNode*)pSelect->pEvery)->unit;
+    pInterpFunc->precision = pSelect->precision;
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    initStreamOption(pCxt, &pInterpFunc->streamNodeOption);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -21,6 +21,7 @@
 #include "streamBackendRocksdb.h"
 #include "trpc.h"
 #include "tstream.h"
+#include "tref.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +71,7 @@ struct SActiveCheckpointInfo {
   SStreamTmrInfo chkptReadyMsgTmr;
 };
 
-int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask);
+void streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, void* param);
 
 typedef struct {
   int8_t       type;
@@ -225,6 +226,8 @@ void    destroyMetaHbInfo(SMetaHbInfo* pInfo);
 void    streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
 void    streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
 int32_t streamMetaSendHbHelper(SStreamMeta* pMeta);
+int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
+void    metaRefMgtRemove(int64_t* pRefId);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
@@ -238,7 +241,9 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
                                int64_t checkpointId, SRpcMsg* pMsg);
 
 int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
-
+int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
+                                       STimeWindow* pLatestWindow, const char* id);
 
 #ifdef __cplusplus
 }

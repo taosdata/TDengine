@@ -1068,6 +1068,34 @@ static int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E
 
   return TSDB_CODE_SUCCESS;
 }
+
+static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_STB** fields) {
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
+  if (STMT_TYPE_QUERY == pStmt->sql.type) {
+    tscError("invalid operation to get query column fileds");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
+
+  STableDataCxt** pDataBlock = NULL;
+
+  if (pStmt->sql.stbInterlaceMode) {
+    pDataBlock = &pStmt->sql.siInfo.pDataCtx;
+  } else {
+    pDataBlock =
+        (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+    if (NULL == pDataBlock) {
+      tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
+      STMT_ERR_RET(TSDB_CODE_APP_ERROR);
+    }
+  }
+
+  STMT_ERR_RET(qBuildStmtStbColFields(*pDataBlock, fieldNum, fields));
+
+  return TSDB_CODE_SUCCESS;
+}
 /*
 SArray* stmtGetFreeCol(STscStmt2* pStmt, int32_t* idx) {
   while (true) {
@@ -1808,7 +1836,7 @@ _return:
   return code;
 }
 
-int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
+int stmtParseColFields2(TAOS_STMT2* stmt) {
   int32_t    code = 0;
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    preCode = pStmt->errCode;
@@ -1842,13 +1870,29 @@ int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
     STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, fields));
-
 _return:
 
   pStmt->errCode = preCode;
 
   return code;
+}
+
+int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
+  int32_t code = stmtParseColFields2(stmt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return stmtFetchColFields2(stmt, nums, fields);
+}
+
+int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_STB** fields) {
+  int32_t code = stmtParseColFields2(stmt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return stmtFetchStbColFields2(stmt, nums, fields);
 }
 
 int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {

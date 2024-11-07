@@ -347,6 +347,7 @@ static SKeyword keywordTable[] = {
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
+    {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
 };
 // clang-format on
 

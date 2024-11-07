@@ -454,17 +454,16 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->outputSchema.pSchema = pFullSchema;
   }
 
-  bool         hasKey = hasDestPrimaryKey(&pObj->outputSchema);
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
-      .triggerType = pObj->conf.trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->conf.trigger,
+      .triggerType = (pObj->conf.trigger == STREAM_TRIGGER_MAX_DELAY)? STREAM_TRIGGER_WINDOW_CLOSE : pObj->conf.trigger,
       .watermark = pObj->conf.watermark,
       .igExpired = pObj->conf.igExpired,
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
-      .destHasPrimaryKey = hasKey,
+      .destHasPrimaryKey = hasDestPrimaryKey(&pObj->outputSchema),
   };
 
   // using ast and param to build physical plan
@@ -1294,9 +1293,10 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
     void* p = taosArrayPush(pList, &in);
     if (p) {
       int32_t currentSize = taosArrayGetSize(pList);
-      mDebug("stream:%s (uid:0x%" PRIx64 ") checkpoint interval beyond threshold: %ds(%" PRId64
-             "s) beyond concurrently launch threshold:%d",
-             pStream->name, pStream->uid, tsStreamCheckpointInterval, duration / 1000, currentSize);
+      mDebug("stream:%s (uid:0x%" PRIx64 ") total %d stream(s) beyond chpt interval threshold: %ds(%" PRId64
+             "s), concurrently launch threshold:%d",
+             pStream->name, pStream->uid, currentSize, tsStreamCheckpointInterval, duration / 1000,
+             tsMaxConcurrentCheckpoint);
     } else {
       mError("failed to record the checkpoint interval info, stream:0x%" PRIx64, pStream->uid);
     }
@@ -1348,7 +1348,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
       code = mndProcessStreamCheckpointTrans(pMnode, p, checkpointId, 1, true);
       sdbRelease(pSdb, p);
 
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      if (code == 0 || code == TSDB_CODE_ACTION_IN_PROGRESS) {
         started += 1;
 
         if (started >= capacity) {
@@ -1356,6 +1356,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
                  (started + numOfCheckpointTrans));
           break;
         }
+      } else {
+        mError("failed to start checkpoint trans, code:%s", tstrerror(code));
       }
     }
   }

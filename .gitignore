@@ -159,4 +159,6 @@ pcre2.h
 zconf.h
 version.h
 geos_c.h
+source/libs/parser/src/sql.c
+include/common/ttokenauto.h
 
