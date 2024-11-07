@@ -22,6 +22,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
@@ -49,7 +50,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
-
+,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 #
 # system test
 #
@@ -73,6 +74,8 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
@@ -1085,6 +1088,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_table.sim
 ,,y,script,./test.sh -f tsim/user/privilege_create_db.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
+,,y,script,./test.sh -f tsim/db/dnodelist.sim
 # ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
 ,,y,script,./test.sh -f tsim/db/basic2.sim
@@ -1319,6 +1323,8 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
 ,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
+,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
 ,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
@@ -1367,10 +1373,38 @@
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/state1.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
+,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpLinear0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpNext0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpOther.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpOther1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrev0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrev1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey0.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey2.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey3.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpUpdate.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpUpdate1.sim
+#,,y,script,./test.sh -f tsim/stream/streamInterpValue0.sim
+#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
+#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
+#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+#,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaError.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
+,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim

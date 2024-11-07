@@ -294,9 +294,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 static int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
-  // if (pWal->cfg.level == TAOS_WAL_SKIP && pWal->pIdxFile != NULL && pWal->pLogFile != NULL) {
-  //   TAOS_RETURN(TSDB_CODE_SUCCESS);
-  // }
+  if (pWal->cfg.level == TAOS_WAL_SKIP && pWal->pIdxFile != NULL && pWal->pLogFile != NULL) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
   if (pWal->pIdxFile != NULL) {
     if ((code = taosFsyncFile(pWal->pIdxFile)) != 0) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
@@ -667,7 +667,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   // set status
   if (pWal->vers.firstVer == -1) {
-    pWal->vers.firstVer = 0;
+    pWal->vers.firstVer = index;
   }
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalCkHead) + cyptedBodyLen;

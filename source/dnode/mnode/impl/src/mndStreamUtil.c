@@ -877,6 +877,8 @@ static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
     strcpy(dst, "window close");
   } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
     strcpy(dst, "max delay");
+  } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    strcpy(dst, "force window close");
   }
 }
 
@@ -1495,6 +1497,30 @@ bool mndStreamNodeIsUpdated(SMnode *pMnode) {
 
   taosArrayDestroy(pNodeSnapshot);
   return updated;
+}
+
+int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SSnodeObj *pObj = NULL;
+
+  if (pSrcDb->cfg.replications == 1) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
+      if (pIter == NULL) {
+        break;
+      }
+
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    mError("snode not existed when trying to create stream in db with multiple replica");
+    return TSDB_CODE_SNODE_NOT_DEPLOYED;
+  }
 }
 
 uint32_t seed = 0;

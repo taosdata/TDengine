@@ -1021,7 +1021,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // cluster info
-  tstrncpy(pClusterInfo->version, version, sizeof(pClusterInfo->version));
+  tstrncpy(pClusterInfo->version, td_version, sizeof(pClusterInfo->version));
   pClusterInfo->monitor_interval = tsMonitorInterval;
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
   pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);

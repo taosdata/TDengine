@@ -453,6 +453,7 @@ typedef enum ELogicConditionType {
 #define TSDB_CACHE_MODEL_LAST_ROW       1
 #define TSDB_CACHE_MODEL_LAST_VALUE     2
 #define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DNODE_LIST_LEN             256
 #define TSDB_ENCRYPT_ALGO_STR_LEN       16
 #define TSDB_ENCRYPT_ALGO_NONE_STR      "none"
 #define TSDB_ENCRYPT_ALGO_SM4_STR       "sm4"
@@ -492,13 +493,13 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MIN_S3_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_S3_CHUNK_SIZE     (1024 * 1024)
-#define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
+#define TSDB_DEFAULT_S3_CHUNK_SIZE (128 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (365 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
-#define TSDB_DEFAULT_S3_COMPACT    0
+#define TSDB_DEFAULT_S3_COMPACT    1
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -651,6 +652,8 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_TAG_NAME_LEN    100
 #define MONITOR_TAG_VALUE_LEN   300
 #define MONITOR_METRIC_NAME_LEN 100
+
+#define AUDIT_OPERATION_LEN 20
 
 typedef enum {
   ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,

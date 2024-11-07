@@ -1,0 +1,24 @@
+FROM golang:1.18.6-alpine as builder
+LABEL maintainer = "TDengine"
+
+ARG latestv
+ARG gitinfo
+ARG buildinfo
+
+RUN apk --no-cache add upx && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/taoskeeper
+COPY ./ /usr/src/taoskeeper/
+ENV GO111MODULE=on \
+    GOPROXY=https://goproxy.cn,direct
+
+RUN echo "$latestv $gitinfo $buildinfo"
+RUN go mod tidy && go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=${latestv}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${gitinfo}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${buildinfo}'"  -o taoskeeper . && upx -9 taoskeeper
+FROM alpine:3
+RUN mkdir -p /etc/taos
+COPY --from=builder /usr/src/taoskeeper/taoskeeper /usr/bin/
+COPY ./config/taoskeeper.toml /etc/taos/taoskeeper.toml
+RUN chmod u+rw /etc/taos/taoskeeper.toml
+EXPOSE 6043
+CMD ["taoskeeper"]

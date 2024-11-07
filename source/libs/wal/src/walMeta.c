@@ -411,24 +411,30 @@ static int32_t walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void printFileSet(SArray* fileSet) {
+static void printFileSet(int32_t vgId, SArray* fileSet, const char* str) {
   int32_t sz = taosArrayGetSize(fileSet);
   for (int32_t i = 0; i < sz; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(fileSet, i);
-    wInfo("firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64 ", createTs:%" PRId64
-          ", closeTs:%" PRId64,
-          pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset, pFileInfo->createTs,
-          pFileInfo->closeTs);
+    wInfo("vgId:%d, %s-%d, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64
+          ", createTs:%" PRId64 ", closeTs:%" PRId64,
+          vgId, str, i, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset,
+          pFileInfo->createTs, pFileInfo->closeTs);
   }
 }
 
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t     code = 0;
   const char* logPattern = "^[0-9]+.log$";
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern;
   regex_t     idxRegPattern;
+
+  wInfo("vgId:%d, begin to repair meta, wal path:%s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", snapshotVer:%" PRId64,
+        pWal->cfg.vgId, pWal->path, pWal->vers.firstVer, pWal->vers.lastVer, pWal->vers.snapshotVer);
 
   if (regcomp(&logRegPattern, logPattern, REG_EXTENDED) != 0) {
     wError("failed to compile log pattern, error:%s", tstrerror(terrno));
@@ -482,9 +488,9 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   taosArraySort(actualLog, compareWalFileInfo);
 
-  wInfo("vgId:%d, wal path:%s, actual log file num:%d", pWal->cfg.vgId, pWal->path,
+  wInfo("vgId:%d, actual log file, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
         (int32_t)taosArrayGetSize(actualLog));
-  printFileSet(actualLog);
+  printFileSet(pWal->cfg.vgId, actualLog, "actual log file");
 
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int     actualFileNum = taosArrayGetSize(actualLog);
@@ -500,9 +506,9 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     TAOS_RETURN(code);
   }
 
-  wInfo("vgId:%d, wal path:%s, meta log file num:%d", pWal->cfg.vgId, pWal->path,
+  wInfo("vgId:%d, log file in meta, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
         (int32_t)taosArrayGetSize(pWal->fileInfoSet));
-  printFileSet(pWal->fileInfoSet);
+  printFileSet(pWal->cfg.vgId, pWal->fileInfoSet, "log file in meta");
 
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
 
@@ -563,13 +569,18 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   // repair ts of files
   TAOS_CHECK_RETURN(walRepairLogFileTs(pWal, &updateMeta));
 
-  printFileSet(pWal->fileInfoSet);
+  wInfo("vgId:%d, log file after repair, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
+        (int32_t)taosArrayGetSize(pWal->fileInfoSet));
+  printFileSet(pWal->cfg.vgId, pWal->fileInfoSet, "file after repair");
   // update meta file
   if (updateMeta) {
     TAOS_CHECK_RETURN(walSaveMeta(pWal));
   }
 
   TAOS_CHECK_RETURN(walLogEntriesComplete(pWal));
+
+  wInfo("vgId:%d, success to repair meta, wal path:%s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", snapshotVer:%" PRId64,
+        pWal->cfg.vgId, pWal->path, pWal->vers.firstVer, pWal->vers.lastVer, pWal->vers.snapshotVer);
 
   return code;
 }
@@ -1058,6 +1069,8 @@ int32_t walSaveMeta(SWal* pWal) {
 
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
   }
+  wInfo("vgId:%d, save meta file: %s, firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, tmpFnameStr,
+        pWal->vers.firstVer, pWal->vers.lastVer);
 
   // rename it
   n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
@@ -1155,9 +1168,9 @@ int32_t walLoadMeta(SWal* pWal) {
   (void)taosCloseFile(&pFile);
   taosMemoryFree(buf);
 
-  wInfo("vgId:%d, load meta file: %s, fileInfoSet size:%d", pWal->cfg.vgId, fnameStr,
-        (int32_t)taosArrayGetSize(pWal->fileInfoSet));
-  printFileSet(pWal->fileInfoSet);
+  wInfo("vgId:%d, meta file loaded: %s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileInfoSet size:%d", pWal->cfg.vgId,
+        fnameStr, pWal->vers.firstVer, pWal->vers.lastVer, (int32_t)taosArrayGetSize(pWal->fileInfoSet));
+  printFileSet(pWal->cfg.vgId, pWal->fileInfoSet, "file in meta");
 
   TAOS_RETURN(code);
 }

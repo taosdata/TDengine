@@ -620,7 +620,7 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   int32_t code = 0;
   int64_t qId = taosHton64(pHead->qid);
   if (qId == 0) {
-    return 0;
+    return TSDB_CODE_RPC_NO_STATE;
   }
 
   STransCtx* pCtx = taosHashGet(conn->pQTable, &qId, sizeof(qId));
@@ -1608,6 +1608,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
+    cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
   }
 
@@ -1699,6 +1700,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   if (status != 0) {
     tDebug("%s conn %p failed to connect to %s since %s", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
            uv_strerror(status));
+    cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
     TAOS_UNUSED(transUnrefCliHandle(pConn));
     return;
   }
@@ -1850,7 +1852,7 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
     size_t    len = strlen(fqdn);
     uint32_t* v = taosHashGet(cache, fqdn, len);
     if (addr != *v) {
-      char old[TD_IP_LEN] = {0}, new[TD_IP_LEN] = {0};
+      char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
@@ -1870,7 +1872,7 @@ static void cliMayUpdateFqdnCache(SHashObj* cache, char* dst) {
     if (dst[i] == ':') break;
   }
   if (i > 0) {
-    char fqdn[TSDB_FQDN_LEN + 1] = {0};
+    char fqdn[TSDB_FQDN_LEN] = {0};
     memcpy(fqdn, dst, i);
     TAOS_UNUSED(cliUpdateFqdnCache(cache, fqdn));
   }
@@ -2917,6 +2919,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     noDelay = cliResetEpset(pCtx, pResp, false);
     transFreeMsg(pResp->pCont);
   }
+  pResp->pCont = NULL;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
     // save one internal code
     pCtx->retryCode = code;
@@ -3153,7 +3156,7 @@ int32_t transReleaseCliHandle(void* handle) {
 
 static int32_t transInitMsg(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx, SCliReq** pCliMsg) {
   int32_t code = 0;
-  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   SCliReq* pCliReq = NULL;
   SReqCtx* pCtx = taosMemoryCalloc(1, sizeof(SReqCtx));

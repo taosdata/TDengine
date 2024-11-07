@@ -567,6 +567,7 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
     TAOS_CHECK_EXIT(tSerializeSClientHbRsp(&encoder, pRsp));
   }
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pBatchRsp->monitorParas));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditDelete));
   tEndEncode(&encoder);
 
 _exit:
@@ -607,6 +608,12 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDeserializeSMonitorParas(&decoder, &pBatchRsp->monitorParas));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->enableAuditDelete));
+  } else {
+    pBatchRsp->enableAuditDelete = 0;
   }
 
   tEndDecode(&decoder);
@@ -1812,6 +1819,60 @@ _exit:
 }
 
 void tFreeSDropUserReq(SDropUserReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->operation));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->db));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->table));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pSql));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->operation));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->table));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));
+  if (pReq->sqlLen > 0) {
+    pReq->pSql = taosMemoryMalloc(pReq->sqlLen + 1);
+    if (pReq->pSql == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pSql));
+  }
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSAuditReq(SAuditReq *pReq) { taosMemoryFreeClear(pReq->pSql); }
 
 SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
   if (pIpWhiteList == NULL) return NULL;
@@ -3874,6 +3935,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3ChunkSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dnodeListStr));
 
   tEndEncode(&encoder);
 
@@ -3960,6 +4022,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3ChunkSize));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dnodeListStr));
   }
 
   tEndDecode(&decoder);
@@ -6289,6 +6355,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->authVer));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->whiteListVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pRsp->monitorParas));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditDelete));
   tEndEncode(&encoder);
 
 _exit:
@@ -6339,6 +6406,11 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDeserializeSMonitorParas(&decoder, &pRsp->monitorParas));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->enableAuditDelete));
+  } else {
+    pRsp->enableAuditDelete = 0;
   }
   tEndDecode(&decoder);
 
@@ -10983,6 +11055,7 @@ _exit:
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeMqDataRspCommon(pEncoder, pRsp));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->sleepTime));
+
   return 0;
 }
 
@@ -11094,6 +11167,7 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, createTableReq, createTableLen));
     }
   }
+
 _exit:
   return code;
 }
