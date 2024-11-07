@@ -995,6 +995,6 @@ int32_t transCvtUvErrno(int32_t code) {
   if (code < 0) {
     return TAOS_SYSTEM_ERROR(-code);
   }
-  return code;
+  return TAOS_SYSTEM_ERROR(code);
 #endif
 }
