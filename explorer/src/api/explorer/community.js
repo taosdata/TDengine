@@ -1360,7 +1360,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <super table prefix>_{type} pattern, {type} is the data type of the OPC point.\n",
+                  "description": "Support `<super table prefix>_{type}` pattern, `{type}` is the data type of the OPC point.\n",
                   "required": true,
                   "value": "opc_{type}"
                 },
@@ -1370,9 +1370,9 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <child table prefix>_{tagname} pattern, {tagname} is the name of the OPC point.\n",
+                  "description": "Support `<child table prefix>_{ns}_{id}` pattern, `{ns}` is the namespace of the OPC point, and `{id}` is the id of the OPC point.for example: If the point_id is `ns=3;i=1001`, then the `{ns}` is 3 and the `{id}` is 1001.\n",
                   "required": true,
-                  "value": "t_{tagname}"
+                  "value": "t_{ns}_{id}"
                 },
                 {
                   "name": "table_primary_key",
@@ -1645,7 +1645,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <super table prefix>_{type} pattern, {type} is the data type of the OPC point.\n",
+                  "description": "Support `<super table prefix>_{type}` pattern, `{type}` is the data type of the OPC point.\n",
                   "required": true,
                   "value": "opc_{type}"
                 },
@@ -1655,7 +1655,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <child table prefix>_{tag_name} pattern, {tag_name} is the name of the OPC point.\n",
+                  "description": "Support `<child table prefix>_{tag_name}` pattern, `{tag_name}` is the name of the OPC point.\n",
                   "required": true,
                   "value": "t_{tag_name}"
                 },
@@ -5936,7 +5936,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。\n",
+                  "description": "支持 `<super table prefix>_{type}` 格式，`{type}` 表示点位的数据类型。\n",
                   "required": true,
                   "value": "opc_{type}"
                 },
@@ -5946,7 +5946,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <child table prefix>_{ns}_{id} 格式，{ns} 表示点位的namespace，{id} 为点位的 id。\n",
+                  "description": "支持 `<child table prefix>_{ns}_{id}` 格式，`{ns}` 表示点位的namespace，`{id}` 为点位的 id。比如：点位的 point_id 为`ns=3;i=1001`，那么`{ns}`为3，`{id}`为1001。",
                   "required": true,
                   "value": "t_{ns}_{id}"
                 },
@@ -6219,7 +6219,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。\n",
+                  "description": "支持 `<super table prefix>_{type}` 格式，`{type}` 表示点位的数据类型。\n",
                   "required": true,
                   "value": "opc_{type}"
                 },
@@ -6229,7 +6229,7 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <child table prefix>_{tag_name} 格式，{tag_name} 表示点位名称。\n",
+                  "description": "支持 `<child table prefix>_{tag_name}` 格式，`{tag_name}` 表示点位名称。\n",
                   "required": true,
                   "value": "t_{tag_name}"
                 },
