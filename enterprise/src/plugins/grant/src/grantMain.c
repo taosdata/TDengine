@@ -2647,7 +2647,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     if (pColInfo) {
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
       if (grantObj.granted) {
-        tmpLen = tsnprintf(qBuf, bufLen,
+        tmpLen = tsnprintf(qBuf, bufLen - VARSTR_HEADER_SIZE,
                            "checkUpTime:%" PRIi8 ",checkMachineCode:%" PRIi8 ",checkHistoricalActive:%" PRIi8
                            ",skipOldActiveIfParseFail:%" PRIi8,
                            gStatus.checkUpTime ? 1 : 0, gStatus.checkMachineCode ? 1 : 0,
