@@ -2584,6 +2584,8 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   bufLen += VARSTR_HEADER_SIZE;
 
   if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   if (pShow->numOfRows < 1) {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
