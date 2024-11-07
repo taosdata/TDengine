@@ -257,6 +257,14 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+int32_t mndProcessCompactVgroupsReq(SRpcMsg *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino;
+// TODO
+_OVER:
+  TAOS_RETURN(code);
+}
+
 int32_t mndSetCreateDbRedoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   int32_t code = 0;
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
