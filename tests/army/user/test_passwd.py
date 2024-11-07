@@ -25,6 +25,9 @@ class TDTestCase(TBase):
     def run(self):
         apiPath = self.apiPath()
         tdLog.info(f"api path: {apiPath}")
+        p = subprocess.Popen(f"ls {apiPath}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        tdLog.info(f"test files: {out}")
         if apiPath:
             test_file_cmd = os.sep.join([apiPath, "passwdTest localhost"])
             try:
