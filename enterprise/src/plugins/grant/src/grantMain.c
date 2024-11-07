@@ -2646,14 +2646,14 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     if (pColInfo) {
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-      if (gStatus.grantState == GRANT_STATE_INIT || gStatus.grantState == GRANT_STATE_UNGRANTED) {
-        tmpLen = 0;
-      } else {
+      if (grantObj.granted) {
         tmpLen = tsnprintf(qBuf, bufLen,
                            "checkUpTime:%" PRIi8 ",checkMachineCode:%" PRIi8 ",checkHistoricalActive:%" PRIi8
                            ",skipOldActiveIfParseFail:%" PRIi8,
                            gStatus.checkUpTime ? 1 : 0, gStatus.checkMachineCode ? 1 : 0,
                            gStatus.checkHistoricalActive ? 1 : 0, gStatus.skipOldActiveIfParseFail ? 1 : 0);
+      } else {
+        tmpLen = 0;
       }
       qBuf += tmpLen;
       qBuf[0] = 0;
