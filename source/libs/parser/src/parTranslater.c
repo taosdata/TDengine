@@ -12939,6 +12939,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
+      break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
       break;
