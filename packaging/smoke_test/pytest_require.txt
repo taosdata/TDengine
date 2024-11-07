@@ -14,3 +14,4 @@ faker
 pyopenssl
 taos-ws-py
 taospy
+tzlocal
