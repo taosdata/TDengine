@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "grantInt.h"
 #include "dnode.h"
 #include "machine.h"
 #include "mndAcct.h"

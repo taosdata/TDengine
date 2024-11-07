@@ -21,6 +21,10 @@
 #include "tarray.h"
 #include "tgrant.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef GRANT_VALUE
 #define GRANT_EXPIRE_DAY      atoi(GRANT_VALUE)
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
@@ -514,5 +518,9 @@ int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqMergeActiveCode(SGrantUniqObj *_new, SGrantUniqObj *old, SGrantUniqObj *merge);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
