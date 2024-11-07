@@ -19,14 +19,14 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tjson.h"
 #include "ttime.h"
 
-#ifdef USE_ANAL
+#ifdef USE_ANALYTICS
 
 typedef struct {
   SArray*     blocks;   // SSDataBlock*

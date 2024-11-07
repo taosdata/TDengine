@@ -40,7 +40,7 @@
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcol.h"
 #include "tlog.h"
 
@@ -2166,7 +2166,7 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
   int32_t numOfAlgos = 0;
   void   *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalUrl   *pUrl = pIter;
+    SAnalyticsUrl   *pUrl = pIter;
     size_t      nameLen = 0;
     const char *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && nameLen <= TSDB_ANAL_ALGO_KEY_LEN && pUrl->urlLen > 0) {
@@ -2181,7 +2181,7 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
 
   pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalUrl   *pUrl = pIter;
+    SAnalyticsUrl   *pUrl = pIter;
     size_t      nameLen = 0;
     const char *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && pUrl->urlLen > 0) {
@@ -2225,7 +2225,7 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t      nameLen;
   int32_t      type;
   char         name[TSDB_ANAL_ALGO_KEY_LEN];
-  SAnalUrl url = {0};
+  SAnalyticsUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
@@ -2245,7 +2245,7 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
     }
 
-    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAnalUrl)));
+    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
 
   tEndDecode(&decoder);
@@ -2258,7 +2258,7 @@ _exit:
 void tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp *pRsp) {
   void *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalUrl *pUrl = (SAnalUrl *)pIter;
+    SAnalyticsUrl *pUrl = (SAnalyticsUrl *)pIter;
     taosMemoryFree(pUrl->url);
     pIter = taosHashIterate(pRsp->hash, pIter);
   }

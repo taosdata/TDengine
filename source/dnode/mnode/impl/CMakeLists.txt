@@ -18,7 +18,7 @@ if(TD_ENTERPRISE)
   endif()
 
   if(${BUILD_WITH_ANALYSIS})
-    add_definitions(-DUSE_ANAL)
+    add_definitions(-DUSE_ANALYTICS)
   endif()
 endif()
 

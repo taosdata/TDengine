@@ -19,7 +19,7 @@
 #include "geomFunc.h"
 #include "querynodes.h"
 #include "scalar.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "taoserror.h"
 #include "ttime.h"
 

@@ -19,7 +19,7 @@
 #include "functionResInfoInt.h"
 #include "query.h"
 #include "querynodes.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"

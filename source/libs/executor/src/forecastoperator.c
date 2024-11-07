@@ -19,14 +19,14 @@
 #include "operator.h"
 #include "querytask.h"
 #include "storageapi.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tfill.h"
 #include "ttime.h"
 
-#ifdef USE_ANAL
+#ifdef USE_ANALYTICS
 
 typedef struct {
   char     algoName[TSDB_ANAL_ALGO_NAME_LEN];

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {

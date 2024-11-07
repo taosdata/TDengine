@@ -18,7 +18,7 @@
 #include "dmInt.h"
 #include "monitor.h"
 #include "systable.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tchecksum.h"
 
 extern SConfig *tsCfg;

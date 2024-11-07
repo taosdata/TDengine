@@ -36,7 +36,7 @@ typedef struct {
   int32_t       anode;
   int32_t       urlLen;
   char         *url;
-} SAnalUrl;
+} SAnalyticsUrl;
 
 typedef enum {
   ANAL_BUF_TYPE_JSON = 0,
@@ -53,18 +53,18 @@ typedef struct {
   TdFilePtr filePtr;
   char      fileName[TSDB_FILENAME_LEN + 10];
   int64_t   numOfRows;
-} SAnalColBuf;
+} SAnalyticsColBuf;
 
 typedef struct {
   EAnalBufType bufType;
   TdFilePtr    filePtr;
   char         fileName[TSDB_FILENAME_LEN];
   int32_t      numOfCols;
-  SAnalColBuf *pCols;
+  SAnalyticsColBuf *pCols;
 } SAnalBuf;
 
-int32_t taosAnalInit();
-void    taosAnalCleanup();
+int32_t taosAnalyticsInit();
+void    taosAnalyticsCleanup();
 SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf);
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
