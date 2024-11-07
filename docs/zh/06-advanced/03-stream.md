@@ -236,7 +236,7 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 
 1.修改 taos.cfg，添加 disableStream 1
 
-2.重启 taosd。如果启动失败，需要手动修改文件夹名字：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1 、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 vnode1.bk 、vnode2.bk ... vnode*.bk
+2.重启 taosd。如果启动失败，修改 stream 目录的名称，避免 taosd 启动的时候尝试加载 stream 目录下的流计算数据信息。不使用删除操作避免误操作导致的风险。需要修改的文件夹：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1 、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 stream.bk
 
 3.启动 taos
 
