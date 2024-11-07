@@ -232,10 +232,10 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 
 ### 流计算升级故障恢复
 
-升级导致流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
-1.修改taos.cfg，添加disableStream 1
-2.启动taosd
-3.启动taos，
+升级 TDengine 后，如果流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
+1.修改 taos.cfg，添加disableStream 1
+2.启动 taosd
+3.启动 taos，
 
 ```sql
 drop stream xxxx; ---- xxx指stream name
@@ -252,6 +252,6 @@ flush database test;
 flush database test1;
 ```
 
-4.关闭taosd
-5.修改taos.cfg，去掉disableStream 1，或将disableStream改为 0
-6.启动taosd
+4.关闭 taosd
+5.修改 taos.cfg，去掉 disableStream 1，或将 disableStream 改为 0
+6.启动 taosd
