@@ -245,3 +245,10 @@ TEST(osSemaphoreTests, Performance4_2) {
     (void)tsem2_destroy(&sem);
   }
 }
+
+TEST(osSemaphoreTests, GetPID) {
+  pid_t pid = 0;
+  int32_t ret = taosGetPIdByName("osSemaphoreTest", &pid);
+  EXPECT_EQ(ret, 0);
+  EXPECT_EQ(pid, taosGetPId());
+}
