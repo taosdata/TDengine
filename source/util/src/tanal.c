@@ -167,6 +167,8 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
   char    name[TSDB_ANAL_ALGO_KEY_LEN] = {0};
   int32_t nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
 
+  char *unused = strntolower(name, name, nameLen);
+
   if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
     SAnalUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
     if (pUrl != NULL) {
@@ -178,6 +180,7 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
       code = terrno;
       uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
     }
+
     if (taosThreadMutexUnlock(&tsAlgos.lock) != 0) {
       uError("failed to unlock hash");
       return TSDB_CODE_OUT_OF_MEMORY;

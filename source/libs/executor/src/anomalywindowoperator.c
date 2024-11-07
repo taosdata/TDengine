@@ -55,7 +55,7 @@ typedef struct {
 
 static void    anomalyDestroyOperatorInfo(void* param);
 static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
-static void    anomalyAggregateBlocks(SOperatorInfo* pOperator);
+static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator);
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
@@ -78,6 +78,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     code = TSDB_CODE_ANAL_ALGO_NOT_FOUND;
     goto _error;
   }
+
   if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
     qError("failed to get anomaly_window algorithm url from %s", pInfo->algoName);
     code = TSDB_CODE_ANAL_ALGO_NOT_LOAD;
@@ -198,7 +199,9 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
-      anomalyAggregateBlocks(pOperator);
+      code = anomalyAggregateBlocks(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
       pSupp->cachedRows = pBlock->info.rows;
@@ -217,7 +220,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
   if (numOfBlocks > 0) {
     qDebug("group:%" PRId64 ", read finish, blocks:%d", pInfo->anomalySup.groupId, numOfBlocks);
-    anomalyAggregateBlocks(pOperator);
+    code = anomalyAggregateBlocks(pOperator);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
@@ -229,6 +232,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
   return code;
 }
@@ -338,8 +342,8 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalBuf                    analBuf = {.bufType = ANAL_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
+  int64_t                     ts = 0;
 
-  int64_t ts = 0;
   // int64_t ts = taosGetTimestampMs();
   snprintf(analBuf.fileName, sizeof(analBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%" PRId64, tsTempDir, ts,
            pSupp->groupId);
@@ -431,6 +435,7 @@ _OVER:
   if (code != 0) {
     qError("failed to analysis window since %s", tstrerror(code));
   }
+
   taosAnalBufDestroy(&analBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
@@ -473,7 +478,7 @@ static int32_t anomalyBuildResult(SOperatorInfo* pOperator) {
   return code;
 }
 
-static void anomalyAggregateBlocks(SOperatorInfo* pOperator) {
+static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
   int32_t                     code = TSDB_CODE_SUCCESS;
   int32_t                     lino = 0;
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
@@ -623,6 +628,8 @@ _OVER:
   pSupp->curWin.ekey = 0;
   pSupp->curWin.skey = 0;
   pSupp->curWinIndex = 0;
+
+  return code;
 }
 
 #else
