@@ -2070,6 +2070,7 @@ void mndTransPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
+/*
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -2149,7 +2150,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       for (int32_t i = 0; i < taosArrayGetSize(pTrans->prepareActions); ++i, ++index) {
         STransAction *pAction = taosArrayGet(pTrans->prepareActions, i);
         len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-              mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
+              mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+sdbStatusName(pAction->pRaw->status));
       }
     }
 
@@ -2166,22 +2168,24 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
                 "sent:%d, received:%d, startTime:%s, endTime:%s, ", index,
                 mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType),
                 pAction->msgSent, pAction->msgReceived, bufStart, endStart);
-          
+
           SEpSet  epset = pAction->epSet;
           if (epset.numOfEps > 0) {
             len += snprintf(detail + len, sizeof(detail) - len, "numOfEps:%d inUse:%d ",
                             epset.numOfEps, epset.inUse);
             for (int32_t i = 0; i < epset.numOfEps; ++i) {
-              len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+              len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn,
+epset.eps[i].port);
             }
           }
 
-          len += snprintf(detail + len, sizeof(detail) - len, ", errCode:0x%x(%s)\n", pAction->errCode & 0xFFFF, tstrerror(pAction->errCode));
+          len += snprintf(detail + len, sizeof(detail) - len, ", errCode:0x%x(%s)\n", pAction->errCode & 0xFFFF,
+tstrerror(pAction->errCode));
         }
         else{
-          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s, written:%d\n", index,
-                mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status),
-                pAction->rawWritten);
+          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s, written:%d\n",
+index, mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+sdbStatusName(pAction->pRaw->status), pAction->rawWritten);
         }
       }
     }
@@ -2201,7 +2205,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
         }
         else{
           len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-                mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
+                mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+sdbStatusName(pAction->pRaw->status));
         }
       }
     }
@@ -2220,9 +2225,34 @@ _OVER:
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
+*/
 
+static int32_t mndShowTransCommonColumns(SShowObj *pShow, SSDataBlock *pBlock, STransAction *pAction, STrans *pTrans,
+                                         int32_t numOfRows, int32_t *cols) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
+  TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false), &lino, _OVER);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
+  TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pAction->id, false), &lino, _OVER);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
+  TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pAction->actionType, false), &lino, _OVER);
+
+  char stage[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+  strcpy(stage, mndTransStr(pAction->stage));
+  char stageVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(stageVStr, stage, pShow->pMeta->pSchemas[*cols].bytes);
+  pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
+  TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stageVStr, false), &lino, _OVER);
+_OVER:
+  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+  return code;
+}
+
+static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
@@ -2237,11 +2267,111 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     pShow->pIter = sdbFetch(pSdb, SDB_TRANS, pShow->pIter, (void **)&pTrans);
     if (pShow->pIter == NULL) break;
 
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+      mInfo("redoActions num:%" PRId64, taosArrayGetSize(pTrans->redoActions));
 
-    
+      for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {
+        STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
+
+        cols = 0;
+
+        mndShowTransCommonColumns(pShow, pBlock, pAction, pTrans, numOfRows, &cols);
+        if (pAction->actionType == TRANS_ACTION_MSG) {
+          char objType[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+          strcpy(objType, TMSG_INFO(pAction->msgType));
+          char objTypeVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);
+          SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)objTypeVStr, false), pTrans, &lino,
+                              _OVER);
+
+          char    result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+          int32_t len = 0;
+          len += snprintf(result + len, sizeof(result) - len, "sent:%d, received:%d", pAction->msgSent,
+                          pAction->msgReceived);
+          char resultVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), pTrans, &lino,
+                              _OVER);
+
+          char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+          len = 0;
+
+          char bufStart[40] = {0};
+          taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+
+          char endStart[40] = {0};
+          taosFormatUtcTime(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+
+          len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, endStart);
+
+          SEpSet epset = pAction->epSet;
+          if (epset.numOfEps > 0) {
+            len += snprintf(detail + len, sizeof(detail) - len, "numOfEps:%d inUse:%d ", epset.numOfEps, epset.inUse);
+            for (int32_t i = 0; i < epset.numOfEps; ++i) {
+              len +=
+                  snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+            }
+          }
+
+          len += snprintf(detail + len, sizeof(detail) - len, ", errCode:0x%x(%s)\n", pAction->errCode & 0xFFFF,
+                          tstrerror(pAction->errCode));
+
+          char detailVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)detailVStr, false), pTrans, &lino,
+                              _OVER);
+
+        } else {
+          char objType[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+          strcpy(objType, sdbTableName(pAction->pRaw->type));
+          char objTypeVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);
+          SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)objTypeVStr, false), pTrans, &lino,
+                              _OVER);
+
+          char    result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+          int32_t len = 0;
+          len += snprintf(result + len, sizeof(result) - len, "rawWritten:%d", pAction->rawWritten);
+          char resultVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), pTrans, &lino,
+                              _OVER);
+
+          char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+          len = 0;
+          len += snprintf(detail + len, sizeof(detail) - len, "sdbStatus:%s", sdbStatusName(pAction->pRaw->status));
+          char detailVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+          STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)detailVStr, false), pTrans, &lino,
+                              _OVER);
+        }
+
+        numOfRows++;
+        if (numOfRows >= rows - 1) break;
+      }
+
+      sdbRelease(pSdb, pTrans);
+    }
   }
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+  } else {
+    mInfo("retrieve %d", numOfRows)
+  }
+
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
+
+static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 
 static void mndCancelGetNextTrans(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
