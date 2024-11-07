@@ -282,7 +282,7 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
       tError("failed to init async since %s", uv_err_name(err));
-      code = TSDB_CODE_THIRDPARTY_ERROR;
+      code = transCvtUvErrno(err);
       break;
     }
   }
@@ -343,7 +343,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   int ret = uv_async_send(async);
   if (ret != 0) {
     tError("failed to send async since %s", uv_err_name(ret));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(ret);
   }
   return 0;
 }
@@ -568,7 +568,7 @@ int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
 
   int err = uv_timer_init(loop, timer);
   if (err != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _return1);
+    TAOS_CHECK_GOTO(transCvtUvErrno(err), NULL, _return1);
   }
 
   *queue = q;
@@ -830,7 +830,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   int32_t err = uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (err != 0) {
     tError("failed to convert ip to string since %s", uv_strerror(err));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(err);
   }
 
   len = strlen(buf);
@@ -938,7 +938,7 @@ int32_t transSetReadOption(uv_handle_t* handle) {
   int     ret = uv_fileno((uv_handle_t*)handle, &fd);
   if (ret != 0) {
     tWarn("failed to get fd since %s", uv_err_name(ret));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(ret);
   }
   code = taosSetSockOpt2(fd);
   return code;
@@ -997,5 +997,4 @@ int32_t transCvtUvErrno(int32_t code) {
   }
   return code;
 #endif
-
 }

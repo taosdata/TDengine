@@ -1180,26 +1180,26 @@ static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
 
   if ((code = uv_loop_init(pThrd->loop)) != 0) {
     tError("failed to init loop since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 
 #if defined(WINDOWS) || defined(DARWIN)
   code = uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
   if (code != 0) {
     tError("failed to init pip since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 #else
   code = uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
   if (code != 0) {
     tError("failed to init pip since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 
   code = uv_pipe_open(pThrd->pipe, pThrd->fd);
   if (code != 0) {
     tError("failed to open pip since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 #endif
 
@@ -1222,7 +1222,7 @@ static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   code = uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   if (code != 0) {
     tError("failed to start read pipe:%s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 #endif
   return 0;
@@ -1235,7 +1235,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
   int code = 0;
   if ((code = uv_tcp_init(srv->loop, &srv->server)) != 0) {
     tError("failed to init accept server since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 
   // register an async here to quit server gracefully
@@ -1248,23 +1248,23 @@ static int32_t addHandleToAcceptloop(void* arg) {
   code = uv_async_init(srv->loop, srv->pAcceptAsync, uvAcceptAsyncCb);
   if (code != 0) {
     tError("failed to init async since:%s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
   srv->pAcceptAsync->data = srv;
 
   struct sockaddr_in bind_addr;
   if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {
     tError("failed to bind addr since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
 
   if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
     tError("failed to bind since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(code);
   }
   if ((code = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
     tError("failed to listen since %s", uv_err_name(code));
-    return TSDB_CODE_RPC_PORT_EADDRINUSE;
+    return transCvtUvErrno(code);
   }
   return 0;
 }
@@ -1357,7 +1357,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
   if (code != 0) {
     tError("%s failed to create conn since %s" PRId64, transLabel(pInst), uv_strerror(code));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    TAOS_CHECK_GOTO(transCvtUvErrno(code), NULL, _end);
   }
   pConn->pTcp->data = pConn;
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
@@ -1511,7 +1511,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   code = uv_loop_init(srv->loop);
   if (code != 0) {
     tError("failed to init server since: %s", uv_err_name(code));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(code);
     goto End;
   }
 
@@ -1622,21 +1622,21 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     uv_os_sock_t fds[2];
     if ((code = uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE)) != 0) {
       tError("failed to create pipe, errmsg: %s", uv_err_name(code));
-      code = TSDB_CODE_THIRDPARTY_ERROR;
+      code = transCvtUvErrno(code);
       goto End;
     }
 
     code = uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
     if (code != 0) {
       tError("failed to init pipe, errmsg: %s", uv_err_name(code));
-      code = TSDB_CODE_THIRDPARTY_ERROR;
+      code = transCvtUvErrno(code);
       goto End;
     }
 
     code = uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
     if (code != 0) {
       tError("failed to init pipe, errmsg: %s", uv_err_name(code));
-      code = TSDB_CODE_THIRDPARTY_ERROR;
+      code = transCvtUvErrno(code);
       goto End;
     }
 

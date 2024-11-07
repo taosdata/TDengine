@@ -228,7 +228,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   int ret = uv_ip4_addr(buf, port, dest);
   if (ret != 0) {
     tError("http-report failed to get addr, reason:%s", uv_err_name(ret));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(ret);
   }
   return 0;
 }
@@ -494,7 +494,7 @@ int32_t httpSendQuit(SHttpModule* http, int64_t chanId) {
   int ret = transAsyncSend(http->asyncPool, &(msg->q));
   if (ret != 0) {
     taosMemoryFree(msg);
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    return transCvtUvErrno(ret);
   }
 
   return 0;
@@ -808,7 +808,7 @@ int64_t transInitHttpChanImpl() {
   int err = uv_loop_init(http->loop);
   if (err != 0) {
     tError("http-report failed init uv, reason:%s", uv_strerror(err));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(err);
     goto _ERROR;
   }
 

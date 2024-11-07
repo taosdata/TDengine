@@ -383,7 +383,7 @@ int32_t cliGetConnTimer(SCliThrd* pThrd, SCliConn* pConn) {
     int ret = uv_timer_init(pThrd->loop, timer);
     if (ret != 0) {
       tError("conn %p failed to init timer %p since %s", pConn, timer, uv_err_name(ret));
-      return TSDB_CODE_THIRDPARTY_ERROR;
+      return transCvtUvErrno(ret);
     }
   }
   timer->data = pConn;
@@ -1073,7 +1073,7 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
   code = uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   if (code != 0) {
     tError("failed to init tcp handle, code:%d, %s", code, uv_strerror(code));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(code);
     TAOS_CHECK_GOTO(code, NULL, _failed);
   }
 
@@ -1524,7 +1524,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
 
     freeWReqToWQ(&pConn->wq, req->data);
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(ret);
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
 
@@ -1589,12 +1589,12 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
   if (ret != 0) {
     tError("%s conn %p failed to set stream since %s", transLabel(pInst), conn, uv_err_name(ret));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
+    TAOS_CHECK_GOTO(transCvtUvErrno(ret), &lino, _exception1);
   }
   ret = transSetConnOption((uv_tcp_t*)conn->stream, 20);
   if (ret != 0) {
     tError("%s conn %p failed to set socket opt since %s", transLabel(pInst), conn, uv_err_name(ret));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
+    TAOS_CHECK_GOTO(transCvtUvErrno(ret), &lino, _exception1);
     return code;
   }
 
@@ -1609,7 +1609,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception1);
+    TAOS_CHECK_GOTO(transCvtUvErrno(ret), &lino, _exception1);
   }
 
   conn->registered = 1;
@@ -1617,7 +1617,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   ret = uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
   if (ret != 0) {
     tError("%s conn %p failed to start timer since %s", transLabel(pInst), conn, uv_err_name(ret));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _exception2);
+    TAOS_CHECK_GOTO(transCvtUvErrno(ret), &lino, _exception2);
   }
   return TSDB_CODE_RPC_ASYNC_IN_PROCESS;
 
@@ -1639,7 +1639,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
   int32_t code = uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
   if (code != 0) {
     tWarn("failed to get perrname since %s", uv_err_name(code));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(code);
     return code;
   }
   transSockInfo2Str(&peername, pConn->dst);
@@ -1648,7 +1648,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
   code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
   if (code != 0) {
     tWarn("failed to get sock name since %s", uv_err_name(code));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
+    code = transCvtUvErrno(code);
     return code;
   }
   transSockInfo2Str(&sockname, pConn->src);
@@ -2398,7 +2398,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   code = uv_loop_init(pThrd->loop);
   if (code != 0) {
     tError("failed to init uv_loop since %s", uv_err_name(code));
-    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    TAOS_CHECK_GOTO(transCvtUvErrno(code), NULL, _end);
   }
 
   int32_t nSync = 2;  // pInst->supportBatch ? 4 : 8;
@@ -2411,8 +2411,8 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   int32_t timerSize = 64;
   pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
   if (pThrd->timerList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    code = terrno;
+    TAOS_CHECK_GOTO(code, NULL, _end);
   }
 
   for (int i = 0; i < timerSize; i++) {
@@ -2423,7 +2423,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     code = uv_timer_init(pThrd->loop, timer);
     if (code != 0) {
       tError("failed to init timer since %s", uv_err_name(code));
-      code = TSDB_CODE_THIRDPARTY_ERROR;
+      code = transCvtUvErrno(code);
       TAOS_CHECK_GOTO(code, NULL, _end);
     }
     if (taosArrayPush(pThrd->timerList, &timer) == NULL) {
@@ -2947,16 +2947,6 @@ void cliMayResetRespCode(SCliReq* pReq, STransMsg* pResp) {
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK ||
         code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED) {
       pResp->code = pCtx->retryCode;
-    }
-  }
-
-  // check whole vnodes is offline on this vgroup
-  if (((pCtx->epSet != NULL && pCtx->epSet->numOfEps > 1) && pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) ||
-      pCtx->retryStep > 0) {
-    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      pResp->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
-    } else if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
-      pResp->code = TSDB_CODE_RPC_SOMENODE_BROKEN_LINK;
     }
   }
 }
