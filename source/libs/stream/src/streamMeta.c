@@ -723,7 +723,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
 
   pTask->id.refId = refId = taosAddRef(streamTaskRefPool, pTask);
   code = taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask->id.refId, sizeof(int64_t));
-  if (code) {
+  if (code) {  // todo remove it from task list
     stError("s-task:0x%" PRIx64 " failed to register task into meta-list, code: out of memory", id.taskId);
 
     int32_t ret = taosRemoveRef(streamTaskRefPool, refId);
@@ -753,9 +753,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   if (pTask->info.fillHistory == 0) {
     int32_t val = atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
   }
-
-  // enable the scheduler for stream tasks
-  streamSetupScheduleTrigger(pTask);
 
   *pAdded = true;
   return code;
@@ -1158,9 +1155,6 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       }
       continue;
     }
-
-    // enable the scheduler for stream tasks after acquire the task RefId.
-    streamSetupScheduleTrigger(pTask);
 
     stInfo("s-task:0x%x vgId:%d set refId:%"PRId64, (int32_t) id.taskId, vgId, pTask->id.refId);
     if (pTask->info.fillHistory == 0) {

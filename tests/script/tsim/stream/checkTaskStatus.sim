@@ -9,6 +9,7 @@ sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 60 then
+  print check task status failed
   return 1
 endi
 

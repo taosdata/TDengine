@@ -2846,6 +2846,9 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
+    pSelect->hasTwaOrElapsedFunc = pSelect->hasTwaOrElapsedFunc ? true
+                                                                : (FUNCTION_TYPE_TWA == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_ELAPSED == pFunc->funcType);
     pSelect->hasInterpPseudoColFunc =
         pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasForecastFunc = pSelect->hasForecastFunc ? true : (FUNCTION_TYPE_FORECAST == pFunc->funcType);
@@ -2902,7 +2905,7 @@ static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t rewriteClentVersionFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pVer = taosStrdup((void*)version);
+  char* pVer = taosStrdup((void*)td_version);
   if (NULL == pVer) {
     return terrno;
   }
@@ -6224,12 +6227,24 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
-  if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-      // single point interp every can be omitted
-    } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                     "Missing RANGE clause, EVERY clause or FILL clause");
+  if (pCxt->createStream) {
+    if (NULL != pSelect->pRange) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream Unsupported RANGE clause");
+    }
+
+    if (NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Missing EVERY clause or FILL clause");
+    }
+  } else {
+    if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+      if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+        // single point interp every can be omitted
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                       "Missing RANGE clause, EVERY clause or FILL clause");
+      }
     }
   }
 
@@ -10506,15 +10521,14 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len) {
-  if (NULL == taosHashGet(pUserAliasSet, "_wstart", strlen("_wstart"))) {
-    snprintf(aliasName, len, "%s", "_wstart");
-    return;
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[]) {
+  for (int32_t i = 0; defaultName[i] != NULL; i++) {
+    if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
+      snprintf(aliasName, len, "%s", defaultName[i]);
+      return;
+    }
   }
-  if (NULL == taosHashGet(pUserAliasSet, "ts", strlen("ts"))) {
-    snprintf(aliasName, len, "%s", "ts");
-    return;
-  }
+
   do {
     taosRandStr(aliasName, len - 1);
     aliasName[len - 1] = '\0';
@@ -10533,6 +10547,46 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
+static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
+                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+  SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
+  if (!pSelect->hasInterpFunc ||
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_irowts", ((SFunctionNode*)pProj)->functionName))) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+  tstrncpy(pFunc->functionName, "_irowts", tListLen(pFunc->functionName));
+  tstrncpy(pFunc->node.userAlias, "_irowts", tListLen(pFunc->node.userAlias));
+  char* defaultName[] = {"_irowts", NULL};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
+  code = getFuncInfo(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && STREAM_CREATE_STABLE_TRUE == pReq->createStb) {
+    SColumnDefNode* pColDef = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
+    if (TSDB_CODE_SUCCESS == code) {
+      strcpy(pColDef->colName, pFunc->node.aliasName);
+      pColDef->dataType = pFunc->node.resType;
+      pColDef->sma = true;
+      code = setColumnDefNodePrimaryKey(pColDef, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) code = nodesListPushFront(pCols, (SNode*)pColDef);
+    if (TSDB_CODE_SUCCESS != code) nodesDestroyNode((SNode*)pColDef);
+  }
+
+  return code;
+}
+
 static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
                                                   SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
@@ -10541,12 +10595,14 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = NULL;
-  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
   strcpy(pFunc->functionName, "_wstart");
-  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName));
+  strcpy(pFunc->node.userAlias, "_irowts");
+  char* defaultName[] = {"_wstart", "ts", NULL};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
@@ -10570,13 +10626,16 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
   return code;
 }
 
-static int32_t addWstartTsToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
+static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
                                               SCMCreateStreamReq* pReq) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SHashObj*    pUserAliasSet = NULL;
   int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
   if (TSDB_CODE_SUCCESS == code) {
     code = addWstartTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addIrowTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
   }
   taosHashCleanup(pUserAliasSet);
   return code;
@@ -10834,7 +10893,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                    "SUBTABLE expression must not has column when no partition by clause");
   }
 
-  if (NULL == pSelect->pWindow && STREAM_TRIGGER_AT_ONCE != pStmt->pOptions->triggerType) {
+  if (NULL == pSelect->pWindow && !pSelect->hasInterpFunc && STREAM_TRIGGER_AT_ONCE != pStmt->pOptions->triggerType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "The trigger mode of non window query can only be AT_ONCE");
   }
@@ -10867,6 +10926,104 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     if ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Source table of Count window must not has primary key");
+    }
+  }
+
+  if (pSelect->hasInterpFunc) {
+    // Temporary code
+    if (pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream interp function only support force window close");
+    }
+
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      if (pStmt->pOptions->fillHistory) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "When trigger was force window close, Stream interp unsupported Fill history");
+      } else if (pSelect->pFill != NULL) {
+        EFillMode mode = ((SFillNode*)(pSelect->pFill))->mode;
+        if (mode == FILL_MODE_NEXT) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream interp unsupported Fill(Next)");
+        } else if (mode == FILL_MODE_LINEAR) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream interp unsupported Fill(Linear)");
+        }
+      }
+    }
+
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream interp unsupported window close");
+    }
+
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_MAX_DELAY) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream interp unsupported max delay");
+    }
+
+    if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
+        TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+        !hasTbnameFunction(pSelect->pPartitionByList)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Interp for stream on super table must patitioned by table name");
+    }
+  }
+
+  if (pSelect->hasTwaOrElapsedFunc) {
+    if (pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream twa or elapsed function only support force window close");
+    }
+    if (pSelect->pWindow->type != QUERY_NODE_INTERVAL_WINDOW) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream twa or elapsed function only support interval");
+    }
+
+    if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
+        TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+        !hasTbnameFunction(pSelect->pPartitionByList)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "twa or elapsed on super table must patitioned by table name");
+    }
+  }
+
+  if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    if (pStmt->pOptions->fillHistory) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+          "When trigger was force window close, Stream unsupported Fill history");
+    }
+
+    if (pStmt->pOptions->ignoreExpired != 1) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+          "When trigger was force window close, Stream must not set  ignore expired 0");
+    }
+
+    if (pStmt->pOptions->ignoreUpdate != 1) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+          "When trigger was force window close, Stream must not set  ignore update 0");
+    }
+
+    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      SIntervalWindowNode* pWindow = (SIntervalWindowNode*)pSelect->pWindow;
+      if (NULL != pWindow->pSliding) {
+        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
+        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
+        if (interval != sliding) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream unsupported sliding");
+        }
+      }
+    }
+
+    if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
+        TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+        !hasTbnameFunction(pSelect->pPartitionByList)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Super table must patitioned by table name");
     }
   }
 
@@ -11434,7 +11591,7 @@ static int32_t checkAndAdjStreamDestTableSchema(STranslateContext* pCxt, SCreate
                                  .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   }
   int32_t code = checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL);
-  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow &&
+  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow && !pSelect->hasInterpFunc &&
       ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta))) {
     if (1 >= LIST_LENGTH(pStmt->pCols) || 1 >= LIST_LENGTH(pSelect->pProjectionList)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
@@ -11475,7 +11632,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     code = addColsToCreateStreamQuery(pCxt, pStmt, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = addWstartTsToCreateStreamQuery(pCxt, pStmt->pQuery, pStmt->pCols, pReq);
+    code = addTsKeyToCreateStreamQuery(pCxt, pStmt->pQuery, pStmt->pCols, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkStreamQuery(pCxt, pStmt);
