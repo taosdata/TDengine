@@ -2,8 +2,10 @@
   <div class="csv-data">
     <div v-if="fileForm.file_or_dir == '1'" class="file-settings" >
       <BlockHeader :title="$t('datasource.uploadcsv')" />
-      <div style="padding-top: 10px;">
-        <div v-for="csvfile in fileList" :key="csvfile.name">{{ csvfile.response[0] }}</div>
+      <div style="padding: 10px 0;">
+        <div v-for="csvfile in fileList" :key="csvfile.name">
+          <a @click="handleDownloadFile(csvfile.response[0])">{{ csvfile.response[0] }}</a>
+        </div>
       </div>
       <div>
         <span v-if="fileForm.keep_processed_files">{{ $t('datasource.keepProcessedFile') }}</span>
@@ -52,6 +54,7 @@ import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
 import { getDsnData, handleDownload } from "../utils";
+import { checkFileExist } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CommonTransformer from "./transformerInfo.vue";
@@ -184,9 +187,20 @@ export default {
     
   },
   methods: {
-    handleDownloadFile(val) {
+    async handleDownloadFile(val) {
       if (val) {
         let name = val?.substr(val.lastIndexOf("/") + 1)
+        try {
+          let result = await checkFileExist(val);
+          if (!result.exists) {
+            this.$error(this.$t("datasource.csvFileNotExist") + ":" + val);
+            return;
+          }
+        } catch (error) {
+          this.$error(this.$t("datasource.csvFileCheckError") + error);
+          return;
+        }
+        
         handleDownload(val, name)
       }
     },

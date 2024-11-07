@@ -1,7 +1,6 @@
 <template>
-  <div style="padding-bottom: 20px" v-loading="loading">
-  
-    <el-table :data="csvFiles" size="mini" stripe border>
+  <div v-loading="loading">
+    <el-table :data="csvFiles" size="mini" height="450" stripe border>
       <el-table-column
         prop="path"
         show-overflow-tooltip
@@ -44,6 +43,16 @@
         width="120"
       />
     </el-table>
+
+    <div class="csv-btns">
+      <el-button
+        type="primary"
+        size="mini"
+        icon="el-icon-refresh"
+        @click="loadCsvData">
+      {{ $t('refresh') }}
+      </el-button>
+    </div>
   </div>
 </template>
 
@@ -55,30 +64,38 @@ export default {
       type: Number,
     },
   },
-  components: {},
   data() {
     return { 
       csvFiles: [],
       loading: true,
     };
   },
-  async mounted() {
-    try {
-      this.csvFiles = await getCSVProgress(this.taskId);
-      this.csvFiles.forEach(item => {
-        item.fileName = item.path.split('/').pop();
-        item.startTime = item.start_time ? item.start_time.substring(0, 19) : '';
-        item.endTime = item.end_time ? item.end_time.substring(0, 19) : '';
-      });
-    } catch (error) {
-      console.error("load csv file error:" + error);
-    } finally {
-      this.loading = false;
-    }
+  mounted() {
+    this.loadCsvData();
   },
+  methods: {
+    async loadCsvData() {
+      this.loading = true;
+      try {
+        this.csvFiles = await getCSVProgress(this.taskId);
+        this.csvFiles.forEach(item => {
+          item.fileName = item.path.split('/').pop();
+          item.startTime = item.start_time ? item.start_time.substring(0, 19) : '';
+          item.endTime = item.end_time ? item.end_time.substring(0, 19) : '';
+        });
+      } catch (error) {
+        console.error("load csv file error:" + error);
+      } finally {
+        this.loading = false;
+      }
+    },
+  }
 };
 </script>
 
 <style scoped lang="scss">
-
+.csv-btns {
+  padding-top: 10px;
+  text-align: right;
+}
 </style>
