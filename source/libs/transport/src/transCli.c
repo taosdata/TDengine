@@ -3791,8 +3791,9 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 8) {
-      tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
+    if (pConn->list && pConn->list->totalSize >= pInst->doBanlanceLimit) {
+      tWarn("%s conn %p try to remove timeout msg since too many conn created, dst:%s, already create conn:%d",
+            transLabel(pInst), pConn, pConn->dstAddr, pConn->list->totalSize);
 
       if (cliConnRemoveTimeoutMsg(pConn)) {
         tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);

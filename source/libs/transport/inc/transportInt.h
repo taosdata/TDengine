@@ -68,6 +68,7 @@ typedef struct {
   bool (*noDelayFp)(tmsg_t msgType);
 
   int32_t       connLimitNum;
+  int32_t       doBanlanceLimit;
   int8_t        connLimitLock;  // 0: no lock. 1. lock
   int8_t        supportBatch;   // 0: no batch, 1: support batch
   int32_t       shareConnLimit;
