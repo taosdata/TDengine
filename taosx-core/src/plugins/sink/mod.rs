@@ -2809,9 +2809,13 @@ async fn consume_flat_record(
             continue;
         }
         let instant = std::time::Instant::now();
-        let batch = parser
-            .parse_message_from_records(batch, true)
-            .context("Transformer parse error")?;
+        let batch = tokio::task::spawn_blocking({
+            let parser = parser.clone();
+            let batch = batch.clone();
+            move || parser.parse_message_from_records(&batch, true)
+        })
+        .await?
+        .context("Transformer parse error")?;
         if tracing::event_enabled!(tracing::Level::TRACE) {
             let elapsed = instant.elapsed();
             tracing::trace!(cost = ?elapsed, "Parse message elapsed: {:?}", elapsed);
