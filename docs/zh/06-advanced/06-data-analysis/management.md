@@ -130,7 +130,6 @@ draw-result = 0
 
 
 ## ANode 基本操作
-### 管理 ANode
 #### 创建 ANode
 ```sql 
 CREATE ANODE {node_url}
