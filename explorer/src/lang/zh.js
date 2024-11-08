@@ -1105,6 +1105,7 @@ export default {
     topicName: "主题名称",
     topic: "主题",
     DBName: "数据库名称",
+    withMeta: "同步 meta",
     action: "操作",
     consumerID: "消费者ID",
     consumerGroup: "消费组",

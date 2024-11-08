@@ -1289,6 +1289,7 @@ export default {
     topic: "Topic",
     action: "Action",
     DBName: "DB Name",
+    withMeta: "With Meta",
     consumerID: "Consumer ID",
     consumerGroup: "Consumer Group",
     clientID: "Client ID",
