@@ -294,8 +294,11 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 static int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0, lino = 0;
 
+  if (pWal->cfg.level == TAOS_WAL_SKIP && pWal->pIdxFile != NULL && pWal->pLogFile != NULL) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
   if (pWal->pIdxFile != NULL) {
-    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
+    if ((code = taosFsyncFile(pWal->pIdxFile)) != 0) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
     code = taosCloseFile(&pWal->pIdxFile);
@@ -305,7 +308,7 @@ static int32_t walRollImpl(SWal *pWal) {
   }
 
   if (pWal->pLogFile != NULL) {
-    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
+    if ((code = taosFsyncFile(pWal->pLogFile)) != 0) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
     code = taosCloseFile(&pWal->pLogFile);

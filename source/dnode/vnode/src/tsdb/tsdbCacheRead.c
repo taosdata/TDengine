@@ -613,6 +613,16 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               singleTableLastTs = pColVal->rowKey.ts;
             }
 
+            if (p->colVal.value.type != pColVal->colVal.value.type) {
+              // check for type/cid mismatch
+              tsdbError("last cache type mismatch, uid:%" PRIu64
+                        ", schema-type:%d, slotId:%d, cache-type:%d, cache-col:%d",
+                        uid, p->colVal.value.type, slotIds[k], pColVal->colVal.value.type, pColVal->colVal.cid);
+              taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+              code = TSDB_CODE_INVALID_PARA;
+              goto _end;
+            }
+
             if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
               p->colVal = pColVal->colVal;
             } else {
