@@ -144,43 +144,6 @@ class TDTestCase:
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 1)
 
-    # def ins_grants_check(self):
-    #     grant_name_dict = {
-    #         'service':'Service Time',
-    #         'timeseries':'Timeseries',
-    #         'dnodes':'Dnodes',
-    #         'cpu_cores':'CPU Cores',
-    #         'stream':'Stream',
-    #         'subscription':'Subscription',
-    #         'view':'View',
-    #         'audit':'Audit',
-    #         'csv':'CSV',
-    #         'storage':'Multi-Tier Storage',
-    #         'backup_restore':'Data Backup & Restore',
-    #         'object_storage':'Object Storage',
-    #         'active_active':'Active-Active',
-    #         'dual_replica':'Dual-Replica HA',
-    #         'db_encryption':'Database Encryption',
-    #         'opc_da':'OPC_DA',
-    #         'opc_ua':'OPC_UA',
-    #         'pi':'Pi',
-    #         'kafka':'Kafka',
-    #         'influxdb':'InfluxDB',
-    #         'mqtt':'MQTT',
-    #         'avevahistorian':'avevaHistorian',
-    #         'opentsdb':'OpenTSDB',
-    #         'td2.6':'TDengine2.6',
-    #         'td3.0':'TDengine3.0',
-    #         'mysql':'MySQL',
-    #         'postgres':'PostgreSQL',
-    #         'oracle':'Oracle',
-    #         'mssql':'SqlServer',
-    #         'mongodb':'MongoDB',
-    #         'csv':'CSV',
-    #     }
-
-
-
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
         infoPath = os.path.join(self.workPath, ".clusterInfo")
