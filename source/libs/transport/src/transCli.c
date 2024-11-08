@@ -3821,9 +3821,6 @@ static FORCE_INLINE void logConnMissHit(SCliConn* pConn) {
   tDebug("conn %p has %d reqs, %d sentout and %d status in process, total limit:%d, switch to other conn", pConn,
          transQueueSize(&pConn->reqsToSend), transQueueSize(&pConn->reqsSentOut), taosHashGetSize(pConn->pQTable),
          pInst->shareConnLimit);
-  // if (transQueueSize(&pConn->reqsSentOut) >= pInst->shareConnLimit) {
-  //   transQueueRemoveByFilter(&pConn->reqsSentOut, filterToDebug, NULL, &set, 1);
-  // }
 }
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
   int       code = 0;
