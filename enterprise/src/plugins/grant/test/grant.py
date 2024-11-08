@@ -146,8 +146,8 @@ class TDTestCase:
 
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
-        infoPath = os.path.join(self.workPath, ".clusterInfo")
-        infoFile = open(infoPath, "w")
+        self.infoPath = os.path.join(self.workPath, ".clusterInfo")
+        infoFile = open(self.infoPath, "w")
         try:
             tdSql.query(f'select create_time,expire_time,version from information_schema.ins_cluster;')
             tdSql.checkEqual(len(tdSql.queryResult), 1)
@@ -164,6 +164,9 @@ class TDTestCase:
             if infoFile:
                 infoFile.flush()
 
+            files_and_dirs = os.listdir(f'{self.workPath}')
+            print(f"files_and_dirs: {files_and_dirs}")
+
             process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate() 
             output = output.decode(encoding="utf-8")
@@ -178,23 +181,29 @@ class TDTestCase:
                     fields  = line.split(":")
                     tdSql.error(f"{fields[2]}", int(fields[1]), fields[3])
         except Exception as e:
-             raise Exception(repr(e))
+            if os.path.exists(self.infoPath):
+                os.remove(self.infoPath)
+            raise Exception(repr(e))
         finally:
             if infoFile:
                 infoFile.close()
-            if os.path.exists(infoPath):
-                os.remove(infoPath)
 
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")
-        process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 1', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output, error = process.communicate() 
-        output = output.decode(encoding="utf-8")
-        error = error.decode(encoding="utf-8")
-        print(f"code: {process.returncode}")
-        print(f"error:\n{error}")
-        print(f"output:\n{output}")
-        tdSql.checkEqual(process.returncode, 0)
+        try:
+            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 1', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            output = output.decode(encoding="utf-8")
+            error = error.decode(encoding="utf-8")
+            print(f"code: {process.returncode}")
+            print(f"error:\n{error}")
+            print(f"output:\n{output}")
+            tdSql.checkEqual(process.returncode, 0)
+        except Exception as e:
+            raise Exception(repr(e))
+        finally:
+            if os.path.exists(self.infoPath):
+                os.remove(self.infoPath)
 
     def run(self):
         # print(self.master_dnode.cfgDict)
