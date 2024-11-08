@@ -532,7 +532,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
       } else {
         tDebug("%s conn %p do balance conn heap since top conn has more reqs, topConnReqs:%d, currConnReqs:%d",
                CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
-        TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+        TAOS_UNUSED(transHeapBalance(conn->heap, topConn));
       }
     }
   }
