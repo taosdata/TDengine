@@ -263,7 +263,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
     fp = fopen(filepath, "r");
     if (NULL != fp) {
       if (fgets(buf, tListLen(buf) - 1, fp) == NULL) {
-        fclose(fp);
+        TAOS_UNUSED(fclose(fp));
         continue;
       }
 
@@ -272,7 +272,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
         char* end = NULL;
         *pPId = taosStr2Int32(ptr->d_name, &end, 10);
       }
-      fclose(fp);
+      TAOS_UNUSED(fclose(fp));
     }
   }
 
