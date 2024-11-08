@@ -689,6 +689,9 @@ if __name__ == "__main__":
     if conn is not None:
         conn.close()
     if asan:
-        #tdDnodes.StopAllSigint()
+        # tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
+    else:
+        tdDnodes.stopAll()
+        tdLog.info("stop all td process finished")
     sys.exit(0)

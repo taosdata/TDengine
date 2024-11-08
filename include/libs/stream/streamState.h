@@ -49,6 +49,8 @@ void    streamStateClear(SStreamState* pState);
 void    streamStateSetNumber(SStreamState* pState, int32_t number, int32_t tsIdex);
 void    streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
 int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
+int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                           int32_t* pWinCode);
 
 // session window
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen,
@@ -75,8 +77,14 @@ int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, ch
 
 // fill
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
-int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
+int32_t streamStateFillAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                        int32_t* pWinCode);
 void    streamStateFillDel(SStreamState* pState, const SWinKey* key);
+int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                               int32_t* pWinCode);
+int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                               int32_t* pWinCode);
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                  int32_t* pWinCode);
@@ -96,14 +104,24 @@ SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey*
 void             streamStateFreeCur(SStreamStateCur* pCur);
 void             streamStateResetCur(SStreamStateCur* pCur);
 
-int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+
+// twa
+void streamStateSetFillInfo(SStreamState* pState);
+void streamStateClearExpiredState(SStreamState* pState);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache, int32_t* pWinCode);
+
+// group id
+int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
+SStreamStateCur* streamStateGroupGetCur(SStreamState* pState);
+void streamStateGroupCurNext(SStreamStateCur* pCur);
+int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 

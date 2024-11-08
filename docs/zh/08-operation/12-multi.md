@@ -163,3 +163,15 @@ s3BucketName td-test
 - 认为全部 S3 服务均指向同一数据源，对各个 S3 服务操作完全等价
 - 在某一 S3 服务上操作失败后会切换至其他服务，全部服务都失败后将返回最后产生的错误码
 - 最大支持的 S3 服务配置数为 10
+
+### 不依赖 Flexify 服务
+
+用户界面同 S3，不同的地方在于下面三个参数的配置：
+
+| #    | 参数         | 示例值                                   | 描述                                                         |
+| :--- | :----------- | :--------------------------------------- | :----------------------------------------------------------- |
+| 1    | s3EndPoint   | https://fd2d01c73.blob.core.windows.net  | Blob URL                                                     |
+| 2    | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg== | 冒号分隔的用户 accountId:accountKey                          |
+| 3    | s3BucketName | test-container                           | Container name                                               |
+
+其中 fd2d01c73 是账户 ID；微软 Blob 存储服务只支持 Https 协议，不支持 Http。

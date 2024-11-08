@@ -39,7 +39,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
   strcpy(connectReq.passwd, secretEncrypt);
-  strcpy(connectReq.sVer, version);
+  strcpy(connectReq.sVer, td_version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
@@ -76,7 +76,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
   strcpy(connectReq.db, "not_exist_db");
   strcpy(connectReq.user, "root");
   strcpy(connectReq.passwd, secretEncrypt);
-  strcpy(connectReq.sVer, version);
+  strcpy(connectReq.sVer, td_version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);

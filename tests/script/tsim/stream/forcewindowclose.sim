@@ -1,0 +1,50 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print =============== create database
+sql create database test vgroups 2;
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql use test
+sql create stable st(ts timestamp, a int) tags(t int);
+sql create table tu1 using st tags(1);
+
+sql create stream stream1 trigger force_window_close into str_dst as select  _wstart, count(*) from st partition by tbname interval(5s);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into tu1 values(now, 1);
+sleep 5500
+
+sql pause stream stream1
+
+$loop_count = 0
+
+loop0:
+sleep 500
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  goto end_loop
+endi
+
+sql insert into tu1 values(now, 1);
+goto loop0
+
+end_loop:
+
+sql resume stream stream1
+sql select * from str_dst
+
+if $rows != 3 then
+  print expect 3, actual: $rows
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

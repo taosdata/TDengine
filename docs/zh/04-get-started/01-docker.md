@@ -23,17 +23,18 @@ docker pull tdengine/tdengine:3.3.3.0
 然后只需执行下面的命令：
 
 ```shell
-docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6044-6049:6044-6049 -p 6044-6045:6044-6045/udp -p 6060:6060 tdengine/tdengine
 ```
 
-注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
+注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043 为 taosKeeper 使用端口。6044-6049 TCP 端口为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
+6044 和 6045 UDP 端口为 statsd 和 collectd 格式写入接口，可根据需要选择是否打开。6060 为 taosExplorer 使用端口。具体端口使用情况请参考[网络端口要求](../../operation/planning#网络端口要求)。
 
 如果需要将数据持久化到本机的某一个文件夹，则执行下边的命令：
 
 ```shell
 docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
-  -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
+  -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6044-6049:6044-6049 -p 6044-6045:6044-6045/udp -p 6060:6060 tdengine/tdengine
 ```
 
 :::note

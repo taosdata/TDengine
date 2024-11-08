@@ -1700,7 +1700,7 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
-  tstrncpy(connectReq.sVer, version, sizeof(connectReq.sVer));
+  tstrncpy(connectReq.sVer, td_version, sizeof(connectReq.sVer));
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = taosMemoryMalloc(contLen);
@@ -1770,19 +1770,15 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-int32_t doProcessMsgFromServer(void* param) {
-  AsyncArg* arg = (AsyncArg*)param;
-  SRpcMsg*  pMsg = &arg->msg;
-  SEpSet*   pEpSet = arg->pEpset;
-
+int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
-    taosMemoryFree(arg->pEpset);
     rpcFreeCont(pMsg->pCont);
-    taosMemoryFree(arg);
+    taosMemoryFree(pEpSet);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
+
   STscObj* pTscObj = NULL;
 
   STraceId* trace = &pMsg->info.traceId;
@@ -1802,10 +1798,9 @@ int32_t doProcessMsgFromServer(void* param) {
         if (TSDB_CODE_SUCCESS != taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId)) {
           tscError("doProcessMsgFromServer taosReleaseRef failed");
         }
-        taosMemoryFree(arg->pEpset);
         rpcFreeCont(pMsg->pCont);
+        taosMemoryFree(pEpSet);
         destroySendMsgInfo(pSendInfo);
-        taosMemoryFree(arg);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       pTscObj = pRequest->pTscObj;
@@ -1844,20 +1839,24 @@ int32_t doProcessMsgFromServer(void* param) {
 
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
-
-  taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
+}
+int32_t doProcessMsgFromServer(void* param) {
+  AsyncArg* arg = (AsyncArg*)param;
+  int32_t   code = doProcessMsgFromServerImpl(&arg->msg, arg->pEpset);
+  taosMemoryFree(arg);
+  return code;
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  int32_t code = 0;
   SEpSet* tEpSet = NULL;
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
     if (NULL == tEpSet) {
-      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-      rpcFreeCont(pMsg->pCont);
-      destroySendMsgInfo(pMsg->info.ahandle);
-      return;
+      code = terrno;
+      pMsg->code = terrno;
+      goto _exit;
     }
     (void)memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
@@ -1879,21 +1878,25 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   if (NULL == arg) {
-    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(tEpSet);
-    rpcFreeCont(pMsg->pCont);
-    destroySendMsgInfo(pMsg->info.ahandle);
-    return;
+    code = terrno;
+    pMsg->code = code;
+    goto _exit;
   }
+
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
-    tscError("failed to sched msg to tsc, tsc ready to quit");
-    rpcFreeCont(pMsg->pCont);
-    taosMemoryFree(arg->pEpset);
-    destroySendMsgInfo(pMsg->info.ahandle);
+  if ((code = taosAsyncExec(doProcessMsgFromServer, arg, NULL)) != 0) {
+    pMsg->code = code;
     taosMemoryFree(arg);
+    goto _exit;
+  }
+  return;
+_exit:
+  tscError("failed to sched msg to tsc since %s", tstrerror(code));
+  code = doProcessMsgFromServerImpl(pMsg, tEpSet);
+  if (code != 0) {
+    tscError("failed to sched msg to tsc, tsc ready quit");
   }
 }
 
@@ -2081,12 +2084,12 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
+static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, C2M);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
 
@@ -2100,7 +2103,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       pResultInfo->convertBuf[i] = p;
 
       SResultColumn* pCol = &pResultInfo->pCol[i];
-      for (int32_t j = 0; j < numOfRows; ++j) {
+      for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
         if (pCol->offset[j] != -1) {
           char* pStart = pCol->offset[j] + pCol->pData;
 
@@ -2133,9 +2136,12 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
-static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
+static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
+
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
@@ -2195,10 +2201,16 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
     }
     pStart += colLen;
   }
+
+  // Ensure the complete structure of the block, including the blankfill field,
+  // even though it is not used on the client side.
+  len += sizeof(bool);
   return len;
 }
 
-static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
+static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
   bool needConvert = false;
   for (int32_t i = 0; i < numOfCols; ++i) {
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
@@ -2215,7 +2227,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
-  int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
+  int32_t dataLen = estimateJsonLen(pResultInfo);
   if (dataLen <= 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -2338,27 +2350,36 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     pStart1 += colLen1;
   }
 
+  // Ensure the complete structure of the block, including the blankfill field,
+  // even though it is not used on the client side.
+  // (void)memcpy(pStart1, pStart, sizeof(bool));
+  totalLen += sizeof(bool);
+
   *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
-                         bool convertUcs4) {
-  if (numOfCols <= 0 || pFields == NULL || pResultInfo == NULL) {
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
+  if (pResultInfo == NULL || pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  if (numOfRows == 0) {
+  if (pResultInfo->numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (pResultInfo->pData == NULL) {
+    tscError("setResultDataPtr error: pData is NULL");
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   int32_t code = doPrepareResPtr(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  code = doConvertJson(pResultInfo, numOfCols, numOfRows);
+  code = doConvertJson(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2378,9 +2399,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  if (rows != numOfRows || cols != numOfCols) {
-    tscError("setResultDataPtr paras error:rows;%d numOfRows:%d cols:%d numOfCols:%d", rows, numOfRows, cols,
-             numOfCols);
+  if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
+    tscError("setResultDataPtr paras error:rows;%d numOfRows:%" PRId64 " cols:%d numOfCols:%d", rows, pResultInfo->numOfRows, cols,
+             pResultInfo->numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -2391,7 +2412,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   p += sizeof(uint64_t);
 
   // check fields
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int8_t type = *(int8_t*)p;
     p += sizeof(int8_t);
 
@@ -2400,10 +2421,14 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   }
 
   int32_t* colLength = (int32_t*)p;
-  p += sizeof(int32_t) * numOfCols;
+  p += sizeof(int32_t) * pResultInfo->numOfCols;
 
   char* pStart = p;
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
+    if ((pStart - pResultInfo->pData) >= dataLen) {
+      tscError("setResultDataPtr invalid offset over dataLen %d", dataLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
     if (blockVersion == BLOCK_VERSION_1) {
       colLength[i] = htonl(colLength[i]);
     }
@@ -2411,10 +2436,13 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
-
+    if (IS_INVALID_TYPE(pResultInfo->fields[i].type)) {
+      tscError("invalid type %d", pResultInfo->fields[i].type);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
-      pStart += numOfRows * sizeof(int32_t);
+      pStart += pResultInfo->numOfRows * sizeof(int32_t);
     } else {
       pResultInfo->pCol[i].nullbitmap = pStart;
       pStart += BitmapLen(pResultInfo->numOfRows);
@@ -2427,11 +2455,17 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
+  p = pStart;
   // bool blankFill = *(bool*)p;
   p += sizeof(bool);
+  int32_t offset = p - pResultInfo->pData;
+  if (offset > dataLen) {
+    tscError("invalid offset %d, dataLen %d", offset, dataLen);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
 
   if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);
+    code = doConvertUCS4(pResultInfo, colLength);
   }
 
   return code;
@@ -2544,7 +2578,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   pResultInfo->totalRows += pResultInfo->numOfRows;
 
   int32_t code =
-      setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
+      setResultDataPtr(pResultInfo, convertUcs4);
   return code;
 }
 
@@ -2573,7 +2607,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.readTimeout = tsReadTimeout;
-  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(version, &(rpcInit.compatibilityVer))) {
+  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
     tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
   }
@@ -2839,6 +2873,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
+    clientOperateReport(pParam->pRequest);
   }
 
   if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {

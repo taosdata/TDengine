@@ -39,7 +39,7 @@ class TDTestCase:
         taos_list = ['server','client']
         for i in taos_list:
             tdSql.query(f'select {i}_version()')
-            version_info = str(subprocess.run('cat ../../source/util/src/version.c |grep "char version"', shell=True,capture_output=True).stdout.decode('utf8')).split('"')[1]
+            version_info = str(subprocess.run('cat ../../source/util/src/version.c |grep "char td_version"', shell=True,capture_output=True).stdout.decode('utf8')).split('"')[1]
             tdSql.checkData(0,0,version_info)
 
     def get_server_status(self):

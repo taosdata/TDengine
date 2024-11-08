@@ -21,10 +21,10 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tjson.h"
 
-#ifdef USE_ANAL
+#ifdef USE_ANALYTICS
 
 #define TSDB_ANODE_VER_NUMBER   1
 #define TSDB_ANODE_RESERVE_SIZE 64
@@ -806,7 +806,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   SSdb                *pSdb = pMnode->pSdb;
   int32_t              code = -1;
   SAnodeObj           *pObj = NULL;
-  SAnalUrl             url;
+  SAnalyticsUrl             url;
   int32_t              nameLen;
   char                 name[TSDB_ANAL_ALGO_KEY_LEN];
   SRetrieveAnalAlgoReq req = {0};
@@ -838,7 +838,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
           SAnodeAlgo *algo = taosArrayGet(algos, a);
           nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
 
-          SAnalUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
+          SAnalyticsUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
           if (pOldUrl == NULL || (pOldUrl != NULL && pOldUrl->anode < url.anode)) {
             if (pOldUrl != NULL) {
               taosMemoryFreeClear(pOldUrl->url);
@@ -855,7 +855,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
 
             url.urlLen = 1 + tsnprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
                                       taosAnalAlgoUrlStr(url.type));
-            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalUrl)) != 0) {
+            if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalyticsUrl)) != 0) {
               taosMemoryFree(url.url);
               sdbRelease(pSdb, pAnode);
               goto _OVER;

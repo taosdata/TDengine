@@ -16,8 +16,6 @@
 #ifndef _STREAM_FILE_STATE_H_
 #define _STREAM_FILE_STATE_H_
 
-#include "os.h"
-
 #include "storageapi.h"
 #include "tarray.h"
 #include "tdef.h"
@@ -37,13 +35,15 @@ typedef void (*_state_buff_cleanup_fn)(void* pRowBuff);
 typedef void* (*_state_buff_create_statekey_fn)(SRowBuffPos* pPos, int64_t num);
 
 typedef int32_t (*_state_file_remove_fn)(SStreamFileState* pFileState, const void* pKey);
-typedef int32_t (*_state_file_get_fn)(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen);
+typedef int32_t (*_state_file_get_fn)(SStreamFileState* pFileState, void* pKey, void** data, int32_t* pDataLen);
 typedef int32_t (*_state_file_clear_fn)(SStreamState* pState);
 
 typedef int32_t (*_state_fun_get_fn)(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal,
                                      int32_t* pVLen, int32_t* pWinCode);
 
 typedef int32_t (*range_cmpr_fn)(const SSessionKey* pWin1, const SSessionKey* pWin2);
+
+typedef int (*__session_compare_fn_t)(const void* pWin, const void* pDatas, int pos);
 
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
                             void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId, int8_t type,
@@ -54,6 +54,8 @@ bool              needClearDiskBuff(SStreamFileState* pFileState);
 void              streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used);
 void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
+int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
+                             int32_t* pWinCode);
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
@@ -71,9 +73,11 @@ int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState);
 void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
 
 void*        getRowStateBuff(SStreamFileState* pFileState);
+void*        getSearchBuff(SStreamFileState* pFileState);
 void*        getStateFileStore(SStreamFileState* pFileState);
 bool         isDeteled(SStreamFileState* pFileState, TSKEY ts);
 bool         isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap);
+TSKEY        getFlushMark(SStreamFileState* pFileState);
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState);
 int32_t      getRowStateRowSize(SStreamFileState* pFileState);
 
@@ -94,6 +98,7 @@ int32_t      recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);
 
+SStreamStateCur* createStateCursor(SStreamFileState* pFileState);
 SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
@@ -102,6 +107,8 @@ int32_t          sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* p
 void             sessionWinStateMoveToNext(SStreamStateCur* pCur);
 int32_t          sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessionKey* key, SSessionKey* curKey,
                                               range_cmpr_fn cmpFn);
+
+int32_t binarySearch(void* keyList, int num, const void* key, __session_compare_fn_t cmpFn);
 
 // state window
 int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
@@ -116,6 +123,34 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
 int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                           int32_t* pWinCode);
 int32_t getFunctionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
+
+// time slice
+int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
+                           int32_t* pWinCode);
+int32_t hashSortFileGetFn(SStreamFileState* pFileState, void* pKey, void** data, int32_t* pDataLen);
+int32_t hashSortFileRemoveFn(SStreamFileState* pFileState, const void* pKey);
+void    clearSearchBuff(SStreamFileState* pFileState);
+int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                           int32_t* pVLen, int32_t* pWinCode);
+int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
+                           int32_t* pVLen, int32_t* pWinCode);
+int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId);
+void    deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey);
+
+//group
+int32_t streamFileStateGroupPut(SStreamFileState* pFileState, int64_t groupId, void* value, int32_t vLen);
+void streamFileStateGroupCurNext(SStreamStateCur* pCur);
+int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
+SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
+int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
+int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
+                           int32_t* pVLen, int32_t* pWinCode);
+int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey);
+
+//twa
+void setFillInfo(SStreamFileState* pFileState);
+void clearExpiredState(SStreamFileState* pFileState);
+int32_t addArrayBuffIfNotExist(SSHashObj* pSearchBuff, uint64_t groupId, SArray** ppResStates);
 
 #ifdef __cplusplus
 }
