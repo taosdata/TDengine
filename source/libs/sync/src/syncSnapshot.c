@@ -578,6 +578,10 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
   int32_t code = 0;
+
+  int8_t stopped = !atomic_val_compare_exchange_8(&pReceiver->start, true, false);
+  if (stopped) return code;
+
   if (pReceiver->pWriter != NULL) {
     // write data
     sRInfo(pReceiver, "snapshot receiver write about to finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
