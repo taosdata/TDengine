@@ -1085,13 +1085,13 @@ int32_t walSaveMeta(SWal* pWal) {
     }
   }
 
-  taosMemoryFree(serialized);
+  taosMemFree(serialized);
   return code;
 
 _err:
   wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   (void)taosCloseFile(&pMetaFile);
-  taosMemoryFree(serialized);
+  taosMemFree(serialized);
   return code;
 }
 

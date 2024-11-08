@@ -445,7 +445,7 @@ int mainWindows(int argc, char **argv) {
   }
   
   if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
-    dError("failed to init conv");
+    dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
     taosCleanupArgs();
     return code;

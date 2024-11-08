@@ -433,7 +433,12 @@ int32_t taosMemTrim(int32_t size, bool* trimed) {
   // do nothing
   return TSDB_CODE_SUCCESS;
 #else
-  *trimed = malloc_trim(size);
+  if (trimed) {
+    *trimed = malloc_trim(size);
+  } else {
+    malloc_trim(size);
+  }
+  
   return TSDB_CODE_SUCCESS;
 #endif
 }

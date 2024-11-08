@@ -142,7 +142,7 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
-  if (buffer != NULL) taosMemoryFree(buffer);
+  if (buffer != NULL) taosMemFree(buffer);
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {

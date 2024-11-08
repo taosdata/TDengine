@@ -24,6 +24,8 @@
 static TdThreadOnce  gMPoolInit = PTHREAD_ONCE_INIT;
 void* gMemPoolHandle = NULL;
 threadlocal void* threadPoolSession = NULL;
+threadlocal bool  threadPoolEnabled = true;
+
 SMemPoolMgmt gMPMgmt = {0};
 SMPStrategyFp gMPFps[] = {
   {NULL}, 
@@ -209,7 +211,7 @@ int32_t mpInitStat(SMPStatPos* pStat, bool sessionStat) {
 }
 
 int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
-  MP_ERR_RET(mpCheckCfg(cfg));
+//  MP_ERR_RET(mpCheckCfg(cfg));
   
   TAOS_MEMCPY(&pPool->cfg, cfg, sizeof(*cfg));
   
@@ -878,10 +880,14 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
         mpLogDetailStat(&pPool->stat.statDetail, item, pInput);
       }
       if (pSession && MP_GET_FLAG(pSession->ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
+        taosDisableMemPoolUsage();
         mpLogPosStat(&pSession->stat.posStat, item, pInput, true);
+        taosEnableMemPoolUsage();
       }
       if (MP_GET_FLAG(pPool->ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
+        taosDisableMemPoolUsage();
         mpLogPosStat(&pPool->stat.posStat, item, pInput, false);
+        taosEnableMemPoolUsage();
       }
       break;
     }

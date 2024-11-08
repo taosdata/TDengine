@@ -167,9 +167,9 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     if (taskHandle) {
       qwDbgSimulateSleep();
 
-      taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
+      taosEnableFullMemPoolUsage(ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
-      taosDisableMemoryPoolUsage();
+      taosDisableFullMemPoolUsage();
       
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
@@ -803,9 +803,9 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   ctx->queryMsgType = qwMsg->msgType;
   ctx->localExec = false;
 
-  taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
+  taosEnableFullMemPoolUsage(ctx->memPoolSession);
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
-  taosDisableMemoryPoolUsage();
+  taosDisableFullMemPoolUsage();
   
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
@@ -813,9 +813,9 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(code);
   }
 
-  taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
+  taosEnableFullMemPoolUsage(ctx->memPoolSession);
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql, OPTR_EXEC_MODEL_BATCH);
-  taosDisableMemoryPoolUsage();
+  taosDisableFullMemPoolUsage();
   
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));

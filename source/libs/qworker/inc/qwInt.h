@@ -262,11 +262,11 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SINK_ENABLE_MEMPOOL(_ctx)                                              \
   do {                                                                            \
     if ((_ctx)->sinkWithMemPool) {                                                \
-      taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, (_ctx)->memPoolSession);        \
+      taosEnableFullMemPoolUsage((_ctx)->memPoolSession);        \
     }                                                                             \
   } while (0)
 
-#define QW_SINK_DISABLE_MEMPOOL() taosDisableMemoryPoolUsage()
+#define QW_SINK_DISABLE_MEMPOOL() taosDisableFullMemPoolUsage()
 
 #define QW_STAT_INC(_item, _n) (void)atomic_add_fetch_64(&(_item), _n)
 #define QW_STAT_DEC(_item, _n) (void)atomic_sub_fetch_64(&(_item), _n)

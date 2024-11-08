@@ -2076,7 +2076,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
-                                         {"singleQueryMaxMemorySize", &tsSingleQueryMaxMemorySize}};
+                                         {"singleQueryMaxMemorySize", &tsSingleQueryMaxMemorySize},
+                                         {"minReservedMemorySize", &tsMinReservedMemorySize}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
