@@ -13,6 +13,8 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 |firstEp | taos 启动时，主动连接的集群中首个 dnode 的 endpoint，缺省值：hostname:6030，若无法获取该服务器的 hostname，则赋值为 localhost  |
 |secondEp | 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，没有缺省值 |
 |numOfRpcSessions | 一个客户端能创建的最大连接数，取值范围：10-50000000(单位为毫秒)；缺省值：500000 |
+|shareConnLimit | 一个conn 最多可以挂的req个数一个客户端能创建的最大连接数，取值范围：1-256, 缺省值:10 |
+|readTimeout |最小超时时间，单个req，如果超过这个值没有任何响应，则可能被主动摘掉，摘掉的req会主动向业务侧通知，并返回错误码 ，取值范围：900-604800（单位为秒）, 缺省值:900 |
 |telemetryReporting | 是否上传 telemetry，0: 不上传，1： 上传；缺省值：1 |
 |crashReporting | 是否上传 telemetry，0: 不上传，1： 上传；缺省值：1  |
 |queryPolicy | 查询语句的执行策略，1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 ；缺省值：1 |
