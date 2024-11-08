@@ -1,6 +1,6 @@
 ---
-title: "addins"
-sidebar_label: "addins"
+title: "算法开发者指南"
+sidebar_label: "算法开发者指南"
 ---
 
 本节说明如何将自己开发的预测算法和异常检测算法整合到 TDengine 分析平台，并能够通过 SQL 语句进行调用。
