@@ -10,7 +10,7 @@ TDgpt 运行在部署于 TDengine 集群中的 Analysis Node (ANode)中。每个
 
 如下是数据分析的技术架构示意图。
 
-<img src=./pic/data-analysis.png width="560" alt="myImage" />
+<img src=./pic/data-analysis.png width="500" alt="myImage" />
 
 ## 安装部署
 ### 环境准备
