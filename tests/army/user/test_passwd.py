@@ -1,4 +1,5 @@
 import os
+import platform
 import subprocess
 from frame.log import *
 from frame.cases import *
@@ -25,6 +26,12 @@ class TDTestCase(TBase):
     def run(self):
         apiPath = self.apiPath()
         tdLog.info(f"api path: {apiPath}")
+        if platform.system().lower() == 'linux':
+            p = subprocess.Popen(f"cd {apiPath} && make", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate()
+            if 0 != p.returncode:
+                tdLog.exit("Test script passwdTest.c make failed")
+        
         p = subprocess.Popen(f"ls {apiPath}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         tdLog.info(f"test files: {out}")
