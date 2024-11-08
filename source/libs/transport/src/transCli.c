@@ -515,6 +515,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     tDebug("%s conn %p do balance directly", CONN_GET_INST_LABEL(conn), conn);
     TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   } else {
+    tTrace("%s conn %p may do balance", CONN_GET_INST_LABEL(conn), conn);
     transHeapMayBalance(conn->heap, conn);
   }
   return 0;
@@ -3790,7 +3791,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
         tTrace("conn %p get list %p from pool for key:%s", pConn, pConn->list, key);
       }
     }
-    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 4) {
+    if (pConn->list && pConn->list->totalSize >= pInst->connLimitNum / 8) {
       tWarn("%s conn %p try to remove timeout msg since too many conn created", transLabel(pInst), pConn);
 
       if (cliConnRemoveTimeoutMsg(pConn)) {
@@ -3899,6 +3900,8 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
 }
 
 static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
   if (pConn->heap != NULL && pConn->inHeap != 0) {
     SCliConn* pTopConn = NULL;
     SHeap*    heap = pConn->heap;
@@ -3909,7 +3912,7 @@ static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, S
     TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
     if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
       topReqs = REQS_ON_CONN(pTopConn);
-      if (curReqs > topReqs) {
+      if (curReqs > topReqs && topReqs < pInst->shareConnLimit) {
         *pNewConn = pTopConn;
         return 1;
       } else {
@@ -4013,16 +4016,16 @@ int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
   SCliConn* topConn = NULL;
   int32_t   code = transHeapGet(heap, &topConn);
   if (code != 0) {
-    return 0;
+    return code;
   }
-  if (topConn == p) return 0;
+  if (topConn == p) return code;
 
   int32_t topReqs = REQS_ON_CONN(topConn);
   int32_t curReqs = REQS_ON_CONN(p);
   if (curReqs < topReqs) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
-  return 0;
+  return code;
 }
 int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
