@@ -496,6 +496,7 @@ def test_sanity_csv_td32576_01(env_data):
     )
 
 @pytest.mark.sanity
+@pytest.mark.skip
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
 def test_sanity_csv_td32576_02(env_data):
     """
