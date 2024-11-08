@@ -19,6 +19,7 @@
 #include "tarray.h"
 #include "tconfig.h"
 #include "tdef.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +50,7 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
+extern int32_t       tsForceReadConfig;
 extern int32_t       tsConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
@@ -294,8 +296,8 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 int32_t persistGlobalConfig(const char *path, int32_t version);
 int32_t persistLocalConfig(const char *path);
 int32_t localConfigSerialize(SArray *array, char **serialized);
-int32_t tSerializeSConfigArray(void *buf, int32_t bufLen, SArray *array);
-int32_t tDeserializeSConfigArray(void *buf, int32_t bufLen, SArray *pReq);
+int32_t tSerializeSConfigArray(SEncoder *pEncoder, int32_t bufLen, SArray *array);
+int32_t tDeserializeSConfigArray(SDecoder *pDecoder, int32_t bufLen, SArray *array);
 #ifdef __cplusplus
 }
 #endif

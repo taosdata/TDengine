@@ -1600,6 +1600,7 @@ _exit:
   return code;
 }
 
+
 int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -1607,6 +1608,11 @@ int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+  } else {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
+  }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
   tEndEncode(&encoder);
 _exit:

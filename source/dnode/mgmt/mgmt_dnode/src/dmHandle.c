@@ -288,6 +288,8 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   SConfigReq req = {0};
 
   req.cver = tsConfigVersion;
+  req.forceReadConfig = tsForceReadConfig;
+  req.array = cfgGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
   int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);

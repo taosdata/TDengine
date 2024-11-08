@@ -88,6 +88,7 @@ static int32_t tEncodeU64v(SEncoder* pCoder, uint64_t val);
 static int32_t tEncodeI64v(SEncoder* pCoder, int64_t val);
 static int32_t tEncodeFloat(SEncoder* pCoder, float val);
 static int32_t tEncodeDouble(SEncoder* pCoder, double val);
+static int32_t tEncodeBool(SEncoder* pCoder, bool val);
 static int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len);
 static int32_t tEncodeBinaryEx(SEncoder* pCoder, const uint8_t* val, uint32_t len);
 static int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len);
@@ -116,6 +117,7 @@ static int32_t tDecodeU64v(SDecoder* pCoder, uint64_t* val);
 static int32_t tDecodeI64v(SDecoder* pCoder, int64_t* val);
 static int32_t tDecodeFloat(SDecoder* pCoder, float* val);
 static int32_t tDecodeDouble(SDecoder* pCoder, double* val);
+static int32_t tDecodeBool(SDecoder* pCoder, bool* val);
 static int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len);
 static int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len);
 static int32_t tDecodeCStr(SDecoder* pCoder, char** val);
@@ -204,6 +206,8 @@ static FORCE_INLINE int32_t tEncodeDouble(SEncoder* pCoder, double val) {
 
   return tEncodeU64(pCoder, v.ui);
 }
+
+static int32_t tEncodeBool(SEncoder* pCoder, bool val) { return tEncodeU8(pCoder, val ? 1 : 0); }
 
 static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len) {
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
@@ -387,6 +391,15 @@ static FORCE_INLINE int32_t tDecodeDouble(SDecoder* pCoder, double* val) {
 
   if (val) {
     *val = v.d;
+  }
+  return 0;
+}
+
+static int32_t tDecodeBool(SDecoder* pCoder, bool* val) {
+  uint8_t v;
+  TAOS_CHECK_RETURN(tDecodeU8(pCoder, &v));
+  if (val) {
+    *val = v ? true : false;
   }
   return 0;
 }

@@ -23,6 +23,7 @@
 #include "tlog.h"
 #include "tmisce.h"
 #include "tunit.h"
+#include "tutil.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -43,6 +44,7 @@ char          tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 char          tsVersionName[16] = "community";
 uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
+int32_t       tsForceReadConfig = 0;
 int32_t       tsConfigVersion = 0;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
@@ -2675,4 +2677,80 @@ int32_t persistLocalConfig(const char *path) {
   }
   taosWriteFile(pConfigFile, serialized, strlen(serialized));
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeSConfigArray(SEncoder *pEncoder, int32_t bufLen, SArray *array) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int     sz = taosArrayGetSize(array);
+
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          TAOS_CHECK_EXIT(tEncodeBool(pEncoder, item->bval));
+          break;
+        case CFG_DTYPE_INT32:
+          TAOS_CHECK_EXIT(tEncodeI32(pEncoder, item->i32));
+          break;
+        case CFG_DTYPE_INT64:
+          TAOS_CHECK_EXIT(tEncodeI64(pEncoder, item->i64));
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          TAOS_CHECK_EXIT(tEncodeFloat(pEncoder, item->fval));
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, item->str));
+          break;
+      }
+    }
+  }
+_exit:
+  return code;
+}
+
+int32_t tDeserializeSConfigArray(SDecoder *pDecoder, int32_t bufLen, SArray *array) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int     sz = taosArrayGetSize(array);
+
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &item->bval));
+          break;
+        case CFG_DTYPE_INT32:
+          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &item->i32));
+          break;
+        case CFG_DTYPE_INT64:
+          TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &item->i64));
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          TAOS_CHECK_EXIT(tDecodeFloat(pDecoder, &item->fval));
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item->str));
+          break;
+      }
+    }
+  }
+_exit:
+  return code;
 }

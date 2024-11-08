@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
+#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -83,6 +83,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
+static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
@@ -121,6 +122,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
@@ -462,7 +464,7 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
       dInfo.isMnode = 0;
     }
 
-    if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
+    if (taosArrayPush(pDnodeInfo, &dInfo) == NULL) {
       code = terrno;
       sdbCancelFetch(pSdb, pIter);
       break;
@@ -471,12 +473,12 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   TAOS_RETURN(code);
 }
 
-#define CHECK_MONITOR_PARA(para,err) \
-if (pCfg->monitorParas.para != para) { \
-  mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = err; \
-  return err;\
-}
+#define CHECK_MONITOR_PARA(para, err)                                                                    \
+  if (pCfg->monitorParas.para != para) {                                                                 \
+    mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
+    terrno = err;                                                                                        \
+    return err;                                                                                          \
+  }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
@@ -487,7 +489,8 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
   if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
-    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
+    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id,
+           pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
     terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS;
     return DND_REASON_STATUS_MONITOR_NOT_MATCH;
   }
@@ -583,8 +586,8 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
-extern char* tsMonFwUri;
-extern char* tsMonSlowLogUri;
+extern char   *tsMonFwUri;
+extern char   *tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
@@ -596,9 +599,9 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
-  if (statisReq.type == MONITOR_TYPE_COUNTER){
+  if (statisReq.type == MONITOR_TYPE_COUNTER) {
     monSendContent(statisReq.pCont, tsMonFwUri);
-  }else if(statisReq.type == MONITOR_TYPE_SLOW_LOG){
+  } else if (statisReq.type == MONITOR_TYPE_SLOW_LOG) {
     monSendContent(statisReq.pCont, tsMonSlowLogUri);
   }
 
@@ -920,6 +923,40 @@ _OVER:
   return mndUpdClusterInfo(pReq);
 }
 
+static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  SConfigReq configReq = {0};
+  SDnodeObj *pDnode = NULL;
+  int32_t    code = -1;
+
+  tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
+
+  SStatusRsp statusRsp = {0};
+  statusRsp.statusSeq++;
+  statusRsp.dnodeCfg.dnodeId = pDnode->id;
+  statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
+  statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
+  if (statusRsp.pDnodeEps == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
+  statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
+
+  int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
+  void   *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
+  taosArrayDestroy(statusRsp.pDnodeEps);
+  if (contLen < 0) {
+    code = contLen;
+    goto _OVER;
+  }
+_OVER:
+  mndReleaseDnode(pMnode, pDnode);
+  return mndUpdClusterInfo(pReq);
+}
+
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SNotifyReq notifyReq = {0};
@@ -1058,27 +1095,27 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void getSlowLogScopeString(int32_t scope, char* result){
-  if(scope == SLOW_LOG_TYPE_NULL) {
+static void getSlowLogScopeString(int32_t scope, char *result) {
+  if (scope == SLOW_LOG_TYPE_NULL) {
     (void)strcat(result, "NONE");
     return;
   }
-  while(scope > 0){
-    if(scope & SLOW_LOG_TYPE_QUERY) {
+  while (scope > 0) {
+    if (scope & SLOW_LOG_TYPE_QUERY) {
       (void)strcat(result, "QUERY");
       scope &= ~SLOW_LOG_TYPE_QUERY;
-    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+    } else if (scope & SLOW_LOG_TYPE_INSERT) {
       (void)strcat(result, "INSERT");
       scope &= ~SLOW_LOG_TYPE_INSERT;
-    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+    } else if (scope & SLOW_LOG_TYPE_OTHERS) {
       (void)strcat(result, "OTHERS");
       scope &= ~SLOW_LOG_TYPE_OTHERS;
-    } else{
+    } else {
       (void)printf("invalid slow log scope:%d", scope);
       return;
     }
 
-    if(scope > 0) {
+    if (scope > 0) {
       (void)strcat(result, "|");
     }
   }
@@ -1439,7 +1476,7 @@ _OVER:
 
 static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   int32_t code = 0;
-  char *p = pMCfgReq->config;
+  char   *p = pMCfgReq->config;
   while (*p) {
     if (*p == ' ') {
       break;
@@ -1537,7 +1574,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {
-    TAOS_CHECK_GOTO (mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
+    TAOS_CHECK_GOTO(mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
     if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {
       mError("dnode:%d, failed to config since config is too long", cfgReq.dnodeId);
       code = TSDB_CODE_INVALID_CFG;
