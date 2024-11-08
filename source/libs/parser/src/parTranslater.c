@@ -8080,10 +8080,6 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
-    case TDMT_MND_COMPACT_VGROUPS: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactVgroupsReq, pReq);
-      break;
-    }
 
     case TDMT_MND_TMQ_DROP_TOPIC: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);
@@ -10485,11 +10481,14 @@ static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupLis
 }
 
 static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  SCompactVgroupsReq req = {0};
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SName         name;
+  SCompactDbReq req = {0};
 
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                        strlen(((SValueNode*)pStmt->pDbName)->literal));
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+    (void)tNameGetFullDbName(&name, req.db);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -10498,10 +10497,14 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_VGROUPS, (FSerializeFunc)tSerializeSCompactVgroupsReq, &req);
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
   }
 
-  tFreeSCompactVgroupsReq(&req);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &req);
+  }
+
+  tFreeSCompactDbReq(&req);
   return code;
 }
 

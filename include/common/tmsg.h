@@ -1613,6 +1613,7 @@ typedef struct {
   STimeWindow timeRange;
   int32_t     sqlLen;
   char*       sql;
+  SArray*     vgroupIds;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -1626,17 +1627,6 @@ typedef struct {
 
 int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
 int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
-
-typedef struct {
-  SArray*     vgroupIds;
-  STimeWindow timeRange;
-  int32_t     sqlLen;
-  char*       sql;
-} SCompactVgroupsReq;
-
-int32_t tSerializeSCompactVgroupsReq(void* buf, int32_t bufLen, SCompactVgroupsReq* pReq);
-int32_t tDeserializeSCompactVgroupsReq(void* buf, int32_t bufLen, SCompactVgroupsReq* pReq);
-void    tFreeSCompactVgroupsReq(SCompactVgroupsReq* pReq);
 
 typedef struct {
   int32_t compactId;

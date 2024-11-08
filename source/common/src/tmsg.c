@@ -4521,6 +4521,17 @@ int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timeRange.skey));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timeRange.ekey));
   ENCODESQL();
+
+  // encode vgroup list
+  int32_t numOfVgroups = taosArrayGetSize(pReq->vgroupIds);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfVgroups));
+  if (numOfVgroups > 0) {
+    for (int32_t i = 0; i < numOfVgroups; ++i) {
+      int64_t vgid = *(int64_t *)taosArrayGet(pReq->vgroupIds, i);
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, vgid));
+    }
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4544,6 +4555,26 @@ int32_t tDeserializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeRange.skey));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeRange.ekey));
   DECODESQL();
+
+  // decode vgroup list
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t numOfVgroups = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfVgroups));
+    if (numOfVgroups > 0) {
+      pReq->vgroupIds = taosArrayInit(numOfVgroups, sizeof(int64_t));
+      if (NULL == pReq->vgroupIds) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      for (int32_t i = 0; i < numOfVgroups; ++i) {
+        int64_t vgid;
+        TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &vgid));
+        if (taosArrayPush(pReq->vgroupIds, &vgid) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -4551,7 +4582,11 @@ _exit:
   return code;
 }
 
-void tFreeSCompactDbReq(SCompactDbReq *pReq) { FREESQL(); }
+void tFreeSCompactDbReq(SCompactDbReq *pReq) {
+  FREESQL();
+  taosArrayDestroy(pReq->vgroupIds);
+  pReq->vgroupIds = NULL;
+}
 
 int32_t tSerializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp) {
   SEncoder encoder = {0};
@@ -4589,109 +4624,6 @@ int32_t tDeserializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp
 _exit:
   tDecoderClear(&decoder);
   return code;
-}
-
-int32_t tSerializeSCompactVgroupsReq(void *buf, int32_t bufLen, SCompactVgroupsReq *pReq) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  SEncoder encoder = {0};
-  int32_t  lino;
-  int32_t  tlen;
-
-  tEncoderInit(&encoder, buf, bufLen);
-
-  code = tStartEncode(&encoder);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // encode vgid list
-  code = tEncodeI32(&encoder, taosArrayGetSize(pReq->vgroupIds));
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pReq->vgroupIds); ++i) {
-    int64_t vgid = *(int64_t *)taosArrayGet(pReq->vgroupIds, i);
-    code = tEncodeI64v(&encoder, vgid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // encode time range
-  code = tEncodeI64(&encoder, pReq->timeRange.skey);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tEncodeI64(&encoder, pReq->timeRange.ekey);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // encode sql
-  ENCODESQL();
-
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSCompactVgroupsReq(void *buf, int32_t bufLen, SCompactVgroupsReq *pReq) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino;
-  SDecoder decoder = {0};
-
-  tDecoderInit(&decoder, buf, bufLen);
-
-  code = tStartDecode(&decoder);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // decode vgid list
-  int32_t vgidNum = 0;
-  code = tDecodeI32(&decoder, &vgidNum);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  pReq->vgroupIds = taosArrayInit(vgidNum, sizeof(int64_t));
-  if (NULL == pReq->vgroupIds) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  for (int32_t i = 0; i < vgidNum; ++i) {
-    int64_t vgid;
-
-    code = tDecodeI64v(&decoder, &vgid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (taosArrayPush(pReq->vgroupIds, &vgid) == NULL) {
-      TSDB_CHECK_CODE(code = terrno, lino, _exit);
-    }
-  }
-
-  // decode time range
-  code = tDecodeI64(&decoder, &pReq->timeRange.skey);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tDecodeI64(&decoder, &pReq->timeRange.ekey);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // decode sql
-  DECODESQL();
-
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  if (code) {
-    tFreeSCompactVgroupsReq(pReq);
-  }
-  return code;
-}
-
-void tFreeSCompactVgroupsReq(SCompactVgroupsReq *pReq) {
-  if (pReq->vgroupIds) {
-    taosArrayDestroy(pReq->vgroupIds);
-    pReq->vgroupIds = NULL;
-  }
-
-  FREESQL();
 }
 
 int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pReq) {
