@@ -65,6 +65,14 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef enum {
+  TSDB_OPTION_CONNECT_CHARSET,
+  TSDB_OPTION_CONNECT_TIMEZONE,
+  TSDB_OPTION_CONNECT_IP,
+  TSDB_OPTION_CONNECT_APP_NAME,
+  TSDB_MAX_CONNECT_OPTIONS
+} TSDB_OPTION_CONNECT;
+
+typedef enum {
   TSDB_SML_UNKNOWN_PROTOCOL = 0,
   TSDB_SML_LINE_PROTOCOL = 1,
   TSDB_SML_TELNET_PROTOCOL = 2,
@@ -158,6 +166,7 @@ typedef struct TAOS_STMT_OPTIONS {
 
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT int        taos_options_connect(TAOS *taos, TSDB_OPTION_CONNECT option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);

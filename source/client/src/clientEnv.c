@@ -953,7 +953,6 @@ void taos_init_imp(void) {
     return;
   }
   taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
-  deltaToUtcInitOnce();
 
   char logDirName[64] = {0};
 #ifdef CUS_PROMPT

@@ -148,6 +148,13 @@ typedef struct {
   __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
+typedef struct {
+//  TIMEZONE     *tz;
+  char          charset[TD_LOCALE_LEN];
+  char          app[TSDB_APP_NAME_LEN];
+  uint32_t      ip;
+}optionInfo;
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
   char           pass[TSDB_PASSWORD_LEN];

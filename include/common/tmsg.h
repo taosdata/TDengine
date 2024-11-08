@@ -3393,6 +3393,7 @@ typedef struct {
   SAppHbReq         app;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
+  char              name[TSDB_APP_NAME_LEN];
 } SClientHbReq;
 
 typedef struct {

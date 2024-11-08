@@ -25,18 +25,6 @@
 
 #include "tlog.h"
 
-// ==== mktime() kernel code =================//
-static int64_t m_deltaUtc = 0;
-
-void deltaToUtcInitOnce() {
-  struct tm tm = {0};
-  if (taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm) != 0) {
-    uError("failed to parse time string");
-  }
-  m_deltaUtc = (int64_t)taosMktime(&tm);
-  // printf("====delta:%lld\n\n", seconds);
-}
-
 static int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction);
 static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
 static int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim);
@@ -374,7 +362,7 @@ int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t ti
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = taosMktime(&tm);
+  int64_t seconds = taosMktime(&tm);  //tztodo
 
   int64_t fraction = 0;
   if (*str == '.') {
@@ -903,56 +891,6 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
     return result;
   }
 }
-// internal function, when program is paused in debugger,
-// one can call this function from debugger to print a
-// timestamp as human readable string, for example (gdb):
-//     p fmtts(1593769722)
-// outputs:
-//     2020-07-03 17:48:42
-// and the parameter can also be a variable.
-const char* fmtts(int64_t ts) {
-  static char buf[TD_TIME_STR_LEN] = {0};
-  size_t      pos = 0;
-  struct tm   tm;
-
-  if (ts > -62135625943 && ts < 32503651200) {
-    time_t t = (time_t)ts;
-    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
-      return buf;
-    }
-    pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
-  }
-
-  if (ts > -62135625943000 && ts < 32503651200000) {
-    time_t t = (time_t)(ts / 1000);
-    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
-      return buf;
-    }
-    if (pos > 0) {
-      buf[pos++] = ' ';
-      buf[pos++] = '|';
-      buf[pos++] = ' ';
-    }
-    pos += strftime(buf + pos, sizeof(buf), "ms=%Y-%m-%d %H:%M:%S", &tm);
-    pos += sprintf(buf + pos, ".%03d", (int32_t)(ts % 1000));
-  }
-
-  {
-    time_t t = (time_t)(ts / 1000000);
-    if (taosLocalTime(&t, &tm, buf, sizeof(buf)) == NULL) {
-      return buf;
-    }
-    if (pos > 0) {
-      buf[pos++] = ' ';
-      buf[pos++] = '|';
-      buf[pos++] = ' ';
-    }
-    pos += strftime(buf + pos, sizeof(buf), "us=%Y-%m-%d %H:%M:%S", &tm);
-    pos += sprintf(buf + pos, ".%06d", (int32_t)(ts % 1000000));
-  }
-
-  return buf;
-}
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
   char      ts[40] = {0};
@@ -1007,14 +945,14 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm) {
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
-  if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0)) {
+  if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0)) {    //tztodo
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision) {
-  *ts = taosMktime(&tm->tm);
+  *ts = taosMktime(&tm->tm);                                          //tztodo
   *ts *= TICK_PER_SECOND[precision];
   *ts += tm->fsec / (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   return TSDB_CODE_SUCCESS;
