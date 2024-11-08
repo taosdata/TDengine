@@ -226,6 +226,7 @@ static void cliAsyncCb(uv_async_t* handle);
 
 SCliBatch* cliGetHeadFromList(SCliBatchList* pList);
 
+#define REQS_ON_CONN(conn) (conn ? transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut) : 0)
 static void destroyCliConnQTable(SCliConn* conn);
 
 static void cliHandleException(SCliConn* conn);
@@ -334,6 +335,7 @@ int32_t transHeapGet(SHeap* heap, SCliConn** p);
 int32_t transHeapInsert(SHeap* heap, SCliConn* p);
 int32_t transHeapDelete(SHeap* heap, SCliConn* p);
 int32_t transHeapBalance(SHeap* heap, SCliConn* p);
+int32_t transHeapMayBalance(SHeap* heap, SCliConn* p);
 int32_t transHeapUpdateFailTs(SHeap* heap, SCliConn* p);
 
 #define CLI_RELEASE_UV(loop)                     \
@@ -498,6 +500,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
       tDebug("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
              tstrerror(code));
+      TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
       return 1;
     } else {
       if (code != 0) {
@@ -510,31 +513,9 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
   } else if ((transQueueSize(&conn->reqsToSend) == 0) && (transQueueSize(&conn->reqsSentOut) == 0) &&
              (taosHashGetSize(conn->pQTable) != 0)) {
     tDebug("%s conn %p do balance directly", CONN_GET_INST_LABEL(conn), conn);
-    TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+    TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   } else {
-    SCliConn* topConn = NULL;
-    if (conn->heap != NULL) {
-      code = transHeapGet(conn->heap, &topConn);
-      if (code != 0) {
-        tDebug("%s conn %p failed to get top conn since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
-        return 0;
-      }
-
-      if (topConn == conn) {
-        return 0;
-      }
-      int32_t topReqs = transQueueSize(&topConn->reqsSentOut) + transQueueSize(&topConn->reqsToSend);
-      int32_t currReqs = transQueueSize(&conn->reqsSentOut) + transQueueSize(&conn->reqsToSend);
-      if (topReqs <= currReqs) {
-        tTrace("%s conn %p not balance conn heap since top conn has less req, topConnReqs:%d, currConnReqs:%d",
-               CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
-        return 0;
-      } else {
-        tDebug("%s conn %p do balance conn heap since top conn has more reqs, topConnReqs:%d, currConnReqs:%d",
-               CONN_GET_INST_LABEL(conn), conn, topReqs, currReqs);
-        TAOS_UNUSED(transHeapBalance(conn->heap, topConn));
-      }
-    }
+    transHeapMayBalance(conn->heap, conn);
   }
   return 0;
 }
@@ -789,7 +770,7 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
   if (code != 0) {
     tDebug("%s conn %p do remove timeout msg", CONN_GET_INST_LABEL(conn), conn);
     if (!cliMayRecycleConn(conn)) {
-      TAOS_UNUSED(transHeapBalance(conn->heap, conn));
+      TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
     }
   } else {
     TAOS_UNUSED(cliMayRecycleConn(conn));
@@ -3923,11 +3904,11 @@ static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, S
     SHeap*    heap = pConn->heap;
     tTrace("conn %p'heap do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
 
-    int32_t curReqs = transQueueSize(&pConn->reqsSentOut) + transQueueSize(&pConn->reqsToSend);
-
+    int32_t curReqs = REQS_ON_CONN(pConn);
+    int32_t topReqs = 0;
     TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
     if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
-      int32_t topReqs = transQueueSize(&pTopConn->reqsSentOut) + transQueueSize(&pTopConn->reqsToSend);
+      topReqs = REQS_ON_CONN(pTopConn);
       if (curReqs > topReqs) {
         *pNewConn = pTopConn;
         return 1;
@@ -3943,8 +3924,8 @@ int32_t compareHeapNode(const HeapNode* a, const HeapNode* b) {
   SCliConn* args1 = container_of(a, SCliConn, node);
   SCliConn* args2 = container_of(b, SCliConn, node);
 
-  int32_t totalReq1 = transQueueSize(&args1->reqsToSend) + transQueueSize(&args1->reqsSentOut);
-  int32_t totalReq2 = transQueueSize(&args2->reqsToSend) + transQueueSize(&args2->reqsSentOut);
+  int32_t totalReq1 = REQS_ON_CONN(args1);
+  int32_t totalReq2 = REQS_ON_CONN(args2);
   if (totalReq1 > totalReq2) {
     return 0;
   }
@@ -4025,7 +4006,24 @@ int32_t transHeapUpdateFailTs(SHeap* heap, SCliConn* p) {
   heap->lastConnFailTs = taosGetTimestampMs();
   return 0;
 }
+int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
+  if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
+    return 0;
+  }
+  SCliConn* topConn = NULL;
+  int32_t   code = transHeapGet(heap, &topConn);
+  if (code != 0) {
+    return 0;
+  }
+  if (topConn == p) return 0;
 
+  int32_t topReqs = REQS_ON_CONN(topConn);
+  int32_t curReqs = REQS_ON_CONN(p);
+  if (curReqs < topReqs) {
+    TAOS_UNUSED(transHeapBalance(heap, p));
+  }
+  return 0;
+}
 int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
     return 0;
