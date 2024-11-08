@@ -3809,8 +3809,7 @@ static FORCE_INLINE SwitchConnRule shouldSWitchToOtherConn(SCliConn* pConn, char
       }
       return SWITCH_CONN_RULE_DO_BALANCE;
     }
-    // check req timeout or not
-    return SWITCH_CONN_RULE_DO_CREATE;
+    return SWITCH_CONN_RULE_DO_BALANCE;  // SWITCH_CONN_RULE_DO_CREATE;
   }
 
   return SWITCH_CONN_RULE_NO;
