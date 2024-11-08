@@ -186,10 +186,16 @@ static int32_t tBufferGetI16(SBufferReader *reader, int16_t *value) {
 }
 
 static int32_t tBufferGetI32(SBufferReader *reader, int32_t *value) {
+  *value = *(int32_t*)BR_PTR(reader);
+  reader->offset += sizeof(*value);
+  return 0;
   return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetI64(SBufferReader *reader, int64_t *value) {
+  *value = *(int64_t*)BR_PTR(reader);
+  reader->offset += sizeof(*value);
+  return 0;
   return tBufferGet(reader, sizeof(*value), value);
 }
 
