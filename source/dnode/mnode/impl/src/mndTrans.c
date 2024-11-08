@@ -2435,13 +2435,13 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         if (numOfRows >= rows) break;
       }
 
-      if (pShow->numOfRows + numOfRows == actionNum) {
+      if (numOfRows == actionNum - pShowIter->num) {
         sdbRelease(pSdb, pTrans);
         pShowIter->pTrans = NULL;
       } else {
         pShowIter->pTrans = pTrans;
         pShowIter->stage = pTrans->stage;
-        pShowIter->num = numOfRows;
+        pShowIter->num += numOfRows;
       }
       break;
     }
