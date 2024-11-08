@@ -108,7 +108,7 @@ int32_t walInitWriteFileForSkip(SWal *pWal) {
   // switch file
   pWal->pIdxFile = pIdxTFile;
   pWal->pLogFile = pLogTFile;
-  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+  pWal->writeCur = 0;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -203,7 +203,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   } else {
     code = walInitWriteFileForSkip(pWal);
     if (code < 0) {
-      wError("vgId:%d, cannot open wal since init write file for wal_level = 0 failed since %s", pWal->cfg.vgId, tstrerror(code));
+      wError("vgId:%d, cannot open wal since init write file for wal_level = 0 failed since %s", pWal->cfg.vgId,
+             tstrerror(code));
       goto _err;
     }
   }
