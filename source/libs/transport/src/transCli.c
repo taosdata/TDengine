@@ -192,6 +192,11 @@ typedef struct {
   int64_t interval;
 } SFailFastItem;
 
+typedef enum {
+  SWITCH_CONN_RULE_NO = 0,
+  SWITCH_CONN_RULE_DO_CREATE = 1,
+  SWITCH_CONN_RULE_DO_BALANCE = 2,
+} SwitchConnRule;
 // conn pool
 // add expire timeout and capacity limit
 static void*   createConnPool(int size);
@@ -327,6 +332,8 @@ typedef struct {
   int64_t lastUpdateTs;
   int64_t lastConnFailTs;
 } SHeap;
+
+static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
 int32_t compareHeapNode(const HeapNode* a, const HeapNode* b);
 int32_t transHeapInit(SHeap* heap, int32_t (*cmpFunc)(const HeapNode* a, const HeapNode* b));
@@ -3774,7 +3781,7 @@ static int8_t cliConnRemoveTimeoutMsg(SCliConn* pConn) {
   destroyReqInQueue(pConn, &set, TSDB_CODE_RPC_TIMEOUT);
   return 1;
 }
-static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
+static FORCE_INLINE SwitchConnRule shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
@@ -3785,6 +3792,8 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   int32_t totalReqs = reqsNum + reqsSentOut;
 
   if (totalReqs >= pInst->shareConnLimit) {
+    logConnMissHit(pConn);
+
     if (pConn->list == NULL && pConn->dstAddr != NULL) {
       pConn->list = taosHashGet((SHashObj*)pThrd->pool, pConn->dstAddr, strlen(pConn->dstAddr));
       if (pConn->list != NULL) {
@@ -3798,13 +3807,13 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
       if (cliConnRemoveTimeoutMsg(pConn)) {
         tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
       }
-      return 2;
+      return SWITCH_CONN_RULE_DO_BALANCE;
     }
     // check req timeout or not
-    return 1;
+    return SWITCH_CONN_RULE_DO_CREATE;
   }
 
-  return 0;
+  return SWITCH_CONN_RULE_NO;
 }
 
 static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
@@ -3814,8 +3823,6 @@ static FORCE_INLINE bool filterToDebug(void* e, void* arg) {
   return false;
 }
 static FORCE_INLINE void logConnMissHit(SCliConn* pConn) {
-  // queue set;
-  // QUEUE_INIT(&set);
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
   pConn->heapMissHit++;
@@ -3832,25 +3839,28 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     tTrace("failed to get conn heap from cache for key:%s", key);
     return NULL;
   }
+
   code = transHeapGet(pHeap, &pConn);
   if (code != 0) {
     tTrace("failed to get conn from heap cache for key:%s", key);
     return NULL;
-  } else {
-    tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
-    int8_t flag = 0;
-    if ((flag = shouldSWitchToOtherConn(pConn, key)) > 0) {
-      SCliConn* pTopConn = NULL;
-      if (flag == 2 && balanceConnHeapCache(pConnHeapCache, pConn, &pTopConn)) {
-        tTrace("switch to conn %p handle req", pTopConn);
-        return pTopConn;
-      }
-      logConnMissHit(pConn);
-      return NULL;
-    }
   }
 
-  return pConn;
+  tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
+  SwitchConnRule rule = shouldSWitchToOtherConn(pConn, key);
+  if (rule == SWITCH_CONN_RULE_DO_BALANCE) {
+    SCliConn* pTopConn = NULL;
+    if (balanceConnHeapCache(pConnHeapCache, pConn, &pTopConn)) {
+      tTrace("switch to conn %p handle req", pTopConn);
+      return pTopConn;
+    } else {
+      return NULL;
+    }
+  } else if (rule == SWITCH_CONN_RULE_DO_CREATE) {
+    return NULL;
+  } else {
+    return pConn;
+  }
 }
 static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
   SHeap*  p = NULL;
