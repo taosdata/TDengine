@@ -76,7 +76,7 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *p
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
   TAOS_CHECK_RETURN(tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -87,7 +87,7 @@ static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas *pMoni
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold));
-  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest));
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest)); //Obsolete
   TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb));
   return 0;
 }
@@ -10277,6 +10277,7 @@ static int32_t tEncodeSVDropTbReq(SEncoder *pCoder, const SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tStartEncode(pCoder));
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pReq->name));
   TAOS_CHECK_RETURN(tEncodeU64(pCoder, pReq->suid));
+  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pReq->uid));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->igNotExists));
 
   tEndEncode(pCoder);
@@ -10287,6 +10288,7 @@ static int32_t tDecodeSVDropTbReq(SDecoder *pCoder, SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pReq->name));
   TAOS_CHECK_RETURN(tDecodeU64(pCoder, &pReq->suid));
+  TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->uid));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pReq->igNotExists));
 
   tEndDecode(pCoder);

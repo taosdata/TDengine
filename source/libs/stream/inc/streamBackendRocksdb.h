@@ -223,6 +223,7 @@ int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGro
 // parname cf
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]);
 int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, void** pVal);
+int32_t streamStateDeleteParName_rocksdb(SStreamState* pState, int64_t groupId);
 
 void streamStateDestroy_rocksdb(SStreamState* pState, bool remove);
 

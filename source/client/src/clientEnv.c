@@ -294,8 +294,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL ||
-       duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+  if ((duration >= pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogThreshold * 1000000UL) &&
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
