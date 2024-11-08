@@ -276,7 +276,11 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
     }
   }
 
-  return 0;
+  if ((*pPId) == -1) {
+    return TAOS_SYSTEM_ERROR(ESRCH);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {
