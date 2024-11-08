@@ -108,8 +108,12 @@ int32_t walInitWriteFileForSkip(SWal *pWal) {
   // switch file
   pWal->pIdxFile = pIdxTFile;
   pWal->pLogFile = pLogTFile;
+  SWalFileInfo fileInfo;
+  (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
+  if (!taosArrayPush(pWal->fileInfoSet, &fileInfo)) {
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  }
   pWal->writeCur = 0;
-
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
