@@ -223,10 +223,15 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
     if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return 0;
     }
+
     code = chmod(temp, mode);
     if (-1 == code) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
+      struct stat statbuf = {0};
+      code = stat(temp, &statbuf);
+      if (code != 0 || (statbuf.st_mode & mode) != mode) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return terrno;
+      }
     }
   }
 

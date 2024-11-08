@@ -131,6 +131,7 @@ bool     tsMonitorForceV2 = true;
 // audit
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
+bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
 
 // telem
@@ -149,8 +150,9 @@ bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
 #endif
-char *tsClientCrashReportUri = "/ccrashreport";
-char *tsSvrCrashReportUri = "/dcrashreport";
+char  *tsClientCrashReportUri = "/ccrashreport";
+char  *tsSvrCrashReportUri = "/dcrashreport";
+int8_t tsSafetyCheckLevel = TSDB_SAFETY_CHECK_LEVELL_NORMAL;
 
 // schemaless
 bool tsSmlDot2Underline = true;
@@ -299,7 +301,7 @@ int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;    // interval of trimming db in all vgroups
 int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vgroups
-bool    tsS3MigrateEnabled = 1;
+bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
@@ -560,7 +562,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tqClientDebug", tqClientDebug, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tqClientDebugFlag", tqClientDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "udfDebugFlag", udfDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER));
@@ -622,6 +624,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
@@ -687,10 +690,10 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "os version", info.version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "os machine", info.machine, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "version", version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "compatible_version", compatible_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "version", td_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "compatible_version", td_compatible_version, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "gitinfo", td_gitinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "buildinfo", td_buildinfo, CFG_SCOPE_BOTH, CFG_DYN_NONE));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -794,6 +797,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditDelete", tsEnableAuditDelete, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
@@ -1322,6 +1326,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
   tsmaDataDeleteMark = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
+  tsSafetyCheckLevel = pItem->i32;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1507,6 +1514,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditCreateTable");
   tsEnableAuditCreateTable = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditDelete");
+  tsEnableAuditDelete = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
 
@@ -1662,6 +1672,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "checkpointInterval");
   tsStreamCheckpointInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "concurrentCheckpoint");
+  tsMaxConcurrentCheckpoint = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamSinkDataRate");
   tsSinkDataRate = pItem->fval;
@@ -2029,7 +2042,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"tdbDebugFlag", &tdbDebugFlag},   {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},
         {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
-        {"tqClientDebug", &tqClientDebug},
+        {"tqClientDebugFlag", &tqClientDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -2077,7 +2090,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
                                          {"singleQueryMaxMemorySize", &tsSingleQueryMaxMemorySize},
-                                         {"minReservedMemorySize", &tsMinReservedMemorySize}};
+                                         {"minReservedMemorySize", &tsMinReservedMemorySize},
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2333,7 +2347,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
-                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2377,8 +2392,13 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
   if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
     return;
   }
-  if (taosSetDebugFlag(pFlagPtr, name, flag) != 0) {
-    uError("failed to set flag %s to %d", name, flag);
+  int32_t code = 0;
+  if ((code = taosSetDebugFlag(pFlagPtr, name, flag)) != 0) {
+    if (code != TSDB_CODE_CFG_NOT_FOUND) {
+      uError("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
+    } else {
+      uDebug("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
+    }
   }
   return;
 }

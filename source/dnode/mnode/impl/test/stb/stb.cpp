@@ -782,7 +782,7 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
   {
     void*    pReq = BuildAlterStbDropColumnReq(stbname, "col1", &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_STB_ALTER_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_PAR_INVALID_DROP_COL);
     rpcFreeCont(pRsp->pCont);
   }
 

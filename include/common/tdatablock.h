@@ -189,7 +189,12 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 
 int32_t getJsonValueLen(const char* data);
 
+// For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
+// If the same row is inserted repeatedly, data holes will result.
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+// For the VAR_DATA_TYPE type, if a row already has data before inserting it (judged by offset != -1),
+// it will be inserted at the original position and the old data will be overwritten.
+int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,
                          bool trimValue);
@@ -233,7 +238,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
  * @brief find how many rows already in order start from first row
  */
 int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
-void    blockDataCheck(const SSDataBlock* pDataBlock, bool forceChk);
+int32_t blockDataCheck(const SSDataBlock* pDataBlock);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
@@ -266,7 +271,7 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
 int32_t         bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug

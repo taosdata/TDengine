@@ -183,7 +183,7 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
     }
 
     if (taosHashRemove(tsMonitor.metrics, metric_names[i], strlen(metric_names[i])) != 0) {
-      uError("failed to remove metric %s", metric_names[i]);
+      uTrace("failed to remove metric %s", metric_names[i]);
     }
   } 
 
@@ -652,7 +652,7 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor){
     }
 
     if (taosHashRemove(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i])) != 0) {
-      uError("failed to remove metric %s", mnodes_role_gauges[i]);
+      uTrace("failed to remove metric %s", mnodes_role_gauges[i]);
     }
   }
 
@@ -725,7 +725,7 @@ void monGenVnodeRoleTable(SMonInfo *pMonitor){
     }
 
     if (taosHashRemove(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i])) != 0) {
-      uError("failed to remove metric %s", vnodes_role_gauges[i]);
+      uTrace("failed to remove metric %s", vnodes_role_gauges[i]);
     }
   }
 

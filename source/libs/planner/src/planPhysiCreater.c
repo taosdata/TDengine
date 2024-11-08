@@ -30,15 +30,6 @@ typedef struct SSlotIndex {
   SArray* pSlotIdsInfo;  // duplicate name slot
 } SSlotIndex;
 
-typedef struct SPhysiPlanContext {
-  SPlanContext* pPlanCxt;
-  int32_t       errCode;
-  int16_t       nextDataBlockId;
-  SArray*       pLocationHelper;
-  SArray*       pProjIdxLocHelper;
-  bool          hasScan;
-  bool          hasSysScan;
-} SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t *pLen, uint16_t extraBufLen) {
   int32_t code = 0;
@@ -341,7 +332,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
 }
 
 static int32_t addDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false, true);
 }
 
 static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlockDescNode* pDataBlockDesc) {
@@ -363,7 +354,7 @@ static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlo
 
 static int32_t addDataBlockSlotsForProject(SPhysiPlanContext* pCxt, const char* pStmtName, SNodeList* pList,
                                            SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, false, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, false, true);
 }
 
 static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
@@ -1933,8 +1924,9 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                          SInterpFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
-  SInterpFuncPhysiNode* pInterpFunc =
-      (SInterpFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
+  SInterpFuncPhysiNode* pInterpFunc = (SInterpFuncPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pFuncLogicNode,
+      pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC : QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
   if (NULL == pInterpFunc) {
     return terrno;
   }
@@ -1963,6 +1955,8 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->timeRange = pFuncLogicNode->timeRange;
     pInterpFunc->interval = pFuncLogicNode->interval;
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
+    pInterpFunc->intervalUnit = pFuncLogicNode->intervalUnit;
+    pInterpFunc->precision = pFuncLogicNode->node.precision;
     pInterpFunc->pFillValues = NULL;
     code = nodesCloneNode(pFuncLogicNode->pFillValues, &pInterpFunc->pFillValues);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1976,6 +1970,10 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pInterpFunc);
+  }
+
+  if (pCxt->pPlanCxt->streamQuery) {
+    pInterpFunc->streamNodeOption = pFuncLogicNode->streamNodeOption;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2158,7 +2156,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
   if (pCxt->pPlanCxt->streamQuery) {
-    pWindow->destHasPrimayKey = pCxt->pPlanCxt->destHasPrimaryKey;
+    pWindow->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
   }
   pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
@@ -2604,6 +2602,12 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pFill->pNotFillExprs, pFill->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pFillNode->pFillNullExprs) > 0) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillNullExprs, &pFill->pFillNullExprs);
+    if (TSDB_CODE_SUCCESS == code ) {
+      code = addDataBlockSlots(pCxt, pFill->pFillNullExprs, pFill->node.pOutputDataBlockDesc);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {

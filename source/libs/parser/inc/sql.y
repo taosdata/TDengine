@@ -280,12 +280,13 @@ db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                 
 db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STT_TRIGGER, &C); }
 db_options(A) ::= db_options(B) TABLE_PREFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, C); }
 db_options(A) ::= db_options(B) TABLE_SUFFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, C); }
-db_options(A) ::= db_options(B) S3_CHUNKSIZE NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_CHUNKSIZE, &C); }
+db_options(A) ::= db_options(B) S3_CHUNKPAGES NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_CHUNKPAGES, &C); }
 db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
 db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_VARIABLE(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
 db_options(A) ::= db_options(B) S3_COMPACT NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_COMPACT, &C); }
 db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) ENCRYPT_ALGORITHM NK_STRING(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_ENCRYPT_ALGORITHM, &C); }
+db_options(A) ::= db_options(B) DNODES NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_DNODES, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -775,6 +776,7 @@ tag_def_or_ref_opt(A) ::= TAGS NK_LP column_stream_def_list(B) NK_RP.           
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE(C).                       { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }
 stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE(C).                  { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }
+stream_options(A) ::= stream_options(B) TRIGGER FORCE_WINDOW_CLOSE(C).            { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }
 stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY(C) duration_literal(D). { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, releaseRawExprNode(pCxt, D)); }
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { A = setStreamOptions(pCxt, B, SOPT_WATERMARK_SET, NULL, releaseRawExprNode(pCxt, C)); }
 stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { A = setStreamOptions(pCxt, B, SOPT_IGNORE_EXPIRED_SET, &C, NULL); }

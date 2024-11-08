@@ -17,6 +17,37 @@ public class TestAll {
                 stmt.execute("drop database if exists " + dbName);
             }
         }
+        waitTransaction();
+    }
+
+    public void dropTopic(String topicName) throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("drop topic if exists " + topicName);
+            }
+        }
+        waitTransaction();
+    }
+
+    public void waitTransaction() throws SQLException {
+
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl)) {
+            try (Statement stmt = conn.createStatement()) {
+                for (int i = 0; i < 10; i++) {
+                    stmt.execute("show transactions");
+                    try (ResultSet resultSet = stmt.getResultSet()) {
+                        if (resultSet.next()) {
+                            int count = resultSet.getInt(1);
+                            if (count == 0) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public void insertData() throws SQLException {
@@ -104,14 +135,20 @@ public class TestAll {
         SubscribeDemo.main(args);
     }
 
-//    @Test
-//    public void testSubscribeJni() throws SQLException, InterruptedException {
-//        dropDB("power");
-//        ConsumerLoopFull.main(args);
-//    }
-//    @Test
-//    public void testSubscribeWs() throws SQLException, InterruptedException {
-//        dropDB("power");
-//        WsConsumerLoopFull.main(args);
-//    }
+    @Test
+    public void testSubscribeJni() throws SQLException, InterruptedException {
+        dropTopic("topic_meters");
+        dropDB("power");
+        ConsumerLoopFull.main(args);
+        dropTopic("topic_meters");
+        dropDB("power");
+    }
+    @Test
+    public void testSubscribeWs() throws SQLException, InterruptedException {
+        dropTopic("topic_meters");
+        dropDB("power");
+        WsConsumerLoopFull.main(args);
+        dropTopic("topic_meters");
+        dropDB("power");
+    }
 }

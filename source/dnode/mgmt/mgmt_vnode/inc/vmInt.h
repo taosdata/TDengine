@@ -36,12 +36,13 @@ typedef struct SVnodeMgmt {
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
   SHashObj             *hash;
+  SHashObj             *closedHash;
   TdThreadRwlock        lock;
   SVnodesStat           state;
   STfs                 *pTfs;
   TdThread              thread;
   bool                  stop;
-  TdThreadMutex         createLock;
+  TdThreadMutex         fileLock;
 } SVnodeMgmt;
 
 typedef struct {
@@ -94,7 +95,7 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
-void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal);
+void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
@@ -111,6 +112,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);

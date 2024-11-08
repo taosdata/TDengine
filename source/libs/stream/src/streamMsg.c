@@ -613,7 +613,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->ver));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->id.streamId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->id.taskId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.totalLevel));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->info.trigger));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.taskLevel));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->outputInfo.type));
   TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pTask->msgInfo.msgType));
@@ -692,7 +692,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->id.streamId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->id.taskId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.totalLevel));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->info.trigger));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.taskLevel));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->outputInfo.type));
   TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTask->msgInfo.msgType));

@@ -429,7 +429,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
 
   tFreeSSubQueryMsg(&msg);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {

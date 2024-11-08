@@ -38,6 +38,7 @@ typedef struct SSessionAggOperatorInfo {
   int32_t            tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp twAggSup;
   SOperatorInfo*     pOperator;
+  bool               cleanGroupResInfo;
 } SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -52,6 +53,7 @@ typedef struct SStateWindowOperatorInfo {
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
   SOperatorInfo*     pOperator;
+  bool               cleanGroupResInfo;
 } SStateWindowOperatorInfo;
 
 typedef enum SResultTsInterpType {
@@ -943,6 +945,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   int32_t scanFlag = MAIN_SCAN;
   int64_t st = taosGetTimestampUs();
 
+  pInfo->cleanGroupResInfo = false;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -965,6 +968,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
   code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->binfo.outputTsOrder);
   QUERY_CHECK_CODE(code, lino, _end);
+  pInfo->cleanGroupResInfo = true;
 
   OPTR_SET_OPENED(pOperator);
 
@@ -1092,6 +1096,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
   int64_t    st = taosGetTimestampUs();
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
+  pInfo->cleanGroupResInfo = false;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -1120,7 +1125,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   QUERY_CHECK_CODE(code, lino, _end);
-
+  pInfo->cleanGroupResInfo = true;
   pOperator->status = OP_RES_TO_RETURN;
 
 _end:
@@ -1230,8 +1235,8 @@ static void destroyStateWindowOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);
   if (pInfo->pOperator) {
-    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                                 &pInfo->groupResInfo);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      pInfo->cleanGroupResInfo);
     pInfo->pOperator = NULL;
   }
 
@@ -1257,8 +1262,8 @@ void destroyIntervalOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   if (pInfo->pOperator) {
-    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                                 &pInfo->groupResInfo);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      pInfo->cleanGroupResInfo);
     pInfo->pOperator = NULL;
   }
 
@@ -1452,6 +1457,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   }
 
   pInfo->pOperator = pOperator;
+  pInfo->cleanGroupResInfo = false;
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "TimeIntervalAggOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -1573,6 +1579,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
 
+  pInfo->cleanGroupResInfo = false;
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -1628,6 +1635,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
 
   code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   QUERY_CHECK_CODE(code, lino, _end);
+  pInfo->cleanGroupResInfo = true;
 
   code = blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1731,6 +1739,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhy
 
   pInfo->tsSlotId = tsSlotId;
   pInfo->pOperator = pOperator;
+  pInfo->cleanGroupResInfo = false;
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,
@@ -1763,8 +1772,8 @@ void destroySWindowOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   if (pInfo->pOperator) {
-    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                                 &pInfo->groupResInfo);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      pInfo->cleanGroupResInfo);
     pInfo->pOperator = NULL;
   }
 
@@ -1835,6 +1844,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pOperator = pOperator;
+  pInfo->cleanGroupResInfo = false;
   setOperatorInfo(pOperator, "SessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSessionWindowAggNext, NULL, destroySWindowOperatorInfo,
@@ -2018,7 +2028,12 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
         code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
-        break;
+        if (pRes->info.rows == 0) {
+          // After filtering for last group, the result is empty, so we need to continue to process next group
+          continue;
+        } else {
+          break;
+        }
       } else {
         // continue
         pRes->info.id.groupId = pMiaInfo->groupId;

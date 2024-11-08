@@ -166,6 +166,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ENCODE_PARAM_NULL,        "Not found compress pa
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
 
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
@@ -270,6 +271,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_WAL_LEVEL,        "Invalid option, wal_level 0 should be used with replica 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_LIST_FMT,   "Invalid dnode list format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_LIST_REPEAT,        "Duplicate items in the dnode list")
 
 // mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
@@ -360,8 +363,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis url response is NULL")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis service response is NULL")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis service can't access")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_FOUND,          "Analysis algorithm not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
@@ -623,6 +626,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal er
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_TIMEOUT_ERROR,            "Task timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_IS_DROPPING,          "Job is dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_NOT_EXISTS,           "Job no longer exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_DATA_SRC_EP_MISS,         "No valid epSet for data source node")
 
 // parser
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYNTAX_ERROR,              "syntax error near")
@@ -766,6 +770,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up fail
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_RES_LENGTH,       "Function result exceed max length")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_HISTOGRAM_ERROR,          "Function failed to calculate histogram")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_PERCENTILE_ERROR,         "Function failed to calculate percentile")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_RANGE,       "Invalid function para range")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS,      "Function parameter should be primary timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_PK,          "Function parameter should be primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL,     "Function parameter should have column")
+
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")

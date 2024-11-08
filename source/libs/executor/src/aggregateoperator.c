@@ -49,6 +49,7 @@ typedef struct SAggOperatorInfo {
   SSDataBlock*     pNewGroupBlock;
   bool             hasCountFunc;
   SOperatorInfo*   pOperator;
+  bool             cleanGroupResInfo;
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
@@ -121,6 +122,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
   pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
   pInfo->pOperator = pOperator;
+  pInfo->cleanGroupResInfo = false;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -159,8 +161,8 @@ void destroyAggOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
 
   if (pInfo->pOperator) {
-    cleanupResultInfoWithoutHash(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                                 &pInfo->groupResInfo);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      pInfo->cleanGroupResInfo);
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);
@@ -191,6 +193,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
+  pAggInfo->cleanGroupResInfo = false;
   if (pBlock) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
@@ -263,6 +266,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
 
   code = initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
   QUERY_CHECK_CODE(code, lino, _end);
+  pAggInfo->cleanGroupResInfo = true;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -627,7 +631,7 @@ void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp
   }
 }
 
-void cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo) {
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
@@ -663,7 +667,7 @@ void cleanupResultInfoWithoutHash(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDi
   }
 }
 
-void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                        SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
@@ -701,6 +705,14 @@ void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf*
   }
 }
 
+void cleanupResultInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SGroupResInfo* pGroupResInfo,
+                       SAggSupporter *pAggSup, bool cleanGroupResInfo) {
+  if (cleanGroupResInfo) {
+    cleanupResultInfoInGroupResInfo(pTaskInfo, pSup, pAggSup->pResultBuf, pGroupResInfo);
+  } else {
+    cleanupResultInfoInHashMap(pTaskInfo, pSup, pAggSup->pResultBuf, pGroupResInfo, pAggSup->pResultRowHashTable);
+  }
+}
 void cleanupAggSup(SAggSupporter* pAggSup) {
   taosMemoryFreeClear(pAggSup->keyBuf);
   tSimpleHashCleanup(pAggSup->pResultRowHashTable);

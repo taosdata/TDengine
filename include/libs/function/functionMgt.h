@@ -26,6 +26,8 @@ extern "C" {
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
 
+extern const int32_t funcMgtBuiltinsNum;
+
 typedef enum EFunctionType {
   // aggregate function
   FUNCTION_TYPE_APERCENTILE = 1,
@@ -290,6 +292,7 @@ bool fmIsElapsedFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 

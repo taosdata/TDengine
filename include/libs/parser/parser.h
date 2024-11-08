@@ -65,7 +65,7 @@ typedef struct SParseCsvCxt {
   const char* pLastSqlPos;  // the location of the last parsed sql
 } SParseCsvCxt;
 
-typedef void(*setQueryFn)(int64_t);
+typedef void (*setQueryFn)(int64_t);
 
 typedef struct SParseContext {
   uint64_t         requestId;
@@ -147,6 +147,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
+int32_t qBuildStmtStbColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_STB** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
@@ -176,8 +177,8 @@ int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsS
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
                     char* msgBuf, int32_t msgBufLen);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
-int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* fields,
-                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen);
+int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
+                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);

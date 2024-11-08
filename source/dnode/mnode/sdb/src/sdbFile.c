@@ -400,8 +400,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->commitTerm = pSdb->applyTerm;
   pSdb->commitConfig = pSdb->applyConfig;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->commitIndex,
-        pSdb->commitTerm, pSdb->commitConfig);
+  mInfo("vgId:1, trans:0, read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file,
+        pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
   if ((ret = taosCloseFile(&pFile)) != 0) {
@@ -573,7 +573,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     pSdb->commitIndex = pSdb->applyIndex;
     pSdb->commitTerm = pSdb->applyTerm;
     pSdb->commitConfig = pSdb->applyConfig;
-    mInfo("write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+    mInfo("vgId:1, trans:0, write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
+          " file:%s",
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
@@ -610,8 +611,8 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   if (code != 0) {
     mError("failed to write sdb file since %s", tstrerror(code));
   } else {
-    mInfo("write sdb file success, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
-          pSdb->applyTerm, pSdb->applyConfig);
+    mInfo("vgId:1, trans:0, write sdb file success, apply index:%" PRId64 ", term:%" PRId64 ", config:%" PRId64,
+          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig);
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;

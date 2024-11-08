@@ -1,0 +1,507 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648791213000,1,1,1,1.1);
+
+$loop_count = 0
+
+loop0:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 0 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop0
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop0
+endi
+
+
+sql insert into t1 values(1648791213001,2,2,2,2.1);
+sql insert into t1 values(1648791213009,3,3,3,3.1);
+
+$loop_count = 0
+
+loop1:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+# row 0
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop1
+endi
+
+
+sql insert into t1 values(1648791217001,14,14,14,14.1);
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791213000, 1648791217001) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791213000, 1648791217001) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+$loop_count = 0
+loop2:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 2 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop2
+endi
+
+if $data11 != 5 then
+  print ======data11=$data11
+  goto loop2
+endi
+
+if $data21 != 8 then
+  print ======data21=$data21
+  goto loop2
+endi
+
+if $data31 != 11 then
+  print ======data31=$data31
+  goto loop2
+endi
+
+if $data41 != 13 then
+  print ======data41=$data41
+  goto loop2
+endi
+
+
+sql insert into t1 values(1648791215001,7,7,7,7.1);
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791213000, 1648791217001) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791213000, 1648791217001) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop3:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 3 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop3
+endi
+
+# row 0
+if $data01 != 1 then
+  print ======data01=$data01
+  goto loop3
+endi
+
+if $data11 != 4 then
+  print ======data11=$data11
+  goto loop3
+endi
+
+if $data21 != 6 then
+  print ======data21=$data21
+  goto loop3
+endi
+
+if $data31 != 10 then
+  print ======data31=$data31
+  goto loop3
+endi
+
+if $data41 != 13 then
+  print ======data41=$data41
+  goto loop3
+endi
+
+
+print step2
+
+sql create database test2 vgroups 1;
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2 as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648791212000,0,0,0,0.0) (1648791213001,11,11,11,11.0) (1648791213009,22,22,22,2.1) (1648791215001,15,15,15,15.1) (1648791217001,34,34,34,34.1);
+
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop4:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+# row 0
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+# row 0
+if $data01 != 0 then
+  print ======data01=$data01
+  goto loop4
+endi
+
+if $data11 != 10 then
+  print ======data11=$data11
+  goto loop4
+endi
+
+if $data21 != 18 then
+  print ======data21=$data21
+  goto loop4
+endi
+
+if $data31 != 15 then
+  print ======data31=$data31
+  goto loop4
+endi
+
+if $data41 != 24 then
+  print ======data41=$data41
+  goto loop4
+endi
+
+if $data51 != 33 then
+  print ======data51=$data51
+  goto loop4
+endi
+
+
+print step2_1
+
+sql create database test2_1 vgroups 1;
+sql use test2_1;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2_1 as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648791212011,0,0,0,0.0) (1648791212099,20,20,20,20.0) (1648791213011,11,11,11,11.0)  (1648791214099,35,35,35,35.1) (1648791215011,10,10,10,10.1) (1648791218099,34,34,34,34.1) (1648791219011,5,5,5,5.1);
+
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791219011) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791219011) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+print $data60 $data61 $data62 $data63 $data64
+print $data70 $data71 $data72 $data73 $data74
+
+$loop_count = 0
+loop4_1:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 sql select * from streamt2_1;
+sql select * from streamt2_1;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+print $data60 $data61 $data62 $data63 $data64
+print $data70 $data71 $data72 $data73 $data74
+
+
+# row 0
+if $rows != 7 then
+  print ======rows=$rows
+  goto loop4_1
+endi
+
+# row 0
+if $data01 != 11 then
+  print ======data01=$data01
+  goto loop4_1
+endi
+
+if $data11 != 32 then
+  print ======data11=$data11
+  goto loop4_1
+endi
+
+if $data21 != 10 then
+  print ======data21=$data21
+  goto loop4_1
+endi
+
+if $data31 != 17 then
+  print ======data31=$data31
+  goto loop4_1
+endi
+
+if $data41 != 25 then
+  print ======data41=$data41
+  goto loop4_1
+endi
+
+if $data51 != 33 then
+  print ======data51=$data51
+  goto loop4_1
+endi
+
+if $data61 != 5 then
+  print ======data51=$data51
+  goto loop4_1
+endi
+
+
+print step3
+sql create database test3 vgroups 1;
+sql use test3;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt3 as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+
+sql insert into t1 values(1648791212001,0,0,0,0.0) (1648791217001,8,4,4,4.1);
+
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop5:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 sql select * from streamt3;
+sql select * from streamt3;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+sql insert into t1 values(1648791213001,11,11,11,11.0) (1648791213009,22,22,22,22.1) (1648791215001,15,15,15,15.1)
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(linear);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(linear);
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+$loop_count = 0
+loop6:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 2 sql select * from streamt3;
+sql select * from streamt3;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+
+# row 0
+if $rows != 5 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+# row 0
+if $data01 != 10 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+if $data11 != 18 then
+  print ======data11=$data11
+  goto loop6
+endi
+
+if $data21 != 15 then
+  print ======data21=$data21
+  goto loop6
+endi
+
+if $data31 != 11 then
+  print ======data31=$data31
+  goto loop6
+endi
+
+if $data41 != 8 then
+  print ======data41=$data41
+  goto loop6
+endi
+
+print  end
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

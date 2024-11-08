@@ -102,6 +102,7 @@ run tsim/stream/triggerInterval0.sim
 run tsim/stream/triggerSession0.sim
 run tsim/stream/distributeIntervalRetrive0.sim
 run tsim/stream/basic0.sim
+run tsim/stream/snodeCheck.sim
 run tsim/stream/session0.sim
 run tsim/stream/schedSnode.sim
 run tsim/stream/partitionby.sim
@@ -110,6 +111,7 @@ run tsim/stream/distributeInterval0.sim
 run tsim/stream/distributeSession0.sim
 run tsim/stream/state0.sim
 run tsim/stream/basic2.sim
+run tsim/stream/concurrentcheckpt.sim
 run tsim/insert/basic1.sim
 run tsim/insert/commit-merge0.sim
 run tsim/insert/basic0.sim

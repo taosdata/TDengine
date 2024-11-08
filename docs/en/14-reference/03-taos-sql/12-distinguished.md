@@ -80,7 +80,7 @@ These pseudocolumns occur after the aggregation clause.
 `FILL` clause is used to specify how to fill when there is data missing in any window, including:
 
 1. NONE: No fill (the default fill mode)
-2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.  If multiple columns in select list need to be filled, then in the fill clause there must be a fill value for each of these columns, for example, `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`.
+2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.  If multiple columns in select list need to be filled, then in the fill clause there must be a fill value for each of these columns, for example, `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note that only exprs in select list that contains normal cols need to specify fill value, exprs like `_wstart`, `_wend`, `_wduration`, `_wstart + 1a`, `now`, `1+1`, partition keys like tbname(when using partition by) don't need to specify fill value. But exprs like `timediff(last(ts), _wstart)` need to specify fill value.
 3. PREV: Fill with the previous non-NULL value, `FILL(PREV)`
 4. NULL: Fill with NULL, `FILL(NULL)`
 5. LINEAR: Fill with the closest non-NULL value, `FILL(LINEAR)`

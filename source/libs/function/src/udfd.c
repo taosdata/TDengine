@@ -1217,7 +1217,7 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  TAOS_CHECK_RETURN(taosVersionStrToInt(version, &(rpcInit.compatibilityVer)));
+  TAOS_CHECK_RETURN(taosVersionStrToInt(td_version, &rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -1470,9 +1470,9 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-  (void)printf("udfd version: %s compatible_version: %s\n", version, compatible_version);
-  (void)printf("git: %s\n", gitinfo);
-  (void)printf("build: %s\n", buildinfo);
+  (void)printf("udfd version: %s compatible_version: %s\n", td_version, td_compatible_version);
+  (void)printf("git: %s\n", td_gitinfo);
+  (void)printf("build: %s\n", td_buildinfo);
 }
 
 static int32_t udfdInitLog() {

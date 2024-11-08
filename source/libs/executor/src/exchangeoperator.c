@@ -320,7 +320,7 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
   if (!pInfo->pTaskId) {
     return terrno;
   }
-  strncpy(pInfo->pTaskId, id, len);
+  tstrncpy(pInfo->pTaskId, id, len);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;

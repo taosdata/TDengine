@@ -151,8 +151,9 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx, bool* tbGet);
+int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
+                                    bool* tbGet);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -210,7 +211,7 @@ SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
-const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
+const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
 
@@ -222,8 +223,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-void    resetTaskInfo(qTaskInfo_t tinfo);
-
+void    qResetTaskInfoCode(qTaskInfo_t tinfo);
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
 

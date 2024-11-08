@@ -1,7 +1,7 @@
 ---
 sidebar_label: 数据写入
 title: 数据写入
-description: 写入数据的详细语法 
+description: 写入数据的详细语法
 ---
 
 ## 写入语法
@@ -25,9 +25,9 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 ### 超级表语法
 ```sql
 INSERT INTO
-    stb1_name [(field1_name, ...)]       
+    stb1_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    [stb2_name [(field1_name, ...)]  
+    [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
 ```
@@ -47,7 +47,7 @@ INSERT INTO
 
 2. VALUES 语法表示了要插入的一行或多行数据。
 
-3. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。
+3. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。如仅需创建子表，请参考'表'章节。
 
 4. `INSERT ... VALUES` 语句和 `INSERT ... FILE` 语句均可以在一条 INSERT 语句中同时向多个表插入数据。
 
@@ -154,12 +154,20 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/c
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
-## 超级表语法
+## 向超级表插入数据并自动创建子表
 
-自动建表, 表名通过tbname列指定
+自动建表, 表名通过 tbname 列指定
 ```sql
-INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase) 
-                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) 
+INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
+                VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
                 ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)        
+                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+```
+## 通过 CSV 文件向超级表插入数据并自动创建子表
+
+根据 csv 文件内容，为 超级表创建子表，并填充相应 column 与 tag
+
+```sql
+INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
+                FILE '/tmp/csvfile_21002.csv'
 ```

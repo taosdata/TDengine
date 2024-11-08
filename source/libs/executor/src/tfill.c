@@ -39,22 +39,27 @@
 static int32_t doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const SGroupKeys* pKey);
 
 static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo, int32_t rowIndex, int32_t colIdx) {
-  SRowVal* p = NULL;
-  if (pFillInfo->type == TSDB_FILL_NEXT) {
-    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->next : &pFillInfo->prev;
+  SFillColInfo* pCol = &pFillInfo->pFillCol[colIdx];
+  if (pCol->fillNull) {
+    colDataSetNULL(pDstColInfo, rowIndex);
   } else {
-    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
-  }
+    SRowVal* p = NULL;
+    if (pFillInfo->type == TSDB_FILL_NEXT) {
+      p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->next : &pFillInfo->prev;
+    } else {
+      p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
+    }
 
-  SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
-  if (!pKey) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    T_LONG_JMP(pFillInfo->pTaskInfo->env, terrno);
-  }
-  int32_t     code = doSetVal(pDstColInfo, rowIndex, pKey);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    T_LONG_JMP(pFillInfo->pTaskInfo->env, code);
+    SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
+    if (!pKey) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      T_LONG_JMP(pFillInfo->pTaskInfo->env, terrno);
+    }
+    int32_t     code = doSetVal(pDstColInfo, rowIndex, pKey);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pFillInfo->pTaskInfo->env, code);
+    }
   }
 }
 
@@ -545,9 +550,10 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                           SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t primaryTsSlotId,
-                           int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo) {
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t fillNullCols,
+                           int32_t capacity, SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
+                           int32_t primaryTsSlotId, int32_t order, const char* id, SExecTaskInfo* pTaskInfo,
+                           SFillInfo** ppFillInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (fillType == TSDB_FILL_NONE) {
@@ -574,7 +580,7 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
   pFillInfo->type = fillType;
   pFillInfo->pFillCol = pCol;
-  pFillInfo->numOfCols = numOfFillCols + numOfNotFillCols;
+  pFillInfo->numOfCols = numOfFillCols + numOfNotFillCols + fillNullCols;
   pFillInfo->alloc = capacity;
   pFillInfo->id = id;
   pFillInfo->interval = *pInterval;
@@ -761,10 +767,11 @@ _end:
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo) { return pFillInfo->start; }
 
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
-                                int32_t numOfNoFillExpr, const struct SNodeListNode* pValNode) {
+                                int32_t numOfNoFillExpr, SExprInfo* pFillNullExpr, int32_t numOfFillNullExpr,
+                                const struct SNodeListNode* pValNode) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
-  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNoFillExpr, sizeof(SFillColInfo));
+  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNoFillExpr + numOfFillNullExpr, sizeof(SFillColInfo));
   if (pFillCol == NULL) {
     return NULL;
   }
@@ -795,6 +802,13 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     SExprInfo* pExprInfo = &pNotFillExpr[i];
     pFillCol[i + numOfFillExpr].pExpr = pExprInfo;
     pFillCol[i + numOfFillExpr].notFillCol = true;
+  }
+
+  for (int32_t i = 0; i < numOfFillNullExpr; ++i) {
+    SExprInfo* pExprInfo = &pFillNullExpr[i];
+    pFillCol[i + numOfFillExpr + numOfNoFillExpr].pExpr = pExprInfo;
+    pFillCol[i + numOfFillExpr + numOfNoFillExpr].notFillCol = true;
+    pFillCol[i + numOfFillExpr + numOfNoFillExpr].fillNull = true;
   }
 
   return pFillCol;

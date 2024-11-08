@@ -11,7 +11,7 @@ description: 使用标签索引提升查询性能
 创建索引的语法如下 
 
 ```sql
-CREATE INDEX index_name ON tbl_name (tagColName）
+CREATE INDEX index_name ON tbl_name (tagColName)
 ```
 
 其中 `index_name` 为索引名称， `tbl_name` 为超级表名称，`tagColName` 为要在其上建立索引的 tag 列的名称。`tagColName` 的类型不受限制，即任何类型的 tag 列都可以建立索引。

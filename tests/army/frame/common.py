@@ -803,11 +803,14 @@ class TDCom:
         else:
             tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
 
-    def killProcessor(self, processorName):
+    def kill_signal_process(self,  signal=15, processor_name: str = "taosd"):   
         if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM %s.exe"%processorName)
+            os.system(f"TASKKILL /F /IM {processor_name}.exe")
         else:
-            os.system("unset LD_PRELOAD; pkill %s " % processorName)
+            command = f"unset LD_PRELOAD; sudo pkill -f -{signal} '{processor_name}'"
+            tdLog.debug(f"command: {command}")
+            os.system(command)
+
 
     def gen_tag_col_str(self, gen_type, data_type, count):
         """

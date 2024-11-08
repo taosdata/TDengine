@@ -115,7 +115,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
     int32_t code = colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
     ASSERT(code == 0);
 
-    //    sprintf(buf, "this is %d row", i);
+    //    tsnprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
@@ -179,7 +179,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     code = colDataSetVal(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
     ASSERT(code == 0);
 
-    //    sprintf(buf, "this is %d row", i);
+    //    tsnprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));

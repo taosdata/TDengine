@@ -27,10 +27,14 @@ The preceding SQL command shows all dnodes in the cluster with the ID, endpoint,
 ## Delete a DNODE
 
 ```sql
-DROP DNODE dnode_id
+DROP DNODE dnode_id [force] [unsafe]
 ```
 
 Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
+
+Only online node is allowed to be deleted. Drop is executed with force option if the offline node need to be deleted.
+
+Drop is executed with unsafe option if the node with single replica is offline, and the data on it is not able to be restored.
 
 ## Modify Dnode Configuration
 
