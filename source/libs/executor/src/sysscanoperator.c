@@ -598,9 +598,9 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
-    } else {
-      sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
     }
+    // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
+    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
   }
 
   if (numOfRows > 0) {
@@ -655,7 +655,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
+    code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
       pAPI->metaReaderFn.clearReader(&smrChildTable);
@@ -733,10 +733,9 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         break;
       }
-    } else {
-      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                       dataBlock);
     }
+    // if pInfo->pRes->info.rows == 0, also need to add this meta into datablock.
+    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
 
