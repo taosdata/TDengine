@@ -289,7 +289,7 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
 static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key);
 static int32_t   addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn);
 static int32_t   delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
-static int32_t   balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
+static int32_t   balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pTopConn);
 
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
@@ -3814,10 +3814,8 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
 
       if (cliConnRemoveTimeoutMsg(pConn)) {
         tWarn("%s conn %p succ to remove timeout msg", transLabel(pInst), pConn);
-      } else {
-        balanceConnHeapCache(NULL, pConn);
       }
-      return 1;
+      return 2;
     }
     // check req timeout or not
     return 1;
@@ -3860,11 +3858,13 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     return NULL;
   } else {
     tTrace("conn %p get conn from heap cache for key:%s", pConn, key);
-    if (shouldSWitchToOtherConn(pConn, key)) {
-      // code = balanceConnHeapCache(pConnHeapCache, pConn);
-      // if (code != 0) {
-      //   tTrace("failed to balance conn heap cache for key:%s", key);
-      // }
+    int8_t flag = 0;
+    if ((flag = shouldSWitchToOtherConn(pConn, key)) > 0) {
+      SCliConn* pTopConn = NULL;
+      if (flag == 2 && balanceConnHeapCache(pConnHeapCache, pConn, &pTopConn)) {
+        tTrace("conn %p handle req", pTopConn);
+        return pTopConn;
+      }
       logConnMissHit(pConn);
       return NULL;
     }
@@ -3917,11 +3917,24 @@ static int32_t delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
   return code;
 }
 
-static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn) {
+static int32_t balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn) {
   if (pConn->heap != NULL && pConn->inHeap != 0) {
-    SHeap* heap = pConn->heap;
+    SCliConn* pTopConn = NULL;
+    SHeap*    heap = pConn->heap;
     tTrace("conn %p'heap do balance, numOfConn:%d", pConn, (int)(heap->heap->nelts));
-    return transHeapBalance(pConn->heap, pConn);
+
+    int32_t curReqs = transQueueSize(&pConn->reqsSentOut) + transQueueSize(&pConn->reqsToSend);
+
+    TAOS_UNUSED(transHeapBalance(pConn->heap, pConn));
+    if (transHeapGet(pConn->heap, &pTopConn) == 0 && pConn != pTopConn) {
+      int32_t topReqs = transQueueSize(&pTopConn->reqsSentOut) + transQueueSize(&pTopConn->reqsToSend);
+      if (curReqs > topReqs) {
+        *pNewConn = pTopConn;
+        return 1;
+      } else {
+        return 0;
+      }
+    }
   }
   return 0;
 }
