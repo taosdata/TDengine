@@ -1,15 +1,16 @@
 ---
-sidebar_label: 数据分析
-title: 数据分析功能
+sidebar_label: TDgpt
+title: TDgpt
 ---
 
 ## 概述
 
-ANode（Analysis Node）是 TDengine 提供数据分析功能的扩展组件，通过 Restful 接口提供分析服务，拓展 TDengine 的功能，支持时间序列高级分析。
-ANode 是无状态的数据分析节点，集群中可以存在多个 ANode 节点，相互之间没有关联。将 ANode 注册到 TDengine 集群以后，通过 SQL 语句即可调用并完成时序分析任务。
-下图是数据分析的技术架构示意图。
+TDgpt 是 TDengine Enterprise 中针对时序数据提供高级分析功能的企业级组件，能够独立于 TDengine 主进程部署和运行，不消耗和占用 TDengine 主进程的资源，通过内置接口向 TDengine 提供运行时动态扩展的高级时序数据分析功能。TDgpt 具有服务无状态、功能易扩展、快速弹性部署、应用轻量化、高安全性等特点。
+TDgpt 运行在部署于 TDengine 集群中的 Analysis Node (ANode)中。每个 TDengine 集群中可以部署一个或若干个 ANode 节点，不同的 ANode 节点之间不相关，无同步或协同的要求。ANode 注册到 TDengine 集群以后，就可以通过内部接口提供服务。TDgpt 提供的高级时序数据分析服务可分为时序数据异常检测和时序数据预测分析两个类别。
 
-![数据分析功能架构图](./pic/data-analysis.png)
+如下是数据分析的技术架构示意图。
+
+<img src=./pic/data-analysis.png width="560" alt="myImage" />
 
 ## 安装部署
 ### 环境准备
