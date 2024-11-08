@@ -2237,17 +2237,16 @@ static int32_t mndShowTransCommonColumns(SShowObj *pShow, SSDataBlock *pBlock, S
 
   char action[2048 + 1] = {0};  // TODO dmchen
   if (curActionId == pAction->id) {
-    len += snprintf(action + len, sizeof(action) - len, "%s:%d(cur)", mndTransStr(pAction->stage), pAction->id);
+    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%d)<-cur", mndTransStr(pAction->stage), pAction->id,
+                    pAction->actionType);
   } else {
-    len += snprintf(action + len, sizeof(action) - len, "%s:%d", mndTransStr(pAction->stage), pAction->id);
+    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%d)", mndTransStr(pAction->stage), pAction->id,
+                    pAction->actionType);
   }
   char actionVStr[2048 + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(actionVStr, action, pShow->pMeta->pSchemas[*cols].bytes);
   pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
   TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)actionVStr, false), &lino, _OVER);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
-  TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pAction->actionType, false), &lino, _OVER);
 _OVER:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   return code;
@@ -2265,42 +2264,46 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
   mndShowTransCommonColumns(pShow, pBlock, pAction, transactionId, curActionId, numOfRows, &cols);
 
   if (pAction->actionType == TRANS_ACTION_MSG) {
+    int32_t len = 0;
+
     char objType[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
-    strcpy(objType, TMSG_INFO(pAction->msgType));
+    len += snprintf(objType + len, sizeof(objType) - len, "%s(s:%d,r:%d)", TMSG_INFO(pAction->msgType),
+                    pAction->msgSent, pAction->msgReceived);
     char objTypeVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)objTypeVStr, false), &lino, _OVER);
 
-    char    result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
-    int32_t len = 0;
-    len += snprintf(result + len, sizeof(result) - len, "snt:%d, rec:%d", pAction->msgSent, pAction->msgReceived);
-    len += snprintf(result + len, sizeof(result) - len, ", errCode:0x%x(%s)", pAction->errCode & 0xFFFF,
+    char result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+    len = 0;
+    len += snprintf(result + len, sizeof(result) - len, "errCode:0x%x(%s)", pAction->errCode & 0xFFFF,
                     tstrerror(pAction->errCode));
     char resultVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), &lino, _OVER);
 
-    char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+    char target[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
     len = 0;
-
     SEpSet epset = pAction->epSet;
     if (epset.numOfEps > 0) {
-      len += snprintf(detail + len, sizeof(detail) - len, "numOfEps:%d inUse:%d ", epset.numOfEps, epset.inUse);
       for (int32_t i = 0; i < epset.numOfEps; ++i) {
-        len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+        len += snprintf(target + len, sizeof(target) - len, "ep:%d-%s:%u,", i, epset.eps[i].fqdn, epset.eps[i].port);
       }
+      len += snprintf(target + len, sizeof(target) - len, "(%d:%d) ", epset.numOfEps, epset.inUse);
     }
+    char targetVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(targetVStr, target, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)targetVStr, false), &lino, _OVER);
 
+    char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+    len = 0;
     char bufStart[40] = {0};
     taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
-
     char bufEnd[40] = {0};
     taosFormatUtcTime(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
-
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
-
     char detailVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2332,6 +2335,12 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
     STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), &lino, _OVER);
+
+    char target[TSDB_TRANS_ERROR_LEN] = "";  // TODO dmchen
+    char targetVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(targetVStr, target, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)targetVStr, false), &lino, _OVER);
 
     char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
     len = 0;
