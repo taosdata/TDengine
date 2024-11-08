@@ -3844,7 +3844,7 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     if ((flag = shouldSWitchToOtherConn(pConn, key)) > 0) {
       SCliConn* pTopConn = NULL;
       if (flag == 2 && balanceConnHeapCache(pConnHeapCache, pConn, &pTopConn)) {
-        tTrace("conn %p handle req", pTopConn);
+        tTrace("switch to conn %p handle req", pTopConn);
         return pTopConn;
       }
       logConnMissHit(pConn);
