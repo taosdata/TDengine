@@ -24,7 +24,7 @@
 #include "parUtil.h"
 #include "scalar.h"
 #include "systable.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tcol.h"
 #include "tglobal.h"
 #include "ttime.h"

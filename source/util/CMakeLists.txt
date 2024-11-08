@@ -18,7 +18,7 @@ else()
 endif(${ASSERT_NOT_CORE})
 
 if(${BUILD_WITH_ANALYSIS})
-    add_definitions(-DUSE_ANAL)
+    add_definitions(-DUSE_ANALYTICS)
 endif()
 
 target_include_directories(
