@@ -462,7 +462,7 @@ struct SStreamTask {
   struct SStreamMeta*   pMeta;
   SSHashObj*            pNameMap;
   void*                 pBackend;
-  int8_t                subtableWithoutMd5;
+  int8_t                subtableWithoutMd5; // only for tsma stream tasks
   char                  reserve[256];
   char*                 backendPath;
 };
