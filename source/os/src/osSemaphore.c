@@ -267,7 +267,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
         continue;
       }
 
-      sscanf(buf, "%*s %s", bufx);
+      ret = sscanf(buf, "%*s %s", bufx);
       if (!strcmp(bufx, name)) {
         char* end = NULL;
         *pPId = taosStr2Int32(ptr->d_name, &end, 10);

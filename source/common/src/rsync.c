@@ -131,7 +131,7 @@ void stopRsync() {
     int32_t ret = tsnprintf(buf, tListLen(buf), "kill -9 %d", pid);
     if (ret > 0) {
       uInfo("kill rsync program pid:%d", pid);
-      system(buf);
+      code = system(buf);
     }
   }
 #endif
