@@ -507,7 +507,7 @@ export default {
       permitStartStatus: ['created','failed','stopped','suspended','completed'],
       permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
       showErrStatus: ['waiting','suspending','suspended','failed','interrupted'],
-      permitDeleteStatus: ['completed','stopped',' failed', 'interrupted', 'ticked'],
+      permitDeleteStatus: ['completed','stopped','failed', 'interrupted', 'ticked'],
       multipleSelection: [],
     };
   },
