@@ -98,7 +98,7 @@ static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs,
-                                          STimeWindow tw, SCompactDbRsp *pCompactRsp) {
+                                          STimeWindow tw, SArray *vgroupIds, SCompactDbRsp *pCompactRsp) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -109,10 +109,25 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   }
 
   int32_t j = 0;
+  int32_t numOfVgroups = taosArrayGetSize(vgroupIds);
   while (1) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+
+    if (numOfVgroups > 0) {
+      int32_t iVgroup = 0;
+      for (; iVgroup < numOfVgroups; iVgroup++) {
+        int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, iVgroup);
+        if (vgId == pVgroup->vgId) {
+          break;
+        }
+      }
+      if (iVgroup == numOfVgroups) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
+    }
 
     if (pVgroup->dbUid == pDb->uid) {
       if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw)) != 0) {
@@ -161,7 +176,7 @@ static int32_t mndBuildCompactDbRsp(SCompactDbRsp *pCompactRsp, int32_t *pRspLen
   TAOS_RETURN(code);
 }
 
-static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw) {
+static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds) {
   int32_t       code = 0;
   SCompactDbRsp compactRsp = {0};
 
@@ -201,7 +216,7 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, &compactRsp), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, &compactRsp), NULL, _OVER);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
@@ -239,7 +254,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb), NULL, _OVER);
 
-  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange);
+  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange, compactReq.vgroupIds);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -254,14 +269,6 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   tFreeSCompactDbReq(&compactReq);
-  TAOS_RETURN(code);
-}
-
-int32_t mndProcessCompactVgroupsReq(SRpcMsg *pReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino;
-// TODO
-_OVER:
   TAOS_RETURN(code);
 }
 
