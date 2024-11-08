@@ -523,7 +523,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   } else {
     tTrace("%s conn %p may do balance", CONN_GET_INST_LABEL(conn), conn);
-    TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
+    // TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   }
   return 0;
 }
