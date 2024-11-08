@@ -3216,3 +3216,41 @@ _error:
   return code;
 }
 
+static int32_t vnodeGetEstimateRawSize(void* arg, int64_t* size) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  return code;
+}
+static int32_t metaGetSuperTableList(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            numOfRows = 0;
+  int32_t            ret = 0;
+
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+  }
+
+  while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_CHILD_TABLE)) == 0)) {
+    char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    SSchemaWrapper* schemaRow = NULL;
+
+    if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
+
+    } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
+        
+    }
+    
+  }
+
+  return code;
+}
+static int32_t metaGetNTableList(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  return code;
+}
