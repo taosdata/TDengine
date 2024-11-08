@@ -76,9 +76,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;
   }
-  pRpc->doBanlanceLimit = pRpc->connLimitNum / 10;
-  if (pRpc->doBanlanceLimit <= 50) {
-    pRpc->doBanlanceLimit = 50;
+  pRpc->doBanlanceLimit = pRpc->connLimitNum / 20;
+  if (pRpc->doBanlanceLimit <= 25) {
+    pRpc->doBanlanceLimit = 25;
   }
 
   pRpc->connLimitLock = pInit->connLimitLock;
