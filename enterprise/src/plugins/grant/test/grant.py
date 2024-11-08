@@ -187,7 +187,14 @@ class TDTestCase:
 
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")
-    
+        process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 1', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate() 
+        output = output.decode(encoding="utf-8")
+        error = error.decode(encoding="utf-8")
+        print(f"code: {process.returncode}")
+        print(f"error:\n{error}")
+        print(f"output:\n{output}")
+        tdSql.checkEqual(process.returncode, 0)
 
     def run(self):
         # print(self.master_dnode.cfgDict)
