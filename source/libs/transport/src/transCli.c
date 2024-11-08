@@ -774,15 +774,8 @@ void cliConnCheckTimoutMsg(SCliConn* conn) {
   if (transQueueSize(&conn->reqsSentOut) == 0) {
     return;
   }
-  code = cliConnRemoveTimeoutMsg(conn);
-  if (code != 0) {
-    tDebug("%s conn %p do remove timeout msg", CONN_GET_INST_LABEL(conn), conn);
-    if (!cliMayRecycleConn(conn)) {
-      TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
-    }
-  } else {
-    TAOS_UNUSED(cliMayRecycleConn(conn));
-  }
+  TAOS_UNUSED(cliConnRemoveTimeoutMsg(conn));
+  TAOS_UNUSED(cliMayRecycleConn(conn));
 }
 void cliConnTimeout__checkReq(uv_timer_t* handle) {
   SCliConn* conn = handle->data;
