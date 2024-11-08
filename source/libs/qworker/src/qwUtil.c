@@ -137,8 +137,8 @@ int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchS
 void qwReleaseScheduler(int32_t rwType, SQWorker *mgmt) { QW_UNLOCK(rwType, &mgmt->schLock); }
 
 int32_t qwAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch, SQWTaskStatus **task) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   QW_LOCK(rwType, &sch->tasksLock);
   *task = taosHashGet(sch->tasksHash, id, sizeof(id));
@@ -153,8 +153,8 @@ int32_t qwAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch, S
 int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, int32_t status, SQWTaskStatus **task) {
   int32_t code = 0;
 
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   SQWTaskStatus ntask = {0};
   ntask.status = status;
@@ -209,8 +209,8 @@ int32_t qwAddAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch
 void qwReleaseTaskStatus(int32_t rwType, SQWSchStatus *sch) { QW_UNLOCK(rwType, &sch->tasksLock); }
 
 int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
@@ -222,8 +222,8 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 }
 
 int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
@@ -235,8 +235,8 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 }
 
 int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   SQWTaskCtx nctx = {0};
 
@@ -347,6 +347,7 @@ int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     (void)memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
     localRsp.rsp.subplanInfo = pExec;
     localRsp.qId = qId;
+    localRsp.cId = cId;
     localRsp.tId = tId;
     localRsp.rId = rId;
     localRsp.eId = eId;
@@ -376,8 +377,8 @@ _return:
 
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
   SQWTaskCtx octx;
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
@@ -411,8 +412,8 @@ int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
 
   if (qwAcquireScheduler(mgmt, sId, QW_WRITE, &sch)) {
     QW_TASK_WLOG_E("scheduler does not exist");
@@ -465,8 +466,8 @@ _return:
 
 
 int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
-  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_QTID(id, qId, tId, eId);
+  char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, cId, tId, eId);
   SQWTaskCtx octx;
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
@@ -588,14 +589,14 @@ void qwDestroyImpl(void *pMgmt) {
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
-  uint64_t qId, tId;
+  uint64_t qId, cId, tId;
   int32_t  eId;
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
 
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
-    QW_GET_QTID(key, qId, tId, eId);
+    QW_GET_QTID(key, qId, cId, tId, eId);
 
     qwFreeTaskCtx(ctx);
     QW_TASK_DLOG_E("task ctx freed");
