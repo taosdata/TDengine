@@ -7,7 +7,21 @@ sidebar_label: "addins"
 
 ## 目录结构
 
-![数据分析功能架构图](./pic/dir.png)
+```bash
+.
+├── cfg
+├── model
+│   └── ac_detection
+├── release
+├── script
+└── taosanalytics
+    ├── algo
+    │   ├── ad
+    │   └── fc
+    ├── misc
+    └── test
+
+```
 
 |目录|说明|
 |---|---|
