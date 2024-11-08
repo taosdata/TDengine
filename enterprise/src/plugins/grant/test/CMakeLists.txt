@@ -5,21 +5,18 @@ ADD_EXECUTABLE(grantTest "grantTest.cpp")
 
 IF(TD_ENTERPRISE)
     SET(TAOS_GRANT_STUB  "")
-    SET(TD_GRANT_LIB_TAOS  "")
     SET(TD_GRANT_DIR "${TD_SOURCE_DIR}/enterprise/src/plugins/grant")
     SET(TD_GRANT_TEST_DEST "${TD_SOURCE_DIR}/community/tests/system-test/0-others")
     SET(TD_GRANT_TEST_FILE "${TD_GRANT_DIR}/test/grant.py")
     IF (TD_LINUX_64)
         IF ("${CPUTYPE}" STREQUAL "x64")
             SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/libgrant_x64.a")
-            SET(TD_GRANT_LIB_TAOS "${TD_SOURCE_DIR}/debug/build/lib/libtaos.so")
             FILE(COPY ${TD_GRANT_TEST_FILE} DESTINATION ${TD_GRANT_TEST_DEST})
         ELSE ()
             MESSAGE (STATUS "grantStub: unsupported cpu type: " ${CPUTYPE})
         ENDIF ()
     ELSEIF (TD_WINDOWS_64)
         SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/grant_win64.lib")
-        SET(TD_GRANT_LIB_TAOS "${TD_SOURCE_DIR}/debug/build/lib/taos_static.lib")
         FILE(COPY ${TD_GRANT_TEST_FILE} DESTINATION ${TD_GRANT_TEST_DEST})
     ELSEIF(TD_DARWIN_64)
     ELSE()
@@ -29,8 +26,7 @@ ENDIF ()
 
 TARGET_LINK_LIBRARIES(
     grantTest 
-    PRIVATE grant taos
-    PRIVATE ${TAOS_GRANT_STUB} ${TD_GRANT_LIB_TAOS}
+    PRIVATE ${TAOS_GRANT_STUB} grant taos
 )
 TARGET_INCLUDE_DIRECTORIES(
     grantTest
