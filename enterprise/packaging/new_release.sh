@@ -171,7 +171,10 @@ function git_pull() {
     if [ -d $1 ]; then
         cd $1
         echo "change directory to $1 done"
-        
+
+        git remote prune origin
+        echo "$1: git remote prune origin done"  
+
         git reset --hard HEAD
         echo "$1: reset to HEAD done"
 
@@ -273,7 +276,7 @@ function build_TDengine() {
         git_pull "${communityDir}/tools/taos-tools" "main" "ver-${version}"
 
         # pull taosws-rs
-        git_pull "${communityDir}/tools/taosws-rs" "main" "main"
+        git_pull "${communityDir}/tools/taosws-rs" "main" "ver-${version}"
 
     else
         echo "can not find TDengine source code"
@@ -283,7 +286,8 @@ function build_TDengine() {
     binPath=""
     repoDir=""
     if [ "$versionType" != "community" ];then
-        
+        echo "build enterprise or industry version"
+
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
         cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue}"
