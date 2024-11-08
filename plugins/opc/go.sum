@@ -68,8 +68,8 @@ github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcU
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/taosdata/file-rotatelogs/v2 v2.4.1 h1:ECQjPQV39ymaCA0c2FrlQkhRu0vHSaGrqJR8DY54kHY=
 github.com/taosdata/file-rotatelogs/v2 v2.4.1/go.mod h1:MCZ3vDodccO6AVlE1nWEyjaaxygQj8cSPhJgzvVDttQ=
-github.com/taosdata/opc v0.0.0-20240618072804-f4133a5b8154 h1:BoFPwnZUgC+HGgrK/gFFHUIYJ2l5AuAl2iV/S2+jUt8=
-github.com/taosdata/opc v0.0.0-20240618072804-f4133a5b8154/go.mod h1:PoPt0uFeJ0TFISfhKJAmBeu/RddMGCJTFHOI598xwO0=
+github.com/taosdata/opc v0.0.0-20241108093602-6c32e7673d33 h1:MsvS1URdGajhP2TJabrMhbxC69/xmuRVTrgHqbTbGDE=
+github.com/taosdata/opc v0.0.0-20241108093602-6c32e7673d33/go.mod h1:PoPt0uFeJ0TFISfhKJAmBeu/RddMGCJTFHOI598xwO0=
 github.com/taosdata/opcua v0.0.0-20240618072856-863889ec3946 h1:6vC9mG9zXiVOd9fZGucpHAllRe2sN5SLLH8dOPA2RBc=
 github.com/taosdata/opcua v0.0.0-20240618072856-863889ec3946/go.mod h1:itmRP3fAT1US3FtpGGRYoGHohfdUoz5CSb0CjcsKwNc=
 github.com/tebeka/strftime v0.1.3/go.mod h1:7wJm3dZlpr4l/oVK0t1HYIc4rMzQ2XJlOMIUJUJH6XQ=
