@@ -175,6 +175,9 @@ function git_pull() {
         git reset --hard HEAD
         echo "$1: reset to HEAD done"
 
+        git remote prune origin
+        echo "$1: git remote prune origin done"  
+
         git checkout $2 || :
         echo "$1: checkout branch $2 done"
 
@@ -283,7 +286,7 @@ function build_TDengine() {
     binPath=""
     repoDir=""
     if [ "$versionType" != "community" ];then
-        
+        echo "build enterprise or industry version"
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
         cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue}"
