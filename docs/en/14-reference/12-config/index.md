@@ -121,6 +121,24 @@ Ensure that your firewall rules do not block TCP port 6042  on any host in the c
 | Value Range   | 10-50000000(ms)                                |
 | Default Value | 500000                                         |
 
+### shareConnLimit 
+
+| Attribute     | Description                                    |
+| ------------- | ---------------------------------------------- |
+| Applicable    | Client/Server                                  |
+| Meaning       | The maximum number of requests that can be attached to each connection |
+| Value Range   | 1-256                                      |
+| Default Value | 10                                         |
+
+### readTimeout
+
+| Attribute     | Description                                    |
+| ------------- | ---------------------------------------------- |
+| Applicable    | Client/Server                                  |
+| Meaning       | The minimum timeout for a single request. If there is no response exceeding this value, the request may be actively removed. The removed request will actively notify the business side and return an error code |
+| Value Range   | 64-604800(s)                                     |
+| Default Value | 900                                         |
+
 ## Monitoring Parameters
 
 :::note
