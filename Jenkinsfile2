@@ -94,7 +94,7 @@ def pre_test(){
     script {
         sh '''
             cd ${WK}
-            git checkout enh/TS-5574-3.0-a
+            git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
             git checkout enh/TS-5574-3.0-a
         '''
@@ -201,7 +201,7 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout enh/TS-5574-3.0-a
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
