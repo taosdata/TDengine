@@ -22,7 +22,7 @@ taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数�
 
 taosdump 有两种安装方式:
 
-- 安装 taosTools 官方安装包, 请从[发布历史页面](https://docs.taosdata.com/releases/tools/)页面找到 taosTools 并下载安装。
+- 安装 TDengine 官方[TDengine 客户端安装包](https://docs.taosdata.com/releases/tdengine/)的同时会自动安装 taosdump。
 
 - 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -71,12 +71,12 @@ taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，�
 
 ```
 Usage: taosdump [OPTION...] dbname [tbname ...]
-  or:  taosdump [OPTION...] --databases db1,db2,...
+  or:  taosdump [OPTION...] --databases db1,db2,... 
   or:  taosdump [OPTION...] --all-databases
   or:  taosdump [OPTION...] -i inpath
   or:  taosdump [OPTION...] -o outpath
 
-  -h, --host=HOST            Server host dumping data from. Default is
+  -h, --host=HOST            Server host from which to dump data. Default is
                              localhost.
   -p, --password             User password to connect to server. Default is
                              taosdata.
@@ -87,14 +87,13 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -i, --inpath=INPATH        Input file path.
   -o, --outpath=OUTPATH      Output file path.
   -r, --resultFile=RESULTFILE   DumpOut/In Result file path and name.
-  -a, --allow-sys            Allow to dump system database
+  -a, --allow-sys            Allow to dump system database (2.0 only)
   -A, --all-databases        Dump all databases.
-  -D, --databases=DATABASES  Dump inputted databases. Use comma to separate
-                             databases' name.
+  -D, --databases=DATABASES  Dump listed databases. Use comma to separate
+                             databases names.
+  -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
-  -s, --schemaonly           Only dump tables' schema.
-  -y, --answer-yes           Input yes for prompt. It will skip data file
-                             checking!
+  -s, --schemaonly           Only dump table schemas.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma.
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
@@ -115,18 +114,23 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              and try. The workable value is related to the
                              length of the row and type of table schema.
   -I, --inspect              inspect avro file content and print on screen
-  -L, --loose-mode           Using loose mode if the table name and column name
+  -L, --loose-mode           Use loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
+  -Q, --dot-replace          Repalce dot character with underline character in
+                             the table name.
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
                              8.
-  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
-  -R, --restful              Use RESTful interface to connect TDengine
+  -W, --rename=RENAME-LIST   Rename database name with new name during
+                             importing data. RENAME-LIST:
+                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
+                             and rename db2 to newDB2
+  -C, --cloud=CLOUD_DSN      specify a DSN to access the cloud service
+  -R, --restful              Use RESTful interface to connect server
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
   -g, --debug                Print debug info.
   -?, --help                 Give this help list
       --usage                Give a short usage message
-  -V, --version              Print program version
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
