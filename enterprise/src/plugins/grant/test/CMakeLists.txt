@@ -16,7 +16,7 @@ IF(TD_ENTERPRISE)
         SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/grant_win64.lib")
     ELSEIF(TD_DARWIN_64)
     ELSE()
-        MESSAGE (FATAL_ERROR "grantStub: unsupported platform")
+        MESSAGE (STATUS "grantStub: unsupported platform")
     ENDIF ()
 ENDIF ()
 
