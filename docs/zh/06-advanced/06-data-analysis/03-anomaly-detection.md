@@ -1,6 +1,6 @@
 ---
-title: "Anomaly-detection"
-sidebar_label: "Anomaly-detection"
+title: "异常检测算法"
+sidebar_label: "异常检测算法"
 ---
 
 本节讲述异常检测算法模型的使用方法。
