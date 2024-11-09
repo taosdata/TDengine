@@ -1,9 +1,15 @@
-from jira import JIRA
+"""
+This module generates release notes from JIRA issues.
+
+It connects to a JIRA instance, retrieves issues based on a JQL query,
+and formats them into a release note document.
+"""
+
 import argparse
 import re
 import os
-import logging
 from loguru import logger
+from jira import JIRA
 
 
 class FileHandler:
@@ -12,7 +18,7 @@ class FileHandler:
         self.file = None
 
     def open(self):
-        self.file = open(self.file_path, "a")
+        self.file = open(self.file_path, "a", encoding="utf-8")
 
     def write(self, data):
         if type(data) == list:
@@ -30,112 +36,46 @@ class FileHandler:
             self.file.close()
 
 
-jira_server = "https://jira.taosdata.com:18080"
+# set log
 logger.level("INFO")
-
-
-def append_to_file(file_path: str, content: str):
-    """
-    Append content to a file.
-
-    :param file_path: Path to the file.
-    :param content: Content to be written to the file.
-    """
-    with open(file_path, "a") as file:
-        if type(content) == str:
-            file.write(f"{content}\n")
-        elif type(content) == list:
-            file.writelines(content)
+# set default args
+jira_server = "https://jira.taosdata.com:18080"
+replacements = {
+    "taosd": "taosd",
+    "taosadapter": "taosAdapter",
+    "tdengine": "TDengine",
+    "taos": "taos",
+    "taosrestful": "taosRestful",
+    "taosexplorer": "taosExplorer",
+    "tsma": "TSMA",
+    "taosconnector": "taosConnector",
+    "taosx": "taosX",
+    "wal": "WAL",
+}
 
 
 def clear_file(file_path: str):
-
     if not os.path.exists(file_path):
         return True
-    with open(file_path, "w+") as file:
+    with open(file_path, "w+", encoding="utf-8") as file:
         content = ""
         file.write(content)
 
 
 def print_file_content(file_name):
     # open file and print content
-    with open(file_name, "r") as file:
+    with open(file_name, "r", encoding="utf-8") as file:
         content = file.read()
     logger.info(f"\n{content}")
 
 
-def get_release_note(user: str, passwd: str, release_version: str):
-    jira = JIRA(server=jira_server, basic_auth=(user, passwd))
-
-    # jql = "\"Epic Link\" = TD-27435 and status = DONE  AND (assignee in membersof(\"application group 1\") or assignee in membersOf(\"application group 2\"))"
-    # jql = "project = \"Taos Support\" and type = Bug and status = DONE  and created >= 2024-7-1 and created  < 2024-9-30"
-
-    jql = f' status in ("Releasing","Checking","Verifying","Done")  and  project in ("Taos Support","Taos Development") AND fixVersion = {release_version}   ORDER BY priority DESC, key ASC'
-    # print(f"jql:{jql}")
-    logger.info(f"generate release_version-{release_version} release note")
-    # jql = "key in (TS-4785,TS-5383,TS-5384,TS-5532,TS-5537,TS-5529,TS-5531,TS-5540,TS-4785)"
-    zh_file = f"release_note_{release_version}_zh.txt"
-    en_file = f"release_note_{release_version}_en.txt"
-    issues = jira.search_issues(jql)
-
-    replacements = {
-        "taosd": "taosd",
-        "taosadapter": "taosAdapter",
-        "tdengine": "TDengine",
-        "taos": "taos",
-        "taosrestful": "taosRestful",
-        "taosexplorer": "taosExplorer",
-    }
-
-    clear_file(zh_file)
-    clear_file(en_file)
-    file_handler_zh = FileHandler(zh_file)
-    file_handler_en = FileHandler(en_file)
-    file_handler_zh.open()
-    file_handler_en.open()
-    contents_zh = []
-    contents_en = []
-
-    for issue in issues:
-        # issue.fields.customfield_12330  is relsease note in chinese
-        if (
-            issue.fields.customfield_12330 is not None
-            and issue.fields.customfield_12330 != "-"
-        ):
-            content_zh = f"{issue.key} {issue.fields.customfield_12330} \n"
-            processed_content_zh = process_content(content_zh, replacements)
-            # append_to_file(zh_file, processed_content_zh)
-            # contents_zh.append(processed_content_zh)
-            file_handler_zh.write(processed_content_zh)
-        # issue.fields.customfield_12331  is relsease note in english
-        if (
-            issue.fields.customfield_12331 is not None
-            and issue.fields.customfield_12331 != "-"
-        ):
-            content_en = f"{issue.key} {issue.fields.customfield_12331} \n"
-            processed_content_en = process_content(content_en, replacements)
-            # append_to_file(en_file, processed_content_en)
-            # contents_en.append(processed_content_en)
-            file_handler_en.write(processed_content_en)
-
-    # append_to_file(zh_file, contents_zh)
-    # append_to_file(en_file, contents_en)
-    # file_handler_en.write_line(contents_en)
-    # file_handler_zh.write_line(contents_zh)
-
-    file_handler_zh.close()
-    file_handler_en.close()
-    print_file_content(zh_file)
-    print_file_content(en_file)
-    logger.info(f"generate release_version-{release_version} release note done")
-
-
-def process_content(content: str, replacements: str):
+def process_content(content: str, replacements_dict: dict) -> str:
     """
     Process the content by replacing multiple substrings.
 
     :param content: The original text content.
-    :param replacements: A dictionary of replacements where key is the search term and value is the replacement term.
+    :param replacements: A dictionary of replacements where key is the search
+    term and value is the replacement term.
     :return: The processed content.
     """
     # Sort the replacements by the length of the search term in descending order to avoid partial matches
@@ -147,7 +87,160 @@ def process_content(content: str, replacements: str):
     return content
 
 
+def get_release_note(user: str, passwd: str, release_version: str):
+    """
+    Generate release notes for a given release version.
+
+    This function connects to JIRA using the provided user credentials,
+    fetches all issues related to the specified release version, and
+    writes the release notes to the appropriate files.
+
+    Args:
+        user (str): JIRA username.
+        passwd (str): JIRA password.
+        release_version (str): The release version for which to generate notes.
+
+    Returns:
+        None
+    """
+    jira = JIRA(server=jira_server, basic_auth=(user, passwd))
+    jql = create_jql_query(release_version)
+    logger.info(f"filter jql:{jql}")
+    logger.info(f"generate release_version-{release_version} release note")
+    all_issues = fetch_all_issues(jira, jql)
+    logger.info(f"total filter {release_version} issues:{len(all_issues)}")
+    zh_file, en_file = prepare_files(release_version)
+    process_and_write_issues(all_issues, zh_file, en_file)
+    logger.info(f"generate release_version-{release_version} release note done")
+
+
+def create_jql_query(release_version: str) -> str:
+    return (
+        f'status in ("Releasing","Checking","Verifying","Done") '
+        f'and  project in ("Taos Support","Taos Development") '
+        f"AND fixVersion = {release_version} "
+        f"ORDER BY priority DESC, key ASC"
+    )
+
+
+def fetch_all_issues(jira, jql):
+    all_issues = []
+    start_at = 0
+    max_results = 50
+
+    while True:
+        issues = jira.search_issues(jql, startAt=start_at, maxResults=max_results)
+        if not issues:
+            break
+        all_issues.extend(issues)
+        start_at += len(issues)
+    return all_issues
+
+
+def prepare_files(release_version: str):
+    zh_file = f"release_note_{release_version}_zh.txt"
+    en_file = f"release_note_{release_version}_en.txt"
+    clear_file(zh_file)
+    clear_file(en_file)
+    return zh_file, en_file
+
+
+def process_and_write_issues(all_issues, zh_file, en_file):
+    file_handler_zh = FileHandler(zh_file)
+    file_handler_en = FileHandler(en_file)
+    file_handler_zh.open()
+    file_handler_en.open()
+
+    for issue in all_issues:
+        if (
+            issue.fields.customfield_12330 is not None
+            and issue.fields.customfield_12330 != "-"
+        ):
+            content_zh = f"{issue.key} {issue.fields.customfield_12330} \n"
+            processed_content_zh = process_content(content_zh, replacements)
+            file_handler_zh.write(processed_content_zh)
+
+        if (
+            issue.fields.customfield_12331 is not None
+            and issue.fields.customfield_12331 != "-"
+        ):
+            content_en = f"{issue.key} {issue.fields.customfield_12331} \n"
+            processed_content_en = process_content(content_en, replacements)
+            file_handler_en.write(processed_content_en)
+
+    file_handler_zh.close()
+    file_handler_en.close()
+
+
+def sort_file_by_category(file_path):
+    """
+    Sort the contents of a file into categories.
+
+    This function reads the contents of the specified file and sorts the lines
+    into three categories: fixes, optimizations, and new features. The sorted
+    lines are stored in separate lists.
+
+    Args:
+        file_path (str): The path to the file to be sorted.
+
+    Returns:
+        tuple: A list containing three lists: fixes, optimizations, and new features.
+    """
+    with open(file_path, "r", encoding="utf-8") as file:
+        lines = file.readlines()
+
+    # Debug: Print the lines read from the file
+    # print("Lines read from file:")
+    # print(lines)
+
+    # Initialize lists for each category
+    fixes = []
+    optimizations = []
+    new_features = []
+
+    # Categorize each line
+    for line in lines:
+        if "修复" in line:
+            fixes.append(line)
+        elif "优化" in line:
+            optimizations.append(line)
+        elif "新功能" in line:
+            new_features.append(line)
+        elif "fix" in line:
+            fixes.append(line)
+        elif "enh" in line:
+            optimizations.append(line)
+        elif "feat" in line:
+            new_features.append(line)
+
+    line_index = [["[Fixes] \n"], ["[Optimizations]\n"], ["[New Features]\n"]]
+    if "zh" in file_path:
+        line_index = [["[修复] \n"], ["[优化]\n"], ["[新功能]\n"]]
+    elif "en" in file_path:
+        line_index = [["[Fixes] \n"], ["[Optimizations]\n"], ["[New Features]\n"]]
+
+    # Combine the lists in the desired order
+    sorted_lines = (
+        line_index[0]
+        + fixes
+        + line_index[1]
+        + optimizations
+        + line_index[2]
+        + new_features
+    )
+
+    # Write sorted lines back to the file
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.writelines(sorted_lines)
+
+
 def main():
+    """
+    Main function to parse arguments and get release note.
+
+    This function parses command-line arguments for JIRA user, password, and release version.
+    It then calls the get_release_note function with these arguments.
+    """
     parser = argparse.ArgumentParser(description="Example script.")
     parser.add_argument("user", help="jira user")
     parser.add_argument("passwd", help="jira passwd")
@@ -159,6 +252,15 @@ def main():
         get_release_note(args.user, args.passwd, args.version)
     except Exception as e:
         logger.error(f"get release note failed:{e}")
+
+    # sort release note by category
+    sort_file_by_category(f"release_note_{args.version}_zh.txt")
+    sort_file_by_category(f"release_note_{args.version}_en.txt")
+
+    # mv release note to /pkgs/TDengine/smoking/v{args.version}/ and rm original release note
+    # cmd = f"cp release_note_{args.version}_zh.txt release_note_{args.version}_en.txt /pkgs/TDengine/smoking/v{args.version}/enterprise/ && rm release_note_{args.version}_zh.txt release_note_{args.version}_en.txt"
+    # os.system(cmd)
+
 
 if __name__ == "__main__":
     main()
