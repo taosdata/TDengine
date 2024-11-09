@@ -231,7 +231,7 @@ static void cliAsyncCb(uv_async_t* handle);
 
 SCliBatch* cliGetHeadFromList(SCliBatchList* pList);
 
-#define REQS_ON_CONN(conn) (conn ? transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut) : 0)
+#define REQS_ON_CONN(conn) (conn ? (transQueueSize(&conn->reqsToSend) + transQueueSize(&conn->reqsSentOut)) : 0)
 static void destroyCliConnQTable(SCliConn* conn);
 
 static void cliHandleException(SCliConn* conn);
@@ -4028,7 +4028,7 @@ int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
   int32_t reqsOnTop = REQS_ON_CONN(topConn);
   int32_t reqsOnCur = REQS_ON_CONN(p);
 
-  if ((reqsOnTop > balanceLimit && reqsOnCur < balanceLimit)) {
+  if (reqsOnTop > balanceLimit && reqsOnCur < balanceLimit) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
   return code;
