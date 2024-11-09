@@ -4028,7 +4028,7 @@ int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
   int32_t reqsOnTop = REQS_ON_CONN(topConn);
   int32_t reqsOnCur = REQS_ON_CONN(p);
 
-  if (reqsOnTop >= pInst->shareConnLimit && reqsOnCur < balanceLimit) {
+  if (reqsOnTop >= balanceLimit && reqsOnCur < balanceLimit) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
   return code;
