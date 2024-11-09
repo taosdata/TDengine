@@ -61,7 +61,7 @@ def setup_module(get_config):
     else:
         cmd = "mkdir -p ../../debug/build/bin/"
     subprocess.getoutput(cmd)
-    if config["system"] == "Linux":  # add tmq_sim
+    if config["system"] == "Linux" or config["system"] == "Darwin" :  # add tmq_sim
         cmd = "cp -rf ../../../debug/build/bin/tmq_sim ../../debug/build/bin/."
         subprocess.getoutput(cmd)
     if config["system"] == "Darwin":
