@@ -523,7 +523,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   } else {
     tTrace("%s conn %p may do balance", CONN_GET_INST_LABEL(conn), conn);
-    // TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
+    TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   }
   return 0;
 }
@@ -4028,7 +4028,7 @@ int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
   int32_t reqsOnTop = REQS_ON_CONN(topConn);
   int32_t reqsOnCur = REQS_ON_CONN(p);
 
-  if (reqsOnTop > balanceLimit && reqsOnCur < balanceLimit) {
+  if (reqsOnTop >= pInst->shareConnLimit && reqsOnCur < balanceLimit) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
   return code;
