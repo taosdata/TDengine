@@ -167,6 +167,6 @@ ENDIF ()
 
 target_link_libraries(grant util sdb mnode)
 
-if(${BUILD_TEST})
+#if(${BUILD_TEST})
   ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+#endif(${BUILD_TEST})
