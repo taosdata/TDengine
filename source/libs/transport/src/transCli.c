@@ -4013,16 +4013,22 @@ int32_t transHeapMayBalance(SHeap* heap, SCliConn* p) {
   if (p->inHeap == 0 || heap == NULL || heap->heap == NULL) {
     return 0;
   }
+  SCliThrd* pThrd = p->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+  int32_t   balanceLimit = pInst->shareConnLimit >= 4 ? pInst->shareConnLimit / 2 : 2;
+
   SCliConn* topConn = NULL;
   int32_t   code = transHeapGet(heap, &topConn);
   if (code != 0) {
     return code;
   }
+
   if (topConn == p) return code;
 
-  int32_t topReqs = REQS_ON_CONN(topConn);
-  int32_t curReqs = REQS_ON_CONN(p);
-  if (curReqs < topReqs) {
+  int32_t reqsOnTop = REQS_ON_CONN(topConn);
+  int32_t reqsOnCur = REQS_ON_CONN(p);
+
+  if ((reqsOnTop > balanceLimit && reqsOnCur < balanceLimit)) {
     TAOS_UNUSED(transHeapBalance(heap, p));
   }
   return code;
