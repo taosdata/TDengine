@@ -3844,7 +3844,7 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
       SCliConn* pNewConn = NULL;
       code = balanceConnHeapCache(pConnHeapCache, pConn, &pNewConn);
       if (code == 1) {
-        tTrace("conn %p start to handle reqs", key, pNewConn);
+        tTrace("conn %p start to handle reqs", pNewConn);
         return pNewConn;
       }
       return NULL;
