@@ -499,6 +499,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
   if (transQueueSize(&conn->reqsToSend) == 0 && transQueueSize(&conn->reqsSentOut) == 0 &&
       taosHashGetSize(conn->pQTable) == 0) {
     cliResetConnTimer(conn);
+    conn->forceDelFromHeap = 1;
     code = delConnFromHeapCache(pThrd->connHeapCache, conn);
     if (code == TSDB_CODE_RPC_ASYNC_IN_PROCESS) {
       tDebug("%s conn %p failed to remove conn from heap cache since %s", CONN_GET_INST_LABEL(conn), conn,
