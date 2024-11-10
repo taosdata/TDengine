@@ -188,7 +188,11 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 
 static int32_t addTimezoneParam(SNodeList* pList) {
   char      buf[TD_TIME_STR_LEN] = {0};
-  time_t    t = taosTime(NULL);
+  time_t    t;
+  int32_t code = taosTime(&t);
+  if (code != 0) {
+    return code;
+  }
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf)) != NULL) {
     (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
@@ -196,7 +200,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
     return code;
   }
