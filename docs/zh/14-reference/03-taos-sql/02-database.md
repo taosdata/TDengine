@@ -189,7 +189,7 @@ TRIM DATABASE db_name;
 FLUSH DATABASE db_name;
 ```
 
-落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的数据回放，加速启动过程。
+落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的预写数据日志回放，加速启动过程。
 
 ## 调整VGROUP中VNODE的分布
 
@@ -199,13 +199,13 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 
 按照给定的dnode列表，调整vgroup中的vnode分布。因为副本数目最大为3，所以最多输入3个dnode。
 
-## 自动调整VGROUP中VNODE的分布
+## 自动调整VGROUP中LEADER的分布
 
 ```sql
-BALANCE VGROUP
+BALANCE VGROUP LEADER
 ```
 
-自动调整集群所有vgroup中的vnode分布，相当于在vnode级别对集群进行数据的负载均衡操作。
+触发集群所有vgroup中的leader重新选主，对集群各节点进行负载再均衡操作。
 
 ## 查看数据库工作状态
 
