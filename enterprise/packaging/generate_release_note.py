@@ -144,13 +144,13 @@ def prepare_files(release_version: str):
     clear_file(en_file)
     return zh_file, en_file
 
-
 def process_and_write_issues(all_issues, zh_file, en_file):
     file_handler_zh = FileHandler(zh_file)
     file_handler_en = FileHandler(en_file)
     file_handler_zh.open()
     file_handler_en.open()
-
+    file_zh_line_count = 0
+    file_en_line_count = 0
     for issue in all_issues:
         if (
             issue.fields.customfield_12330 is not None
@@ -159,6 +159,7 @@ def process_and_write_issues(all_issues, zh_file, en_file):
             content_zh = f"{issue.key} {issue.fields.customfield_12330} \n"
             processed_content_zh = process_content(content_zh, replacements)
             file_handler_zh.write(processed_content_zh)
+            file_zh_line_count += 1
 
         if (
             issue.fields.customfield_12331 is not None
@@ -167,9 +168,13 @@ def process_and_write_issues(all_issues, zh_file, en_file):
             content_en = f"{issue.key} {issue.fields.customfield_12331} \n"
             processed_content_en = process_content(content_en, replacements)
             file_handler_en.write(processed_content_en)
+            file_en_line_count += 1
 
     file_handler_zh.close()
     file_handler_en.close()
+    # get release note content number
+    logger.info(f"release note zh file:{zh_file} content line count:{file_zh_line_count}")
+    logger.info(f"release note en file:{en_file} content line count:{file_en_line_count}")
 
 
 def sort_file_by_category(file_path):
