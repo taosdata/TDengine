@@ -276,6 +276,8 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
     }
   }
 
+  closedir(dir);
+
   if ((*pPId) == -1) {
     return TAOS_SYSTEM_ERROR(ESRCH);
   } else {
