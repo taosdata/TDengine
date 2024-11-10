@@ -10,7 +10,7 @@ TDgpt 运行在部署于 TDengine 集群中的 Analysis Node (ANode)中。每个
 
 如下是数据分析的技术架构示意图。
 
-<img src=./pic/data-analysis.png width="560" alt="TDgpt架构图" />
+<img src="./pic/data-analysis.png" width="560" alt="TDgpt架构图" />
 
 通过注册指令语句，将 ANode 注册到 MNode 中就加入到 TDengine 集群，查询会按需向其请求数据分析服务。请求服务通过 VNode 直接向 ANode 发起，用户则可以通过 SQL 语句直接调用 ANode 提供的服务。
 
