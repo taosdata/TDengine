@@ -72,6 +72,8 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) { return -1;}
+
 int32_t tsem_wait(tsem_t* sem) {
   DWORD ret = WaitForSingleObject(*sem, INFINITE);
   if (ret == WAIT_OBJECT_0) {
@@ -173,6 +175,8 @@ int32_t taosGetAppName(char *name, int32_t *len) {
   return 0;
 }
 
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) {return -1;}
+
 #else
 
 /*
@@ -226,6 +230,59 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   }
 
   return 0;
+}
+
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
+  DIR*           dir = NULL;
+  struct dirent* ptr = NULL;
+  FILE*          fp = NULL;
+  char           filepath[512];
+  char           bufx[50];
+  char           buf[1024] = {0};
+
+  *pPId = -1;
+  dir = opendir("/proc");
+  if (dir == NULL) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  while ((ptr = readdir(dir)) != NULL) {
+    if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0)) {
+      continue;
+    }
+
+    if (DT_DIR != ptr->d_type) {
+      continue;
+    }
+
+    int32_t ret = tsnprintf(filepath, tListLen(filepath), "/proc/%s/status", ptr->d_name);
+    if (ret == -1) {
+      continue;
+    }
+
+    fp = fopen(filepath, "r");
+    if (NULL != fp) {
+      if (fgets(buf, tListLen(buf) - 1, fp) == NULL) {
+        TAOS_UNUSED(fclose(fp));
+        continue;
+      }
+
+      ret = sscanf(buf, "%*s %s", bufx);
+      if (!strcmp(bufx, name)) {
+        char* end = NULL;
+        *pPId = taosStr2Int32(ptr->d_name, &end, 10);
+      }
+      TAOS_UNUSED(fclose(fp));
+    }
+  }
+
+  TAOS_UNUSED(closedir(dir));
+
+  if ((*pPId) == -1) {
+    return TAOS_SYSTEM_ERROR(ESRCH);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {
