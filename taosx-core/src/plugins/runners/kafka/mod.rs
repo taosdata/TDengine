@@ -552,7 +552,7 @@ async fn execute(
                 let mut errors = 0;
                 let mut last_errors = std::time::Instant::now();
                 const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(300);
-                const MAX_RETRY_TIMES: usize = 5;
+                const MAX_RETRY_TIMES: usize = 3;
                 loop {
                     match poll_message(
                         idx,
@@ -577,8 +577,10 @@ async fn execute(
                             if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
                                 errors = 0;
                             }
+                            errors += 1;
                             let error = format!("{err:#}");
-                            if errors < MAX_RETRY_TIMES {
+
+                            if errors <= MAX_RETRY_TIMES {
                                 let context = consumer.context().clone();
                                 drop(consumer);
                                 context.metrics().sub_extra_metric(&METRIC_CONSUMERS, 1);
@@ -629,7 +631,6 @@ async fn execute(
                                 continue;
                             }
                             last_errors = std::time::Instant::now();
-                            errors += 1;
                             warn!(error, "Kafka consuming error");
                             Err(err)?;
                         }
