@@ -223,7 +223,7 @@ int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
 
   MP_ERR_RET(mpUpdateCfg(pPool));
 
-  pPool->ctrl.statFlags = MP_STAT_FLAG_LOG_ALL;
+  pPool->ctrl.statFlags = MP_STAT_FLAG_LOG_ALL & (~MP_LOG_FLAG_ALL_POS);
   pPool->ctrl.funcFlags = MP_CTRL_FLAG_PRINT_STAT | MP_CTRL_FLAG_CHECK_STAT;
 
   pPool->sessionCache.groupNum = MP_SESSION_CACHE_ALLOC_BATCH_SIZE;
@@ -744,19 +744,34 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
       SMPFileLine fileLine = {.fl.line = pInput->line, .size = pInput->size};
       code = mpGetPosStatFileId(pStat, pInput->file, &fileLine.fl.fileId, sessionStat);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("add pMem:%p file:%s line:%d to fileHash failed, error:%s, sessionStat:%d", 
+        uError("add pMem:%p %s:%d to fileHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
       code = taosHashPut(pStat->remainHash, &pInput->pMem, POINTER_BYTES, &fileLine, sizeof(fileLine));
       if (TSDB_CODE_SUCCESS != code) {
-        uError("add pMem:%p file:%s line:%d to remainHash failed, error:%s, sessionStat:%d", 
+        if (TSDB_CODE_DUP_KEY == code) {
+          SMPFileLine* pFileLine = (SMPFileLine*)taosHashAcquire(pStat->remainHash, &pInput->pMem, POINTER_BYTES);
+          if (pFileLine) {
+            char* pFileName = (char*)taosHashGet(pStat->fileHash, &pFileLine->fl.fileId, sizeof(pFileLine->fl.fileId));
+            if (NULL == pFileName) {
+              uError("fail to get fileId %u in fileHash", pFileLine->fl.fileId);
+            } else {
+              uError("add pMem:%p %s:%d to remainHash failed, error:%s, sessionStat:%d, origAllocAt %s:%d", 
+                pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat, pFileName, pFileLine->fl.line);
+              MP_ERR_JRET(code);
+            }
+          }
+        }
+
+        uError("add pMem:%p %s:%d to remainHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
+        
         MP_ERR_JRET(code);
       }
       code = mpGetAllocFreeStat(pStat->allocHash, &fileLine.fl, sizeof(fileLine.fl), (void*)&allocStat, sizeof(allocStat), (void**)&pAlloc);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("add pMem:%p file:%s line:%d to allocHash failed, error:%s, sessionStat:%d", 
+        uError("add pMem:%p %s:%d to allocHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
@@ -771,7 +786,7 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
       SMPFileLine fileLine = {.fl.line = pInput->line, .size = pInput->size};
       code = mpGetPosStatFileId(pStat, pInput->file, &fileLine.fl.fileId, sessionStat);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("realloc: add pMem:%p file:%s line:%d to fileHash failed, error:%s, sessionStat:%d", 
+        uError("realloc: add pMem:%p %s:%d to fileHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
@@ -781,13 +796,13 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
       if (pInput->pOrigMem && pInput->origSize > 0) {
         code = taosHashRemove(pStat->remainHash, &pInput->pOrigMem, POINTER_BYTES);
         if (TSDB_CODE_SUCCESS != code) {
-          uError("realloc: rm pOrigMem:%p file:%s line:%d from remainHash failed, error:%s, sessionStat:%d", 
+          uError("realloc: rm pOrigMem:%p %s:%d from remainHash failed, error:%s, sessionStat:%d", 
             pInput->pOrigMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
           MP_ERR_JRET(code);
         }
         code = mpGetAllocFreeStat(pStat->freeHash, &fileLine.fl, sizeof(fileLine.fl), (void*)&freeStat, sizeof(freeStat), (void**)&pFree);
         if (TSDB_CODE_SUCCESS != code) {
-          uError("realloc: add pOrigMem:%p file:%s line:%d to freeHash failed, error:%s, sessionStat:%d", 
+          uError("realloc: add pOrigMem:%p %s:%d to freeHash failed, error:%s, sessionStat:%d", 
             pInput->pOrigMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
           MP_ERR_JRET(code);
         }
@@ -798,14 +813,28 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
       
       code = taosHashPut(pStat->remainHash, &pInput->pMem, POINTER_BYTES, &fileLine, sizeof(fileLine));
       if (TSDB_CODE_SUCCESS != code) {
-        uError("realloc: add pMem:%p file:%s line:%d to remainHash failed, error:%s, sessionStat:%d", 
+        if (TSDB_CODE_DUP_KEY == code) {
+          SMPFileLine* pFileLine = (SMPFileLine*)taosHashAcquire(pStat->remainHash, &pInput->pMem, POINTER_BYTES);
+          if (pFileLine) {
+            char* pFileName = (char*)taosHashGet(pStat->fileHash, &pFileLine->fl.fileId, sizeof(pFileLine->fl.fileId));
+            if (NULL == pFileName) {
+              uError("realloc: fail to get fileId %u in fileHash", pFileLine->fl.fileId);
+            } else {
+              uError("realloc: add pMem:%p %s:%d to remainHash failed, error:%s, sessionStat:%d, origAllocAt %s:%d", 
+                pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat, pFileName, pFileLine->fl.line);
+              MP_ERR_JRET(code);
+            }
+          }
+        }
+
+        uError("realloc: add pMem:%p %s:%d to remainHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
       
       code = mpGetAllocFreeStat(pStat->allocHash, &fileLine.fl, sizeof(fileLine.fl), (void*)&allocStat, sizeof(allocStat), (void**)&pAlloc);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("realloc: add pMem:%p file:%s line:%d to allocHash failed, error:%s, sessionStat:%d", 
+        uError("realloc: add pMem:%p %s:%d to allocHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
@@ -820,21 +849,20 @@ void mpLogPosStat(SMPStatPos* pStat, EMPStatLogItem item, SMPStatInput* pInput, 
       SMPFileLineId fl = {.line = pInput->line};
       code = mpGetPosStatFileId(pStat, pInput->file, &fl.fileId, sessionStat);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("free: add pMem:%p file:%s line:%d to fileHash failed, error:%s, sessionStat:%d", 
+        uError("free: add pMem:%p %s:%d to fileHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }
 
       code = taosHashRemove(pStat->remainHash, &pInput->pMem, POINTER_BYTES);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("free: rm pMem:%p file:%s line:%d to remainHash failed, error:%s, sessionStat:%d", 
+        uDebug("free: rm pMem:%p %s:%d to remainHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
-        MP_ERR_JRET(code);
       }
 
       code = mpGetAllocFreeStat(pStat->freeHash, &fl, sizeof(fl), (void*)&freeStat, sizeof(freeStat), (void**)&pFree);
       if (TSDB_CODE_SUCCESS != code) {
-        uError("realloc: add pMem:%p file:%s line:%d to freeHash failed, error:%s, sessionStat:%d", 
+        uError("free: add pMem:%p %s:%d to freeHash failed, error:%s, sessionStat:%d", 
           pInput->pMem, pInput->file, pInput->line, tstrerror(code), sessionStat);
         MP_ERR_JRET(code);
       }

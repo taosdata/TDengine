@@ -650,7 +650,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
     SCH_ERR_JRET(terrno);
   }
 
-  msgSendInfo->paramFreeFp = taosMemFree;
+  msgSendInfo->paramFreeFp = taosAutoMemoryFree;
   SCH_ERR_JRET(schMakeCallbackParam(pJob, pTask, msgType, isHb, trans, &msgSendInfo->param));
 
   SCH_ERR_JRET(schGetCallbackFp(msgType, &msgSendInfo->fp));
@@ -821,7 +821,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   param->pTrans = pJob->conn.pTrans;
 
   pMsgSendInfo->param = param;
-  pMsgSendInfo->paramFreeFp = taosMemFree;
+  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
   pMsgSendInfo->fp = fp;
 
   SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo};
@@ -941,7 +941,7 @@ int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   pDst->param = NULL;
 
   SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&pDst->param));
-  pDst->paramFreeFp = taosMemFree;
+  pDst->paramFreeFp = taosAutoMemoryFree;
 
   *dst = pDst;
 

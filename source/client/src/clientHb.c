@@ -1370,7 +1370,7 @@ static void *hbThreadFunc(void *param) {
         break;
       }
       *(int32_t *)pInfo->param = i;
-      pInfo->paramFreeFp = taosMemFree;
+      pInfo->paramFreeFp = taosAutoMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 

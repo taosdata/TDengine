@@ -88,7 +88,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, (FFree)taosMemFree);
+  ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {

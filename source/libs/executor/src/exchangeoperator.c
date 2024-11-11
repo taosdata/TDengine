@@ -116,7 +116,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
-            taosMemFreeClear(pDataInfo->pRsp);
+            taosMemoryFreeClear(pDataInfo->pRsp);
             goto _error;
           }
         } else {
@@ -125,7 +125,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                  ", totalRows:%" PRIu64 ", try next %d/%" PRIzu,
                  GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pDataInfo->totalRows,
                  pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
-          taosMemFreeClear(pDataInfo->pRsp);
+          taosMemoryFreeClear(pDataInfo->pRsp);
         }
         break;
       }
@@ -154,13 +154,13 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
 
-      taosMemFreeClear(pDataInfo->pRsp);
+      taosMemoryFreeClear(pDataInfo->pRsp);
 
       if (pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemFreeClear(pDataInfo->pRsp);
+          taosMemoryFreeClear(pDataInfo->pRsp);
           goto _error;
         }
       }
@@ -644,7 +644,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId,
                                     pSource->taskId, 0, pSource->execId, &pBuf.pData, pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
-    taosMemFree(pWrapper);
+    taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SResFetchReq req = {0};
@@ -660,7 +660,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       pDataInfo->pSrcUidList = NULL;
       if (TSDB_CODE_SUCCESS != code) {
         pTaskInfo->code = code;
-        taosMemFree(pWrapper);
+        taosMemoryFree(pWrapper);
         return pTaskInfo->code;
       }
     }
@@ -668,7 +668,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-      taosMemFree(pWrapper);
+      taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
@@ -676,15 +676,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-      taosMemFree(pWrapper);
+      taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
 
     if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-      taosMemFree(pWrapper);
-      taosMemFree(msg);
+      taosMemoryFree(pWrapper);
+      taosMemoryFree(msg);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
@@ -698,15 +698,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
-      taosMemFreeClear(msg);
-      taosMemFree(pWrapper);
+      taosMemoryFreeClear(msg);
+      taosMemoryFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       return pTaskInfo->code;
     }
 
     pMsgSendInfo->param = pWrapper;
-    pMsgSendInfo->paramFreeFp = taosMemFree;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = pSource->fetchMsgType;

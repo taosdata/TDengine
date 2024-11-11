@@ -139,7 +139,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
   pParam->pInserter = pInserter;
 
   pMsgSendInfo->param = pParam;
-  pMsgSendInfo->paramFreeFp = taosMemFree;
+  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = msgLen;
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
@@ -432,7 +432,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
-  taosMemFree(pInserter->pSchema);
+  taosMemoryFree(pInserter->pSchema);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   (void)taosThreadMutexDestroy(&pInserter->mutex);
