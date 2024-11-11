@@ -1019,6 +1019,8 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   }
   block->info.rows = udfCol->colData.numOfRows;
 
+  code = blockDataCheck(block);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 _exit:
   if (code != 0) {
     fnError("failed to convert udf column to data block, code:%d, line:%d", code, lino);

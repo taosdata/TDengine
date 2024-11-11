@@ -83,6 +83,13 @@ extern "C" {
     }                                                                          \
   } while (0)
 
+#define TAOS_UDF_CHECK_CONDITION(o, code)             \
+  do {                                                \
+    if ((o) == false) {                               \
+      fnError("Condition not met.line:%d", __LINE__); \
+      return code;                                    \
+    }                                                 \
+  } while (0)
 
 // low level APIs
 /**

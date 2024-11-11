@@ -451,10 +451,7 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
 }
 
 void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
-  if (plugin == NULL) {
-    fnError("udf script c plugin is NULL");
-    return;
-  }
+  TAOS_UDF_CHECK_PTR_RVOID(plugin);
   if (plugin->closeFunc) {
     if (plugin->closeFunc() != 0) {
       fnError("udf script c plugin close func failed.line:%d", __LINE__);
@@ -473,10 +470,7 @@ void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
 }
 
 void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
-  if (plugin == NULL) {
-    fnError("udf script c plugin is NULL");
-    return;
-  }
+  TAOS_UDF_CHECK_PTR_RVOID(plugin);
   if (plugin->closeFunc) {
     if (plugin->closeFunc() != 0) {
       fnError("udf script python plugin close func failed.line:%d", __LINE__);
@@ -548,6 +542,7 @@ void udfdDeinitScriptPlugins() {
 }
 
 void udfdProcessRequest(uv_work_t *req) {
+  TAOS_UDF_CHECK_PTR_RVOID(req);
   if (req == NULL) {
     fnError("udf request is NULL");
     return;
@@ -804,6 +799,23 @@ static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
     fnError("udf scala result num of rows %d not equal to input rows %" PRId64, output->colData.numOfRows, block->info.rows);
     return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
+
+  for (int32_t i = 0; i < output->colData.numOfRows; ++i) {
+    if (tsSafetyCheckLevel < TSDB_SAFETY_CHECK_LEVELL_BYROW) break;
+    if (!udfColDataIsNull(output, i)) {
+      if (IS_VAR_DATA_TYPE(output->colMeta.type)) {
+        TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.payload != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+        TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.varOffsets[i] >= 0 &&
+                                     output->colData.varLenCol.varOffsets[i] < output->colData.varLenCol.payloadLen,
+                                 TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+      } else {
+        TAOS_UDF_CHECK_CONDITION(
+            output->colMeta.bytes * output->colData.numOfRows <= output->colData.fixLenCol.dataLen,
+            TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+        break;
+      }
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -815,6 +827,8 @@ static int32_t checkUDFAggResult(SSDataBlock *block, SUdfInterBuf *output) {
     fnError("udf agg result num of rows %d not equal to 1", output->numOfResult);
     return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
+  TAOS_UDF_CHECK_CONDITION(output->buf != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+  TAOS_UDF_CHECK_CONDITION(output->bufLen > 0, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
   return TSDB_CODE_SUCCESS;
 }
 
