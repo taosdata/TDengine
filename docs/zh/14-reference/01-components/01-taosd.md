@@ -26,42 +26,68 @@ taosd 命令行参数如下
 :::
 
 ### 连接相关
-
-|        参数名称        |                                        参数说明                                         |
-| :--------------------: | :-------------------------------------------------------------------------------------: |
-|        firstEp         |      taosd 启动时，主动连接的集群中首个 dnode 的 end point，缺省值：localhost:6030      |
-|        secondEp        | taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，缺省值：无 |
-|          fqdn          |        启动 taosd 后所监听的服务地址，缺省值：所在服务器上配置的第一个 hostname         |
-|       serverPort       |                         启动 taosd 后所监听的端口，缺省值：6030                         |
-|    numOfRpcSessions    |          允许一个 dnode 能发起的最大连接数，取值范围 100-100000，缺省值：30000           |
-| timeToGetAvailableConn |      获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值：500000       |
+|参数名称|支持版本|参数含义|
+|-----------------------|-----------|-|
+|firstEp                |           |taosd 启动时，主动连接的集群中首个 dnode 的 end point，缺省值：localhost:6030|
+|secondEp               |           |taosd 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 endpoint，缺省值：无|
+|fqdn                   |           |taosd 监听的服务地址，缺省值：所在服务器上配置的第一个 hostname|
+|serverPort             |           |taosd 监听的端口，缺省值：6030|
+|compressMsgSize        |           |是否对 RPC 消息进行压缩；-1：所有消息都不压缩；0：所有消息都压缩；N (N>0)：只有大于 N 个字节的消息才压缩；缺省值 -1|
+|shellActivityTimer     |           |待补充|
+|numOfRpcSessions       |           |允许一个 dnode 能发起的最大连接数，取值范围 100-100000，缺省值：30000|
+|numOfRpcThreads        |           |待补充|
+|numOfTaskQueueThreads  |           |待补充|
+|timeToGetAvailableConn |           |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，缺省值：500000|
+|maxRetryWaitTime       |           |待补充|
+|shareConnLimit         |           |待补充|
+|readTimeout            |           |待补充|
+|keepAliveIdle          |           |待补充|
+|maxShellConns          |           |允许创建的最大链接数|
+|statusInterval         |           |dnode 与 mnode 之间的心跳间隔|
+|rpcQueueMemoryAllowed  |           |dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10 |
+|resolveFQDNRetryTime   |           |FQDN 解析失败时的重试次数|
 
 ### 监控相关
-|      参数名称      |                                        参数说明                                        |
-| :----------------: | :------------------------------------------------------------------------------------: |
-|      monitor       |                   是否收集监控数据并上报，0: 关闭；1:打开；缺省值：0                   |
-|    monitorFqdn     |                      taosKeeper 服务所在服务器的 FQDN，缺省值：无                      |
-|    monitorPort     |                      taosKeeper 服务所监听的端口号，缺省值：6043                       |
-|  monitorInternal   | 监控数据库记录系统参数（CPU/内存）的时间间隔，单位是秒，取值范围 1-200000 ，缺省值：30 |
-| telemetryReporting |                   是否上传 telemetry，0: 不上传，1：上传，缺省值：1                    |
-|   crashReporting   |                  是否上传 crash 信息；0: 不上传，1: 上传；缺省值： 1                   |
+|参数名称|支持版本|参数含义|
+|-----------------------|-----------|-|
+|monitor                |           |是否收集监控数据并上报，0: 关闭；1:打开；缺省值：0|
+|monitorFqdn            |           |taosKeeper 服务所在服务器的 FQDN，缺省值：无|
+|monitorPort            |           |taosKeeper 服务所监听的端口号，缺省值：6043|
+|monitorInternal        |           |监控数据库记录系统参数（CPU/内存）的时间间隔，单位是秒，取值范围 1-200000 ，缺省值：30|
+|monitorMaxLogs         |           |缓存的待上报日志条数|
+|monitorComp            |           |是否采用压缩方式上报监控日志时|
+|monitorLogProtocol     |           |是否打印监控日志|
+|monitorForceV2         |           |是否使用 V2 版本协议上报|
+|telemetryReporting     |           |是否上传 telemetry，0: 不上传，1：上传，缺省值：1|
+|telemetryServer        |           |telemetry 服务器地址|
+|telemetryPort          |           |telemetry 服务器端口编号|
+|telemetryInterval      |           |telemetry 上传时间间隔，单位为秒，默认 43200|
+|crashReporting         |           |是否上传 crash 信息；0: 不上传，1: 上传；缺省值： 1|
 
 ### 查询相关
-
-|        参数名称        |                                                                                                                               参数说明                                                                                                                                |
-| :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-|      queryPolicy       |                                             查询策略，1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 ；4: 使用客户端聚合模式；缺省值：1                                              |
-|  maxNumOfDistinctRes   |                                                                                                    允许返回的 distinct 结果最大行数，默认值 10 万，最大允许值 1 亿                                                                                                    |
-| countAlwaysReturnValue | count/hyperloglog函数在输入数据为空或者NULL的情况下是否返回值，0: 返回空行，1: 返回；该参数设置为 1 时，如果查询中含有 INTERVAL 子句或者该查询使用了TSMA时, 且相应的组或窗口内数据为空或者NULL， 对应的组或窗口将不返回查询结果. 注意此参数客户端和服务端值应保持一致. |
+|参数名称|支持版本|参数含义|
+|----------------------------------|-----------|-|
+|countAlwaysReturnValue |          |count/hyperloglog 函数在输入数据为空或者 NULL 的情况下是否返回值；0：返回空行，1：返回；缺省值 1；该参数设置为 1 时，如果查询中含有 INTERVAL 子句或者该查询使用了 TSMA 时，且相应的组或窗口内数据为空或者 NULL，对应的组或窗口将不返回查询结果；注意此参数客户端和服务端值应保持一致|
+|enableQueryHb          |          |待补充|
+|tagFilterCache         |          |待补充|
+|maxNumOfDistinctRes    |          |允许返回的 distinct 结果最大行数，默认值 10 万，最大允许值 1 亿|
+|queryBufferSize        |          |待补充|
+|queryRspPolicy         |          |待补充|
+|queryPlannerTrace      |          |待补充|
+|queryNodeChunkSize     |          |待补充|
+|queryUseNodeAllocator  |          |待补充|
+|queryMaxConcurrentTable|          |待补充|
+|cacheLazyLoadThreshold |          |待补充|
+|queryRsmaTolerance     |          |待补充|
+|filterScalarMode       |          |待补充|
 
 
 ### 区域相关
-
-| 参数名称 |                                                 参数说明                                                 |
-| :------: | :------------------------------------------------------------------------------------------------------: |
-| timezone |                                   时区，缺省值：当前服务器所配置的时区                                   |
-|  locale  | 系统区位信息及编码格式 ，缺省值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
-| charset  |                                     字符集编码，缺省值：系统自动获取                                     |
+|参数名称|支持版本|参数含义|
+|-----------------|-----------|-|
+|timezone         |           |时区；缺省从系统中动态获取当前的时区设置|
+|locale           |           |系统区位信息及编码格式，缺省从系统中获取|
+|charset          |           |字符集编码，缺省从系统中获取|
 
 :::info
 1. 为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix 时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
@@ -139,73 +165,145 @@ charset 的有效值是 UTF-8。
 :::
 
 ### 存储相关
+|参数名称|支持版本|参数含义|
+|--------------------|-----------|-|
+|dataDir             |           |数据文件目录，所有的数据文件都将写入该目录，缺省值：/var/lib/taos|
+|tempDir             |           |指定所有系统运行过程中的临时文件生成的目录，缺省值：/tmp|
+|minimalDataDirGB    |           |dataDir 指定的时序数据存储目录所需要保留的最小空间，单位 GB，缺省值: 2|
+|minimalTmpDirGB     |           |tempDir 所指定的临时文件目录所需要保留的最小空间，单位 GB，缺省值: 1|
+|minDiskFreeSize     |3.1.1.0 之后|当某块磁盘上的可用空间小于等于这个阈值时，该磁盘将不再被选择用于生成新的数据文件，单位为字节，取值范围：52428800-1073741824，默认值为 52428800；企业版参数|
+|s3MigrateIntervalSec|3.3.4.3 之后|-|
+|s3MigrateEnabled    |3.3.4.3 之后|-|
+|s3Accesskey         |3.3.4.3 之后|-|
+|s3Endpoint          |3.3.4.3 之后|-|
+|s3BucketName        |3.3.4.3 之后|-|
+|s3PageCacheSize     |3.3.4.3 之后|-|
+|s3UploadDelaySec    |3.3.4.3 之后|-|
 
-|     参数名称     |                                参数说明                                |
-| :--------------: | :--------------------------------------------------------------------: |
-|     dataDir      |      数据文件目录，所有的数据文件都将写入该目录，缺省值：/var/lib/taos    |
-|     tempDir      |        指定所有系统运行过程中的临时文件生成的目录，缺省值：/tmp        |
-| minimalTmpDirGB  |  tempDir 所指定的临时文件目录所需要保留的最小空间，单位 GB，缺省值: 1  |
-| minimalDataDirGB | dataDir 指定的时序数据存储目录所需要保留的最小空间，单位 GB，缺省值: 2 |
 
 ### 集群相关
+|参数名称|支持版本|参数含义|
+|--------------------------|-----------|-|
+|supportVnodes             |           |dnode 支持的最大 vnode 数目，取值范围：0-4096，缺省值：CPU 核数的 2 倍 + 5|
+|numOfCommitThreads        |           |落盘线程的最大数量，取值范围 0-1024，缺省值为 4 |
+|numOfMnodeReadThreads     |           |待补充|
+|numOfVnodeQueryThreads    |           |待补充|
+|ratioOfVnodeStreamThreads |           |待补充|
+|numOfVnodeFetchThreads    |           |待补充|
+|numOfVnodeRsmaThreads     |           |待补充|
+|numOfQnodeQueryThreads    |           |待补充|
+|numOfSnodeSharedThreads   |           |待补充|
+|numOfSnodeUniqueThreads   |           |待补充|
+|numOfMnodeReadThreads     |           |待补充|
+|ttlUnit                   |           |待补充|
+|ttlPushInterval           |           |待补充|
+|ttlBatchDropNum           |           |待补充|
+|ttlChangeOnWrite          |           |ttl 到期时间是否伴随表的修改操作改变; 0: 不改变，1：改变；默认值为 0|
+|ttlFlushThreshold         |           |待补充|
+|compactPullupInterval     |           |待补充|
+|walFsyncDataSizeLimit     |           |待补充|
+|retentionSpeedLimitMB     |           |待补充|
+|syncElectInterval         |           |待补充|
+|syncHeartbeatInterval     |           |待补充|
+|syncHeartbeatTimeout      |           |待补充|
+|syncSnapReplMaxWaitN      |           |待补充|
+|syncLogBufferMemoryAllowed|           |一个 dnode 允许的 sync 日志缓存消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10，3.1.3.2/3.3.2.13 版本开始生效 |
+|arbHeartBeatIntervalSec   |           |待补充|
+|arbCheckSyncIntervalSec   |           |待补充|
+|arbSetAssignedTimeoutSec  |           |待补充|
+|maxTsmaNum                |           |集群内可创建的TSMA个数；取值范围：0-3；缺省值为 3|
+|tmqMaxTopicNum            |           |订阅最多可建立的 topic 数量; 取值范围 1-10000；缺省值为 20|
+|tmqRowSize                |           |订阅数据块的最大记录条数|
+|audit                     |           |审计功能开关0；企业版参数|
+|auditInterval             |           |审计数据上报的时间间隔0；企业版参数|
+|auditCreateTable          |           |是否针对创建子表开启申计功能0；企业版参数|
+|encryptAlgorithm          |           |数据加密算法；企业版参数|
+|encryptScope              |           |加密范围；企业版参数|
+|enableWhiteList           |           |白名单功能开关；企业版参数|
+|mndSdbWriteDelta          |           |待补充|
+|mndLogRetention           |           |待补充|
+|skipGrant                 |           |待补充|
+|trimVDbIntervalSec        |           |待补充|
+|uptimeInterval            |           |待补充|
+|timeseriesThreshold       |           |待补充|
+|udf                       |           |是否启动 UDF 服务；0: 不启动，1：启动；默认值为 0 |
+|udfdResFuncs              |           |待补充|
+|udfdLdLibPath             |           |待补充|
+|pqSortMemThreshold        |           |待补充|
 
-|   参数名称    |                                  参数说明                                   |
-| :-----------: | :-------------------------------------------------------------------------: |
-| supportVnodes | dnode 支持的最大 vnode 数目，取值范围：0-4096，缺省值： CPU 核数的 2 倍 + 5 |
 
-### 内存相关
-|      参数名称       |                    参数说明                     |
-| :----------------: | :---------------------------------------------: |
-| rpcQueueMemoryAllowed       | 一个 dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10 |
-| syncLogBufferMemoryAllowed  | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值，单位 bytes，取值范围：104857600-INT64_MAX，缺省值：服务器内存的 1/10，3.1.3.2/3.3.2.13 版本开始生效 |
-
-### 性能调优
-
-|      参数名称      |                    参数说明                     |
-| :----------------: | :---------------------------------------------: |
-| numOfCommitThreads | 落盘线程的最大数量，取值范围 0-1024，缺省值为 4 |
+### 流计算参数
+|参数名称|支持版本|参数含义|
+|-----------------------|-----------|-|
+|disableStream          |           |待补充|
+|streamBufferSize       |           |待补充|
+|streamAggCnt           |           |待补充|
+|checkpointInterval     |           |待补充|
+|streamSinkDataRaterMode|           |待补充|
+|syncSnapReplMaxWaitN   |           |待补充|
 
 ### 日志相关
+|参数名称|支持版本|参数含义|
+|----------------|-----------|-|
+|logDir          |           |日志文件目录，运行日志将写入该目录，缺省值：/var/log/taos|
+|minimalLogDirGB |           |日志文件夹所在磁盘可用空间大小小于该值时，停止写日志，单位 GB，缺省值：1|
+|numOfLogLines   |           |单个日志文件允许的最大行数，缺省值：10,000,000|
+|asyncLog        |           |日志写入模式，0：同步，1：异步，缺省值：1|
+|logKeepDays     |           |日志文件的最长保存时间，单位：天，缺省值：0，意味着无限保存，日志文件不会被重命名，也不会有新的日志文件滚动产生，但日志文件的内容有可能会不断滚动，取决于日志文件大小的设置；当设置为大于 0 的值时，当日志文件大小达到设置的上限时会被重命名为 taosdlog.yyy，其中 yyy 为日志文件最后修改的时间戳，并滚动产生新的日志文件|
+|slowLogThreshold|3.3.3.0 之后|慢查询门限值，大于等于门限值认为是慢查询，单位秒，默认值: 3 |
+|slowLogMaxLen   |3.3.3.0 之后|慢查询日志最大长度，取值范围：1-16384，默认值：4096|
+|slowLogScope    |3.3.3.0 之后|慢查询记录类型，取值范围：ALL/QUERY/INSERT/OTHERS/NONE，默认值：QUERY|
+|slowLogExceptDb |3.3.3.0 之后|指定的数据库不上报慢查询，仅支持配置换一个数据库|
+|debugFlag       |           |运行日志开关，131（输出错误和警告日志），135（输出错误、警告和调试日志），143（输出错误、警告、调试和跟踪日志）；默认值：131 或 135 （取决于不同模块）|
+|tmrDebugFlag    |           |定时器模块的日志开关，取值范围同上|
+|uDebugFlag      |           |共用功能模块的日志开关，取值范围同上|
+|rpcDebugFlag    |           |rpc 模块的日志开关，取值范围同上|
+|qDebugFlag      |           |query 模块的日志开关，取值范围同上|
+|dDebugFlag      |           |dnode 模块的日志开关，取值范围同上|
+|vDebugFlag      |           |vnode 模块的日志开关，取值范围同上|
+|mDebugFlag      |           |mnode 模块的日志开关，取值范围同上|
+|azDebugFlag     |3.3.4.3 之后|S3 模块的日志开关，取值范围同上|
+|sDebugFlag      |           |sync 模块的日志开关，取值范围同上|
+|tsdbDebugFlag   |           |tsdb 模块的日志开关，取值范围同上|
+|tqDebugFlag     |           |tq 模块的日志开关，取值范围同上|
+|fsDebugFlag     |           |fs 模块的日志开关，取值范围同上|
+|udfDebugFlag    |           |udf 模块的日志开关，取值范围同上|
+|smaDebugFlag    |           |sma 模块的日志开关，取值范围同上|
+|idxDebugFlag    |           |index 模块的日志开关，取值范围同上|
+|tdbDebugFlag    |           |tdb 模块的日志开关，取值范围同上|
+|metaDebugFlag   |           |meta 模块的日志开关，取值范围同上|
+|stDebugFlag     |           |stream 模块的日志开关，取值范围同上|
+|sndDebugFlag    |           |snode 模块的日志开关，取值范围同上|
 
-|     参数名称     |                                                                           参数说明                                                                           |
-| :--------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: |
-|      logDir      |                                                  日志文件目录，运行日志将写入该目录，缺省值：/var/log/taos                                                   |
-| minimalLogDirGB  |                                          当日志文件夹所在磁盘可用空间大小小于该值时，停止写日志，单位GB，缺省值：1                                           |
-|  numOfLogLines   |                                                        单个日志文件允许的最大行数，缺省值：10,000,000                                                        |
-|     asyncLog     |                                                          日志写入模式，0: 同步，1: 异步，缺省值: 1                                                           |
-|   logKeepDays    | 日志文件的最长保存时间 ，单位：天，缺省值：0，意味着无限保存，日志文件不会被重命名，也不会有新的日志文件滚动产生，但日志文件的内容有可能会不断滚动，取决于日志文件大小的设置；当设置为大于0 的值时，当日志文件大小达到设置的上限时会被重命名为 taosdlog.xxx，其中 xxx 为日志文件最后修改的时间戳，并滚动产生新的日志文件 |
-| slowLogThreshold |                                                 慢查询门限值，大于等于门限值认为是慢查询，单位秒，默认值: 3                                                  |
-|   slowLogScope   |                                      定启动记录哪些类型的慢查询，可选值：ALL, QUERY, INSERT, OHTERS, NONE; 默认值：ALL                                       |
-|    debugFlag     |    运行日志开关，131（输出错误和警告日志），135（输出错误、警告和调试日志），143（输出错误、警告、调试和跟踪日志）; 默认值：131 或 135 （取决于不同模块）    |
-|   tmrDebugFlag   |                                                              定时器模块的日志开关，取值范围同上                                                              |
-|    uDebugFlag    |                                                             共用功能模块的日志开关，取值范围同上                                                             |
-|   rpcDebugFlag   |                                                               rpc 模块的日志开关，取值范围同上                                                               |
-|   cDebugFlag   |                                                               客户端模块的日志开关，取值范围同上                                                               |
-|   jniDebugFlag   |                                                               jni 模块的日志开关，取值范围同上                                                               |
-|    qDebugFlag    |                                                              query 模块的日志开关，取值范围同上                                                              |
-|    dDebugFlag    |                                                        dnode 模块的日志开关，取值范围同上，缺省值 135                                                        |
-|    vDebugFlag    |                                                              vnode 模块的日志开关，取值范围同上                                                              |
-|    mDebugFlag    |                                                              mnode 模块的日志开关，取值范围同上                                                              |
-|    wDebugFlag    |                                                               wal 模块的日志开关，取值范围同上                                                               |
-|    sDebugFlag    |                                                              sync 模块的日志开关，取值范围同上                                                               |
-|  tsdbDebugFlag   |                                                              tsdb 模块的日志开关，取值范围同上                                                               |
-|   tqDebugFlag    |                                                               tq 模块的日志开关，取值范围同上                                                                |
-|   fsDebugFlag    |                                                               fs 模块的日志开关，取值范围同上                                                                |
-|   udfDebugFlag   |                                                               udf 模块的日志开关，取值范围同上                                                               |
-|   smaDebugFlag   |                                                               sma 模块的日志开关，取值范围同上                                                               |
-|   idxDebugFlag   |                                                              index 模块的日志开关，取值范围同上                                                              |
-|   tdbDebugFlag   |                                                               tdb 模块的日志开关，取值范围同上                                                               |
+### 调试相关
+|参数名称|支持版本|参数含义|
+|--------------------|-----------|-|
+|enableCoreFile      |           |crash 时是否生成 core 文件，0：不生成，1：生成；缺省值：1|
+|configDir           |           |配置文件所在目录|
+|scriptDir           |           |内部测试工具的脚本目录|
+|assert              |           |断言控制开关，缺省值：0|
+|randErrorChance     |           |内部参数|
+|randErrorDivisor    |           |内部参数|
+|randErrorScope      |           |内部参数|
+|safetyCheckLevel    |           |内部参数|
+|experimental        |           |内部参数|
+|simdEnable          |3.3.4.3 之后|内部参数，用于测试 SIMD 加速|
+|AVX512Enable        |3.3.4.3 之后|内部参数，用于测试 AVX512 加速|
+|rsyncPort           |           |内部参数|
+|snodeAddress        |           |内部参数|
+|checkpointBackupDir |       |内部参数，用于恢复 snode 数据|
+|enableAuditDelete   |       |内部参数，用于测试审计功能|
+|slowLogThresholdTest|       |内部参数，用于测试慢日志|
 
 ### 压缩参数
-
-| 参数名称       |  参数说明                                                         |
-|:-------------:|:----------------------------------------------------------------:|
-| compressMsgSize | 是否对 RPC 消息进行压缩；-1: 所有消息都不压缩; 0: 所有消息都压缩; N (N>0): 只有大于 N 个字节的消息才压缩；缺省值  -1 |
-| fPrecision | 设置 float 类型浮点数压缩精度 ，取值范围：0.1 ~ 0.00000001  ，默认值  0.00000001  , 小于此值的浮点数尾数部分将被截断 |
-|dPrecision | 设置 double 类型浮点数压缩精度 , 取值范围：0.1 ~ 0.0000000000000001 ， 缺省值 0.0000000000000001 ， 小于此值的浮点数尾数部分将被截取  |
-|lossyColumn | 对 float 和/或 double 类型启用 TSZ 有损压缩；取值范围： float, double, none；缺省值: none，表示关闭无损压缩。**注意：此参数在 3.3.0.0 及更高版本中不再使用** |
-|ifAdtFse | 在启用 TSZ 有损压缩时，使用 FSE 算法替换 HUFFMAN 算法， FSE 算法压缩速度更快，但解压稍慢，追求压缩速度可选用此算法; 0: 关闭，1：打开；默认值为 0 |
-
+|参数名称|支持版本|参数含义|
+|------------|-----------|-|
+|fPrecision  |           |设置 float 类型浮点数压缩精度 ，取值范围：0.1 ~ 0.00000001  ，默认值  0.00000001  , 小于此值的浮点数尾数部分将被截断|
+|dPrecision  |           |设置 double 类型浮点数压缩精度 , 取值范围：0.1 ~ 0.0000000000000001 ， 缺省值 0.0000000000000001 ， 小于此值的浮点数尾数部分将被截取|
+|lossyColumn |3.3.0.0 之前|对 float 和/或 double 类型启用 TSZ 有损压缩；取值范围： float, double, none；缺省值: none，表示关闭无损压缩|
+|ifAdtFse    |           |在启用 TSZ 有损压缩时，使用 FSE 算法替换 HUFFMAN 算法， FSE 算法压缩速度更快，但解压稍慢，追求压缩速度可选用此算法; 0: 关闭，1：打开；默认值为 0|
+|maxRange    |           |待补充|
+|curRange    |           |待补充|
 
 **补充说明**
 1. 在 3.2.0.0 ~ 3.3.0.0（不包含）版本生效，启用该参数后不能回退到升级前的版本
@@ -219,16 +317,6 @@ lossyColumns     float|double
 ```sql
    02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
 ```
-
-### 其他参数
-
-|     参数名称     |                                                                                                 参数说明                                                                                                 |
-| :--------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-|  enableCoreFile  | crash 时是否生成 core 文件；0: 不生成，1：生成；默认值为 1; 不同的启动方式，生成 core 文件的目录如下：1、systemctl start taosd 启动：生成的 core 在根目录下  <br/> 2、手动启动，就在 taosd 执行目录下。  |
-|       udf        |                                                                            是否启动 UDF 服务；0: 不启动，1：启动；默认值为 0                                                                             |
-| ttlChangeOnWrite |                                                                   ttl 到期时间是否伴随表的修改操作改变; 0: 不改变，1：改变；默认值为 0                                                                   |
-|  tmqMaxTopicNum  |                                                                        订阅最多可建立的 topic 数量; 取值范围 1-10000；缺省值为20                                                                         |
-|    maxTsmaNum    |                                                                             集群内可创建的TSMA个数；取值范围：0-3；缺省值为 3                                                                            |
 
 
 ## taosd 监控指标
