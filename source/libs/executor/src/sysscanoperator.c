@@ -685,10 +685,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
-    } else {
-      code = sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName);
-      QUERY_CHECK_CODE(code, lino, _end);
     }
+    // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
+    code = sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   if (numOfRows > 0) {
@@ -761,7 +761,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
+    code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
       pAPI->metaReaderFn.clearReader(&smrChildTable);
@@ -847,18 +847,18 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         break;
       }
-    } else {
-      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                              dataBlock);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        pAPI->metaReaderFn.clearReader(&smrSuperTable);
-        pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-        pInfo->pCur = NULL;
-        blockDataDestroy(dataBlock);
-        dataBlock = NULL;
-        T_LONG_JMP(pTaskInfo->env, terrno);
-      }
+    }
+    // if pInfo->pRes->info.rows == 0, also need to add this meta into datablock.
+    code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                            dataBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      blockDataDestroy(dataBlock);
+      dataBlock = NULL;
+      T_LONG_JMP(pTaskInfo->env, terrno);
     }
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
