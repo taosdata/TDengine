@@ -201,11 +201,11 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout feat/TD-30268
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout feat/TD-30268
         '''
     }
     script {
