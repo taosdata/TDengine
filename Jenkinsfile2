@@ -90,8 +90,22 @@ def build_docs(){
             git checkout ''' + env.CHANGE_TARGET + '''
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
-            git checkout -qf FETCH_HEAD            
+            git checkout -qf FETCH_HEAD 
         '''
+        def file_zh_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        ).trim()
+        def file_en_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
+            ''',
+            returnStdout: true
+        ).trim()
         sh '''
              cd ${DOC_WKC}/${tools_repo}
             git reset --hard
@@ -102,12 +116,22 @@ def build_docs(){
             git checkout ''' + env.CHANGE_TARGET + '''
             git pull >/dev/null
         '''
-        sh '''
-            cd ${DOC_WKC}/${en_doc_repo}
-            git pull 
-            yarn ass local
-            yarn build
-        '''
+        if (file_zh_changed != '') {
+            sh '''
+                cd ${DOC_WKC}/${zh_doc_repo}
+                git pull 
+                yarn ass local
+                yarn build
+            '''
+        }
+        if (file_en_changed != '') {
+            sh '''
+                cd ${DOC_WKC}/${en_doc_repo}
+                git pull 
+                yarn ass local
+                yarn build
+            '''
+        }
     }
 }
 
@@ -400,7 +424,11 @@ pipeline {
                 stage('build docs') {
                     agent{label "doc_build_0_30"}
                     steps {
-                        build_docs()
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE'){
+                            timeout(time: 5, unit: 'MINUTES'){
+                                build_docs()
+                            }
+                        }
                     }
                 }
             }
