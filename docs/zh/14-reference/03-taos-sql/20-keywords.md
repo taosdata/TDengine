@@ -65,6 +65,7 @@ description: TDengine 保留关键字的详细列表
 
 ### C
 |关键字|说明|
+|----------------------|-|
 | CACHE                | |
 | CACHEMODEL           | |
 | CACHESIZE            | |
@@ -98,6 +99,7 @@ description: TDengine 保留关键字的详细列表
 
 ### D
 |关键字|说明|
+|----------------------|-|
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
@@ -121,6 +123,7 @@ description: TDengine 保留关键字的详细列表
 
 ### E
 |关键字|说明|
+|----------------------|-|
 | EACH                 | |
 | ELSE                 | |
 | ENABLE               | |
@@ -138,6 +141,7 @@ description: TDengine 保留关键字的详细列表
 
 ### F
 |关键字|说明|
+|----------------------|-|
 | FAIL                 | |
 | FHIGH                | 3.3.4.3 及后续版本 |
 | FILE                 | |
@@ -158,6 +162,7 @@ description: TDengine 保留关键字的详细列表
 
 ### G
 |关键字|说明|
+|----------------------|-|
 | GE                   | |
 | GEOMETRY             | |
 | GLOB                 | |
@@ -168,12 +173,14 @@ description: TDengine 保留关键字的详细列表
 
 ### H
 |关键字|说明|
+|----------------------|-|
 | HAVING               | |
 | HEX                  | |
 | HOST                 | |
 
 ### I
 |关键字|说明|
+|----------------------|-|
 | ID                   | |
 | IF                   | |
 | IGNORE               | |
@@ -201,12 +208,14 @@ description: TDengine 保留关键字的详细列表
 
 ### J
 |关键字|说明|
+|----------------------|-|
 | JLIMIT               | |
 | JOIN                 | |
 | JSON                 | |
 
 ### K
 |关键字|说明|
+|----------------------|-|
 | KEEP                 | |
 | KEEP_TIME_OFFSET     | |
 | KEY                  | |
@@ -214,6 +223,7 @@ description: TDengine 保留关键字的详细列表
 
 ### L
 |关键字|说明|
+|----------------------|-|
 | LANGUAGE             | |
 | LAST                 | |
 | LAST_ROW             | |
@@ -233,6 +243,7 @@ description: TDengine 保留关键字的详细列表
 
 ### M
 |关键字|说明|
+|----------------------|-|
 | MACHINES             | |
 | MATCH                | |
 | MAX_DELAY            | |
@@ -249,6 +260,7 @@ description: TDengine 保留关键字的详细列表
 
 ### N
 |关键字|说明|
+|----------------------|-|
 | NCHAR                | |
 | NE                   | |
 | NEXT                 | |
@@ -264,6 +276,7 @@ description: TDengine 保留关键字的详细列表
 
 ### O
 |关键字|说明|
+|----------------------|-|
 | OF                   | |
 | OFFSET               | |
 | ON                   | |
@@ -275,6 +288,7 @@ description: TDengine 保留关键字的详细列表
 
 ### P
 |关键字|说明|
+|----------------------|-|
 | PAGES                | |
 | PAGESIZE             | |
 | PARTITION            | |
@@ -293,6 +307,7 @@ description: TDengine 保留关键字的详细列表
 
 ### Q
 |关键字|说明|
+|----------------------|-|
 | QDURATION            | |
 | QEND                 | |
 | QNODE                | |
@@ -306,6 +321,7 @@ description: TDengine 保留关键字的详细列表
 
 ### R
 |关键字|说明|
+|----------------------|-|
 | RAISE                | |
 | RAND                 | |
 | RANGE                | |
@@ -331,6 +347,7 @@ description: TDengine 保留关键字的详细列表
 
 ### S
 |关键字|说明|
+|----------------------|-|
 | S3_CHUNKPAGES        | |
 | S3_COMPACT           | |
 | S3_KEEPLOCAL         | |
@@ -377,6 +394,7 @@ description: TDengine 保留关键字的详细列表
 
 ### T
 |关键字|说明|
+|----------------------|-|
 | TABLE                | |
 | TABLE_PREFIX         | |
 | TABLE_SUFFIX         | |
@@ -406,6 +424,7 @@ description: TDengine 保留关键字的详细列表
 
 ### U
 |关键字|说明|
+|----------------------|-|
 | UNION                | |
 | UNSAFE               | |
 | UNSIGNED             | |
@@ -418,6 +437,7 @@ description: TDengine 保留关键字的详细列表
 
 ### V
 |关键字|说明|
+|----------------------|-|
 | VALUE                | |
 | VALUE_F              | |
 | VALUES               | |
@@ -436,6 +456,7 @@ description: TDengine 保留关键字的详细列表
 
 ### W
 |关键字|说明|
+|----------------------|-|
 | WAL                  | |
 | WAL_FSYNC_PERIOD     | |
 | WAL_LEVEL            | |
