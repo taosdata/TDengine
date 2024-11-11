@@ -2379,6 +2379,29 @@ typedef struct STransDetailIter {
   int32_t   num;
 } STransDetailIter;
 
+static void mndTransShowActions(SSdb *pSdb, STransDetailIter *pShowIter, SShowObj *pShow, SSDataBlock *pBlock,
+                                int32_t rows, int32_t *numOfRows, SArray *pActions, int32_t end, int32_t start) {
+  int32_t actionNum = taosArrayGetSize(pActions);
+  mInfo("stage:%s, Actions num:%d", mndTransStr(pShowIter->stage), actionNum);
+
+  for (int32_t i = start; i < actionNum; ++i) {
+    STransAction *pAction = taosArrayGet(pShowIter->pTrans->redoActions, i);
+    mndShowTransAction(pShow, pBlock, pAction, pShowIter->pTrans->id, pShowIter->pTrans->lastAction, rows, *numOfRows);
+    (*numOfRows)++;
+    if (*numOfRows >= rows) break;
+  }
+
+  if (*numOfRows == end) {
+    sdbRelease(pSdb, pShowIter->pTrans);
+    pShowIter->pTrans = NULL;
+    pShowIter->num = 0;
+  } else {
+    pShowIter->pTrans = pShowIter->pTrans;
+    pShowIter->stage = pShowIter->pTrans->stage;
+    pShowIter->num += (*numOfRows);
+  }
+}
+
 static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -2391,7 +2414,7 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         pShow->pIter);
 
   if (pShow->pIter == NULL) {
-    pShow->pIter = taosMemoryMalloc(sizeof(STransDetailIter));
+    pShow->pIter = taosMemoryMalloc(sizeof(STransDetailIter));  // TODO dmchen
     if (pShow->pIter == NULL) {
       mError("failed to malloc for pShow->pIter");
       return 0;
@@ -2404,66 +2427,33 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
   while (numOfRows < rows) {
     if (pShowIter->pTrans == NULL) {
       pShowIter->pIter = sdbFetch(pSdb, SDB_TRANS, pShowIter->pIter, (void **)&(pShowIter->pTrans));
-      mInfo("pShow->pIter:%p, pTrans:%p", pShowIter->pIter, pShowIter->pTrans);
+      mDebug("retrieve trans detail from fetch, pShow->pIter:%p, pTrans:%p", pShowIter->pIter, pShowIter->pTrans);
       if (pShowIter->pIter == NULL) break;
+      mInfo("retrieve trans detail from fetch, id:%d, trans stage:%d, IterNum:%d", pShowIter->pTrans->id,
+            pShowIter->pTrans->stage, pShowIter->num);
 
-      int32_t actionNum = 0;
-      STrans *pTrans = pShowIter->pTrans;
+      SArray *pActions = mndTransGetAction(pShowIter->pTrans, pShowIter->pTrans->stage);
 
-      if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
-        SArray *pActions = mndTransGetAction(pTrans, pTrans->stage);
-        actionNum = taosArrayGetSize(pActions);
-        mInfo("stage:%s, Actions num:%d", mndTransStr(pTrans->stage), actionNum);
-        for (int32_t i = 0; i < actionNum; ++i) {
-          STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
-          mndShowTransAction(pShow, pBlock, pAction, pTrans->id, pTrans->lastAction, rows, numOfRows);
-          numOfRows++;
-          if (numOfRows >= rows) break;
-        }
-      }
-      if (numOfRows == actionNum) {
-        sdbRelease(pSdb, pTrans);
-        pShowIter->pTrans = NULL;
-      } else {
-        pShowIter->pTrans = pTrans;
-        pShowIter->stage = pTrans->stage;
-        pShowIter->num = numOfRows;
-      }
+      mndTransShowActions(pSdb, pShowIter, pShow, pBlock, rows, &numOfRows, pActions, taosArrayGetSize(pActions), 0);
     } else {
-      int32_t actionNum = 0;
-      STrans *pTrans = pShowIter->pTrans;
+      mInfo("retrieve trans detail from iter, id:%d, iterStage:%d, IterNum:%d", pShowIter->pTrans->id, pShowIter->stage,
+            pShowIter->num);
+      SArray *pActions = mndTransGetAction(pShowIter->pTrans, pShowIter->stage);
 
-      SArray *pActions = mndTransGetAction(pTrans, pShowIter->stage);
-      actionNum = taosArrayGetSize(pActions);
-      mInfo("stage:%s, Actions num:%d", mndTransStr(pShowIter->stage), actionNum);
-
-      for (int32_t i = pShowIter->num; i < actionNum; ++i) {
-        STransAction *pAction = taosArrayGet(pShowIter->pTrans->redoActions, i);
-        mndShowTransAction(pShow, pBlock, pAction, pTrans->id, pTrans->lastAction, rows, numOfRows);
-        numOfRows++;
-        if (numOfRows >= rows) break;
-      }
-
-      if (numOfRows == actionNum - pShowIter->num) {
-        sdbRelease(pSdb, pTrans);
-        pShowIter->pTrans = NULL;
-      } else {
-        pShowIter->pTrans = pTrans;
-        pShowIter->stage = pTrans->stage;
-        pShowIter->num += numOfRows;
-      }
+      mndTransShowActions(pSdb, pShowIter, pShow, pBlock, rows, &numOfRows, pActions,
+                          taosArrayGetSize(pActions) - pShowIter->num, pShowIter->num);
       break;
     }
   }
 
 _OVER:
+  pShow->numOfRows += numOfRows;
+
   if (code != 0) {
     mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   } else {
-    mInfo("retrieve %d", numOfRows)
+    mInfo("retrieve trans detail, numOfRows:%d, pShow->numOfRows:%d", numOfRows, pShow->numOfRows)
   }
-
-  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
