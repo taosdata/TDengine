@@ -3284,7 +3284,7 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
 
   int64_t rawDiskSize = 0, rawCacheSize = 0;
 
-  rawDiskSize = blockDistInfo.numOfBlocks * blockDistInfo.rowSize;
+  rawDiskSize = (blockDistInfo.totalRows + blockDistInfo.numOfSttRows) * blockDistInfo.rowSize;
   rawCacheSize = blockDistInfo.numOfInmemRows * blockDistInfo.rowSize;
   pStaticInfo->rawDataSize += rawDiskSize;
   pStaticInfo->cacheSize += rawCacheSize;
