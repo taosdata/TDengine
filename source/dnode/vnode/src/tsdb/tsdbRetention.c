@@ -743,9 +743,11 @@ static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-    int32_t    lcn = fobj->f->lcn;
-    if (lcn > 1) {
-      *size += ((lcn - 1) * chunksize);
+    if (fobj) {
+      int32_t lcn = fobj->f->lcn;
+      if (lcn > 1) {
+        *size += ((lcn - 1) * chunksize);
+      }
     }
   }
 

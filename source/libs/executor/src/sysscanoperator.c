@@ -72,6 +72,8 @@ typedef struct SSysTableScanInfo {
   SLoadRemoteDataInfo    loadInfo;
   SLimitInfo             limitInfo;
   int32_t                tbnameSlotId;
+  STableListInfo*        pTableListInfo;
+  SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
 } SSysTableScanInfo;
 
@@ -150,7 +152,7 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
 
-static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator);
+static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisInfo* pStatisInfo);
 
 int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   SSTabFltArg* pArg = arg;
@@ -2046,25 +2048,19 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   const char* db = NULL;
-  int64_t     totalSize = 0;
-  int32_t     numOfCols = 0;
   int32_t     vgId = 0;
-  int64_t     dbSize = 0;
-  int64_t     memSize = 0;
-  int64_t     l1Size = 0;
-  int64_t     l2Size = 0;
-  int64_t     l3Size = 0;
-  int64_t     walSize = 0;
-  int64_t     metaSize = 0;
-  int64_t     s3Size = 0;
+  int32_t     numOfCols = 0;
 
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
-  SDbSizeStatisInfo info = {0};
-  info.vgId = vgId;
+  SDbSizeStatisInfo staticsInfo = {0};
 
-  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &info);
+  staticsInfo.vgId = vgId;
+
+  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  vnodeEstimateRawDataSize(pOperator, &staticsInfo);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2091,44 +2087,32 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // wal
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.walSize, false);  // wal
   QUERY_CHECK_CODE(code, lino, _end);
-
-  totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&memSize, false);  // memtable
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.memSize, false);  // memtable
   QUERY_CHECK_CODE(code, lino, _end);
-
-  totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l1Size, false);  // l1_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l1Size, false);  // l1_size
   QUERY_CHECK_CODE(code, lino, _end);
-
-  totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l2Size, false);  // l2_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l2Size, false);  // l2_size
   QUERY_CHECK_CODE(code, lino, _end);
-
-  totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&l3Size, false);  // l3_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l3Size, false);  // l3_size
   QUERY_CHECK_CODE(code, lino, _end);
-  totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&s3Size, false);  // s3_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.s3Size, false);  // s3_size
   QUERY_CHECK_CODE(code, lino, _end);
-  totalSize += walSize;
 
-  int64_t raw_data_size = 100000;
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&raw_data_size, false);  // estimate_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.rawDataSize, false);  // estimate_size
   QUERY_CHECK_CODE(code, lino, _end);
-  totalSize += walSize;
 
   numOfRows += 1;
   pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
@@ -3228,36 +3212,113 @@ typedef struct {
   tb_uid_t uid;
 } STableId;
 
-static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pInfo, tb_uid_t uid, int64_t* size) {
-  int32_t        rowLen = 0;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        line = 0;
-  SExecTaskInfo* pTaskInfo = pInfo->pTaskInfo;
-  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id, SDbSizeStatisInfo* pStaticInfo) {
+  int32_t            rowLen = 0;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            line = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+
+  SReadHandle* pReadHandle = &pInfo->readHandle;
+
+  STableListInfo* pTableListInfo = tableListCreate();
+  if (id->type == TSDB_SUPER_TABLE) {
+    SArray* pList = taosArrayInit(4, sizeof(uint64_t));
+    code = pTaskInfo->storageAPI.metaFn.getChildTableList(pReadHandle->vnode, id->uid, pList);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = code;
+      taosArrayDestroy(pList);
+      tableListDestroy(pTableListInfo);
+      return code;
+    }
+
+    size_t num = taosArrayGetSize(pList);
+    for (int32_t i = 0; i < num; ++i) {
+      uint64_t* id = taosArrayGet(pList, i);
+      if (id == NULL) {
+        continue;
+      }
+
+      code = tableListAddTableInfo(pTableListInfo, *id, 0);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        taosArrayDestroy(pList);
+        return code;
+      }
+    }
+    taosArrayDestroy(pList);
+
+  } else if (id->type == TSDB_NORMAL_TABLE) {
+    code = tableListAddTableInfo(pTableListInfo, id->uid, 0);
+    if (code) {
+      pTaskInfo->code = code;
+      tableListDestroy(pTableListInfo);
+      return code;
+    }
+  }
+
+  SQueryTableDataCond cond = {0};
+  code = initTableblockDistQueryCond(id->uid, &cond);
+  QUERY_CHECK_CODE(code, line, _end);
+  pInfo->pTableListInfo = pTableListInfo;
+  int32_t num = 0;
+  code = tableListGetSize(pTableListInfo, &num);
+  QUERY_CHECK_CODE(code, line, _end);
+
+  void* pList = tableListGetInfo(pTableListInfo, 0);
+
+  code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL, (void**)&pInfo->pHandle,
+                                                  pTaskInfo->id.str, NULL);
+  QUERY_CHECK_CODE(code, line, _end);
 
   STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
-  code = doGetTableRowSize(NULL, uid, (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
+  code = doGetTableRowSize(pReadHandle, id->uid, (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
   QUERY_CHECK_CODE(code, line, _end);
 
-  code = pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(NULL, &blockDistInfo);
-  blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(NULL);
-  *size = blockDistInfo.numOfInmemRows * blockDistInfo.rowSize;
+  code = pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(pInfo->pHandle, &blockDistInfo);
   QUERY_CHECK_CODE(code, line, _end);
 
+  blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pInfo->pHandle);
+
+  int64_t rawDiskSize = 0, rawCacheSize = 0;
+
+  rawDiskSize = blockDistInfo.numOfBlocks * blockDistInfo.rowSize;
+  rawCacheSize = blockDistInfo.numOfInmemRows * blockDistInfo.rowSize;
+  pStaticInfo->rawDataSize += rawDiskSize;
+  pStaticInfo->cacheSize += rawCacheSize;
+  QUERY_CHECK_CODE(code, line, _end);
+
+  if (pInfo->pHandle != NULL) {
+    pReadHandle->api.tsdReader.tsdReaderClose(pInfo->pHandle);
+    pInfo->pHandle = NULL;
+  }
+
+  tableListDestroy(pInfo->pTableListInfo);
   return code;
 _end:
+
+  if (pInfo->pHandle != NULL) {
+    pReadHandle->api.tsdReader.tsdReaderClose(pInfo->pHandle);
+    pInfo->pHandle = NULL;
+  }
+
+  tableListDestroy(pInfo->pTableListInfo);
+  pInfo->pTableListInfo = NULL;
   return code;
 }
 
-static int32_t vnodeGetDataSize(SOperatorInfo* pOperator, SArray* pTableList) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  int32_t        rowLen = 0;
-  int32_t        code = TSDB_CODE_SUCCESS;
+static int32_t vnodeGetDataSize(SOperatorInfo* pOperator, SArray* pTableList, SDbSizeStatisInfo* pStaticInfo) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
 
-  int64_t size = 0;
+  int32_t rowLen = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < taosArrayGetSize(pTableList); i++) {
     STableId* id = (STableId*)taosArrayGet(pTableList, i);
-    code = vnodeEstimateDataSizeByUid(pOperator, id->uid, &size);
+    code = vnodeEstimateDataSizeByUid(pOperator, id, pStaticInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3265,7 +3326,7 @@ static int32_t vnodeGetDataSize(SOperatorInfo* pOperator, SArray* pTableList) {
   return code;
 }
 
-static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator) {
+static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisInfo* pStaticInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t line = 0;
@@ -3303,7 +3364,7 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator) {
       }
     }
   }
-  code = vnodeGetDataSize(pOperator, pIdList);
+  code = vnodeGetDataSize(pOperator, pIdList, pStaticInfo);
 
 _exit:
   if (pInfo->pCur) {
