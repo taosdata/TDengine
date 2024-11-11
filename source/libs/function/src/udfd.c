@@ -543,10 +543,6 @@ void udfdDeinitScriptPlugins() {
 
 void udfdProcessRequest(uv_work_t *req) {
   TAOS_UDF_CHECK_PTR_RVOID(req);
-  if (req == NULL) {
-    fnError("udf request is NULL");
-    return;
-  }
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
   if (uvUdf == NULL) {
     fnError("udf work is NULL");
@@ -800,22 +796,24 @@ static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
     return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 
-  for (int32_t i = 0; i < output->colData.numOfRows; ++i) {
-    if (tsSafetyCheckLevel < TSDB_SAFETY_CHECK_LEVELL_BYROW) break;
-    if (!udfColDataIsNull(output, i)) {
-      if (IS_VAR_DATA_TYPE(output->colMeta.type)) {
-        TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.payload != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
-        TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.varOffsets[i] >= 0 &&
-                                     output->colData.varLenCol.varOffsets[i] < output->colData.varLenCol.payloadLen,
-                                 TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
-      } else {
-        TAOS_UDF_CHECK_CONDITION(
-            output->colMeta.bytes * output->colData.numOfRows <= output->colData.fixLenCol.dataLen,
-            TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
-        break;
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_BYROW) {
+    for (int32_t i = 0; i < output->colData.numOfRows; ++i) {
+      if (!udfColDataIsNull(output, i)) {
+        if (IS_VAR_DATA_TYPE(output->colMeta.type)) {
+          TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.payload != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+          TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.varOffsets[i] >= 0 &&
+                                       output->colData.varLenCol.varOffsets[i] < output->colData.varLenCol.payloadLen,
+                                   TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+        } else {
+          TAOS_UDF_CHECK_CONDITION(
+              output->colMeta.bytes * output->colData.numOfRows <= output->colData.fixLenCol.dataLen,
+              TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+          break;
+        }
       }
     }
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
