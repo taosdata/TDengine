@@ -205,7 +205,7 @@ def pre_test_win(){
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
-            git checkout enh/TS-5574-3.0-a
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
     }
     script {
