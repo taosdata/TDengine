@@ -20,7 +20,7 @@ sudo ./install.sh
 ### 其他
 为了避免 ANode 安装后影响目标节点现有的 Python 库。 ANode 使用 Python 虚拟环境运行，安装后的默认 Python 目录处于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，可以手动删除。
 
-## 启动及停止服务
+### 启动及停止服务
 安装 ANode 以后，可以使用 `systemctl` 来管理 ANode 的服务。使用如下命令可以启动/停止/检查状态。
 
 ```bash
@@ -29,7 +29,7 @@ systemctl stop   taosanoded
 systemctl status taosanoded
 ```
 
-## 目录及配置说明
+### 目录及配置说明
 |目录/文件|说明|
 |---------------|------|
 |/usr/local/taos/taosanode/bin|可执行文件目录|
@@ -39,7 +39,7 @@ systemctl status taosanoded
 |/var/log/taos/taosanode/|日志文件目录|
 |/etc/taos/taosanode.ini|配置文件|
 
-### 配置说明
+#### 配置说明
 
 Anode 提供的 RestFul 服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信息存放在同一个配置文件中，具体如下：
 
@@ -128,7 +128,7 @@ draw-result = 0
 
 
 
-## ANode 基本操作
+### ANode 基本操作
 #### 创建 ANode
 ```sql 
 CREATE ANODE {node_url}
