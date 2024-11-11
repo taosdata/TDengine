@@ -234,7 +234,7 @@ impl OpcModelConfig {
             })?;
         }
 
-        // 检查 ts_col 和 received_ts_col 至少有一个
+        // 检查 ts_col 和 received_ts_col：至少有一个
         for (point_id, table_config) in self.table_config_map.iter() {
             let mut has_primary_key = false;
             for col_config in table_config.column_configs.iter() {
@@ -252,8 +252,9 @@ impl OpcModelConfig {
         }
 
         // 检查 tag_value 应该和 tag_type 匹配
-        let joined_tags =
-            join_tags_by_point_id(self.point_config_map.clone(), self.table_config_map.clone());
+        let joined = join_by_point_id(self.point_config_map.clone(), self.table_config_map.clone());
+        let joined_tags = fetch_tags(joined);
+
         for (point_id, tags) in joined_tags {
             for (_tag_name, tag_val, tag_type) in tags {
                 Self::check_tag_type(tag_val.as_str(), &tag_type).map_err(|err| {
@@ -450,12 +451,12 @@ impl OpcModelConfig {
                 // stable 不是表达式，tbname 是表达式
                 (false, true) => {
                     // 如果 stable 在 database 中不存在，不校验
-                    if let Some(stable_meta) = querier.get_stable_meta(stable.as_str()).await? {
+                    if let Some(stable_meta) = querier.super_table_meta(stable.as_str())? {
                         Self::is_column_conflict(
                             &querier,
                             point_id.as_str(),
                             &table_config,
-                            &stable_meta,
+                            stable_meta,
                         )
                         .await?;
                         Self::is_tag_conflict(
@@ -492,8 +493,8 @@ impl OpcModelConfig {
         tbname: &str,
         table_config: &TableConfig,
     ) -> anyhow::Result<()> {
-        let stable_meta = querier.get_stable_meta(stable).await?;
-        let tb_meta = querier.get_child_table_meta(tbname).await?;
+        let stable_meta = querier.super_table_meta(stable)?;
+        let tb_meta = querier.child_table_meta(tbname)?;
         match (stable_meta, tb_meta) {
             (None, None) => {
                 bail!(
@@ -518,7 +519,7 @@ impl OpcModelConfig {
                 );
             }
             (Some(stable_meta), Some(_tb_meta)) => {
-                if !querier.is_child_of_stable(stable, tbname).await? {
+                if !querier.is_child_of_stable(stable, tbname)? {
                     bail!(
                         "tbname: {} is not child table of super table: {}, point_id: {}",
                         tbname,
@@ -526,8 +527,8 @@ impl OpcModelConfig {
                         point_id
                     );
                 }
-                Self::is_column_conflict(&querier, point_id, &table_config, &stable_meta).await?;
-                Self::is_tag_conflict(&querier, point_id, &table_config, &stable_meta).await?;
+                Self::is_column_conflict(querier, point_id, table_config, stable_meta).await?;
+                Self::is_tag_conflict(querier, point_id, table_config, stable_meta).await?;
             }
         }
         Ok(())
@@ -540,7 +541,7 @@ impl OpcModelConfig {
         table_config: &TableConfig,
         stable_meta: &TableMeta,
     ) -> anyhow::Result<()> {
-        for col in vec![
+        for col in [
             ColumnConfig::VALUE,
             ColumnConfig::ORIGINAL_TS,
             ColumnConfig::RECEIVED_TS,
@@ -550,7 +551,7 @@ impl OpcModelConfig {
                 .column_config(col)
                 .and_then(|v| v.alias.as_ref());
             if let Some(col_name) = col_name {
-                if !querier.is_stable_column_exist(stable_meta.tbname.as_str(), col_name)? {
+                if !querier.is_stable_col_exist(stable_meta.tbname.as_str(), col_name)? {
                     bail!(
                         "column: {} not exist in table: {}, point_id: {}",
                         col,
@@ -783,6 +784,8 @@ impl OpcModelConfig {
     }
 }
 
+/// 返回一个 LinkedHashMap, key 是 point_id, value 是 (PointConfig, TableConfig)
+/// 通过 point_id 将 point_config_map 和 table_config_map 合并
 fn join_by_point_id(
     point_config_map: LinkedHashMap<String, PointConfig>,
     table_config_map: LinkedHashMap<String, TableConfig>,
@@ -801,14 +804,10 @@ fn join_by_point_id(
     joined
 }
 
-/// 根据 point_id 将 point_config_map 和 table_config_map join 在一起
 /// 返回的结果是一个 LinkedHashMap，key 为 point_id，value 为 (tag_name, tag_value, tag_type)
-fn join_tags_by_point_id(
-    point_config_map: LinkedHashMap<String, PointConfig>,
-    table_config_map: LinkedHashMap<String, TableConfig>,
+fn fetch_tags(
+    joined: LinkedHashMap<String, (PointConfig, TableConfig)>,
 ) -> LinkedHashMap<String, Vec<(String, String, IpcDataType)>> {
-    let joined = join_by_point_id(point_config_map, table_config_map);
-
     let mut joined_tags = LinkedHashMap::new();
     for (point_id, (point_config, table_config)) in joined {
         // 如果 point_config.tag_values 为空，或者 table_config.tag_config 为空，跳过
@@ -1023,13 +1022,75 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         t.insert("ns=3;i=1003".to_string(), tag_config.clone());
 
         // when
-        let res = join_tags_by_point_id(p, t);
+        let res = join_by_point_id(p, t);
 
         // then
         assert_eq!(res.len(), 2);
+
+        let (point_config, table_config) = res.get("ns=3;i=1002").unwrap();
+        assert_eq!(point_config.row_index, 2);
+        assert_eq!(point_config.code, "t_3_1002");
+        assert_eq!(point_config.stable, None);
+        assert_eq!(point_config.tag_values.as_ref().unwrap().len(), 3);
+        assert_eq!(point_config.value_type, None);
+
+        assert_eq!(table_config.enabled, Some(1));
+        assert_eq!(table_config.stable_prefix, None);
+        assert_eq!(table_config.column_configs.len(), 0);
+        assert_eq!(table_config.tag_configs.as_ref().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_fetch_tags() {
+        // given
+        let mut joined_map = LinkedHashMap::new();
+        for i in 1..=3 {
+            joined_map.insert(
+                format!("ns=3;i=100{}", i),
+                (
+                    PointConfig {
+                        row_index: i,
+                        code: "t_{ns}_{id}".to_string(),
+                        stable: Some("opc_{type}".to_string()),
+                        tag_values: Some(HashMap::from([
+                            ("tag1".to_string(), "true".to_string()),
+                            ("tag2".to_string(), "abc".to_string()),
+                            ("tag3".to_string(), "123".to_string()),
+                        ])),
+                        value_type: Some(IpcDataType::Int32),
+                    },
+                    TableConfig {
+                        enabled: Some(1),
+                        stable_prefix: None,
+                        column_configs: vec![],
+                        tag_configs: Some(vec![
+                            TagConfig {
+                                name: "tag1".to_string(),
+                                r#type: IpcDataType::Bool,
+                            },
+                            TagConfig {
+                                name: "tag2".to_string(),
+                                r#type: IpcDataType::NChar(120),
+                            },
+                            TagConfig {
+                                name: "tag3".to_string(),
+                                r#type: IpcDataType::Int32,
+                            },
+                        ]),
+                    },
+                ),
+            );
+        }
+
+        // when
+        let res = fetch_tags(joined_map);
+
+        // then
+        assert_eq!(res.len(), 3);
+
         let tags = res.get("ns=3;i=1002").unwrap();
         assert_eq!(tags.len(), 3);
-        let (tag_name, tag_value, tag_type) = tags.get(0).unwrap();
+        let (tag_name, tag_value, tag_type) = tags.first().unwrap();
         assert_eq!(tag_name, "tag1");
         assert_eq!(tag_value, "true");
         assert_eq!(tag_type, &IpcDataType::Bool);
@@ -1044,9 +1105,9 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
 
         let tags = res.get("ns=3;i=1003").unwrap();
         assert_eq!(tags.len(), 3);
-        let (tag_name, tag_value, tag_type) = tags.get(0).unwrap();
+        let (tag_name, tag_value, tag_type) = tags.first().unwrap();
         assert_eq!(tag_name, "tag1");
-        assert_eq!(tag_value, "false");
+        assert_eq!(tag_value, "true");
         assert_eq!(tag_type, &IpcDataType::Bool);
         let (tag_name, tag_value, tag_type) = tags.get(1).unwrap();
         assert_eq!(tag_name, "tag2");
@@ -1061,55 +1122,44 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
     #[test]
     fn test_check_tag_type() {
         // bool
-        assert!(OpcModelConfig::check_tag_type("true".to_string(), &IpcDataType::Bool).is_ok());
-        assert!(OpcModelConfig::check_tag_type("false".to_string(), &IpcDataType::Bool).is_ok());
-        assert!(OpcModelConfig::check_tag_type("ture".to_string(), &IpcDataType::Bool).is_err());
+        assert!(OpcModelConfig::check_tag_type("true", &IpcDataType::Bool).is_ok());
+        assert!(OpcModelConfig::check_tag_type("false", &IpcDataType::Bool).is_ok());
+        assert!(OpcModelConfig::check_tag_type("ture", &IpcDataType::Bool).is_err());
         // u8
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::UInt8).is_ok());
-        assert!(OpcModelConfig::check_tag_type("256".to_string(), &IpcDataType::UInt8).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::UInt8).is_ok());
+        assert!(OpcModelConfig::check_tag_type("256", &IpcDataType::UInt8).is_err());
         // u16
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::UInt16).is_ok());
-        assert!(OpcModelConfig::check_tag_type("65536".to_string(), &IpcDataType::UInt16).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::UInt16).is_ok());
+        assert!(OpcModelConfig::check_tag_type("65536", &IpcDataType::UInt16).is_err());
         // u32
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::UInt32).is_ok());
-        assert!(OpcModelConfig::check_tag_type("abc".to_string(), &IpcDataType::UInt32).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::UInt32).is_ok());
+        assert!(OpcModelConfig::check_tag_type("abc", &IpcDataType::UInt32).is_err());
         // u64
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::UInt64).is_ok());
-        assert!(OpcModelConfig::check_tag_type("abc".to_string(), &IpcDataType::UInt64).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::UInt64).is_ok());
+        assert!(OpcModelConfig::check_tag_type("abc", &IpcDataType::UInt64).is_err());
         // i8
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::Int8).is_ok());
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Int8).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::Int8).is_ok());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Int8).is_err());
         // i16
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::Int16).is_ok());
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Int16).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::Int16).is_ok());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Int16).is_err());
         // i32
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::Int32).is_ok());
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Int32).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::Int32).is_ok());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Int32).is_err());
         // i64
-        assert!(OpcModelConfig::check_tag_type("1".to_string(), &IpcDataType::Int64).is_ok());
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Int64).is_err());
+        assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::Int64).is_ok());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Int64).is_err());
         // f32
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Float32).is_ok());
-        assert!(OpcModelConfig::check_tag_type("abc".to_string(), &IpcDataType::Float32).is_err());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Float32).is_ok());
+        assert!(OpcModelConfig::check_tag_type("abc", &IpcDataType::Float32).is_err());
         // f64
-        assert!(OpcModelConfig::check_tag_type("3.14".to_string(), &IpcDataType::Float64).is_ok());
-        assert!(OpcModelConfig::check_tag_type("abc".to_string(), &IpcDataType::Float64).is_err());
+        assert!(OpcModelConfig::check_tag_type("3.14", &IpcDataType::Float64).is_ok());
+        assert!(OpcModelConfig::check_tag_type("abc", &IpcDataType::Float64).is_err());
         // varchar(20)
-        assert!(
-            OpcModelConfig::check_tag_type("abc".to_string(), &IpcDataType::VarChar(10)).is_ok()
-        );
-        assert!(OpcModelConfig::check_tag_type(
-            "12345678901".to_string(),
-            &IpcDataType::VarChar(10)
-        )
-        .is_err());
-        assert!(
-            OpcModelConfig::check_tag_type("一二三".to_string(), &IpcDataType::VarChar(10)).is_ok()
-        );
-        assert!(
-            OpcModelConfig::check_tag_type("一二三四".to_string(), &IpcDataType::VarChar(10))
-                .is_err()
-        );
+        assert!(OpcModelConfig::check_tag_type("abc", &IpcDataType::VarChar(10)).is_ok());
+        assert!(OpcModelConfig::check_tag_type("12345678901", &IpcDataType::VarChar(10)).is_err());
+        assert!(OpcModelConfig::check_tag_type("一二三", &IpcDataType::VarChar(10)).is_ok());
+        assert!(OpcModelConfig::check_tag_type("一二三四", &IpcDataType::VarChar(10)).is_err());
     }
 }
 
@@ -1171,6 +1221,40 @@ impl PointConfig {
     }
 }
 
+#[cfg(test)]
+mod test_point_config {
+    use super::*;
+
+    #[test]
+    fn test_is_expr() {
+        // stable
+        assert!(PointConfig::is_expr(
+            &OpcType::OPCUA,
+            "stable",
+            "opc_{type}"
+        ));
+        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "stable", "opc"));
+
+        // tbname
+        assert!(PointConfig::is_expr(
+            &OpcType::OPCUA,
+            "tbname",
+            "t_{ns}_{id}"
+        ));
+        assert!(PointConfig::is_expr(
+            &OpcType::OPCDA,
+            "tbname",
+            "t_{tag_name}"
+        ));
+        assert!(!PointConfig::is_expr(
+            &OpcType::OPCUA,
+            "tbname",
+            "t_{tag_name}"
+        ));
+        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "tbname", "tb123"));
+    }
+}
+
 /// 解析 csv 中的 type 列
 fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<IpcDataType>> {
     header
@@ -1215,7 +1299,7 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
             }
             let val = val.replace(".", "_");
             let val_type = parse_raw_type(header, row);
-            // replace {type} with `type`
+            // replace {type} with type_value
             let stable_name = match (val.contains("{type}"), val_type) {
                 (true, Some(val_type)) => val.replace("{type}", &val_type),
                 _ => val,
@@ -1246,40 +1330,6 @@ fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<St
         None
     } else {
         Some(map)
-    }
-}
-
-#[cfg(test)]
-mod test_point_config {
-    use super::*;
-
-    #[test]
-    fn test_is_expr() {
-        // stable
-        assert!(PointConfig::is_expr(
-            &OpcType::OPCUA,
-            "stable",
-            "opc_{type}"
-        ));
-        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "stable", "opc"));
-
-        // tbname
-        assert!(PointConfig::is_expr(
-            &OpcType::OPCUA,
-            "tbname",
-            "t_{ns}_{id}"
-        ));
-        assert!(PointConfig::is_expr(
-            &OpcType::OPCDA,
-            "tbname",
-            "t_{tag_name}"
-        ));
-        assert!(!PointConfig::is_expr(
-            &OpcType::OPCUA,
-            "tbname",
-            "t_{tag_name}"
-        ));
-        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "tbname", "tb123"));
     }
 }
 

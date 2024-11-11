@@ -724,20 +724,22 @@ pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyh
     check_point_id_duplicated(from, csv_line.clone()).await?;
 
     // 将新增的点位配置，追加到现有的 CSV 点位配置文件中的第一个
-    let csv_files = OPCConfig::parse_csv_config_files(from).ok_or(anyhow::anyhow!(
-        "csv_config_file not found in dsn: {}",
-        from.to_string()
-    ))?;
-    let csv_file = csv_files
-        .first()
-        .ok_or(anyhow::anyhow!("csv_file not found"))?;
-    tracing::info!("append line to the csv: {}", csv_file);
+    let parser = CsvParser::from_dsn(from)?;
+    let (csv_path, mut csv) = parser.read_to_string().await.map_err(|err| {
+        anyhow::anyhow!(
+            "failed to read csv file with dsn: {}, cause: {}",
+            from,
+            err.to_string()
+        )
+    })?;
+    tracing::info!("append line to the csv: {:?}", csv_path);
 
-    // 在 csv 文件末尾追加一行
-    let mut csv = std::fs::read_to_string(csv_file)?;
+    // 在 csv 末尾追加一行
     csv = csv.trim_end().to_string();
     csv.push('\n');
+    let csv_line = csv_line.lines().skip(1).collect::<Vec<&str>>().join("\n");
     csv.push_str(&csv_line);
+    tracing::debug!("append opc point to csv, new point: \n{}", csv);
 
     // 解析 csv 文件，验证合法性
     let opc_type = OpcType::from_dsn(from)?;
@@ -749,11 +751,14 @@ pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyh
     }
 
     // 写入 csv 文件
-    if let Some(file_path) = csv_file.strip_prefix("@") {
-        let mut file = tokio::fs::File::create(file_path).await?;
-        file.write_all(csv.as_bytes()).await?;
-    } else {
-        todo!("write to csv_config_file in dsn")
+    match csv_path {
+        Some(csv_path) => {
+            let mut file = tokio::fs::File::create(csv_path).await?;
+            file.write_all(csv.as_bytes()).await?;
+        }
+        None => {
+            unimplemented!("write to csv_config_file in dsn is not supported");
+        }
     }
 
     Ok(())

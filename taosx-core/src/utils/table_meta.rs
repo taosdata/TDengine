@@ -5,7 +5,7 @@ use std::str::FromStr;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder};
 use taos::{Dsn, TryStreamExt};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum TableType {
     // #[serde(rename = "CHILD_TABLE")]
     ChildTable,
@@ -43,6 +43,7 @@ impl FromStr for TableType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMeta {
+    /// 超级表的 tbname 和 stable 相同
     pub tbname: String,
     pub stable: Option<String>,
     pub db_name: String,
@@ -64,9 +65,11 @@ pub struct ColumnMeta {
 pub struct TagMeta {
     pub field: String,
     pub r#type: String,
-    pub length: u32,
+    /// 超级表有 length，但子表没有，子表的length 在 type中
+    pub length: Option<u32>,
+    /// 超级表有 note，但子表没有
     pub note: Option<String>,
-    /// 超级表没有 tag value, 子表有
+    /// 超级表没有 tag value, 但子表有
     pub value: Option<String>,
 }
 
@@ -84,61 +87,68 @@ impl TableMetaQueryBuilder {
         let querier = TableMetaQuerier::from_dsn(&self.dsn).await?;
 
         let dbname = querier.load_current_database().await?;
-        let super_tables = querier.load_stables(dbname.as_str()).await.ok();
-        let child_tables = querier.load_child_tables(dbname.as_str()).await.ok();
+        let mut table_metas = querier.load_super_tables(dbname.as_str()).await?;
+        let child_tables = querier.load_tables(dbname.as_str()).await?;
+        table_metas.extend(child_tables);
 
         Ok(TableMetaQuerier {
             loaded: true,
             taos: querier.taos,
             current_db: Some(dbname),
-            super_tables,
-            child_tables,
+            table_metas: Some(table_metas),
         })
     }
 }
 
 pub struct TableMetaQuerier {
-    loaded: bool,
     taos: Taos,
+    /// 是否已加载 schema
+    loaded: bool,
+    /// 当前数据库
     current_db: Option<String>,
-    super_tables: Option<Vec<TableMeta>>,
-    child_tables: Option<Vec<TableMeta>>,
+    /// 所有超级表/子表/普通表的 TableMeta
+    table_metas: Option<Vec<TableMeta>>,
 }
 
 impl TableMetaQuerier {
     /// return super table meta by stable name
-    pub async fn get_stable_meta(&self, stable: &str) -> anyhow::Result<Option<&TableMeta>> {
-        if !self.loaded {
-            bail!("querier is not loaded");
-        }
-
-        if let Some(stables) = self.super_tables.as_ref() {
-            return Ok(stables.iter().find(|t| t.tbname == stable));
-        }
-
-        Ok(None)
+    pub fn super_table_meta(&self, stable: &str) -> anyhow::Result<Option<&TableMeta>> {
+        self.table_meta_with_filter(|t| t.r#type == TableType::SuperTable && t.tbname == stable)
     }
 
-    /// return child table meta by table name
-    pub async fn get_child_table_meta(&self, tbname: &str) -> anyhow::Result<Option<&TableMeta>> {
+    /// return child table meta by tbname
+    pub fn child_table_meta(&self, tbname: &str) -> anyhow::Result<Option<&TableMeta>> {
+        self.table_meta_with_filter(|t| t.r#type == TableType::ChildTable && t.tbname == tbname)
+    }
+
+    /// return normal table meta by tbname
+    pub fn normal_table_meta(&self, tbname: &str) -> anyhow::Result<Option<&TableMeta>> {
+        self.table_meta_with_filter(|t| t.r#type == TableType::NormalTable && t.tbname == tbname)
+    }
+
+    /// return table meta with filter
+    pub fn table_meta_with_filter<F>(&self, filter: F) -> anyhow::Result<Option<&TableMeta>>
+    where
+        F: Fn(&TableMeta) -> bool,
+    {
         if !self.loaded {
             bail!("querier is not loaded");
         }
 
-        if let Some(child_tables) = self.child_tables.as_ref() {
-            return Ok(child_tables.iter().find(|t| t.tbname == tbname));
+        if let Some(tables) = self.table_metas.as_ref() {
+            return Ok(tables.iter().find(|t| filter(t)));
         }
 
         Ok(None)
     }
 
     /// return true if tbname is a child table of stable
-    pub async fn is_child_of_stable(&self, stable: &str, tbname: &str) -> anyhow::Result<bool> {
+    pub fn is_child_of_stable(&self, stable: &str, tbname: &str) -> anyhow::Result<bool> {
         if !self.loaded {
             bail!("querier is not loaded");
         }
 
-        if let Some(child_tables) = self.child_tables.as_ref() {
+        if let Some(child_tables) = self.table_metas.as_ref() {
             return Ok(child_tables
                 .iter()
                 .any(|t| t.stable == Some(stable.to_string()) && t.tbname == tbname));
@@ -148,16 +158,14 @@ impl TableMetaQuerier {
     }
 
     /// return true if col_name is an existed column of stable
-    pub fn is_stable_column_exist(&self, stable: &str, col_name: &str) -> anyhow::Result<bool> {
+    pub fn is_stable_col_exist(&self, stable: &str, col_name: &str) -> anyhow::Result<bool> {
         if !self.loaded {
             bail!("querier is not loaded");
         }
 
-        if let Some(stables) = self.super_tables.as_ref() {
-            if let Some(stable) = stables.iter().find(|t| t.tbname == stable) {
-                if let Some(columns) = stable.columns.as_ref() {
-                    return Ok(columns.iter().any(|c| c.field == col_name));
-                }
+        if let Some(stables) = self.super_table_meta(stable)? {
+            if let Some(columns) = stables.columns.as_ref() {
+                return Ok(columns.iter().any(|c| c.field == col_name));
             }
         }
 
@@ -175,18 +183,25 @@ impl TableMetaQuerier {
             bail!("querier is not loaded");
         }
 
-        if let Some(stables) = self.super_tables.as_ref() {
-            if let Some(stable) = stables.iter().find(|t| t.tbname == stable) {
-                if let Some(tags) = stable.tags.as_ref() {
-                    return Ok(tags.iter().any(|t| {
-                        t.field.eq_ignore_ascii_case(tag_name)
-                            && t.r#type.eq_ignore_ascii_case(tag_type)
-                    }));
-                }
+        if let Some(stable) = self.super_table_meta(stable)? {
+            if let Some(tags) = stable.tags.as_ref() {
+                return Ok(tags.iter().any(|t| {
+                    t.field.eq_ignore_ascii_case(tag_name)
+                        && t.r#type.eq_ignore_ascii_case(tag_type)
+                }));
             }
         }
 
         Ok(false)
+    }
+
+    /// get current database
+    pub fn current_database(&self) -> anyhow::Result<Option<String>> {
+        if !self.loaded {
+            bail!("querier is not loaded");
+        }
+
+        Ok(self.current_db.as_ref().map(|s| s.to_string()))
     }
 
     /// 从 DSN 创建一个 TableMetaQuerier, 没有加载任何 meta
@@ -199,18 +214,8 @@ impl TableMetaQuerier {
             loaded: false,
             taos,
             current_db: None,
-            super_tables: None,
-            child_tables: None,
+            table_metas: None,
         })
-    }
-
-    /// get current database
-    pub fn current_database(&self) -> anyhow::Result<Option<String>> {
-        if !self.loaded {
-            bail!("querier is not loaded");
-        }
-
-        Ok(self.current_db.as_ref().map(|s| s.to_string()))
     }
 
     /// Short for 'select database()'
@@ -231,8 +236,9 @@ impl TableMetaQuerier {
         Ok(dbname)
     }
 
-    /// get table meta of all stable
-    async fn load_stables(&self, dbname: &str) -> anyhow::Result<Vec<TableMeta>> {
+    /// get table meta of all super tables
+    /// Short for: select * from information_schema.ins_stables where db_name = '$DB_NAME'
+    async fn load_super_tables(&self, dbname: &str) -> anyhow::Result<Vec<TableMeta>> {
         let sql = format!(
             "select {},{},{},{},{} from information_schema.ins_stables where db_name = '{}' order by `tbname`",
             "stable_name as `tbname`",
@@ -251,10 +257,8 @@ impl TableMetaQuerier {
             .deserialize()
             .try_collect()
             .await?;
-        if stable_meta_vec.is_empty() {
-            bail!("no stable found in database: {}", dbname);
-        }
 
+        // load columns and tags of each stable
         for stable_meta in stable_meta_vec.iter_mut() {
             let columns = self
                 .load_columns(&stable_meta.db_name, &stable_meta.tbname)
@@ -262,15 +266,63 @@ impl TableMetaQuerier {
             stable_meta.columns = Some(columns);
 
             let tags = self
-                .load_tags_of_super_table(&stable_meta.db_name, &stable_meta.tbname)
+                .load_tags_of_stable(&stable_meta.db_name, &stable_meta.tbname)
                 .await?;
             stable_meta.tags = Some(tags);
+        }
+
+        if stable_meta_vec.is_empty() {
+            tracing::warn!("no stable found in database: {}", dbname);
         }
 
         Ok(stable_meta_vec)
     }
 
-    /// get columns of a table
+    /// 查所有子表和普通表的元数据
+    /// Short for: select * from information_schema.ins_tables where db_name = '$DB_NAME'
+    async fn load_tables(&self, dbname: &str) -> anyhow::Result<Vec<TableMeta>> {
+        let sql = format!(
+            "select {},{},{},{},{} from information_schema.ins_tables where db_name = '{}' order by table_name",
+            "table_name as `tbname`",
+            "stable_name as `stable`",
+            "db_name",
+            "table_comment as `comment`",
+            "type",
+            dbname
+        );
+        tracing::debug!("sql: {}", sql);
+
+        let mut table_metas: Vec<TableMeta> = self
+            .taos
+            .query(sql)
+            .await?
+            .deserialize()
+            .try_collect()
+            .await?;
+
+        // load columns and tags of each table
+        for table_meta in table_metas.iter_mut() {
+            let columns = self
+                .load_columns(&table_meta.db_name, &table_meta.tbname)
+                .await?;
+            table_meta.columns = Some(columns);
+
+            let tags = self
+                .load_tags_of_table(&table_meta.db_name, &table_meta.tbname)
+                .await?;
+            table_meta.tags = Some(tags);
+        }
+
+        if table_metas.is_empty() {
+            tracing::warn!("no child table found in database: {}", dbname);
+        }
+
+        Ok(table_metas)
+    }
+
+    /// return column meta of table
+    /// 表 information_schema.ins_columns 中既有超级表的 column meta，也有子表和普通表的 column meta
+    /// Short for: select * from information_schema.ins_columns where db_name = '$DB_NAME' and table_name = '$TB_NAME'
     async fn load_columns(&self, dbname: &str, tbname: &str) -> anyhow::Result<Vec<ColumnMeta>> {
         let sql = format!(
             "select {},{},{} from information_schema.ins_columns where db_name = '{}' and table_name = '{}'",
@@ -293,9 +345,9 @@ impl TableMetaQuerier {
         Ok(columns)
     }
 
-    /// 查超级表的 tag 元数据，超级表的 tag 只有 tag_name 和 tag_type，没有 tag_value
-    /// 在 information_schema.ins_tags 中只有子表的 tag schema，没有超级表的
-    async fn load_tags_of_super_table(
+    /// return tag meta of super table
+    /// short for: describe $DB_NAME.$STABLE_NAME
+    async fn load_tags_of_stable(
         &self,
         dbname: &str,
         stable: &str,
@@ -317,19 +369,21 @@ impl TableMetaQuerier {
                 None => false,
                 Some(note) => note == "TAG",
             })
-            .map(|t| t.clone())
+            .cloned()
             .collect_vec())
     }
 
     /// 查子表的 tag 元数据，子表的 tag 有 tag_name, tag_type 和 tag_value
-    async fn load_tags_of_child_table(
-        &self,
-        dbname: &str,
-        tbname: &str,
-    ) -> anyhow::Result<Vec<TagMeta>> {
+    /// 在 information_schema.ins_tags 中只有 CHILD_TABLE 和 NORMAL_TABLE 的 tag schema，没有 SUPER_TABLE
+    /// short for: select * from information_schema.ins_tags where db_name = '$DB_NAME' and table_name = '$TB_NAME'
+    async fn load_tags_of_table(&self, dbname: &str, tbname: &str) -> anyhow::Result<Vec<TagMeta>> {
         let sql = format!(
             "select {},{},{} from information_schema.ins_tags where db_name = '{}' and table_name = '{}'",
-            "tag_name as `field`", "tag_type as `type`", "tag_value as `value`", dbname, tbname
+            "tag_name as `field`",
+            "tag_type as `type`",
+            "tag_value as `value`",
+            dbname,
+            tbname
         );
         tracing::debug!("sql: {}", sql);
 
@@ -342,15 +396,6 @@ impl TableMetaQuerier {
             .await?;
 
         Ok(tags)
-    }
-
-    /// 查所有子表的元数据
-    async fn load_child_tables(&self, dbname: &str) -> anyhow::Result<Vec<TableMeta>> {
-        if !self.loaded {
-            bail!("querier is not loaded");
-        }
-
-        todo!()
     }
 }
 
@@ -380,33 +425,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_stables() {
+    async fn test_table_meta_querier() {
         // given
-        // let dsn = "taos:///";
-        let dsn = "taos+ws://192.168.0.201:6041/";
+        let dsn = "taos:///";
         let db_name = "taosx_core_utils_table_meta";
         prepare_data(dsn, db_name).await;
 
-        // when
+        // build
         let dsn = format!("{dsn}{db_name}").into_dsn().unwrap();
-        // dbg!(&dsn);
-        let querier = TableMetaQuerier::from_dsn(&dsn).await.unwrap();
-        let stables = querier.load_stables(db_name).await;
-
-        println!("{:?}", stables);
-
-        let stables = stables.unwrap();
-
-        // then
-        assert_eq!(stables.len(), 2);
-        let stb1 = stables
-            .iter()
-            .find(|t| t.stable == Some("Stb1".to_string()))
+        let querier = TableMetaQueryBuilder::new(&dsn)
+            .unwrap()
+            .build()
+            .await
             .unwrap();
-        let columns = stb1.columns.as_ref().unwrap();
+
+        // super table
+        let stables = querier.super_table_meta("Stb1").unwrap().unwrap();
+        assert_eq!(stables.tbname, "Stb1");
+        assert_eq!(stables.stable, Some("Stb1".to_string()));
+        assert_eq!(stables.db_name, db_name);
+        assert_eq!(stables.r#type, TableType::SuperTable);
+        assert_eq!(stables.comment, None);
+        let columns = stables.columns.as_ref().unwrap();
         assert_eq!(columns.len(), 2);
-        let tags = stb1.tags.as_ref().unwrap();
+        let tags = stables.tags.as_ref().unwrap();
         assert_eq!(tags.len(), 1);
+
+        // is_stable_column_exist
+        let is_exist = querier.is_stable_col_exist("Stb1", "ts").unwrap();
+        assert!(is_exist);
+        let is_exist = querier.is_stable_col_exist("Stb1", "val").unwrap();
+        assert!(is_exist);
+        let is_exist = querier.is_stable_col_exist("Stb1", "not_exist").unwrap();
+        assert!(!is_exist);
+
+        // is_stable_tag_exist
+        let is_exist = querier.is_stable_tag_exist("Stb1", "t", "int").unwrap();
+        assert!(is_exist);
+        let is_exist = querier.is_stable_tag_exist("Stb1", "t", "bigint").unwrap();
+        assert!(!is_exist);
+
+        // child table
+        let tb_2_1 = querier.child_table_meta("TB_2_1").unwrap().unwrap();
+        assert_eq!(tb_2_1.tbname, "TB_2_1");
+        assert_eq!(tb_2_1.stable, Some("Stb2".to_string()));
+        assert_eq!(tb_2_1.db_name, db_name);
+        assert_eq!(tb_2_1.r#type, TableType::ChildTable);
+        assert_eq!(tb_2_1.comment, None);
+        let columns = tb_2_1.columns.as_ref().unwrap();
+        assert_eq!(columns.len(), 2);
+        let tags = tb_2_1.tags.as_ref().unwrap();
+        assert_eq!(tags.len(), 1);
+        let t = tags.first().unwrap();
+        assert_eq!(t.value, Some("3".to_string()));
+
+        // is_child_of_stable
+        let is_child = querier.is_child_of_stable("Stb2", "TB_2_1").unwrap();
+        assert!(is_child);
+        let is_child = querier.is_child_of_stable("Stb1", "TB_2_1").unwrap();
+        assert!(!is_child);
 
         clear_database(&dsn).await.unwrap();
     }

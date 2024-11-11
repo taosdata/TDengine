@@ -1,4 +1,3 @@
-use crate::get_data_dir;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
@@ -273,9 +272,6 @@ impl CsvParser {
     }
 
     async fn load_csv_with_path(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
-        // set current dir to DATA_DIR
-        let _ = std::env::set_current_dir(get_data_dir());
-
         // check the file encoding
         let encoding = get_encode(file_path)?;
         if encoding.name() != "UTF-8" {
@@ -525,6 +521,9 @@ impl CsvParser {
         }
     }
 
+    /// 从 csv 文件中读取内容
+    /// 如果 csv 在文件中，则返回：(文件路径， 文件内容)
+    /// 如果 csv 在 dsn 中，则返回：(None, 文件内容)
     pub async fn read_to_string(&self) -> anyhow::Result<(Option<String>, String)> {
         if self.csv_files.is_empty() {
             bail!("csv_files is empty");

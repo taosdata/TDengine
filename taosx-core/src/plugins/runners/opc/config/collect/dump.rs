@@ -60,7 +60,7 @@ impl DumpConfig {
         Ok(dump_config)
     }
 
-    // dump raw data enable or not.
+    /// dump raw data enable or not.
     fn parse_enable(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
         dsn.params
             .get("enable")

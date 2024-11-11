@@ -286,7 +286,7 @@ async fn append_point_impl(
         .get(task_id)
         .await?
         .ok_or(anyhow::anyhow!("task: {} not found", task_id))?;
-    tracing::debug!("add point for task: {}", task_id);
+    tracing::debug!("append point for task: {}", task_id);
 
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -296,7 +296,6 @@ async fn append_point_impl(
 
     // Vec<PointDetail> to csv
     let line = PointDetail::to_csv(point, true).await?;
-    tracing::debug!("append opc point to csv, data: \n{}", line);
 
     // append point to the csv file
     runners::opc::append_point_to_csv(&from, &to, line.clone()).await?;
