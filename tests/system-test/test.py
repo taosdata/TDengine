@@ -657,4 +657,7 @@ if __name__ == "__main__":
     if asan:
         tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
+    else:
+        tdDnodes.stopAll()
+        tdLog.info("stop all td process finished")
     sys.exit(0)
