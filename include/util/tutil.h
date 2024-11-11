@@ -171,7 +171,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define TAOS_CHECK_RETURN(CMD)      \
   do {                              \
     int32_t __c = (CMD);            \
-    if (__c != TSDB_CODE_SUCCESS) { \
+    if (unlikely(__c != TSDB_CODE_SUCCESS)) { \
       TAOS_RETURN(__c);             \
     }                               \
   } while (0)
@@ -215,6 +215,14 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   } while (0)
 
 #define TAOS_UNUSED(expr) (void)(expr)
+
+#if defined(__GUNC__) || defined(__clang__)
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+#define likely(x)   (x)
+#define unlikely(x) (x)
+#endif
 
 #ifdef __cplusplus
 }

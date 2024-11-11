@@ -186,17 +186,25 @@ static int32_t tBufferGetI16(SBufferReader *reader, int16_t *value) {
 }
 
 static int32_t tBufferGetI32(SBufferReader *reader, int32_t *value) {
-  *value = *(int32_t*)BR_PTR(reader);
-  reader->offset += sizeof(*value);
+  if (unlikely(reader->offset + sizeof(int32_t) > reader->buffer->size)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  if (likely(value)) {
+    *value = *(int32_t*)BR_PTR(reader);
+  }
+  reader->offset += sizeof(int32_t);
   return 0;
-  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetI64(SBufferReader *reader, int64_t *value) {
-  *value = *(int64_t*)BR_PTR(reader);
-  reader->offset += sizeof(*value);
+  if (unlikely(reader->offset + sizeof(int64_t) > reader->buffer->size)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  if (likely(value)) {
+    *value = *(int64_t*)BR_PTR(reader);
+  }
+  reader->offset += sizeof(int64_t);
   return 0;
-  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetU8(SBufferReader *reader, uint8_t *value) { return tBufferGet(reader, sizeof(*value), value); }
