@@ -565,7 +565,7 @@ char *taosStrCaseStr(const char *str, const char *pattern) {
 }
 
 int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -577,7 +577,7 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -589,7 +589,7 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
 }
 
 int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -601,7 +601,7 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -613,7 +613,7 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
 }
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -625,7 +625,7 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -637,7 +637,7 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
 }
 
 int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -646,7 +646,7 @@ int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
 }
 
 uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -658,7 +658,7 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
 }
 
 double taosStr2Double(const char *str, char **pEnd) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
@@ -667,7 +667,7 @@ double taosStr2Double(const char *str, char **pEnd) {
 }
 
 float taosStr2Float(const char *str, char **pEnd) {
-  if(str == NULL || pEnd == NULL) {
+  if(str == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
