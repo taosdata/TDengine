@@ -94,14 +94,14 @@ def build_docs(){
         '''
         def file_zh_changed = sh (
             script: '''
-                cd ${WKC}
+                cd ${DOC_WKC}/${td_repo}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
             ''',
             returnStdout: true
         ).trim()
         def file_en_changed = sh (
             script: '''
-                cd ${WKC}
+                cd ${DOC_WKC}/${td_repo}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
             ''',
             returnStdout: true
