@@ -178,7 +178,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:create_consumer}}
+{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:create_consumer}}
 ```
 
 </TabItem>
