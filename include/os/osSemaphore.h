@@ -104,6 +104,7 @@ int64_t taosGetPthreadId(TdThread thread);
 void    taosResetPthread(TdThread *thread);
 bool    taosComparePthread(TdThread first, TdThread second);
 int32_t taosGetPId();
+int32_t taosGetPIdByName(const char* name, int32_t* pPId);
 int32_t taosGetAppName(char *name, int32_t *len);
 
 #ifdef __cplusplus
