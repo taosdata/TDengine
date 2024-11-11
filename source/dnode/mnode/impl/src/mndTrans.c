@@ -440,6 +440,17 @@ static const char *mndTransStr(ETrnStage stage) {
   }
 }
 
+static const char *mndTransTypeStr(ETrnAct actionType) {
+  switch (actionType) {
+    case TRANS_ACTION_MSG:
+      return "msg";
+    case TRANS_ACTION_RAW:
+      return "sdb";
+    default:
+      return "invalid";
+  }
+}
+
 static void mndSetTransLastAction(STrans *pTrans, STransAction *pAction) {
   if (pAction != NULL) {
     pTrans->lastAction = pAction->id;
@@ -2150,8 +2161,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       for (int32_t i = 0; i < taosArrayGetSize(pTrans->prepareActions); ++i, ++index) {
         STransAction *pAction = taosArrayGet(pTrans->prepareActions, i);
         len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-              mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
-sdbStatusName(pAction->pRaw->status));
+                        mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+                        sdbStatusName(pAction->pRaw->status));  // TODO dmchen remove and format
       }
     }
 
@@ -2235,15 +2246,15 @@ static int32_t mndShowTransCommonColumns(SShowObj *pShow, SSDataBlock *pBlock, S
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
   TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&transactionId, false), &lino, _OVER);
 
-  char action[2048 + 1] = {0};  // TODO dmchen
+  char action[30 + 1] = {0};
   if (curActionId == pAction->id) {
-    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%d)<-cur", mndTransStr(pAction->stage), pAction->id,
-                    pAction->actionType);
+    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%s)<-last", mndTransStr(pAction->stage), pAction->id,
+                    mndTransTypeStr(pAction->actionType));
   } else {
-    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%d)", mndTransStr(pAction->stage), pAction->id,
-                    pAction->actionType);
+    len += snprintf(action + len, sizeof(action) - len, "%s:%d(%s)", mndTransStr(pAction->stage), pAction->id,
+                    mndTransTypeStr(pAction->actionType));
   }
-  char actionVStr[2048 + VARSTR_HEADER_SIZE] = {0};
+  char actionVStr[30 + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(actionVStr, action, pShow->pMeta->pSchemas[*cols].bytes);
   pColInfo = taosArrayGet(pBlock->pDataBlock, (*cols)++);
   TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)actionVStr, false), &lino, _OVER);
@@ -2266,24 +2277,24 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
   if (pAction->actionType == TRANS_ACTION_MSG) {
     int32_t len = 0;
 
-    char objType[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+    char objType[TSDB_TRANS_OBJTYPE_LEN + 1] = {0};
     len += snprintf(objType + len, sizeof(objType) - len, "%s(s:%d,r:%d)", TMSG_INFO(pAction->msgType),
                     pAction->msgSent, pAction->msgReceived);
-    char objTypeVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+    char objTypeVStr[TSDB_TRANS_OBJTYPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)objTypeVStr, false), &lino, _OVER);
 
-    char result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+    char result[TSDB_TRANS_RESULT_LEN + 1] = {0};
     len = 0;
     len += snprintf(result + len, sizeof(result) - len, "errCode:0x%x(%s)", pAction->errCode & 0xFFFF,
                     tstrerror(pAction->errCode));
-    char resultVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+    char resultVStr[TSDB_TRANS_RESULT_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), &lino, _OVER);
 
-    char target[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+    char target[TSDB_TRANS_TARGET_LEN] = {0};
     len = 0;
     SEpSet epset = pAction->epSet;
     if (epset.numOfEps > 0) {
@@ -2292,19 +2303,19 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
       }
       len += snprintf(target + len, sizeof(target) - len, "(%d:%d) ", epset.numOfEps, epset.inUse);
     }
-    char targetVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char targetVStr[TSDB_TRANS_TARGET_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(targetVStr, target, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)targetVStr, false), &lino, _OVER);
 
-    char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+    char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     char bufStart[40] = {0};
     taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
     char bufEnd[40] = {0};
     taosFormatUtcTime(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
-    char detailVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)detailVStr, false), &lino, _OVER);
@@ -2312,8 +2323,7 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
   } else {
     int32_t len = 0;
 
-    char objType[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
-
+    char objType[TSDB_TRANS_OBJTYPE_LEN + 1] = {0};
     if (pAction->pRaw->type == SDB_VGROUP) {
       SSdbRow *pRow = mndVgroupActionDecode(pAction->pRaw);
       SVgObj  *pVgroup = sdbGetRowObj(pRow);
@@ -2322,30 +2332,29 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
     } else {
       strcpy(objType, sdbTableName(pAction->pRaw->type));
     }
-
-    char objTypeVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+    char objTypeVStr[TSDB_TRANS_OBJTYPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)objTypeVStr, false), &lino, _OVER);
 
-    char result[TSDB_TRANS_ERROR_LEN + 1] = {0};  // TODO dmchen
+    char result[TSDB_TRANS_RESULT_LEN + 1] = {0};
     len = 0;
     len += snprintf(result + len, sizeof(result) - len, "rawWritten:%d", pAction->rawWritten);
-    char resultVStr[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+    char resultVStr[TSDB_TRANS_RESULT_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(resultVStr, result, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)resultVStr, false), &lino, _OVER);
 
-    char target[TSDB_TRANS_ERROR_LEN] = "";  // TODO dmchen
-    char targetVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char target[TSDB_TRANS_TARGET_LEN] = "";
+    char targetVStr[TSDB_TRANS_TARGET_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(targetVStr, target, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)targetVStr, false), &lino, _OVER);
 
-    char detail[TSDB_TRANS_ERROR_LEN] = {0};  // TODO dmchen
+    char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     len += snprintf(detail + len, sizeof(detail) - len, "sdbStatus:%s", sdbStatusName(pAction->pRaw->status));
-    char detailVStr[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)detailVStr, false), &lino, _OVER);
