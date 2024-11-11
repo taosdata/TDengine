@@ -2306,28 +2306,6 @@ export function getDataSources(lang) {
                 "patternMsg": "Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`",
                 "placeholder": "topic1::0,topic2::1",
                 "edit_disabled": true,
-              },
-              {
-                "name": "unprocessed_messages_buffer_size",
-                "display": "Message Buffer Size",
-                "hint": {
-                  "type": "integer",
-                  "min": 0,
-                  "max": 100000
-                },
-                "description": "The maximum number of messages cached in the queue that have not been processed yet, used to control memory usage. When the queue is full, newly arrived data will be directly discarded. Can be set to 0, meaning not cached.",
-                "value": "50000"
-              },
-              {
-                "name": "maximum_processing_batch",
-                "display": "Maxmum Batch IN Processing",
-                "hint": {
-                  "type": "integer",
-                  "min": 1,
-                  "max": 1000
-                },
-                "description": "The maximum number of batches that have not yet received an ACK response during processing. When this threshold is not reached, a batch will be retrieved from the cache queue for processing; When the maximum number is reached, the messages in the cache queue will begin to pile up. This configuration is used for backpressure mechanism to prevent excessive write pressure downstream.",
-                "value": "100"
               }
             ]
           }
@@ -2338,6 +2316,28 @@ export function getDataSources(lang) {
           "collapsible": true,
           "connection_option": false,
           "params": [
+            {
+              "name": "unprocessed_messages_buffer_size",
+              "display": "Message Buffer Size",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 100000
+              },
+              "description": "The maximum number of messages cached in the queue that have not been processed yet, used to control memory usage. When the queue is full, newly arrived data will be directly discarded. Can be set to 0, meaning not cached.",
+              "value": "50000"
+            },
+            {
+              "name": "maximum_processing_batch",
+              "display": "Maxmum Batch IN Processing",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 1000
+              },
+              "description": "The maximum number of batches that have not yet received an ACK response during processing. When this threshold is not reached, a batch will be retrieved from the cache queue for processing; When the maximum number is reached, the messages in the cache queue will begin to pile up. This configuration is used for backpressure mechanism to prevent excessive write pressure downstream.",
+              "value": "100"
+            },
             {
               "name": "batch_size",
               "display": "Batch Size",
@@ -6872,28 +6872,6 @@ export function getDataSources(lang) {
                 "patternMsg": "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`",
                 "placeholder": "topic1::0,topic2::1",
                 "edit_disabled": true,
-              },
-              {
-                "name": "unprocessed_messages_buffer_size",
-                "display": "消息等待队列大小",
-                "hint": {
-                  "type": "integer",
-                  "min": 0,
-                  "max": 100000
-                },
-                "description": "缓存在队列中还没来得及处理的消息的最大数量，用于控制内存占用，当队列满时，新到达的数据会直接丢弃。可设置为 0，即不缓存。",
-                "value": "50000"
-              },
-              {
-                "name": "maximum_processing_batch",
-                "display": "处理中批次上限",
-                "hint": {
-                  "type": "integer",
-                  "min": 1,
-                  "max": 1000
-                },
-                "description": "允许在处理中还没有等到 ACK 回复的最大批次数量，没有到达此阈值时，会从缓存队列中取出一个批次进行处理；当到达最大数量后，缓存队列中的消息会开始积压。此配置用于背压机制防止对下游造成太大写入压力。",
-                "value": "100"
               }
             ]
           }
@@ -6927,6 +6905,28 @@ export function getDataSources(lang) {
               "description": "写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。\n",
               "value": "0",
               "hidden": true
+            },
+            {
+              "name": "unprocessed_messages_buffer_size",
+              "display": "消息等待队列大小",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 100000
+              },
+              "description": "缓存在队列中还没来得及处理的消息的最大数量，用于控制内存占用，当队列满时，新到达的数据会直接丢弃。可设置为 0，即不缓存。",
+              "value": "50000"
+            },
+            {
+              "name": "maximum_processing_batch",
+              "display": "处理中批次上限",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 1000
+              },
+              "description": "允许在处理中还没有等到 ACK 回复的最大批次数量，没有到达此阈值时，会从缓存队列中取出一个批次进行处理；当到达最大数量后，缓存队列中的消息会开始积压。此配置用于背压机制防止对下游造成太大写入压力。",
+              "value": "100"
             },
             {
               "name": "batch_size",
