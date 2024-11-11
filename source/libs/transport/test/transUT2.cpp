@@ -56,7 +56,7 @@ class Client {
     rpcInit_.connType = TAOS_CONN_CLIENT;
     rpcInit_.shareConnLimit = 200;
 
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
     //tsem_init(&this->sem, 0, 0);
   }
@@ -69,7 +69,7 @@ class Client {
   void Restart(CB cb) {
     rpcClose(this->transCli);
     rpcInit_.cfp = cb;
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
   }
   void Stop() {
@@ -139,7 +139,7 @@ class Server {
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
     rpcInit_.connType = TAOS_CONN_SERVER;
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
   }
   void Start() {
     this->transSrv = rpcOpen(&this->rpcInit_);

@@ -24,6 +24,7 @@ extern "C" {
 #include "thash.h"
 #include "query.h"
 #include "tqueue.h"
+#include "clientInt.h"
 
 typedef enum {
   SQL_RESULT_SUCCESS = 0,
@@ -81,6 +82,8 @@ void            monitorCreateClientCounter(int64_t clusterId, const char* name, 
 void            monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values);
 const char*     monitorResultStr(SQL_RESULT_CODE code);
 int32_t         monitorPutData2MonitorQueue(MonitorSlowLogData data);
+
+void            clientOperateReport(SRequestObj* pRequest);
 #ifdef __cplusplus
 }
 #endif

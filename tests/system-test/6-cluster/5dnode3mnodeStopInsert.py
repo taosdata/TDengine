@@ -77,8 +77,8 @@ class TDTestCase:
         for couti in range(countstart,countstop):
             tdLog.debug("drop database if exists db%d" %couti)
             tdSql.execute("drop database if exists db%d" %couti)
-            tdLog.debug("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
+            tdLog.debug("create database if not exists db%d replica 1 duration 100" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 100" %couti)
             tdSql.execute("use db%d" %couti)
             tdSql.execute(
             '''create table stb1

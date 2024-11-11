@@ -28,6 +28,8 @@ extern "C" {
 #define QUERY_SMA_OPTIMIZE_DISABLE 0
 #define QUERY_SMA_OPTIMIZE_ENABLE  1
 
+#define QUERY_NUMBER_MAX_DISPLAY_LEN 65
+
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData);
 int32_t continueCreateTbFromFile(SParseContext* pCxt, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);

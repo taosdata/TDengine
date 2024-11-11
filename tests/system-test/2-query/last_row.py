@@ -61,7 +61,7 @@ class TDTestCase:
 
     def prepare_datas(self ,cache_value, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel {cache_value}"
+        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}"
         tdSql.execute(create_db_sql)
 
         tdSql.execute(f"use {dbname}")
@@ -129,7 +129,7 @@ class TDTestCase:
 
         tdSql.execute(f"drop database if exists {dbname} ")
         # prepare datas
-        tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel {cache_value}")
+        tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}")
 
         tdSql.execute(f"use {dbname} ")
 
@@ -871,7 +871,7 @@ class TDTestCase:
 
     def initLastRowDelayTest(self, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel 'NONE' REPLICA 1"
+        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel 'NONE' REPLICA 1"
         tdSql.execute(create_db_sql)
 
         time.sleep(3)

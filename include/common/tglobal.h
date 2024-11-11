@@ -142,6 +142,7 @@ extern bool     tsMonitorForceV2;
 // audit
 extern bool    tsEnableAudit;
 extern bool    tsEnableAuditCreateTable;
+extern bool    tsEnableAuditDelete;
 extern int32_t tsAuditInterval;
 
 // telem
@@ -153,6 +154,12 @@ extern bool     tsEnableCrashReport;
 extern char    *tsTelemUri;
 extern char    *tsClientCrashReportUri;
 extern char    *tsSvrCrashReportUri;
+extern int8_t  tsSafetyCheckLevel;
+enum {
+  TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
+  TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
+  TSDB_SAFETY_CHECK_LEVELL_BYROW = 2,
+};
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -194,10 +201,10 @@ extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxInsertBatchRows;
 
 // build info
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char buildinfo[];
+extern char td_version[];
+extern char td_compatible_version[];
+extern char td_gitinfo[];
+extern char td_buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];

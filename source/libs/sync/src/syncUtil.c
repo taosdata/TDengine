@@ -152,8 +152,8 @@ static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLe
   for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
     SSyncLogReplMgr* pMgr = pSyncNode->logReplMgrs[i];
     if (pMgr == NULL) break;
-    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 " %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
-                    pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
+    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 ", %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
+                     pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
     if (i + 1 < pSyncNode->replicaNum) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }

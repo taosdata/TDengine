@@ -319,4 +319,4 @@ SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 1
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
 
-在上面的查询中，使用系统提供的伪列_wstart 来给出每个窗口的开始时间。
+在上面的查询中，使用系统提供的伪列 _wstart 来给出每个窗口的开始时间。

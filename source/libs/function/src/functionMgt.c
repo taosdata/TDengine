@@ -412,6 +412,27 @@ int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNo
   return code;
 }
 
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** ppFunc) {
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)ppFunc);
+  if (NULL == *ppFunc) {
+    return code;
+  }
+
+  (*ppFunc)->hasPk = pSrcFunc->hasPk;
+  (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
+
+  (void)snprintf((*ppFunc)->functionName, sizeof((*ppFunc)->functionName), "%s", pName);
+  (*ppFunc)->pParameterList = pParameterList;
+  code = getFuncInfo((*ppFunc));
+  if (TSDB_CODE_SUCCESS != code) {
+    (*ppFunc)->pParameterList = NULL;
+    nodesDestroyNode((SNode*)*ppFunc);
+    *ppFunc = NULL;
+    return code;
+  }
+  return code;
+}
+
 static int32_t createColumnByFunc(const SFunctionNode* pFunc, SColumnNode** ppCol) {
   int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)ppCol);
   if (NULL == *ppCol) {
@@ -438,7 +459,8 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   if (NULL == pParameterList) {
     return code;
   }
-  code = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pPartialFunc, pParameterList,pPartialFunc );
+  code =
+      createFunctionWithSrcFunc(funcMgtBuiltins[pSrcFunc->funcId].pPartialFunc, pSrcFunc, pParameterList, pPartialFunc);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pParameterList);
     return code;
@@ -452,8 +474,6 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
     return TSDB_CODE_FAILED;
   }
   tstrncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN);
-  (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
-  (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -479,9 +499,9 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
   int32_t code = createMergeFuncPara(pSrcFunc, pPartialFunc, &pParameterList);
   if (TSDB_CODE_SUCCESS == code) {
     if(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc != NULL){
-      code = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc, pParameterList, &pFunc);
+      code = createFunctionWithSrcFunc(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc, pSrcFunc, pParameterList, &pFunc);
     }else{
-      code = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList, &pFunc);
+      code = createFunctionWithSrcFunc(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pSrcFunc, pParameterList, &pFunc);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -493,8 +513,6 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
   } else {
     nodesDestroyList(pParameterList);
   }
-  (*pMidFunc)->hasPk = pPartialFunc->hasPk;
-  (*pMidFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 
@@ -505,7 +523,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
 
   int32_t code = createMergeFuncPara(pSrcFunc, pPartialFunc, &pParameterList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList, &pFunc);
+    code = createFunctionWithSrcFunc(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pSrcFunc, pParameterList, &pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pFunc->hasOriginalFunc = true;
@@ -522,8 +540,6 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   } else {
     nodesDestroyList(pParameterList);
   }
-  (*pMergeFunc)->hasPk = pPartialFunc->hasPk;
-  (*pMergeFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 

@@ -233,6 +233,7 @@ int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   qMsg.header.contLen = 0;
   qMsg.sId = sId;
   qMsg.queryId = qId;
+  qMsg.clientId = cId;
   qMsg.taskId = tId;
   qMsg.refId = rId;
   qMsg.execId = eId;
@@ -284,6 +285,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->header.vgId = mgmt->nodeId;
   req->sId = sId;
   req->queryId = qId;
+  req->clientId = cId;
   req->taskId = tId;
   req->execId = eId;
 
@@ -312,6 +314,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   qMsg.header.contLen = 0;
   qMsg.sId = sId;
   qMsg.queryId = qId;
+  qMsg.clientId = cId;
   qMsg.taskId = tId;
   qMsg.refId = rId;
   qMsg.execId = eId;
@@ -416,6 +419,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
 
   uint64_t sId = msg.sId;
   uint64_t qId = msg.queryId;
+  uint64_t cId = msg.clientId;
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
@@ -447,6 +451,7 @@ int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   uint64_t sId = msg.sId;
   uint64_t qId = msg.queryId;
+  uint64_t cId = msg.clientId;
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
@@ -479,6 +484,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 
   uint64_t sId = msg.sId;
   uint64_t qId = msg.queryId;
+  uint64_t cId = msg.clientId;
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
@@ -524,6 +530,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
+  uint64_t cId = msg->clientId;
   uint64_t tId = msg->taskId;
   int64_t  rId = 0;
   int32_t  eId = msg->execId;
@@ -557,6 +564,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 
   uint64_t sId = req.sId;
   uint64_t qId = req.queryId;
+  uint64_t cId = req.clientId;
   uint64_t tId = req.taskId;
   int64_t  rId = 0;
   int32_t  eId = req.execId;
@@ -604,12 +612,14 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   msg->sId = be64toh(msg->sId);
   msg->queryId = be64toh(msg->queryId);
+  msg->clientId = be64toh(msg->clientId);
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
   msg->execId = ntohl(msg->execId);
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
+  uint64_t cId = msg->clientId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
   int32_t  eId = msg->execId;
@@ -646,6 +656,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
   uint64_t sId = msg.sId;
   uint64_t qId = msg.queryId;
+  uint64_t cId = msg.clientId;
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
@@ -684,6 +695,7 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   uint64_t sId = msg.sId;
   uint64_t qId = msg.queryId;
+  uint64_t cId = msg.clientId;
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
@@ -753,6 +765,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SD
 
   uint64_t sId = req.sId;
   uint64_t qId = req.queryId;
+  uint64_t cId = req.clientId;
   uint64_t tId = req.taskId;
   int64_t  rId = 0;
   int32_t  eId = -1;

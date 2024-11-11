@@ -409,7 +409,12 @@ int32_t vnodeSyncCommit(SVnode *pVnode) {
   vnodeAWait(&pVnode->commitTask);
 
 _exit:
-  vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, sync commit end", TD_VID(pVnode));
+  }
+
   return code;
 }
 

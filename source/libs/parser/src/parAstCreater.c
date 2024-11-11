@@ -43,11 +43,11 @@
     }                                         \
   } while (0)
 
-#define CHECK_NAME(p)                         \
-  do {                                        \
-    if (!p) {                                 \
-      goto _err;                              \
-    }                                         \
+#define CHECK_NAME(p) \
+  do {                \
+    if (!p) {         \
+      goto _err;      \
+    }                 \
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
@@ -333,7 +333,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
-      sprintf(pExpr->aliasName, "%"PRIu64, hashVal);
+      sprintf(pExpr->aliasName, "%" PRIu64, hashVal);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
@@ -405,7 +405,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
   CHECK_MAKE_NODE(val);
   val->literal = taosStrndup(pLiteral->z, pLiteral->n);
-  if(!val->literal) {
+  if (!val->literal) {
     pCxt->errCode = terrno;
     nodesDestroyNode((SNode*)val);
     return NULL;
@@ -586,8 +586,8 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
   if (NULL == pLiteral || pLiteral->n <= 5) {
     return NULL;
   }
-  SNodeList*  pHintList = NULL;
-  char*       hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
+  SNodeList* pHintList = NULL;
+  char*      hint = taosStrndup(pLiteral->z + 3, pLiteral->n - 5);
   if (!hint) return NULL;
   int32_t     i = 0;
   bool        quit = false;
@@ -971,7 +971,7 @@ _err:
 }
 
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
-  SNode* pNew = NULL, *pGE = NULL, *pLE = NULL;
+  SNode *pNew = NULL, *pGE = NULL, *pLE = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr, &pNew);
   CHECK_PARSER_STATUS(pCxt);
@@ -993,7 +993,7 @@ _err:
 }
 
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
-  SNode* pNew = NULL, *pLT = NULL, *pGT = NULL;
+  SNode *pNew = NULL, *pLT = NULL, *pGT = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesCloneNode(pExpr, &pNew);
   CHECK_PARSER_STATUS(pCxt);
@@ -1799,6 +1799,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1842,6 +1843,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3Compact = -1;
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1959,7 +1961,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_S3_CHUNKSIZE:
+    case DB_OPTION_S3_CHUNKPAGES:
       pDbOptions->s3ChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_S3_KEEPLOCAL: {
@@ -1981,6 +1983,14 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
       pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
       break;
+    case DB_OPTION_DNODES:
+      if (((SToken*)pVal)->n >= TSDB_DNODE_LIST_LEN) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "the dnode list is too long (should less than %d)",
+                 TSDB_DNODE_LIST_LEN);
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      } else {
+        COPY_STRING_FORM_STR_TOKEN(pDbOptions->dnodeListStr, (SToken*)pVal);
+      }
     default:
       break;
   }
@@ -2209,7 +2219,7 @@ _err:
 
 SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2) {
   CHECK_PARSER_STATUS(pCxt);
-  char      optionType[TSDB_CL_OPTION_LEN];
+  char optionType[TSDB_CL_OPTION_LEN];
 
   memset(optionType, 0, TSDB_CL_OPTION_LEN);
   strncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
@@ -2806,7 +2816,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);
   if (!ipCopy) return terrno;
-  char*   slash = strchr(ipCopy, '/');
+  char* slash = strchr(ipCopy, '/');
   if (slash) {
     *slash = '\0';
     struct in_addr addr;
@@ -3466,6 +3476,8 @@ static int8_t getTriggerType(uint32_t tokenType) {
       return STREAM_TRIGGER_WINDOW_CLOSE;
     case TK_MAX_DELAY:
       return STREAM_TRIGGER_MAX_DELAY;
+    case TK_FORCE_WINDOW_CLOSE:
+      return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
     default:
       break;
   }
