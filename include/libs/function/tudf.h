@@ -61,6 +61,28 @@ extern "C" {
     }                                               \
   } while (0)
 
+#define TAOS_UDF_CHECK_PTR_RCODE(...)                                          \
+  do {                                                                         \
+    const void *ptrs[] = {__VA_ARGS__};                                        \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
+      if (ptrs[i] == NULL) {                                                   \
+        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return TSDB_CODE_INVALID_PARA;                                         \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
+#define TAOS_UDF_CHECK_PTR_RVOID(...)                                          \
+  do {                                                                         \
+    const void *ptrs[] = {__VA_ARGS__};                                        \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
+      if (ptrs[i] == NULL) {                                                   \
+        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return;                                                                \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 
 // low level APIs
 /**
