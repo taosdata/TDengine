@@ -299,6 +299,7 @@ class TDTestCase:
             'oracle':'Oracle',
             'mssql':'SqlServer',
             'mongodb':'MongoDB',
+            'csv':'CSV',
         }
 
         tdSql.execute('drop database if exists db2')
