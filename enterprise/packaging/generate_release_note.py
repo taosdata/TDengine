@@ -232,24 +232,18 @@ def sort_file_by_category(file_path):
             new_features.append(line)
 
     if "zh" in file_path:
-        line_index = [["[修复] \n"], ["[优化]\n"], ["[新功能]\n"]]
+        line_index = ["[修复] \n", "[优化]\n", "[新功能]\n"]
     elif "en" in file_path:
-        line_index = [["[Fixed issues] \n"], ["[Optimizations]\n"], ["[New Features/Improvements]\n"]]
+        line_index = ["[Fixed issues] \n", "[Optimizations]\n", "[New Features/Improvements]\n"]
     else:
         logger.error("file name should contain zh or en")
         exit(1)
 
     # Combine the lists in the desired order
-    sorted_lines = (
-        line_index[2]
-        + new_features
-        + ["\n"]
-        + line_index[1]
-        + optimizations
-        + ["\n"]
-        + line_index[0]
-        + fixes
-    )
+    sorted_lines = [line_index[2],*new_features,'\n',
+                line_index[1],*optimizations,'\n',
+                line_index[0],*fixes   
+                ]
 
     # Write sorted lines back to the file
     with open(file_path, "w", encoding="utf-8") as file:
