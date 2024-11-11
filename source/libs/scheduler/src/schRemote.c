@@ -500,8 +500,8 @@ _return:
 
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
-         code);
+  qDebug("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId,
+         pParam->clientId, pParam->taskId, code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT); // ignore error
 
@@ -517,8 +517,8 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId, pParam->taskId,
-         code);
+  qDebug("QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId,
+         pParam->clientId, pParam->taskId, code);
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -595,6 +595,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
 
     param->queryId = pJob->queryId;
     param->refId = pJob->refId;
+    param->clientId = SCH_CLIENT_ID(pTask);
     param->taskId = SCH_TASK_ID(pTask);
     param->pTrans = pJob->conn.pTrans;
     param->execId = pTask->execId;
@@ -1138,6 +1139,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.header.vgId = addr->nodeId;
       req.sId = schMgmt.sId;
       req.queryId = pJob->queryId;
+      req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
       req.phyLen = pTask->msgLen;
       req.sqlLen = strlen(pJob->sql);
@@ -1171,6 +1173,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.header.contLen = 0;
       qMsg.sId = schMgmt.sId;
       qMsg.queryId = pJob->queryId;
+      qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
       qMsg.execId = pTask->execId;
@@ -1226,6 +1229,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.header.vgId = addr->nodeId;
       req.sId = schMgmt.sId;
       req.queryId = pJob->queryId;
+      req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
       req.execId = pTask->execId;
 
@@ -1253,6 +1257,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.header.contLen = 0;
       qMsg.sId = schMgmt.sId;
       qMsg.queryId = pJob->queryId;
+      qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
       qMsg.execId = *(int32_t*)param;
@@ -1310,6 +1315,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.header.contLen = 0;
       qMsg.sId = schMgmt.sId;
       qMsg.queryId = pJob->queryId;
+      qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
       qMsg.execId = pTask->execId;

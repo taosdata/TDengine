@@ -37,7 +37,7 @@ public class QueryService {
             stmt.execute("use " + dbName);
             ResultSet rs = stmt.executeQuery("show stables");
             while (rs.next()) {
-                String name = rs.getString("name");
+                String name = rs.getString("stable_name");
                 sqls.add("select count(*) from " + dbName + "." + name);
                 sqls.add("select first(*) from " + dbName + "." + name);
                 sqls.add("select last(*) from " + dbName + "." + name);

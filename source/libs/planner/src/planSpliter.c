@@ -836,11 +836,9 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
       nodesDestroyNode(pMergeWin->pTsEnd);
       pMergeWin->pTsEnd = NULL;
       code = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMergeWin->pTsEnd);
-      if (NULL == pMergeWin->pTsEnd) {
-        code = code;
-      }
     }
-    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
+    if (TSDB_CODE_SUCCESS == code)
+      code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,

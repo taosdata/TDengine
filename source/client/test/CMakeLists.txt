@@ -29,6 +29,12 @@ TARGET_LINK_LIBRARIES(
 #        PUBLIC os util common transport monitor parser catalog scheduler function gtest taos_static qcom executor
 #)
 
+ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
+TARGET_LINK_LIBRARIES(
+        userOperTest
+        PUBLIC taos
+)
+
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
@@ -69,3 +75,8 @@ add_test(
 #         NAME clientMonitorTest
 #         COMMAND clientMonitorTest
 # )
+
+add_test(
+        NAME userOperTest
+        COMMAND userOperTest
+)

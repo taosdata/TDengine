@@ -111,13 +111,15 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     }
   }
 
-  (*pTaskInfo)->sql = taosStrdup(sql);
-  if (NULL == (*pTaskInfo)->sql) {
-    code = terrno;
-    nodesDestroyNode((SNode*)pPlan);
-    doDestroyTask(*pTaskInfo);
-    (*pTaskInfo) = NULL;
-    return code;
+  if (NULL != sql) {
+    (*pTaskInfo)->sql = taosStrdup(sql);
+    if (NULL == (*pTaskInfo)->sql) {
+      code = terrno;
+      nodesDestroyNode((SNode*)pPlan);
+      doDestroyTask(*pTaskInfo);
+      (*pTaskInfo) = NULL;
+      return code;
+    }
   }
 
   (*pTaskInfo)->pSubplan = pPlan;

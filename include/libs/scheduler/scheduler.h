@@ -83,6 +83,9 @@ void schedulerStopQueryHb(void* pTrans);
 int32_t schedulerUpdatePolicy(int32_t policy);
 int32_t schedulerEnableReSchedule(bool enableResche);
 
+int32_t initClientId(void);
+uint64_t getClientId(void);
+
 /**
  * Cancel query job
  * @param pJob
