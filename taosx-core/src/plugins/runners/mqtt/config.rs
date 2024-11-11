@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     fn task_config_test() {
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1883?client_id=1&version=5&topics=tp1::0&batch_size=1&batch_timeout=2&unprocessed_message_buffer_size=3&maximum_processing_batch=4").unwrap();
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1883?client_id=1&version=5&topics=tp1::0&batch_size=1&batch_timeout=2&unprocessed_messages_buffer_size=3&maximum_processing_batch=4").unwrap();
         let config = MqttConfig::try_from(&dsn).unwrap();
         let task = config.task;
         assert_eq!(task.batch_size, 1);
