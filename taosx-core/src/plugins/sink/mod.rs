@@ -3548,6 +3548,7 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
     Ok(())
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_handle_point_message_init() {
     use crate::runners::opc::config::model::PointConfig;

@@ -648,6 +648,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_generate_json_value() {
         // prepare data

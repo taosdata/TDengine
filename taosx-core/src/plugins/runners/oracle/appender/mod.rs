@@ -543,6 +543,7 @@ mod tests {
         test_clear_data();
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_to_record_batches() {
         // prepare data

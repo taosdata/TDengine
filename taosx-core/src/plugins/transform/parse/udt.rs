@@ -418,14 +418,14 @@ mod tests {
 
         let udt: Udt = serde_json::from_str(&input).unwrap();
 
-        let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
             r#"{"n": 1}"#,
             r#"{"n": 0}"#,
             r#"{"n": 2}"#,
         ]));
 
-        let result = udt.parse_array(&field, &array);
+        let s = array.as_any().downcast_ref::<StringArray>().unwrap();
+        let result = udt.parse_data(s.value(0));
         assert!(result.is_err());
     }
 }

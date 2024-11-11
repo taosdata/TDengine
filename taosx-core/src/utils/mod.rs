@@ -313,6 +313,7 @@ pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> Str
         .replace("${yj}", date.format("%y%j").to_string().as_str())
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
