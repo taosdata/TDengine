@@ -234,7 +234,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
 
-  mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb, retrieveReq.compactId1);
+  mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb,
+         retrieveReq.compactId);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));

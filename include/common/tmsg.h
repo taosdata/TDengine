@@ -2233,7 +2233,7 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
-  int64_t compactId1;  // for compact
+  int64_t compactId;  // for compact
   bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
