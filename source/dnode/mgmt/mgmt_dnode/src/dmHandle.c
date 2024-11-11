@@ -283,6 +283,45 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
+static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  const STraceId *trace = &pRsp->info.traceId;
+  SConfigRsp      configRsp = {0};
+  dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
+
+  if (pRsp->code != 0) {
+    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
+      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+             pMgmt->statusSeq);
+      pMgmt->pData->dropped = 1;
+      if (dmWriteEps(pMgmt->pData) != 0) {
+        dError("failed to write dnode file");
+      }
+      dInfo("dnode will exit since it is in the dropped state");
+      (void)raise(SIGINT);
+    }
+  } else {
+    if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
+        tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
+      if (configRsp.forceReadConfig) {
+        if (configRsp.isConifgVerified) {
+          persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+        } else {
+          // log the difference configurations
+          printConfigNotMatch(configRsp.array);
+        }
+        goto _exit;
+      }
+      if (!configRsp.isVersionVerified) {
+        
+        persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+      }
+    }
+  }
+_exit:
+  tFreeSConfigRsp(&configRsp);
+  rpcFreeCont(pRsp->pCont);
+}
+
 void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SConfigReq req = {0};
@@ -327,10 +366,11 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
     dError("failed to send status req since %s", tstrerror(code));
     return;
   }
-
   if (rpcRsp.code != 0) {
-  } else {
+    dError("failed to send config req since %s", tstrerror(rpcRsp.code));
+    return;
   }
+  dmProcessConfigRsp(pMgmt, &rpcRsp);
 }
 
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {

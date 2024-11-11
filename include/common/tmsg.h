@@ -1897,6 +1897,7 @@ typedef struct {
   int32_t forceReadConfig;
   int32_t isConifgVerified;
   int32_t isVersionVerified;
+  int32_t cver;
   SArray* array;
 } SConfigRsp;
 

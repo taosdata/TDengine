@@ -934,6 +934,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
+  configRsp.cver = tsConfigVersion;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
     if (compareSConfigItemArrays(cfgGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
@@ -960,6 +961,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 _OVER:
+
   mndReleaseDnode(pMnode, pDnode);
   return mndUpdClusterInfo(pReq);
 }

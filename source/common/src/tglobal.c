@@ -2609,7 +2609,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t persistGlobalConfig(const char *path, int32_t version) {
+int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version) {
   // TODO: just tmp ,refactor later
   int32_t   code = 0;
   char     *buffer = NULL;
@@ -2635,7 +2635,7 @@ int32_t persistGlobalConfig(const char *path, int32_t version) {
     TAOS_RETURN(code);
   }
   char *serialized = NULL;
-  code = globalConfigSerialize(version, cfgGetGlobalCfg(tsCfg), &serialized);
+  code = globalConfigSerialize(version, array, &serialized);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(code));
     TAOS_RETURN(code);
@@ -2682,11 +2682,12 @@ int32_t persistLocalConfig(const char *path) {
 int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array) {
   int32_t code = 0;
   int32_t lino = 0;
-  int     sz = taosArrayGetSize(array);
-
+  int32_t sz = taosArrayGetSize(array);
+  tEncodeI32(pEncoder, sz);
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, item->name));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, item->dtype));
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -2719,36 +2720,38 @@ _exit:
 }
 
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int     sz = taosArrayGetSize(array);
-
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  int32_t      sz = 0;
+  ECfgDataType dtype = CFG_DTYPE_NONE;
+  tDecodeI32(pDecoder, &sz);
   for (int i = 0; i < sz; i++) {
-    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item->name));
-    switch (item->dtype) {
+    SConfigItem item = {0};
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item.name));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t *)&dtype));
+    switch (dtype) {
       {
         case CFG_DTYPE_NONE:
           break;
         case CFG_DTYPE_BOOL:
-          TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &item->bval));
+          TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &item.bval));
           break;
         case CFG_DTYPE_INT32:
-          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &item->i32));
+          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &item.i32));
           break;
         case CFG_DTYPE_INT64:
-          TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &item->i64));
+          TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &item.i64));
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          TAOS_CHECK_EXIT(tDecodeFloat(pDecoder, &item->fval));
+          TAOS_CHECK_EXIT(tDecodeFloat(pDecoder, &item.fval));
           break;
         case CFG_DTYPE_STRING:
         case CFG_DTYPE_DIR:
         case CFG_DTYPE_LOCALE:
         case CFG_DTYPE_CHARSET:
         case CFG_DTYPE_TIMEZONE:
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item->str));
+          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item.str));
           break;
       }
     }
@@ -2803,4 +2806,78 @@ int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *d
   }
 
   return code;
+}
+
+void printConfigNotMatch(SArray *array) {
+  uError(
+      "The global configuration parameters in the configuration file do not match those in the cluster. Please "
+      "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
+      "configured.");
+  int32_t sz = taosArrayGetSize(array);
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          uError("config %s in cluster value is:%d", item->name, item->bval);
+          break;
+        case CFG_DTYPE_INT32:
+          uError("config %s in cluster value is:%d", item->name, item->i32);
+          break;
+        case CFG_DTYPE_INT64:
+          uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          uError("config %s in cluster value is:%f", item->name, item->fval);
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          uError("config %s in cluster value is:%s", item->name, item->str);
+          break;
+      }
+    }
+  }
+}
+
+void printConfigNotMatch(SArray *array) {
+  uError(
+      "The global configuration parameters in the configuration file do not match those in the cluster. Please "
+      "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
+      "configured.");
+  int32_t sz = taosArrayGetSize(array);
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          uError("config %s in cluster value is:%d", item->name, item->bval);
+          break;
+        case CFG_DTYPE_INT32:
+          uError("config %s in cluster value is:%d", item->name, item->i32);
+          break;
+        case CFG_DTYPE_INT64:
+          uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          uError("config %s in cluster value is:%f", item->name, item->fval);
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          uError("config %s in cluster value is:%s", item->name, item->str);
+          break;
+      }
+    }
+  }
 }
