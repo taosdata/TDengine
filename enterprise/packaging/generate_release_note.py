@@ -87,7 +87,7 @@ def process_content(content: str, replacements_dict: dict) -> str:
     return content
 
 
-def get_release_note(user: str, passwd: str, release_version: str):
+def get_release_note(user: str, passwd: str, release_version: str, office_note: str):
     """
     Generate release notes for a given release version.
 
@@ -106,12 +106,16 @@ def get_release_note(user: str, passwd: str, release_version: str):
     jira = JIRA(server=jira_server, basic_auth=(user, passwd))
     jql = create_jql_query(release_version)
     logger.info(f"filter jql:{jql}")
-    logger.info(f"generate release_version-{release_version} release note")
+    if office_note.lower() == "true":
+        logger.info(f"release notes will remove TS/TD")
+    else:
+        logger.info(f"release notes will include TS/TD")
+    logger.info(f"generate release_version-{release_version} release notes")
     all_issues = fetch_all_issues(jira, jql)
     logger.info(f"total filter {release_version} issues:{len(all_issues)}")
     zh_file, en_file = prepare_files(release_version)
-    process_and_write_issues(all_issues, zh_file, en_file)
-    logger.info(f"generate release_version-{release_version} release note done")
+    process_and_write_issues(all_issues, zh_file, en_file, office_note)
+    logger.info(f"generate release_version-{release_version} release notes done")
 
 
 def create_jql_query(release_version: str) -> str:
@@ -144,19 +148,25 @@ def prepare_files(release_version: str):
     clear_file(en_file)
     return zh_file, en_file
 
-def process_and_write_issues(all_issues, zh_file, en_file):
+def process_and_write_issues(all_issues, zh_file, en_file, office_note:str):
     file_handler_zh = FileHandler(zh_file)
     file_handler_en = FileHandler(en_file)
     file_handler_zh.open()
     file_handler_en.open()
     file_zh_line_count = 0
     file_en_line_count = 0
+    logger.info(f"office_note:{office_note}")
     for issue in all_issues:
         if (
             issue.fields.customfield_12330 is not None
             and issue.fields.customfield_12330 != "-"
         ):
-            content_zh = f"{issue.key} {issue.fields.customfield_12330} \n"
+            if office_note.lower() == "true":
+                content_zh = f"{issue.fields.customfield_12330} \n"
+            else:
+                content_zh = f"{issue.key} {issue.fields.customfield_12330} \n"
+
+
             processed_content_zh = process_content(content_zh, replacements)
             file_handler_zh.write(processed_content_zh)
             file_zh_line_count += 1
@@ -164,8 +174,11 @@ def process_and_write_issues(all_issues, zh_file, en_file):
         if (
             issue.fields.customfield_12331 is not None
             and issue.fields.customfield_12331 != "-"
-        ):
-            content_en = f"{issue.key} {issue.fields.customfield_12331} \n"
+        ):  
+            if office_note.lower() == "true":
+                content_en = f"{issue.fields.customfield_12331} \n"
+            else:
+                content_en = f"{issue.key} {issue.fields.customfield_12331} \n"
             processed_content_en = process_content(content_en, replacements)
             file_handler_en.write(processed_content_en)
             file_en_line_count += 1
@@ -221,21 +234,21 @@ def sort_file_by_category(file_path):
     if "zh" in file_path:
         line_index = [["[修复] \n"], ["[优化]\n"], ["[新功能]\n"]]
     elif "en" in file_path:
-        line_index = [["[Fixes] \n"], ["[Optimizations]\n"], ["[New Features]\n"]]
+        line_index = [["[Fixed issues] \n"], ["[Optimizations]\n"], ["[New Features/Improvements]\n"]]
     else:
         logger.error("file name should contain zh or en")
         exit(1)
 
     # Combine the lists in the desired order
     sorted_lines = (
-        line_index[0]
-        + fixes
+        line_index[2]
+        + new_features
         + ["\n"]
         + line_index[1]
         + optimizations
         + ["\n"]
-        + line_index[2]
-        + new_features
+        + line_index[0]
+        + fixes
     )
 
     # Write sorted lines back to the file
@@ -254,11 +267,12 @@ def main():
     parser.add_argument("user", help="jira user")
     parser.add_argument("passwd", help="jira passwd")
     parser.add_argument("version", help="release version:3.3.4.0")
+    parser.add_argument("--office_note", help="True or False,True is that file will remove TS/TD" ,default="false")
 
     args = parser.parse_args()
     # get release note:
     try:
-        get_release_note(args.user, args.passwd, args.version)
+        get_release_note(args.user, args.passwd, args.version, args.office_note)
     except Exception as e:
         logger.error(f"get release note failed:{e}")
 
@@ -266,7 +280,7 @@ def main():
     sort_file_by_category(f"release_note_{args.version}_zh.txt")
     sort_file_by_category(f"release_note_{args.version}_en.txt")
 
-    # mv release note to /pkgs/TDengine/smoking/v{args.version}/ and rm original release note
+    # # mv release note to /pkgs/TDengine/smoking/v{args.version}/ and rm original release note
     # cmd = f"cp release_note_{args.version}_zh.txt release_note_{args.version}_en.txt /pkgs/TDengine/smoking/v{args.version}/enterprise/ && rm release_note_{args.version}_zh.txt release_note_{args.version}_en.txt"
     # os.system(cmd)
 
