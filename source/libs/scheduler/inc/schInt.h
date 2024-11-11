@@ -142,8 +142,9 @@ typedef struct SSchedulerCfg {
 } SSchedulerCfg;
 
 typedef struct SSchedulerMgmt {
-  uint64_t      taskId;  // sequential taksId
-  uint64_t      sId;     // schedulerId
+  uint64_t      clientId;  // unique clientId
+  uint64_t      taskId;    // sequential taksId
+  uint64_t      sId;       // schedulerId
   SSchedulerCfg cfg;
   bool          exit;
   int32_t       jobRef;
@@ -163,6 +164,7 @@ typedef struct SSchTaskCallbackParam {
   SSchCallbackParamHeader head;
   uint64_t                queryId;
   int64_t                 refId;
+  uint64_t                clientId;
   uint64_t                taskId;
   int32_t                 execId;
   void                   *pTrans;
@@ -222,6 +224,7 @@ typedef struct SSchTimerParam {
 } SSchTimerParam;
 
 typedef struct SSchTask {
+  uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
@@ -329,6 +332,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOCK_TASK(_task)   SCH_LOCK(SCH_WRITE, &(_task)->lock)
 #define SCH_UNLOCK_TASK(_task) SCH_UNLOCK(SCH_WRITE, &(_task)->lock)
 
+#define SCH_CLIENT_ID(_task) ((_task) ? (_task)->clientId : -1)
 #define SCH_TASK_ID(_task)  ((_task) ? (_task)->taskId : -1)
 #define SCH_TASK_EID(_task) ((_task) ? (_task)->execId : -1)
 
@@ -449,21 +453,21 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_ELOG(param, ...) qError("qid:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 #define SCH_JOB_DLOG(param, ...) qDebug("qid:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 
-#define SCH_TASK_ELOG(param, ...)                                                                                     \
-  qError("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
-         __VA_ARGS__)
-#define SCH_TASK_DLOG(param, ...)                                                                                     \
-  qDebug("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
-         __VA_ARGS__)
-#define SCH_TASK_TLOG(param, ...)                                                                                     \
-  qTrace("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
-         __VA_ARGS__)
-#define SCH_TASK_DLOGL(param, ...)                                                                                     \
-  qDebugL("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
-          __VA_ARGS__)
-#define SCH_TASK_WLOG(param, ...)                                                                                    \
-  qWarn("qid:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), \
-        __VA_ARGS__)
+#define SCH_TASK_ELOG(param, ...)                                                                                    \
+  qError("qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_CLIENT_ID(pTask), \
+         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_DLOG(param, ...)                                                                                    \
+  qDebug("qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_CLIENT_ID(pTask), \
+         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_TLOG(param, ...)                                                                                    \
+  qTrace("qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_CLIENT_ID(pTask), \
+         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_DLOGL(param, ...)                                                                                    \
+  qDebugL("qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_CLIENT_ID(pTask), \
+          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_WLOG(param, ...)                                                                                   \
+  qWarn("qid:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_CLIENT_ID(pTask), \
+        SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
   do {                                          \

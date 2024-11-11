@@ -433,9 +433,6 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = NULL;
     code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-    if (NULL == pQuery->pRoot) {
-      code = code;
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteExprAlias(pQuery->pRoot);
