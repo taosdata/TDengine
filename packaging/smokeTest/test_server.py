@@ -61,7 +61,7 @@ def setup_module(get_config):
     else:
         cmd = "mkdir -p ../../debug/build/bin/"
     subprocess.getoutput(cmd)
-    if config["system"] == "Linux":  # add tmq_sim
+    if config["system"] == "Linux" or config["system"] == "Darwin" :  # add tmq_sim
         cmd = "cp -rf ../../../debug/build/bin/tmq_sim ../../debug/build/bin/."
         subprocess.getoutput(cmd)
     if config["system"] == "Darwin":
@@ -140,9 +140,11 @@ class TestServer:
             if line:
                 print(line.strip())
             if "succeed to write dnode" in line:
-                time.sleep(15)
+                time.sleep(5)
                 # 发送终止信号
-                os.kill(process.pid, signal.SIGTERM)
+                os.kill(process.pid, signal.SIGKILL)
+                # Waiting for the process to be completely killed
+                time.sleep(5)
                 break
 
     @pytest.mark.all
