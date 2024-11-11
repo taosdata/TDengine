@@ -786,10 +786,29 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if err != nil {
 		return nil, fmt.Errorf("get server ability fail: %s", err.Error())
 	}
-	reg, err := regexp.Compile(conf.Regex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid points regex: %w", err)
+	var reg regexp.Regexp
+	var regName regexp.Regexp
+	var regID regexp.Regexp
+	if conf.Regex != "" {
+		reg, err = regexp.Compile(conf.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid points regex: %w", err)
+		}
 	}
+	if len(conf.RegexName) > 0 {
+		regName, err = regexp.Compile(conf.RegexName)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex_name: %w", err)
+		}
+	}
+
+	if len(conf.RegexID) > 0 {
+		regID, err = regexp.Compile(conf.RegexID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex_id: %w", err)
+		}
+	}
+
 	rootId, err := ua.ParseNodeID(conf.Ua.Root) // objects node
 	if err != nil {
 		return nil, err
@@ -832,14 +851,14 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 				defer wg.Done()
 				bucket.Get()
 				defer bucket.Put()
-				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, nsMap)
+				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, regName, regID, nsMap)
 				availablePoints[i] = points
 			}(i)
 		}
 		if more {
 			go func() {
 				defer wg.Done()
-				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, nsMap)
+				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, regName, regID, nsMap)
 				availablePoints[operation] = points
 			}()
 		}
@@ -925,7 +944,7 @@ var attributeNames = []string{
 	"BrowseName",
 }
 
-func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
+func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, pointRegex, nameRegex, idRegex regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
 	nodes := make([]*opcua.Node, 0, len(ns))
 	for i := 0; i < len(ns); i++ {
 		if len(nsMap) == 0 {
@@ -978,23 +997,15 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 			ID:   nodes[i].ID.String(),
 			Name: browseName,
 		}
-		if !regMatched(reg, point) {
+
+		if (pointRegex != nil && !(pointRegex.MatchString(point.Name) || pointRegex.MatchString(point.ID))) ||
+			(nameRegex != nil && !nameRegex.MatchString(point.Name)) ||
+			(idRegex != nil && !idRegex.MatchString(point.ID)) {
 			continue
-		} else {
-			result = append(result, point)
 		}
+		result = append(result, point)
 	}
 	return result
-}
-
-func regMatched(reg regexp.Regexp, point *common.Point) bool {
-	if reg == nil {
-		return true
-	}
-	if reg.MatchString(point.ID) || reg.MatchString(point.Name) {
-		return true
-	}
-	return false
 }
 
 func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
