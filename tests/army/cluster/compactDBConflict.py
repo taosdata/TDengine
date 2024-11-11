@@ -23,7 +23,7 @@ class TDTestCase(TBase):
         tdLog.debug(f"start to init {__file__}")
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        self.configJsonFile('splitVgroupByLearner.json', 'db', 4, 1, 'compactDBConflict.json', 100000)
+        self.configJsonFile('compactDBConflict.json', 'db', 4, 1, 'compactDBConflict.json', 100000)
 
     def configJsonFile(self, fileName, dbName, vgroups, replica, newFileName='', insert_rows=100000,
                        timestamp_step=10000):
@@ -56,7 +56,7 @@ class TDTestCase(TBase):
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
-        self.insertData('splitVgroupByLearner.json')
+        self.insertData('compactDBConflict.json')
 
         tdSql.execute('use db')
 
