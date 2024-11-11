@@ -2082,6 +2082,85 @@ void mndTransPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
+static void mndTransLogAction(STrans *pTrans) {
+  char    detail[512] = {0};
+  int32_t len = 0;
+  int32_t index = 0;
+
+  if (pTrans->stage == TRN_STAGE_PREPARE) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTrans->prepareActions); ++i, ++index) {
+      len = 0;
+      STransAction *pAction = taosArrayGet(pTrans->prepareActions, i);
+      len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
+                      mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+                      sdbStatusName(pAction->pRaw->status));
+      mDebug("trans:%d, show tran action, detail:%s", pTrans->id, detail);
+    }
+  }
+
+  if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i, ++index) {
+      len = 0;
+      STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
+      if (pAction->actionType == TRANS_ACTION_MSG) {
+        char bufStart[40] = {0};
+        taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+
+        char endStart[40] = {0};
+        taosFormatUtcTime(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+        len += snprintf(detail + len, sizeof(detail) - len,
+                        "action:%d, %s:%d msgType:%s,"
+                        "sent:%d, received:%d, startTime:%s, endTime:%s, ",
+                        index, mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType), pAction->msgSent,
+                        pAction->msgReceived, bufStart, endStart);
+
+        SEpSet epset = pAction->epSet;
+        if (epset.numOfEps > 0) {
+          len += snprintf(detail + len, sizeof(detail) - len, "numOfEps:%d inUse:%d ", epset.numOfEps, epset.inUse);
+          for (int32_t i = 0; i < epset.numOfEps; ++i) {
+            len +=
+                snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+          }
+        }
+
+        len += snprintf(detail + len, sizeof(detail) - len, ", errCode:0x%x(%s)\n", pAction->errCode & 0xFFFF,
+                        tstrerror(pAction->errCode));
+      } else {
+        len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s, written:%d\n",
+                        index, mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+                        sdbStatusName(pAction->pRaw->status), pAction->rawWritten);
+      }
+      mDebug("trans:%d, show tran action, detail:%s", pTrans->id, detail);
+    }
+  }
+
+  if (pTrans->stage == TRN_STAGE_COMMIT_ACTION) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTrans->commitActions); ++i, ++index) {
+      len = 0;
+      STransAction *pAction = taosArrayGet(pTrans->commitActions, i);
+      len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
+                      mndTransStr(pAction->stage), i, sdbTableName(pAction->pRaw->type),
+                      sdbStatusName(pAction->pRaw->status));
+      mDebug("trans:%d, show tran action, detail:%s", pTrans->id, detail);
+    }
+
+    for (int32_t i = 0; i < taosArrayGetSize(pTrans->undoActions); ++i, ++index) {
+      len = 0;
+      STransAction *pAction = taosArrayGet(pTrans->undoActions, i);
+      if (pAction->actionType == TRANS_ACTION_MSG) {
+        len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d msgType:%s\n", index,
+                        mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType));
+        ;
+      } else {
+        len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
+                        mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
+                        sdbStatusName(pAction->pRaw->status));
+      }
+      mDebug("trans:%d, show tran action, detail:%s", pTrans->id, detail);
+    }
+  }
+}
+
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -2146,86 +2225,22 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
     int32_t len = tsnprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
-                           pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
+                            pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
     SEpSet  epset = pTrans->lastEpset;
     if (epset.numOfEps > 0) {
       len += tsnprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
-                      TMSG_INFO(pTrans->lastMsgType), epset.numOfEps, epset.inUse);
+                       TMSG_INFO(pTrans->lastMsgType), epset.numOfEps, epset.inUse);
       for (int32_t i = 0; i < pTrans->lastEpset.numOfEps; ++i) {
         len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u \n", i, epset.eps[i].fqdn, epset.eps[i].port);
       }
     }
 
-    int32_t index = 0;
-    if(pTrans->stage == TRN_STAGE_PREPARE){
-      for (int32_t i = 0; i < taosArrayGetSize(pTrans->prepareActions); ++i, ++index) {
-        STransAction *pAction = taosArrayGet(pTrans->prepareActions, i);
-        len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-                        mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
-                        sdbStatusName(pAction->pRaw->status));  // TODO dmchen remove and format
-      }
-    }
-
-    if(pTrans->stage == TRN_STAGE_REDO_ACTION){
-      for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i, ++index) {
-        STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
-        if(pAction->actionType == TRANS_ACTION_MSG){
-          char   bufStart[40] = {0};
-          taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
-
-          char   endStart[40] = {0};
-          taosFormatUtcTime(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
-          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d msgType:%s,"
-                "sent:%d, received:%d, startTime:%s, endTime:%s, ", index,
-                mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType),
-                pAction->msgSent, pAction->msgReceived, bufStart, endStart);
-
-          SEpSet  epset = pAction->epSet;
-          if (epset.numOfEps > 0) {
-            len += snprintf(detail + len, sizeof(detail) - len, "numOfEps:%d inUse:%d ",
-                            epset.numOfEps, epset.inUse);
-            for (int32_t i = 0; i < epset.numOfEps; ++i) {
-              len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn,
-epset.eps[i].port);
-            }
-          }
-
-          len += snprintf(detail + len, sizeof(detail) - len, ", errCode:0x%x(%s)\n", pAction->errCode & 0xFFFF,
-tstrerror(pAction->errCode));
-        }
-        else{
-          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s, written:%d\n",
-index, mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
-sdbStatusName(pAction->pRaw->status), pAction->rawWritten);
-        }
-      }
-    }
-
-    if(pTrans->stage == TRN_STAGE_COMMIT_ACTION){
-      for (int32_t i = 0; i < taosArrayGetSize(pTrans->commitActions); ++i, ++index) {
-        STransAction *pAction = taosArrayGet(pTrans->commitActions, i);
-        len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-              mndTransStr(pAction->stage), i, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
-      }
-
-      for (int32_t i = 0; i < taosArrayGetSize(pTrans->undoActions); ++i, ++index) {
-        STransAction *pAction = taosArrayGet(pTrans->undoActions, i);
-        if(pAction->actionType == TRANS_ACTION_MSG){
-          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d msgType:%s\n", index,
-                mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType));;
-        }
-        else{
-          len += snprintf(detail + len, sizeof(detail) - len, "action:%d, %s:%d sdbType:%s, sdbStatus:%s\n", index,
-                mndTransStr(pAction->stage), pAction->id, sdbTableName(pAction->pRaw->type),
-sdbStatusName(pAction->pRaw->status));
-        }
-      }
-    }
-
-    char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
+    char lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(lastInfo, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false), pTrans, &lino, _OVER);
+
+    mndTransLogAction(pTrans);
 
     numOfRows++;
     sdbRelease(pSdb, pTrans);

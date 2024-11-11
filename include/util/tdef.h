@@ -349,7 +349,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
-#define TSDB_TRANS_ERROR_LEN   512000  // TODO dmchen
+#define TSDB_TRANS_ERROR_LEN   512
 #define TSDB_TRANS_OBJTYPE_LEN 40
 #define TSDB_TRANS_RESULT_LEN  100
 #define TSDB_TRANS_TARGET_LEN  300
