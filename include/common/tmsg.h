@@ -1897,7 +1897,7 @@ typedef struct {
   int32_t forceReadConfig;
   int32_t isConifgVerified;
   int32_t isVersionVerified;
-  SArray* pArray;
+  SArray* array;
 } SConfigRsp;
 
 int32_t tSerializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);

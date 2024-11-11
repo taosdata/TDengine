@@ -2679,13 +2679,14 @@ int32_t persistLocalConfig(const char *path) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tSerializeSConfigArray(SEncoder *pEncoder, int32_t bufLen, SArray *array) {
+int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array) {
   int32_t code = 0;
   int32_t lino = 0;
   int     sz = taosArrayGetSize(array);
 
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, item->name));
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -2717,13 +2718,14 @@ _exit:
   return code;
 }
 
-int32_t tDeserializeSConfigArray(SDecoder *pDecoder, int32_t bufLen, SArray *array) {
+int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
   int32_t code = 0;
   int32_t lino = 0;
   int     sz = taosArrayGetSize(array);
 
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item->name));
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
@@ -2752,5 +2754,53 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, int32_t bufLen, SArray *arr
     }
   }
 _exit:
+  return code;
+}
+
+bool compareSConfigItem(const SConfigItem *item1, const SConfigItem *item2) {
+  switch (item1->dtype) {
+    case CFG_DTYPE_BOOL:
+      if (item1->bval != item2->bval) return false;
+      break;
+    case CFG_DTYPE_FLOAT:
+      if (item1->fval != item2->fval) return false;
+      break;
+    case CFG_DTYPE_INT32:
+      if (item1->i32 != item2->i32) return false;
+      break;
+    case CFG_DTYPE_INT64:
+      if (item1->i64 != item2->i64) return false;
+      break;
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+      if (strcmp(item1->str, item2->str) != 0) return false;
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+
+int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray) {
+  int32_t code = 0;
+  int32_t msz = taosArrayGetSize(mArray);
+  int32_t dsz = taosArrayGetSize(dArray);
+
+  if (msz != dsz) {
+    return TSDB_CODE_FAILED;
+  }
+
+  for (int i = 0; i < msz; i++) {
+    SConfigItem *mItem = (SConfigItem *)taosArrayGet(mArray, i);
+    SConfigItem *dItem = (SConfigItem *)taosArrayGet(dArray, i);
+    if (!compareSConfigItem(mItem, dItem)) {
+      code = TSDB_CODE_FAILED;
+      taosArrayPush(diffArray, mItem);
+    }
+  }
+
   return code;
 }

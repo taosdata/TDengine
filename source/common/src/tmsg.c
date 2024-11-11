@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
@@ -1600,6 +1601,7 @@ _exit:
   return code;
 }
 
+void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
 int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   SEncoder encoder = {0};
@@ -1608,12 +1610,11 @@ int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->forceReadConfig));
   if (pReq->forceReadConfig) {
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pReq->array));
   }
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
   tEndEncode(&encoder);
 _exit:
   if (code) {
@@ -1632,13 +1633,58 @@ int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
+  if (pReq->forceReadConfig) {
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
+  }
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
 
-void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
+int32_t tSerializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isVersionVerified));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pRsp->array));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->forceReadConfig));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isConifgVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isVersionVerified));
+  if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pRsp->array));
+  }
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+void tFreeSConfigRsp(SConfigRsp *pRsp);
 
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
   int32_t  code = 0, lino = 0;

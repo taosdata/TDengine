@@ -42,6 +42,8 @@ typedef enum {
   DND_CS_MNODE_WAL = 8,
 } EEncryptScope;
 
+extern SConfig *tsCfg;
+
 // cluster
 extern char          tsFirst[];
 extern char          tsSecond[];
@@ -296,8 +298,10 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 int32_t persistGlobalConfig(const char *path, int32_t version);
 int32_t persistLocalConfig(const char *path);
 int32_t localConfigSerialize(SArray *array, char **serialized);
-int32_t tSerializeSConfigArray(SEncoder *pEncoder, int32_t bufLen, SArray *array);
-int32_t tDeserializeSConfigArray(SDecoder *pDecoder, int32_t bufLen, SArray *array);
+int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
+int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
+
+int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 #ifdef __cplusplus
 }
 #endif

@@ -28,6 +28,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "taos_monitor.h"
+#include "tconfig.h"
 #include "tjson.h"
 #include "tmisce.h"
 #include "tunit.h"
@@ -930,24 +931,30 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   int32_t    code = -1;
 
   tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
-
-  SStatusRsp statusRsp = {0};
-  statusRsp.statusSeq++;
-  statusRsp.dnodeCfg.dnodeId = pDnode->id;
-  statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
-  statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
-  if (statusRsp.pDnodeEps == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+  SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
+  SConfigRsp configRsp = {0};
+  configRsp.forceReadConfig = configReq.forceReadConfig;
+  if (configRsp.forceReadConfig) {
+    // compare config array from configReq with current config array
+    if (compareSConfigItemArrays(cfgGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
+      configRsp.array = diffArray;
+    } else {
+      configRsp.isConifgVerified = 1;
+      taosArrayDestroy(diffArray);
+    }
+  } else {
+    configRsp.array = cfgGetGlobalCfg(tsCfg);
+    if (configReq.cver == tsConfigVersion) {
+      configRsp.isConifgVerified = 1;
+    } else {
+      configRsp.array = cfgGetGlobalCfg(tsCfg);
+    }
   }
 
-  mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
-  statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
-
-  int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
+  int32_t contLen = tSerializeSConfigRsp(NULL, 0, &configRsp);
   void   *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
-  taosArrayDestroy(statusRsp.pDnodeEps);
+  contLen = tSerializeSConfigRsp(pHead, contLen, &configRsp);
+  taosArrayDestroy(diffArray);
   if (contLen < 0) {
     code = contLen;
     goto _OVER;
