@@ -82,7 +82,7 @@ def build_docs(){
             env
         '''
         sh '''
-            cd ${DOC_WKC}/{td_repo}
+            cd ${DOC_WKC}/{TD_REPO}
             git reset --hard
             git clean -f
             git remote prune origin
@@ -93,7 +93,7 @@ def build_docs(){
             git checkout -qf FETCH_HEAD            
         '''
         sh '''
-             cd ${DOC_WKC}/{tools_repo}
+             cd ${DOC_WKC}/{TOOLS_REPO}
             git reset --hard
             git clean -f
             git remote prune origin
@@ -103,7 +103,7 @@ def build_docs(){
             git pull >/dev/null
         '''
         sh '''
-            cd ${DOC_WKC}/{en_doc_repo}
+            cd ${DOC_WKC}/{EN_DOC_REPO}
             git pull 
             yarn ass local
             yarn build 
@@ -383,10 +383,10 @@ pipeline {
         WKC = '/var/lib/jenkins/workspace/TDinternal/community'
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
         DOC_WKC = '/root/doc_ci_work'
-        td_repo = 'TDengine'
-        zh_doc_repo = 'docs.taosdata.com'
-        en_doc_repo = 'docs.tdengine.com'
-        tools_repo = 'taos-tools'
+        TD_REPO = 'TDengine'
+        ZH_DOC_REPO = 'docs.taosdata.com'
+        EN_DOC_REPO = 'docs.tdengine.com'
+        TOOLS_REPO = 'taos-tools'
     }
     stages {
         stage('check') {
