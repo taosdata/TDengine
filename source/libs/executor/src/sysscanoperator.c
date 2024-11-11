@@ -2117,12 +2117,10 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   numOfRows += 1;
   pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
   pInfo->pCur = NULL;
-  setOperatorCompleted(pOperator);
 
   if (numOfRows > 0) {
     pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
-    setOperatorCompleted(pOperator);
 
     p->info.rows = numOfRows;
     pInfo->pRes->info.rows = numOfRows;
@@ -2133,15 +2131,18 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    blockDataCleanup(p);
     numOfRows = 0;
   }
+  blockDataDestroy(p);
+  p = NULL;
+  setOperatorCompleted(pOperator);
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    blockDataDestroy(p);
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -3271,6 +3272,7 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
 
   code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL, (void**)&pInfo->pHandle,
                                                   pTaskInfo->id.str, NULL);
+  cleanupQueryTableDataCond(&cond);
   QUERY_CHECK_CODE(code, line, _end);
 
   STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
