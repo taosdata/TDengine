@@ -150,6 +150,8 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
 
+static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator);
+
 int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   SSTabFltArg* pArg = arg;
   void*        pVnode = pArg->pVnode;
@@ -3221,8 +3223,51 @@ static int32_t vnodeGetEstimateRawSize(void* arg, int64_t* size) {
 
   return code;
 }
-static int32_t metaGetSuperTableList(SOperatorInfo* pOperator) {
+typedef struct {
+  int8_t   type;
+  tb_uid_t uid;
+} STableId;
+
+static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pInfo, tb_uid_t uid, int64_t* size) {
+  int32_t        rowLen = 0;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        line = 0;
+  SExecTaskInfo* pTaskInfo = pInfo->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+
+  STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
+  code = doGetTableRowSize(NULL, uid, (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
+  QUERY_CHECK_CODE(code, line, _end);
+
+  code = pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(NULL, &blockDistInfo);
+  blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(NULL);
+  *size = blockDistInfo.numOfInmemRows * blockDistInfo.rowSize;
+  QUERY_CHECK_CODE(code, line, _end);
+
+  return code;
+_end:
+  return code;
+}
+
+static int32_t vnodeGetDataSize(SOperatorInfo* pOperator, SArray* pTableList) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  int32_t        rowLen = 0;
+  int32_t        code = TSDB_CODE_SUCCESS;
+
+  int64_t size = 0;
+  for (int i = 0; i < taosArrayGetSize(pTableList); i++) {
+    STableId* id = (STableId*)taosArrayGet(pTableList, i);
+    code = vnodeEstimateDataSizeByUid(pOperator, id->uid, &size);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return code;
+}
+
+static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
+
   int32_t line = 0;
 
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
@@ -3233,24 +3278,43 @@ static int32_t metaGetSuperTableList(SOperatorInfo* pOperator) {
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur == NULL) {
+      TAOS_CHECK_GOTO(terrno, &line, _exit);
+    }
+  }
+
+  SArray* pIdList = taosArrayInit(16, sizeof(STableId));
+  if (pIdList == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _exit);
   }
 
   while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_CHILD_TABLE)) == 0)) {
-    char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    SSchemaWrapper* schemaRow = NULL;
-
     if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
-
+      STableId id = {.type = TSDB_SUPER_TABLE, .uid = pInfo->pCur->mr.me.uid};
+      if (taosArrayPush(pIdList, &id) == NULL) {
+        TAOS_CHECK_GOTO(terrno, &line, _exit);
+      }
+    } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
+      continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
-        
+      STableId id = {.type = TSDB_NORMAL_TABLE, .uid = pInfo->pCur->mr.me.uid};
+      if (taosArrayPush(pIdList, &pInfo->pCur->mr.me.uid) == NULL) {
+        TAOS_CHECK_GOTO(terrno, &line, _exit);
+      }
     }
-    
+  }
+  code = vnodeGetDataSize(pOperator, pIdList);
+
+_exit:
+  if (pInfo->pCur) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+    setOperatorCompleted(pOperator);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
   }
 
-  return code;
-}
-static int32_t metaGetNTableList(SOperatorInfo* pOperator) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  taosArrayDestroy(pIdList);
   return code;
 }
