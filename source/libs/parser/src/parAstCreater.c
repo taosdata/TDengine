@@ -2132,6 +2132,8 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
   pStmt->pEnd = pEnd;
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pDbName);
+  nodesDestroyList(vgidList);
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
