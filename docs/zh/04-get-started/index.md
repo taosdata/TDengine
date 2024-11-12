@@ -18,14 +18,15 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <DocCardList items={useCurrentSidebarCategory().items}/>
 ```
-
+<"https://taosdata.com">
+${123}
 ## 加入 TDengine 官方社区
 
 微信扫描以下二维码，学习了解 TDengine 的最新技术，与大家共同交流物联网大数据技术应用、TDengine 使用问题和技巧等话题。
 
 <table width="100%">
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}><img src={xiaot_new} alt="小 T 的二维码" width="200" /></td>
+<td style={{padding:'1em 3em',border:0}}><img src={xiaot_new} alt="小 T 的二维码 width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={channel} alt="TDengine 微信视频号" width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
