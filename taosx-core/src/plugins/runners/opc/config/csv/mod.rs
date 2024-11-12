@@ -315,8 +315,8 @@ impl CsvParser {
         Ok(readers)
     }
 
-    pub async fn parse_all_point_id_and_tbname(&self) -> anyhow::Result<Vec<(String, String)>> {
-        let mut point_ids = vec![];
+    pub async fn parse_point_id_and_tbname(&self) -> anyhow::Result<LinkedHashMap<String, String>> {
+        let mut point_ids = LinkedHashMap::new();
 
         let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, mut rdr) in files {
@@ -343,7 +343,7 @@ impl CsvParser {
                 let point_id = Self::parse_point_id(&csv_header, &row)?;
                 let tbname = Self::parse_tbname(&csv_header, &row)?;
 
-                point_ids.push((point_id, tbname));
+                point_ids.insert(point_id, tbname);
             }
         }
 
@@ -703,24 +703,20 @@ mod tests {
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
-        let ua_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
+        let ua_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
         assert_eq!(ua_config.len(), 2);
-        let (point_id, tbname) = ua_config.first().unwrap();
-        assert_eq!(point_id, "ns=3;i=1005");
+        let tbname = ua_config.get("ns=3;i=1005").unwrap();
         assert_eq!(tbname, "t_3_1005");
-        let (point_id, tbname) = ua_config.get(1).unwrap();
-        assert_eq!(point_id, "ns=3;i=1006");
+        let tbname = ua_config.get("ns=3;i=1006").unwrap();
         assert_eq!(tbname, "t_3_1006");
 
         let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
-        let da_config = csv_parser.parse_all_point_id_and_tbname().await.unwrap();
+        let da_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
         assert_eq!(da_config.len(), 2);
-        let (point_id, tbname) = da_config.first().unwrap();
-        assert_eq!(point_id, "root.parent.temperature");
+        let tbname = da_config.get("root.parent.temperature").unwrap();
         assert_eq!(tbname, "t_temperature");
-        let (point_id, tbname) = da_config.get(1).unwrap();
-        assert_eq!(point_id, "root.parent.current");
+        let tbname = da_config.get("root.parent.current").unwrap();
         assert_eq!(tbname, "t_custom_current");
     }
 
