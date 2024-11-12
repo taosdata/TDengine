@@ -531,12 +531,14 @@ void udfdDeinitScriptPlugins() {
   if (plugin != NULL) {
     udfdDeinitPythonPlugin(plugin);
     taosMemoryFree(plugin);
+    global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON] = NULL;
   }
 
   plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB];
   if (plugin != NULL) {
     udfdDeinitCPlugin(plugin);
     taosMemoryFree(plugin);
+    global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB] = NULL;
   }
   return;
 }
@@ -551,7 +553,7 @@ void udfdProcessRequest(uv_work_t *req) {
   SUdfRequest request = {0};
   if(decodeUdfRequest(uvUdf->input.base, &request) == NULL)
   {
-    taosMemoryFree(uvUdf->input.base);
+    taosMemoryFreeClear(uvUdf->input.base);
     fnError("udf request decode failed");
     return;
   }
@@ -783,7 +785,7 @@ _send:
   
   uvUdf->output = uv_buf_init(bufBegin, len);
 
-  taosMemoryFree(uvUdf->input.base);
+  taosMemoryFreeClear(uvUdf->input.base);
   return;
 }
 
@@ -969,7 +971,7 @@ _exit:
       break;
   }
 
-  taosMemoryFree(uvUdf->input.base);
+  taosMemoryFreeClear(uvUdf->input.base);
   return;
 }
 
@@ -1668,7 +1670,7 @@ static void udfdGlobalDataDeinit() {
   taosHashCleanup(global.udfsHash);
   uv_mutex_destroy(&global.udfsMutex);
   uv_mutex_destroy(&global.scriptPluginsMutex);
-  taosMemoryFree(global.loop);
+  taosMemoryFreeClear(global.loop);
   fnInfo("udfd global data deinit");
 }
 

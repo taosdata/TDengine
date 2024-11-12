@@ -1569,7 +1569,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
       }
 
       // TODO: the call buffer is setup and freed by udf invocation
-      taosMemoryFree(uvTask->rspBuf.base);
+      taosMemoryFreeClear(uvTask->rspBuf.base);
     } else {
       code = uvTask->errCode;
       if (code != 0) {
@@ -1794,7 +1794,7 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
   }
   if (uv_sem_init(&uvTask->taskSem, 0) != 0) {
     if (uvTaskType == UV_TASK_REQ_RSP) {
-      taosMemoryFree(uvTask->reqBuf.base);
+      taosMemoryFreeClear(uvTask->reqBuf.base);
     }
     fnError("udfc create uv task, init semaphore failed.");
     return TSDB_CODE_UDF_UV_EXEC_FAILURE;
