@@ -51,10 +51,10 @@ class RestartDnodes(TDCase):
                 self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})')
         print(self.endpoint_list)
         last_endpoint_port = self.endpoint_list[-1]["endpoint"].split(":")[1]
-        self._remote.cmd(self.fqdn_list[-1], [f"netstat -ntlp | grep {last_endpoint_port} | awk \'{{print $7}}\' | cut -d '/' -f 1 | xargs kill -TERM"])
+        #self._remote.cmd(self.fqdn_list[-1], [f"netstat -ntlp | grep {last_endpoint_port} | awk \'{{print $7}}\' | cut -d '/' -f 1 | xargs kill -TERM"])
         for i in range(1001, 2000):
             self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})',queryTimes=30)
-        self.taosd.restart(self.endpoint_list[-1], self.ready_sleep)
+        #self.taosd.restart(self.endpoint_list[-1], self.ready_sleep)
         # time.sleep(self.ready_sleep*5)
         # self.tdSql.query("show dnodes")
         # for query_data in self.tdSql.query_data:
