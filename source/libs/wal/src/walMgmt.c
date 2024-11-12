@@ -91,7 +91,7 @@ static int32_t walInitLock(SWal *pWal) {
 }
 
 int32_t walInitWriteFileForSkip(SWal *pWal) {
-  TdFilePtr pIdxTFile, pLogTFile;
+  TdFilePtr pIdxTFile = NULL, pLogTFile = NULL;
   int64_t   fileFirstVer = 0;
   int32_t   code = 0;
 
