@@ -212,7 +212,6 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
                                 bool persistHandle, void* rpcCtx) {                         
   QUERY_PARAM_CHECK(pTransporter);
   QUERY_PARAM_CHECK(epSet);
-  QUERY_PARAM_CHECK(pTransporterId);
   QUERY_PARAM_CHECK(pInfo);
 
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
