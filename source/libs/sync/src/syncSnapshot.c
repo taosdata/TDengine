@@ -441,6 +441,7 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
   SSyncSnapBuffer *pRcvBuf = NULL;
   code = syncSnapBufferCreate(&pRcvBuf);
   if (pRcvBuf == NULL) {
+    taosThreadMutexDestroy(&pReceiver->writerMutex);
     taosMemoryFree(pReceiver);
     pReceiver = NULL;
     TAOS_RETURN(code);
