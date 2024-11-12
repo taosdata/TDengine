@@ -196,7 +196,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
     return code;
   }
@@ -228,7 +228,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
 
 static int32_t addUint8Param(SNodeList** pList, uint8_t param) {
   SValueNode* pVal = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
     return code;
   }
@@ -251,7 +251,7 @@ static int32_t addUint8Param(SNodeList** pList, uint8_t param) {
 }
 
 static int32_t addPseudoParam(SNodeList** pList) {
-  SNode *pseudoNode = NULL;
+  SNode*  pseudoNode = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_LEFT_VALUE, &pseudoNode);
   if (pseudoNode == NULL) {
     return code;
@@ -689,19 +689,17 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkRangeValue(SNode *pNode, SParamRange range, bool *isMatch) {
+static int32_t checkRangeValue(SNode* pNode, SParamRange range, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pNode->type == QUERY_NODE_VALUE) {
     SValueNode* pVal = (SValueNode*)pNode;
     if (IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
-      if (pVal->datum.i < range.iMinVal ||
-          pVal->datum.i > range.iMaxVal) {
+      if (pVal->datum.i < range.iMinVal || pVal->datum.i > range.iMaxVal) {
         code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
         *isMatch = false;
       }
     } else {
-      if ((int64_t)pVal->datum.d < range.iMinVal ||
-          (int64_t)pVal->datum.d > range.iMaxVal) {
+      if ((int64_t)pVal->datum.d < range.iMinVal || (int64_t)pVal->datum.d > range.iMaxVal) {
         code = TSDB_CODE_FUNC_FUNTION_PARA_RANGE;
         *isMatch = false;
       }
@@ -712,11 +710,10 @@ static int32_t checkRangeValue(SNode *pNode, SParamRange range, bool *isMatch) {
   return code;
 }
 
-static int32_t checkFixedValue(SNode *pNode, const SParamInfo *paramPattern, int32_t paramIdx, bool *isMatch) {
+static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int32_t paramIdx, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    checkStr = paramSupportVarBinary(paramPattern->validDataType) ||
-                  paramSupportVarchar(paramPattern->validDataType) ||
-                  paramSupportNchar(paramPattern->validDataType);
+                  paramSupportVarchar(paramPattern->validDataType) || paramSupportNchar(paramPattern->validDataType);
   if (pNode->type == QUERY_NODE_VALUE) {
     SValueNode* pVal = (SValueNode*)pNode;
     if (!checkStr) {
@@ -748,7 +745,7 @@ static int32_t checkFixedValue(SNode *pNode, const SParamInfo *paramPattern, int
   return code;
 }
 
-static int32_t checkPrimTS(SNode *pNode, bool *isMatch) {
+static int32_t checkPrimTS(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
       !((SColumnNode*)pNode)->isPrimTs) {
@@ -758,7 +755,7 @@ static int32_t checkPrimTS(SNode *pNode, bool *isMatch) {
   return code;
 }
 
-static int32_t checkPrimaryKey(SNode *pNode, bool *isMatch) {
+static int32_t checkPrimaryKey(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
       !((SColumnNode*)pNode)->isPk) {
@@ -768,7 +765,7 @@ static int32_t checkPrimaryKey(SNode *pNode, bool *isMatch) {
   return code;
 }
 
-static int32_t checkHasColumn(SNode *pNode, bool *isMatch) {
+static int32_t checkHasColumn(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!nodesExprHasColumn(pNode)) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL;
@@ -777,7 +774,7 @@ static int32_t checkHasColumn(SNode *pNode, bool *isMatch) {
   return code;
 }
 
-static int32_t checkValueNodeNotNull(SNode *pNode, bool *isMatch) {
+static int32_t checkValueNodeNotNull(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type) && QUERY_NODE_VALUE == nodeType(pNode)) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -786,7 +783,7 @@ static int32_t checkValueNodeNotNull(SNode *pNode, bool *isMatch) {
   return code;
 }
 
-static int32_t checkTimeUnit(SNode *pNode, int32_t precision, bool *isMatch) {
+static int32_t checkTimeUnit(SNode* pNode, int32_t precision, bool* isMatch) {
   if (nodeType(pNode) != QUERY_NODE_VALUE || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
     *isMatch = false;
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -804,15 +801,15 @@ static int32_t checkTimeUnit(SNode *pNode, int32_t precision, bool *isMatch) {
   return code;
 }
 static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  int32_t           code = TSDB_CODE_SUCCESS;
-  SNodeList*        paramList = pFunc->pParameterList;
-  char              errMsg[128] = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* paramList = pFunc->pParameterList;
+  char       errMsg[128] = {0};
 
   // no need to check
   if (funcMgtBuiltins[pFunc->funcId].parameters.paramInfoPattern == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   // check param num
   if ((funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum != -1 &&
        LIST_LENGTH(paramList) > funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum) ||
@@ -827,7 +824,8 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     const SParamInfo* paramPattern = funcMgtBuiltins[pFunc->funcId].parameters.inputParaInfo[i];
 
     while (1) {
-      for (int8_t j = paramPattern[paramIdx].startParam; j <= (paramPattern[paramIdx].endParam == -1 ? INT8_MAX : paramPattern[paramIdx].endParam); j++) {
+      for (int8_t j = paramPattern[paramIdx].startParam;
+           j <= (paramPattern[paramIdx].endParam == -1 ? INT8_MAX : paramPattern[paramIdx].endParam); j++) {
         if (j > LIST_LENGTH(paramList)) {
           code = TSDB_CODE_SUCCESS;
           isMatch = true;
@@ -911,8 +909,8 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_RANGE, "Invalid parameter range : %s",
                              pFunc->functionName);
     case TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS:
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS, "Parameter should be primary timestamp : %s",
-                             pFunc->functionName);
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS,
+                             "Parameter should be primary timestamp : %s", pFunc->functionName);
     case TSDB_CODE_FUNC_FUNTION_PARA_PK:
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_PK, "Parameter should be primary key : %s",
                              pFunc->functionName);
@@ -924,7 +922,7 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
                              pFunc->functionName);
     case TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL:
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL, "Time unit is too small : %s",
-                                     pFunc->functionName);
+                             pFunc->functionName);
     case TSDB_CODE_FUNC_FUNCTION_HISTO_TYPE:
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNCTION_HISTO_TYPE, "Invalid histogram bin type : %s",
                              pFunc->functionName);
@@ -952,8 +950,8 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* dataType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  uint8_t paraType = IS_NULL_TYPE(dataType->type) ? TSDB_DATA_TYPE_BIGINT : dataType->type;
-  int32_t bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
+  uint8_t    paraType = IS_NULL_TYPE(dataType->type) ? TSDB_DATA_TYPE_BIGINT : dataType->type;
+  int32_t    bytes = IS_STR_DATA_TYPE(paraType) ? dataType->bytes : tDataTypes[paraType].bytes;
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = paraType};
   return TSDB_CODE_SUCCESS;
 }
@@ -964,7 +962,6 @@ static int32_t translateOutDouble(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isLtrim) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1020,7 +1017,8 @@ static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT,
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes,
+                                    .type = TSDB_DATA_TYPE_BIGINT,
                                     .precision = pFunc->node.resType.precision};
   return TSDB_CODE_SUCCESS;
 }
@@ -1050,8 +1048,7 @@ static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     }
   }
 
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1065,9 +1062,9 @@ static int32_t translateOutFirstIn(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP,
-                  .precision = pFunc->node.resType.precision};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                    .type = TSDB_DATA_TYPE_TIMESTAMP,
+                                    .precision = pFunc->node.resType.precision};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1097,7 +1094,6 @@ static int32_t translateVgIdColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t reserveFirstMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1126,13 +1122,9 @@ int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRe
   return code;
 }
 
-static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return 0;
-}
+static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) { return 0; }
 
-static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return 0;
-}
+static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) { return 0; }
 
 static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1160,8 +1152,8 @@ static int32_t translateSampleTail(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   uint8_t    colType = pSDataType->type;
 
   // set result type
-  pFunc->node.resType = (SDataType){.bytes = IS_STR_DATA_TYPE(colType) ? pSDataType->bytes : tDataTypes[colType].bytes,
-                                    .type = colType};
+  pFunc->node.resType =
+      (SDataType){.bytes = IS_STR_DATA_TYPE(colType) ? pSDataType->bytes : tDataTypes[colType].bytes, .type = colType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1260,7 +1252,7 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
     return FUNC_RETURN_ROWS_N_MINUS_1;
   }
   return 1 < ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
-                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
+                                                                                : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
 static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum,
@@ -1327,13 +1319,13 @@ static int32_t translateChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateAscii(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UTINYINT].bytes, .type = TSDB_DATA_TYPE_UTINYINT};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UTINYINT].bytes, .type = TSDB_DATA_TYPE_UTINYINT};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateTrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-
 
   uint8_t para0Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t resLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
@@ -1401,7 +1393,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
 
   SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t para0Type = pPara0->resType.type;
+  uint8_t    para0Type = pPara0->resType.type;
   if (TSDB_DATA_TYPE_VARBINARY == para0Type) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1418,7 +1410,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     if (TSDB_DATA_TYPE_NCHAR == para2Type) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "CAST function converted length should be in range (0, %d] NCHARS",
-                             (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE);
+                             (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE);
     } else {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "CAST function converted length should be in range (0, %d] bytes",
@@ -1522,8 +1514,7 @@ static int32_t translateAddPrecOutBigint(SFunctionNode* pFunc, char* pErrBuf, in
     return code;
   }
 
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1535,7 +1526,8 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1573,6 +1565,10 @@ static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
 }
+static bool getBlockDBUsageFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SDBBlockUsageInfo);
+  return true;
+}
 
 static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -1581,7 +1577,6 @@ static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t translateServerStatusFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
@@ -1665,11 +1660,16 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_FIRST_STATE:
     case FUNCTION_TYPE_LAST_STATE:
       bytes = getFirstLastInfoSize(getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes,
-                                   (pFunc->hasPk) ? pFunc->pkBytes : 0) + VARSTR_HEADER_SIZE;
+                                   (pFunc->hasPk) ? pFunc->pkBytes : 0) +
+              VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_FIRST_STATE_MERGE:
     case FUNCTION_TYPE_LAST_STATE_MERGE:
       bytes = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+      break;
+    case FUNCTION_TYPE_DB_USAGE:
+    case FUNCTION_TYPE_DB_USAGE_INFO:
+      bytes = 128;
       break;
     default:
       bytes = 0;
@@ -1682,8 +1682,8 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  int8_t binType;
-  char*  binDesc;
+  int8_t  binType;
+  char*   binDesc;
   for (int32_t i = 1; i < numOfParams; ++i) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
     if (i == 1) {
@@ -5586,6 +5586,30 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_db_usage",
+    .type = FUNCTION_TYPE_DB_USAGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc   = getBlockDBUsageFuncEnv,
+    .initFunc     = blockDBUsageSetup,
+    .processFunc  = blockDBUsageFunction,
+    .finalizeFunc = blockDBUsageFinalize
+  },
+  {
+    .name = "_db_usage_info",
+    .type = FUNCTION_TYPE_DB_USAGE_INFO,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
   },
 };
 // clang-format on

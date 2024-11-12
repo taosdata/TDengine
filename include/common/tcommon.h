@@ -216,9 +216,9 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg*  pBlockAgg;
-  SArray*          pDataBlock;  // SArray<SColumnInfoData>
-  SDataBlockInfo   info;
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -298,6 +298,26 @@ typedef struct STableBlockDistInfo {
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
+
+typedef struct SDBBlockUsageInfo {
+  uint32_t rowSize;
+  uint16_t numOfFiles;
+  uint32_t numOfTables;
+  uint32_t numOfBlocks;
+  uint64_t totalSize;
+  uint64_t totalRows;
+  int32_t  maxRows;
+  int32_t  minRows;
+  int32_t  defMinRows;
+  int32_t  defMaxRows;
+  int32_t  firstSeekTimeUs;
+  uint32_t numOfInmemRows;
+  uint32_t numOfSttRows;
+  uint32_t numOfVgroups;
+} SDBBlockUsageInfo;
+
+int32_t tSerializeBlockDbUsage(void* buf, int32_t bufLen, const SDBBlockUsageInfo* pInfo);
+int32_t tDeserializeBlockDbUsage(void* buf, int32_t bufLen, SDBBlockUsageInfo* pInfo);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
@@ -391,9 +411,9 @@ typedef struct STUidTagInfo {
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 
-#define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
-#define MD5_OUTPUT_LEN 32
-#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
+#define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
+#define MD5_OUTPUT_LEN                32
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
