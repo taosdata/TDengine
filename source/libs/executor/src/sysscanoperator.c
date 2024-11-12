@@ -2016,13 +2016,19 @@ _end:
 }
 
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
-  int8_t         firstMetaCursor = 0;
-
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
+
+  SSDataBlock* p = NULL;
+  int32_t      numOfRows = 0;
+
+  const char* db = NULL;
+  int32_t     vgId = 0;
+  int32_t     numOfCols = 0;
+
   // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
   if (pInfo->readHandle.mnd != NULL) {
     // code = buildSysUsageInfo(pInfo, pOperator->resultInfo.capacity);
@@ -2038,18 +2044,9 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
-    firstMetaCursor = 1;
-  }
-  if (!firstMetaCursor) {
-    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
   }
 
   blockDataCleanup(pInfo->pRes);
-  int32_t numOfRows = 0;
-
-  const char* db = NULL;
-  int32_t     vgId = 0;
-  int32_t     numOfCols = 0;
 
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
@@ -2060,7 +2057,8 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  vnodeEstimateRawDataSize(pOperator, &staticsInfo);
+  code = vnodeEstimateRawDataSize(pOperator, &staticsInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2072,7 +2070,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+  p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
   QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
@@ -2135,9 +2133,9 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   }
   blockDataDestroy(p);
   p = NULL;
-  setOperatorCompleted(pOperator);
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  setOperatorCompleted(pOperator);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3213,26 +3211,24 @@ typedef struct {
   tb_uid_t uid;
 } STableId;
 
-static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id, SDbSizeStatisInfo* pStaticInfo) {
-  int32_t            rowLen = 0;
+static int32_t buildTableListInfo(SOperatorInfo* pOperator, STableId* id, STableListInfo** ppTableListInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            line = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-
-  SReadHandle* pReadHandle = &pInfo->readHandle;
+  SReadHandle*       pReadHandle = &pInfo->readHandle;
+  SArray*            pList = NULL;
 
   STableListInfo* pTableListInfo = tableListCreate();
+  QUERY_CHECK_NULL(ppTableListInfo, code, line, _end, terrno);
+
   if (id->type == TSDB_SUPER_TABLE) {
-    SArray* pList = taosArrayInit(4, sizeof(uint64_t));
-    code = pTaskInfo->storageAPI.metaFn.getChildTableList(pReadHandle->vnode, id->uid, pList);
-    if (code != TSDB_CODE_SUCCESS) {
-      pTaskInfo->code = code;
-      taosArrayDestroy(pList);
-      tableListDestroy(pTableListInfo);
-      return code;
-    }
+    pList = taosArrayInit(4, sizeof(uint64_t));
+    QUERY_CHECK_NULL(pList, code, line, _end, terrno);
+
+    code = pReadHandle->api.metaFn.getChildTableList(pReadHandle->vnode, id->uid, pList);
+    QUERY_CHECK_CODE(code, line, _end);
 
     size_t num = taosArrayGetSize(pList);
     for (int32_t i = 0; i < num; ++i) {
@@ -3240,30 +3236,44 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
       if (id == NULL) {
         continue;
       }
-
       code = tableListAddTableInfo(pTableListInfo, *id, 0);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        taosArrayDestroy(pList);
-        return code;
-      }
+      QUERY_CHECK_CODE(code, line, _end);
     }
     taosArrayDestroy(pList);
+    pList = NULL;
 
   } else if (id->type == TSDB_NORMAL_TABLE) {
     code = tableListAddTableInfo(pTableListInfo, id->uid, 0);
-    if (code) {
-      pTaskInfo->code = code;
-      tableListDestroy(pTableListInfo);
-      return code;
-    }
+    QUERY_CHECK_CODE(code, line, _end);
   }
-
+  *ppTableListInfo = pTableListInfo;
+  return code;
+_end:
+  taosArrayDestroy(pList);
+  tableListDestroy(pTableListInfo);
+  return code;
+}
+static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id, SDbSizeStatisInfo* pStaticInfo) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             line = 0;
+  SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*        pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo*  pInfo = pOperator->info;
   SQueryTableDataCond cond = {0};
-  code = initTableblockDistQueryCond(id->uid, &cond);
+
+  SReadHandle* pReadHandle = &pInfo->readHandle;
+
+  STableListInfo* pTableListInfo = NULL;
+  code = buildTableListInfo(pOperator, id, &pTableListInfo);
   QUERY_CHECK_CODE(code, line, _end);
+
+  tb_uid_t tbId = id->type == TSDB_SUPER_TABLE ? id->uid : 0;
+
+  code = initTableblockDistQueryCond(tbId, &cond);
+  QUERY_CHECK_CODE(code, line, _end);
+
   pInfo->pTableListInfo = pTableListInfo;
+
   int32_t num = 0;
   code = tableListGetSize(pTableListInfo, &num);
   QUERY_CHECK_CODE(code, line, _end);
@@ -3285,12 +3295,10 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
   blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pInfo->pHandle);
 
   int64_t rawDiskSize = 0, rawCacheSize = 0;
-
   rawDiskSize = (blockDistInfo.totalRows + blockDistInfo.numOfSttRows) * blockDistInfo.rowSize;
   rawCacheSize = blockDistInfo.numOfInmemRows * blockDistInfo.rowSize;
   pStaticInfo->rawDataSize += rawDiskSize;
   pStaticInfo->cacheSize += rawCacheSize;
-  QUERY_CHECK_CODE(code, line, _end);
 
   if (pInfo->pHandle != NULL) {
     pReadHandle->api.tsdReader.tsdReaderClose(pInfo->pHandle);
@@ -3298,6 +3306,7 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
   }
 
   tableListDestroy(pInfo->pTableListInfo);
+  pInfo->pTableListInfo = NULL;
   return code;
 _end:
 
@@ -3308,10 +3317,16 @@ _end:
 
   tableListDestroy(pInfo->pTableListInfo);
   pInfo->pTableListInfo = NULL;
+  if (code) {
+    pTaskInfo->code = code;
+    return code;
+  }
+  cleanupQueryTableDataCond(&cond);
   return code;
 }
 
-static int32_t vnodeGetDataSize(SOperatorInfo* pOperator, SArray* pTableList, SDbSizeStatisInfo* pStaticInfo) {
+static int32_t vnodeEstimateRawDataSizeImpl(SOperatorInfo* pOperator, SArray* pTableList,
+                                            SDbSizeStatisInfo* pStaticInfo) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -3361,21 +3376,26 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       STableId id = {.type = TSDB_NORMAL_TABLE, .uid = pInfo->pCur->mr.me.uid};
-      if (taosArrayPush(pIdList, &pInfo->pCur->mr.me.uid) == NULL) {
+      if (taosArrayPush(pIdList, &id) == NULL) {
         TAOS_CHECK_GOTO(terrno, &line, _exit);
       }
     }
   }
-  code = vnodeGetDataSize(pOperator, pIdList, pStaticInfo);
+  if (pInfo->pCur) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+  }
+
+  code = vnodeEstimateRawDataSizeImpl(pOperator, pIdList, pStaticInfo);
 
 _exit:
   if (pInfo->pCur) {
     pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
-    setOperatorCompleted(pOperator);
   }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+    pTaskInfo->code = code;
   }
 
   taosArrayDestroy(pIdList);
