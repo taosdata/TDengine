@@ -4,8 +4,6 @@ sidebar_label: Docker
 description: This document describes how to install TDengine in a Docker container and perform queries and inserts.
 ---
 
-![alt text](image.png)
-
 This document describes how to install TDengine in a Docker container and perform queries and inserts.
 
 - The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com).
