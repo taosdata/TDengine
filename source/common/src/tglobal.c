@@ -660,9 +660,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
                                 CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT,
-                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
+                                CFG_CATEGORY_GLOBAL));
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
@@ -2845,39 +2844,39 @@ void printConfigNotMatch(SArray *array) {
   }
 }
 
-void printConfigNotMatch(SArray *array) {
-  uError(
-      "The global configuration parameters in the configuration file do not match those in the cluster. Please "
-      "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
-      "configured.");
-  int32_t sz = taosArrayGetSize(array);
-  for (int i = 0; i < sz; i++) {
-    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-    switch (item->dtype) {
-      {
-        case CFG_DTYPE_NONE:
-          break;
-        case CFG_DTYPE_BOOL:
-          uError("config %s in cluster value is:%d", item->name, item->bval);
-          break;
-        case CFG_DTYPE_INT32:
-          uError("config %s in cluster value is:%d", item->name, item->i32);
-          break;
-        case CFG_DTYPE_INT64:
-          uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
-          break;
-        case CFG_DTYPE_FLOAT:
-        case CFG_DTYPE_DOUBLE:
-          uError("config %s in cluster value is:%f", item->name, item->fval);
-          break;
-        case CFG_DTYPE_STRING:
-        case CFG_DTYPE_DIR:
-        case CFG_DTYPE_LOCALE:
-        case CFG_DTYPE_CHARSET:
-        case CFG_DTYPE_TIMEZONE:
-          uError("config %s in cluster value is:%s", item->name, item->str);
-          break;
-      }
-    }
-  }
-}
+// void printConfigNotMatch(SArray *array) {
+//   uError(
+//       "The global configuration parameters in the configuration file do not match those in the cluster. Please "
+//       "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
+//       "configured.");
+//   int32_t sz = taosArrayGetSize(array);
+//   for (int i = 0; i < sz; i++) {
+//     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+//     switch (item->dtype) {
+//       {
+//         case CFG_DTYPE_NONE:
+//           break;
+//         case CFG_DTYPE_BOOL:
+//           uError("config %s in cluster value is:%d", item->name, item->bval);
+//           break;
+//         case CFG_DTYPE_INT32:
+//           uError("config %s in cluster value is:%d", item->name, item->i32);
+//           break;
+//         case CFG_DTYPE_INT64:
+//           uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
+//           break;
+//         case CFG_DTYPE_FLOAT:
+//         case CFG_DTYPE_DOUBLE:
+//           uError("config %s in cluster value is:%f", item->name, item->fval);
+//           break;
+//         case CFG_DTYPE_STRING:
+//         case CFG_DTYPE_DIR:
+//         case CFG_DTYPE_LOCALE:
+//         case CFG_DTYPE_CHARSET:
+//         case CFG_DTYPE_TIMEZONE:
+//           uError("config %s in cluster value is:%s", item->name, item->str);
+//           break;
+//       }
+//     }
+//   }
+// }
