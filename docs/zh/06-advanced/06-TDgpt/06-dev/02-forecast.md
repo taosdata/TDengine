@@ -6,10 +6,17 @@ sidebar_label: "预测算法"
 ### 输入约定
 `execute` 是预测算法处理的核心方法。框架调用该方法之前，在对象属性参数 `self.list` 中已经设置完毕用于预测的历史时间序列数据。
 
-### 父类属性及输出约定
-`execute` 方法执行完成后的返回值是长度与 `self.list` 相同的数组，数组位置 -1 的标识异常值点。
+### 输出约定及父类属性说明
+`execute` 方法执行完成后的返回一个如下字典对象， 预测返回结果如下：
+```python
+return {
+    "mse": mse,		    # 预测算法的拟合数据最小均方误差(minimum squared error)
+    "res": res              # 结果数组 [时间戳数组, 预测结果数组, 预测结果执行区间下界数组，预测结果执行区间上界数组]
+}
+```
 
-对于预测算法的父类 `AbstractForecastService` 包含的对象属性如下：
+
+预测算法的父类 `AbstractForecastService` 包含的对象属性如下：
 
 |属性名称|说明|默认值|
 |---|---|---|
@@ -21,16 +28,6 @@ sidebar_label: "预测算法"
 |conf|置信区间分位数|95|
 
 
-预测返回结果如下：
-```python
-return {
-    "rows": self.fc_rows,   # 预测数据行数
-    "period": self.period,  # 数据周期性，同输入
-    "algo": "holtwinters",  # 预测使用的算法
-    "mse": mse,				# 预测算法的最小均方误差(minimum squared error)
-    "res": res              # 结果数组 [时间戳数组, 预测结果数组, 预测结果执行区间下界数组，预测结果执行区间上界数组]
-}
-```
 
 ### 示例代码
 下面我们开发一个示例预测算法，对于任何输入的时间序列数据，固定返回值 1 作为预测结果。
@@ -41,13 +38,13 @@ from service import AbstractForecastService
 
 # 算法实现类名称 需要以下划线 "_" 开始，并以 Service 结束
 class _MyForecastService(AbstractForecastService):
-    """ 定义类，从 AbstractForecastService 继承，并实现 AbstractAnomalyDetectionService 类的抽象方法  """
+    """ 定义类，从 AbstractForecastService 继承并实现其定义的抽象方法 execute  """
 
     # 定义算法调用关键词，全小写ASCII码
-    name = 'myad'
+    name = 'myfc'
 
     # 该算法的描述信息(建议添加)
-    desc = """return the last value as the anomaly data"""
+    desc = """return the forecast time series data"""
 
     def __init__(self):
         """类初始化方法"""
@@ -55,16 +52,42 @@ class _MyForecastService(AbstractForecastService):
 
     def execute(self):
 	""" 算法逻辑的核心实现"""
+        res = []
 
-        """创建一个长度为 len(self.list)，全部值为 1 的结果数组，然后将最后一个值设置为 -1，表示最后一个值是异常值"""
-        res = [1] * len(self.list)
-        res[-1] = -1
+        """这个预测算法固定返回 1 作为预测值，预测值的数量是用户通过 self.fc_rows 指定"""
+        ts_list = [self.start_ts + i * self.time_step for i in range(self.fc_rows)]
+        res.app(ts_list)  #  设置预测结果时间戳列
 
-        """返回结果数组"""
-        return res
+        """生成全部为 1 的预测结果 """
+        res_list = [1] * self.fc_rows
+        res.append(res_list)
+
+        """检查用户输入，是否要求返回预测置信区间上下界"""
+        if self.return_conf:
+           """对于没有计算预测置信区间上下界的算法，直接返回预测值作为上下界即可"""
+           bound_list = [1] * self.fc_rows
+           res.append(bound_list) #  预测结果置信区间下界
+           res.append(bound_list) #  预测结果执行区间上界	 
+
+        """返回结果"""
+        return { "res": res, "mse": 0}
 
 	
     def set_params(self, params):
 	"""该算法无需任何输入参数，直接重载父类该函数，不处理算法参数设置逻辑"""
         pass
+```
+将该文件保存在 `./taosanalytics/algo/ad/` 目录下，然后重启 taosanode 服务。然后就可以通过 SQL 语句调用该检测算法。
+
+```SQL
+--- 对 col 列进行异常检测，通过指定 algo 参数为 myad 来调用新添加的异常检测类
+SELECT COUNT(*) FROM foo ANOMALY_DETECTION(col, 'algo=myad')
+```
+
+将该文件保存在 `./taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。通过执行 `SHOW ANODES FULL` 能够看到新加入的算法，然后就可以通过 SQL 语句调用该预测算法。
+
+```SQL
+--- 对 col 列进行异常检测，通过指定 algo 参数为 myfc 来调用新添加的预测类
+SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
+FROM foo;
 ```
