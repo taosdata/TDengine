@@ -1207,9 +1207,14 @@ export function getDsnData(data, definition) {
 }
 
 function handleProtocolData(protocol, definition) {
-    const {id} = definition;
-    if (id === 'tmq') {
-        return '';
+  const { id } = definition;
+  if (id === 'tmq') {
+    return '';
+  }
+  let dsn = '';
+  if (protocol && protocol != '--') {
+    if (ProtocolPrefix.includes(id?.toLowerCase())) {
+      dsn += '+';
     }
     dsn += protocol;
   }
