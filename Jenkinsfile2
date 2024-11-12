@@ -64,6 +64,7 @@ def check_docs() {
             ''',
             returnStdout: true
         ).trim()
+
         if (file_changed == '') {
             echo "docs PR"
             docs_only=1
@@ -74,13 +75,14 @@ def check_docs() {
     }
 }
 
-def build_docs(){
+def build_pre_docs(){
     if (env.CHANGE_URL =~ /\/TDengine\//) {
         sh '''
             hostname
             date
             env
         '''
+        
         sh '''
             cd ${DOC_WKC}/${td_repo}
             git reset --hard
@@ -92,20 +94,7 @@ def build_docs(){
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD 
         '''
-        def file_zh_changed = sh (
-            script: '''
-                cd ${DOC_WKC}/${td_repo}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
-            ''',
-            returnStdout: true
-        ).trim()
-        def file_en_changed = sh (
-            script: '''
-                cd ${DOC_WKC}/${td_repo}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
-            ''',
-            returnStdout: true
-        ).trim()
+
         sh '''
              cd ${DOC_WKC}/${tools_repo}
             git reset --hard
@@ -116,6 +105,23 @@ def build_docs(){
             git checkout ''' + env.CHANGE_TARGET + '''
             git pull >/dev/null
         '''
+
+        def file_zh_changed = sh (
+            script: '''
+                cd ${DOC_WKC}/${td_repo}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        ).trim()
+
+        def file_en_changed = sh (
+            script: '''
+                cd ${DOC_WKC}/${td_repo}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
+            ''',
+            returnStdout: true
+        ).trim()
+
         if (file_zh_changed != '') {
             sh '''
                 cd ${DOC_WKC}/${zh_doc_repo}
@@ -124,6 +130,7 @@ def build_docs(){
                 yarn build
             '''
         }
+
         if (file_en_changed != '') {
             sh '''
                 cd ${DOC_WKC}/${en_doc_repo}
@@ -134,6 +141,25 @@ def build_docs(){
         }
     }
 }
+
+def build_zh_docs(){
+        sh '''
+            cd ${DOC_WKC}/${zh_doc_repo}
+            # git pull 
+            yarn ass local
+            yarn build
+        '''
+}
+
+def build_en_docs(){
+        sh '''
+            cd ${DOC_WKC}/${en_doc_repo}
+            # git pull 
+            yarn ass local
+            yarn build
+        '''
+}
+
 
 def pre_test(){
     sh '''
@@ -425,8 +451,25 @@ pipeline {
                 stage('build docs') {
                     agent{label "doc_build_0_30"}
                     steps {
-                         build_docs()
+                         build_pre_docs()
                     }
+                    parallel {
+                        stage('Build zh Docs') {
+                            when {
+                                expression { file_zh_changed != '' }
+                            }
+                            steps {
+                                build_zh_docs()
+                            }
+                        }
+                        stage('Build en Docs') {
+                            when {
+                                expression { file_en_changed != '' }
+                            }
+                            steps {
+                                build_en_docs()
+                            }
+                        }
                 }
             }
         }
