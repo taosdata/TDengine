@@ -73,6 +73,9 @@ def check_docs(){
             ''',
             returnStdout: true
         ).trim()
+        echo "file_zh_changed: ${file_zh_changed}"
+        echo "file_en_changed: ${file_en_changed}"
+        echo "file_no_doc_changed: ${file_no_doc_changed}"
     }
 }
 
