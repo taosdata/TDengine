@@ -4,6 +4,9 @@ import jenkins.model.CauseOfInterruption
 docs_only=0
 node {
 }
+file_zh_changed = ''
+file_en_changed = ''
+
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -106,58 +109,53 @@ def build_pre_docs(){
             git pull >/dev/null
         '''
 
-        def file_zh_changed = sh (
+        file_zh_changed = sh (
             script: '''
                 cd ${DOC_WKC}/${td_repo}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
             ''',
             returnStdout: true
-        ).trim()
+        )
 
-        def file_en_changed = sh (
+        file_en_changed = sh (
             script: '''
                 cd ${DOC_WKC}/${td_repo}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
             ''',
             returnStdout: true
-        ).trim()
-
-        if (file_zh_changed != '') {
-            sh '''
-                cd ${DOC_WKC}/${zh_doc_repo}
-                # git pull 
-                yarn ass local
-                yarn build
-            '''
-        }
-
-        if (file_en_changed != '') {
-            sh '''
-                cd ${DOC_WKC}/${en_doc_repo}
-                # git pull 
-                yarn ass local
-                yarn build
-            '''
-        }
+        )
     }
 }
 
-def build_zh_docs(){
-        sh '''
-            cd ${DOC_WKC}/${zh_doc_repo}
-            # git pull 
-            yarn ass local
-            yarn build
-        '''
-}
-
-def build_en_docs(){
-        sh '''
-            cd ${DOC_WKC}/${en_doc_repo}
-            # git pull 
-            yarn ass local
-            yarn build
-        '''
+def build_docs(){
+    parallel {
+        stage('Build zh Docs') {
+            when {
+                expression { file_zh_changed != '' }
+            }
+            steps {
+                sh '''
+                    cd ${DOC_WKC}/${zh_doc_repo}
+                    # git pull 
+                    yarn ass local
+                    yarn build
+                '''
+            }
+        }
+        stage('Build en Docs') {
+            when {
+                expression { file_en_changed != '' }
+            }
+            steps {
+                sh '''
+                    cd ${DOC_WKC}/${en_doc_repo}
+                    # git pull 
+                    yarn ass local
+                    yarn build
+                '''
+            }
+        }
+    }
 }
 
 
@@ -450,28 +448,25 @@ pipeline {
                 }
                 stage('build docs') {
                     agent{label "doc_build_0_30"}
-                    steps {
-                         build_pre_docs()
+                    stages {
+                        stage('Prepare') {
+                            steps {
+                                script {
+                                    build_pre_docs()
+                                }
+                            }
+                        }
+                        stage('Build') {
+                            steps {
+                                script {
+                                    build_docs()
+                                }
+                            }
+                        }
                     }
-                    parallel {
-                        stage('Build zh Docs') {
-                            when {
-                                expression { file_zh_changed != '' }
-                            }
-                            steps {
-                                build_zh_docs()
-                            }
-                        }
-                        stage('Build en Docs') {
-                            when {
-                                expression { file_en_changed != '' }
-                            }
-                            steps {
-                                build_en_docs()
-                            }
-                        }
                 }
             }
+
         }
         stage('run test') {
             when {
