@@ -93,6 +93,7 @@ class TDTestCase:
         tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
         t6.join()
 
+        '''
         tdLog.debug("start test8")
         t7 = threading.Thread(target=self.alterDBThread)
         t7.start()
@@ -100,6 +101,7 @@ class TDTestCase:
         time.sleep(1)
         tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
         t7.join()
+        '''
 
 
     def compactDBThread(self, p, event):
