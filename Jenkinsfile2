@@ -32,6 +32,57 @@ def abort_previous(){
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
 }
+def check_docs(){
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            hostname
+            date
+            env
+        '''
+        sh '''
+            cd ${WKC}
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout ''' + env.CHANGE_TARGET + '''
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD 
+        '''
+
+        file_zh_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        )
+
+        file_en_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
+            ''',
+            returnStdout: true
+        )
+        
+        file_no_doc_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v "*.md" || :
+            ''',
+            returnStdout: true
+        ).trim()
+
+        if (file_no_doc_changed == '') {
+            echo "docs PR"
+            docs_only=1
+        } else {
+            echo file_no_doc_changed
+        }
+    }
+}
 
 def build_pre_docs(){
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -62,38 +113,6 @@ def build_pre_docs(){
             git checkout ''' + env.CHANGE_TARGET + '''
             git pull >/dev/null
         '''
-
-        file_zh_changed = sh (
-            script: '''
-                cd ${DOC_WKC}/${td_repo}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
-            ''',
-            returnStdout: true
-        )
-
-        file_en_changed = sh (
-            script: '''
-                cd ${DOC_WKC}/${td_repo}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
-            ''',
-            returnStdout: true
-        )
-        
-        file_no_doc_changed = sh (
-            script: '''
-                cd ${DOC_WKC}/${td_repo}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v "*.md" || :
-            ''',
-            returnStdout: true
-        ).trim()
-
-        if (file_no_doc_changed == '') {
-            echo "docs PR"
-            docs_only=1
-        } else {
-            echo file_no_doc_changed
-        }
-        // env.file_no_doc_changed = file_no_doc_changed
     }
 }
 
@@ -402,7 +421,7 @@ pipeline {
         stage ('check doc file changed') {
             agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}            
             steps {
-                build_pre_docs()
+                check_docs()
             }
         }
         
