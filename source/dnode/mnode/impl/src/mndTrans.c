@@ -2326,9 +2326,10 @@ static int32_t mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransAc
     char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     char bufStart[40] = {0};
-    taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->startTime > 0)
+      taosFormatUtcTime(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
     char bufEnd[40] = {0};
-    taosFormatUtcTime(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->endTime > 0) taosFormatUtcTime(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
     char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
@@ -2438,7 +2439,7 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         pShow->pIter);
 
   if (pShow->pIter == NULL) {
-    pShow->pIter = taosMemoryMalloc(sizeof(STransDetailIter));  // TODO dmchen
+    pShow->pIter = taosMemoryMalloc(sizeof(STransDetailIter));
     if (pShow->pIter == NULL) {
       mError("failed to malloc for pShow->pIter");
       return 0;
@@ -2477,6 +2478,10 @@ _OVER:
     mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
   } else {
     mInfo("retrieve trans detail, numOfRows:%d, pShow->numOfRows:%d", numOfRows, pShow->numOfRows)
+  }
+  if (numOfRows == 0) {
+    taosMemoryFree(pShow->pIter);
+    pShow->pIter = NULL;
   }
   return numOfRows;
 }
