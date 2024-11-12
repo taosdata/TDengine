@@ -453,10 +453,12 @@ static const char *mndTransTypeStr(ETrnAct actionType) {
 
 static void mndSetTransLastAction(STrans *pTrans, STransAction *pAction) {
   if (pAction != NULL) {
-    pTrans->lastAction = pAction->id;
-    pTrans->lastMsgType = pAction->msgType;
-    pTrans->lastEpset = pAction->epSet;
-    pTrans->lastErrorNo = pAction->errCode;
+    if (pAction->errCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+      pTrans->lastAction = pAction->id;
+      pTrans->lastMsgType = pAction->msgType;
+      pTrans->lastEpset = pAction->epSet;
+      pTrans->lastErrorNo = pAction->errCode;
+    }
   } else {
     pTrans->lastAction = 0;
     pTrans->lastMsgType = 0;
@@ -1335,7 +1337,8 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->code;
     pAction->endTime = taosGetTimestampMs();
-    pTrans->lastErrorNo = pRsp->code;
+    // pTrans->lastErrorNo = pRsp->code;
+    mndSetTransLastAction(pTrans, pAction);
 
     mInfo("trans:%d, %s:%d response is received, received code:0x%x(%s), accept:0x%x(%s) retry:0x%x(%s)", transId,
           mndTransStr(pAction->stage), action, pRsp->code, tstrerror(pRsp->code), pAction->acceptableCode,
@@ -1441,9 +1444,8 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     pAction->msgSent = 1;
     // pAction->msgReceived = 0;
     pAction->errCode = TSDB_CODE_ACTION_IN_PROGRESS;
-    if(pAction->startTime == 0){
-      pAction->startTime = taosGetTimestampMs();
-    }
+    pAction->startTime = taosGetTimestampMs();
+    pAction->endTime = 0;
     mInfo("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
 
     mndSetTransLastAction(pTrans, pAction);
