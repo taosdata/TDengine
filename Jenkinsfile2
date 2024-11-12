@@ -429,18 +429,19 @@ pipeline {
             when {
                 expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\// || file_zh_changed != '' || file_en_changed != '' }
             }
-            script {
-                build_pre_docs()
+            steps {
+                script {
+                    build_pre_docs()
+                }
             }
         }
         stage('Build Docs') {
-            agent{label "doc_build_0_30"}
             when {
                 expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\// || file_zh_changed != '' || file_en_changed != '' }
             }
             parallel {
                 stage('Build zh Docs') {
-                    
+                    agent{label "doc_build_0_30"}
                     when {
                         expression { file_zh_changed != '' }
                     }
@@ -449,7 +450,7 @@ pipeline {
                     }
                 }
                 stage('Build en Docs') {
-                    // agent{label "doc_build_0_30"}
+                    agent{label "doc_build_0_30"}
                     when {
                         expression { file_en_changed != '' }
                     }
