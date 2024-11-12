@@ -4,10 +4,10 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-ANode 可以运行在Linux/Windows/Mac 操作系统之上，同时要求部署 Anode 的节点安装有 3.10 及以上版本的 Python，以及相应的 Python 包自动安装组件 Pip，同时请确保能够正常连接互联网。
+ANode 可以运行在 Linux/Windows/Mac 操作系统之上，要求部署 Anode 的节点安装有 3.10 及以上版本的Python环境，以及相应的 Python 包自动安装组件 Pip。
 
 ### 安装及卸载
-使用安装包 TDengine-enterprise-anode-1.x.x.tar.gz 进行 ANode 的安装部署工作，主要操作流程如下：
+不同操作系统上安装及部署操作有差异，主要包括安装/卸载操作、安装路径、Anode服务的启停等几个方面。本小节以 Linux 系统为例，说明安装部署的整个流程。使用Linux环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 ANode 的安装部署工作，使用如下命令：
 
 ```bash
 tar -xzvf TDengine-enterprise-anode-1.0.0.tar.gz
@@ -19,7 +19,7 @@ sudo ./install.sh
 ANode 使用 Python 虚拟环境运行，避免影响安装环境中现有的 Python 库。安装后的默认 Python 虚拟环境目录位于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 执行的命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，手动删除即可。
 
 ### 启停服务
-安装 ANode 以后，可以使用 `systemctl` 来管理 ANode 的服务。使用如下命令可以启动/停止/检查状态。
+在 Linux 系统中，安装 ANode 以后可以使用 `systemd` 来管理 ANode 服务。使用如下命令可以启动/停止/检查状态。
 
 ```bash
 systemctl start  taosanoded
@@ -44,17 +44,14 @@ Anode 提供的服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信�
 ```ini
 [uwsgi]
 
-# Anode http service ip:port
+# Anode HTTP service ip:port
 http = 127.0.0.1:6050
 
-# base directory for python files
+# base directory for Anode python files， do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
 
-# initialize python file
+# initialize Anode python file
 wsgi-file = /usr/local/taos/taosanode/lib/taos/app.py
-
-# call module of uWSGI
-callable = app
 
 # pid file
 pidfile = /usr/local/taos/taosanode/taosanode.pid
@@ -68,7 +65,7 @@ logto = /var/log/taos/taosanode/taosanode.log
 # wWSGI monitor port
 stats = 127.0.0.1:8387
 
-# python virtual environment directory
+# python virtual environment directory, used by Anode
 virtualenv = /usr/local/taos/taosanode/venv/
 
 [taosanode]
@@ -81,13 +78,15 @@ model-dir = /usr/local/taos/taosanode/model/
 # default log level
 log-level = DEBUG
 
-# draw the query results
-draw-result = 0
 ```
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而无法正常启动。
-该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置及其含义和说明请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+对于 Anode 运行配置主要是以下几个：
+- app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
+- model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
+- log-level: app-log文件的日志级别
 
 
 ### ANode 基本操作
@@ -109,7 +108,7 @@ SHOW ANODES;
 SHOW ANODES FULL;
 ```
 
-#### 强制刷新集群中的分析算法缓存
+#### 刷新集群中的分析算法缓存
 ```SQL
 UPDATE ANODE {node_id}
 UPDATE ALL ANODES
