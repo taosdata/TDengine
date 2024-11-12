@@ -267,9 +267,12 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
   int8_t locked = 0;
 
-  SConfigItem* pDataDirItem = cfgGetItem(pConf, "dataDir");
-  size_t       exSize = TMAX(taosArrayGetSize(pDataDirItem->array), 1) - 1;
+  size_t       exSize = 0;
   size_t       index = 0;
+  SConfigItem* pDataDirItem = cfgGetItem(pConf, "dataDir");
+  if (pDataDirItem) {
+    exSize = TMAX(taosArrayGetSize(pDataDirItem->array), 1) - 1;
+  }
 
   TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf) + exSize), NULL, _exit);
 
