@@ -73,6 +73,9 @@ def check_docs(){
             ''',
             returnStdout: true
         ).trim()
+        echo "file_zh_changed: ${file_zh_changed}"
+        echo "file_en_changed: ${file_en_changed}"
+        echo "file_no_doc_changed: ${file_no_doc_changed}"
     }
 }
 
@@ -434,7 +437,7 @@ pipeline {
                 expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
             }
             parallel {
-                stage('Build zh Docs') {
+                stage('build zh docs') {
                     agent{label "doc_build_0_30"}
                     when {
                         expression { file_zh_changed != '' }
@@ -443,7 +446,7 @@ pipeline {
                         build_zh_docs()
                     }
                 }
-                stage('Build en Docs') {
+                stage('build en docs') {
                     agent{label "doc_build_0_30"}
                     when {
                         expression { file_en_changed != '' }
