@@ -397,9 +397,6 @@ pipeline {
     stages {
         stage ('check_doc_file_changed') {
             agent{label "doc_build_0_30"}
-            // when {
-            //     expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\//  }
-            // }
             steps {
                 script {
                     build_pre_docs()
