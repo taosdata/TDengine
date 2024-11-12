@@ -4,10 +4,10 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-ANode 要求节点上准备有 Python 3.10 及以上版本，以及相应的 Python 包自动安装组件 Pip，同时请确保能够正常连接互联网。
+ANode 可以运行在 Linux/Windows/Mac 操作系统之上，要求部署 Anode 的节点安装有 3.10 及以上版本的Python环境，以及相应的 Python 包自动安装组件 Pip。
 
 ### 安装及卸载
-使用专门的 ANode 安装包 TDengine-enterprise-anode-1.x.x.tar.gz 进行 ANode 的安装部署工作，安装过程与 TDengine 的安装流程一致。
+不同操作系统上安装及部署操作有差异，主要包括安装/卸载操作、安装路径、Anode服务的启停等几个方面。本小节以 Linux 系统为例，说明安装部署的整个流程。使用Linux环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 ANode 的安装部署工作，使用如下命令：
 
 ```bash
 tar -xzvf TDengine-enterprise-anode-1.0.0.tar.gz
@@ -15,13 +15,11 @@ cd TDengine-enterprise-anode-1.0.0
 sudo ./install.sh
 ```
 
-卸载 ANode，执行命令 `rmtaosanode` 即可。
+在安装完成 ANode 之后，执行命令 `rmtaosanode` 即可。
+ANode 使用 Python 虚拟环境运行，避免影响安装环境中现有的 Python 库。安装后的默认 Python 虚拟环境目录位于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 执行的命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，手动删除即可。
 
-### 其他
-为了避免 ANode 安装后影响目标节点现有的 Python 库。 ANode 使用 Python 虚拟环境运行，安装后的默认 Python 目录处于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，可以手动删除。
-
-## 启动及停止服务
-安装 ANode 以后，可以使用 `systemctl` 来管理 ANode 的服务。使用如下命令可以启动/停止/检查状态。
+### 启停服务
+在 Linux 系统中，安装 ANode 以后可以使用 `systemd` 来管理 ANode 服务。使用如下命令可以启动/停止/检查状态。
 
 ```bash
 systemctl start  taosanoded
@@ -29,7 +27,7 @@ systemctl stop   taosanoded
 systemctl status taosanoded
 ```
 
-## 目录及配置说明
+### 目录及配置说明
 |目录/文件|说明|
 |---------------|------|
 |/usr/local/taos/taosanode/bin|可执行文件目录|
@@ -39,63 +37,24 @@ systemctl status taosanoded
 |/var/log/taos/taosanode/|日志文件目录|
 |/etc/taos/taosanode.ini|配置文件|
 
-### 配置说明
+#### 配置说明
 
-Anode 提供的 RestFul 服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信息存放在同一个配置文件中，具体如下：
+Anode 提供的服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信息共同存放在相同的配置文件 `taosanode.ini`，该配置文件默认位于 `/etc/taos/`目录下，其具体内容及说明如下：
 
 ```ini
 [uwsgi]
-# charset
-env = LC_ALL = en_US.UTF-8
 
-# ip:port
+# Anode HTTP service ip:port
 http = 127.0.0.1:6050
 
-# the local unix socket file than communicate to Nginx
-#socket = 127.0.0.1:8001
-#socket-timeout = 10
-
-# base directory
+# base directory for Anode python files， do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
 
-# initialize python file
+# initialize Anode python file
 wsgi-file = /usr/local/taos/taosanode/lib/taos/app.py
-
-# call module of uWSGI
-callable = app
-
-# auto remove unix Socket and pid file when stopping
-vacuum = true
-
-# socket exec model
-#chmod-socket = 664
-
-# uWSGI pid
-uid = root
-
-# uWSGI gid
-gid = root
-
-# main process
-master = true
-
-# the number of worker processes
-processes = 2
 
 # pid file
 pidfile = /usr/local/taos/taosanode/taosanode.pid
-
-# enable threads
-enable-threads = true
-
-# the number of threads for each process
-threads = 4
-
-# memory useage report
-memory-report = true
-
-# smooth restart
-reload-mercy = 10
 
 # conflict with systemctl, so do NOT uncomment this
 # daemonize = /var/log/taos/taosanode/taosanode.log
@@ -106,7 +65,7 @@ logto = /var/log/taos/taosanode/taosanode.log
 # wWSGI monitor port
 stats = 127.0.0.1:8387
 
-# python virtual environment directory
+# python virtual environment directory, used by Anode
 virtualenv = /usr/local/taos/taosanode/venv/
 
 [taosanode]
@@ -119,16 +78,18 @@ model-dir = /usr/local/taos/taosanode/model/
 # default log level
 log-level = DEBUG
 
-# draw the query results
-draw-result = 0
 ```
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而无法正常启动。
+该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置及其含义和说明请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+对于 Anode 运行配置主要是以下几个：
+- app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
+- model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
+- log-level: app-log文件的日志级别
 
 
-
-## ANode 基本操作
+### ANode 基本操作
 #### 创建 ANode
 ```sql 
 CREATE ANODE {node_url}
@@ -147,7 +108,7 @@ SHOW ANODES;
 SHOW ANODES FULL;
 ```
 
-#### 强制刷新集群中的分析算法缓存
+#### 刷新集群中的分析算法缓存
 ```SQL
 UPDATE ANODE {node_id}
 UPDATE ALL ANODES
