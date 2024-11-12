@@ -18,7 +18,8 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <DocCardList items={useCurrentSidebarCategory().items}/>
 ```
-
+<"https://taosdata.com">
+${123}
 ## 加入 TDengine 官方社区
 
 微信扫描以下二维码，学习了解 TDengine 的最新技术，与大家共同交流物联网大数据技术应用、TDengine 使用问题和技巧等话题。
