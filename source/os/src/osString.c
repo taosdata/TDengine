@@ -353,10 +353,10 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
-  if (ucs4_max_len <= 0) {
+  if (ucs4_max_len == 0) {
     return true;
   }
-  if(mbs == NULL || ucs4 == NULL) {
+  if(ucs4_max_len < 0 || mbs == NULL || ucs4 == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -398,10 +398,10 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
-  if (ucs4_max_len <= 0) {
+  if (ucs4_max_len == 0) {
     return 0;
   }
-  if(ucs4 == NULL || mbs == NULL) {
+  if(ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -436,10 +436,10 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv) {
-  if (ucs4_max_len <= 0) {
+  if (ucs4_max_len == 0) {
     return 0;
   }
-  if(ucs4 == NULL || mbs == NULL) {
+  if(ucs4_max_len < 0 || ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
