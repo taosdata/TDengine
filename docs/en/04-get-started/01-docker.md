@@ -4,8 +4,10 @@ sidebar_label: Docker
 description: This document describes how to install TDengine in a Docker container and perform queries and inserts.
 ---
 
-This document describes how to install TDengine in a Docker container and perform queries and inserts.
 import TDgpt from './pic/data-analysis.png';
+
+<img src={TDgpt} width="560" alt="TDgpt架构图" />
+This document describes how to install TDengine in a Docker container and perform queries and inserts.
 - The easiest way to explore TDengine is through [TDengine Cloud](htcloud.tdengine.com).
 - To get started with TDengine in a non-containerized environment, see [Quick Install from Package](../../get-started/package).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
