@@ -196,6 +196,7 @@ def pre_test(){
     '''
     return 1
 }
+
 def pre_test_build_mac() {
     sh '''
         hostname
@@ -216,6 +217,7 @@ def pre_test_build_mac() {
         date
     '''
 }
+
 def pre_test_win(){
     bat '''
         hostname
@@ -327,6 +329,7 @@ def pre_test_win(){
         git log -5
     '''
 }
+
 def pre_test_build_win() {
     bat '''
         echo "building ..."
@@ -356,6 +359,7 @@ def pre_test_build_win() {
     '''
     return 1
 }
+
 def run_win_ctest() {
     bat '''
         echo "windows ctest ..."
@@ -365,6 +369,7 @@ def run_win_ctest() {
         time /t
     '''
 }
+
 def run_win_test() {
     bat '''
         echo "windows test ..."
@@ -395,12 +400,12 @@ pipeline {
     }
     stages {
         stage ('check_doc_file_changed') {
-                agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}            steps {
-                steps {
-                    build_pre_docs()
-                }
+            agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}            
+            steps {
+                build_pre_docs()
             }
         }
+        
         stage ('check_doc_file_changed') {
             agent{label "doc_build_0_30"}
             when {
