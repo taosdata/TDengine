@@ -45,7 +45,7 @@ char *tstrdup(const char *str) {
 
 // No errors are expected to occur
 char *strsep(char **stringp, const char *delim) {
-  if (stringp == NULL || delim == NULL) {
+  if (stringp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -54,6 +54,10 @@ char *strsep(char **stringp, const char *delim) {
   int32_t     c, sc;
   char       *tok;
   if ((s = *stringp) == NULL) return (NULL);
+  if (delim == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   for (tok = s;;) {
     c = *s++;
     spanp = delim;
@@ -130,6 +134,7 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
 
 int32_t taosStr2int16(const char *str, int16_t *val) {
   OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
   int64_t tmp = 0;
   int32_t code = taosStr2int64(str, &tmp);
   if (code) {
@@ -144,6 +149,7 @@ int32_t taosStr2int16(const char *str, int16_t *val) {
 
 int32_t taosStr2int32(const char *str, int32_t *val) {
   OS_PARAM_CHECK(str);
+  OS_PARAM_CHECK(val);
   int64_t tmp = 0;
   int32_t code = taosStr2int64(str, &tmp);
   if (code) {
@@ -172,7 +178,7 @@ int32_t taosStr2int8(const char *str, int8_t *val) {
 }
 
 int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
-  if (bytes > 0 && (f1_ucs4 == NULL || f2_ucs4 == NULL)) {
+  if ((f1_ucs4 == NULL || f2_ucs4 == NULL)) {
     return TSDB_CODE_INVALID_PARA;
   }
   for (int32_t i = 0; i < bytes; i += sizeof(TdUcs4)) {
@@ -347,7 +353,10 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
-  if(mbs == NULL || ucs4 == NULL || ucs4_max_len <= 0) {
+  if (ucs4_max_len <= 0) {
+    return true;
+  }
+  if(mbs == NULL || ucs4 == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -389,7 +398,10 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
-  if(ucs4 == NULL || mbs == NULL || ucs4_max_len <= 0) {
+  if (ucs4_max_len <= 0) {
+    return 0;
+  }
+  if(ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -424,7 +436,10 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv) {
-  if(ucs4 == NULL || mbs == NULL || ucs4_max_len <= 0) {
+  if (ucs4_max_len <= 0) {
+    return 0;
+  }
+  if(ucs4 == NULL || mbs == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
@@ -485,7 +500,7 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 
 // dst buffer size should be at least 2*len + 1
 int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len, int32_t bufSize) {
-  if (!dst || !src || len <= 0 || bufSize <= 0) {
+  if (!dst || !src || bufSize <= 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
