@@ -93,17 +93,22 @@ static int32_t walInitLock(SWal *pWal) {
 int32_t walInitWriteFileForSkip(SWal *pWal) {
   TdFilePtr pIdxTFile, pLogTFile;
   int64_t   fileFirstVer = 0;
+  int32_t   code = 0;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
   pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
-    TAOS_RETURN(terrno);
+    wError("vgId:%d, failed to open file since %s", pWal->cfg.vgId, tstrerror(terrno));
+    code = terrno;
+    goto _exit;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
-    TAOS_RETURN(terrno);
+    wError("vgId:%d, failed to open file since %s", pWal->cfg.vgId, tstrerror(terrno));
+    code = terrno;
+    goto _exit;
   }
   // switch file
   pWal->pIdxFile = pIdxTFile;
@@ -111,10 +116,15 @@ int32_t walInitWriteFileForSkip(SWal *pWal) {
   SWalFileInfo fileInfo;
   (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
   if (!taosArrayPush(pWal->fileInfoSet, &fileInfo)) {
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    wError("vgId:%d, failed to push fileInfo into array since %s", pWal->cfg.vgId, tstrerror(terrno));
+    code = terrno;
+    goto _exit;
   }
   pWal->writeCur = 0;
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+_exit:
+  (void)taosCloseFile(&pIdxTFile);
+  (void)taosCloseFile(&pLogTFile);
+  TAOS_RETURN(code);
 }
 
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
