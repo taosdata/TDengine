@@ -2,10 +2,14 @@
 title: "算法开发者指南"
 sidebar_label: "算法开发者指南"
 ---
-TDgpt 是一个开放的、可升级部署扩展算法的平台。
-本节说明如何将自己开发的预测算法和异常检测算法整合到 TDengine 分析平台，并能够通过 SQL 语句进行调用。
+TDgpt 是一个可扩展的时序数据高级分析平台，用户仅按照简易的步骤就能将新分析算法添加到分析平台中。将开发完成的算法代码文件放入对应的目录文件夹，然后重启 Anode 即可完成扩展升级。Anode 启动后会自动加载特定目录的分析算法。用户可以直接使用 SQL 语句调用添加到 TDgpt 系统中的分析算法。得益于 TDgpt 与 taosd 的松散耦合关系，分析平台升级对 taosd 完全没有影响。应用系统也不需要做任何更改就能够完成分析功能和分析算法的升级。
+
+这种方式能够按需扩展新分析算法，极大地拓展了 TDgpt 适应的范围，用户可以将契合业务场景开发的（预测、异常检测）分析算法嵌入到 TDgpt，并通过 SQL 语句进行调用。在不更改或更改非常少的应用系统代码的前提下，就能够快速完成分析功能的平滑升级。
+
+本节说明如何将预测算法和异常检测算法添加到 TDengine 分析平台。
 
 ## 目录结构
+首先需要了解TDgpt的目录结构。其主体目录结构如下图：
 
 ```bash
 .
@@ -25,19 +29,20 @@ TDgpt 是一个开放的、可升级部署扩展算法的平台。
 
 |目录|说明|
 |---|---|
-|taos|Python 源代码目录，其下包含了算法具体保存目录 algo，放置杂项目录 misc，单元测试和集成测试目录 test。 algo 目录下 ad 放置异常检测算法代码，fc 放置预测算法代码|
+|taos|Python 源代码目录，其下包含了算法具体保存目录 algo，放置杂项目录 misc，单元测试和集成测试目录 test。 algo 目录下 ad 保存异常检测算法代码，fc 目录保存预测算法代码|
 |script|是安装脚本和发布脚本放置目录|
 |model|放置针对数据集完成的训练模型|
 |cfg|配置文件目录|
 
 ## 约定与限制
 
-定义异常检测算法的 Python 代码文件需放在 /taos/algo/ad 目录中，预测算法 Python 代码文件需要放在 /taos/algo/fc 目录中，以确保系统启动的时候能够正常加载对应目录下的 Python 文件。
+- 异常检测算法的 Python 代码文件需放在 `./taos/algo/ad` 目录中
+- 预测算法 Python 代码文件需要放在 `./taos/algo/fc` 目录中
 
 
 ### 类命名规范
 
-算法类的名称需要以下划线开始，以 Service 结尾。例如：_KsigmaService 是  KSigma 异常检测算法的实现类。
+由于算法采用自动加载，因此其只识别按照特定命名方式的类。算法类的名称需要以下划线开始，以 Service 结尾。例如：_KsigmaService 是  KSigma 异常检测算法类。
 
 ### 类继承约定
 
@@ -47,111 +52,14 @@ TDgpt 是一个开放的、可升级部署扩展算法的平台。
 ### 类属性初始化
 每个算法实现的类需要静态初始化两个类属性，分别是：
 
-- `name`：触发调用的关键词，全小写英文字母
+- `name`：触发调用的关键词，全小写英文字母。该名称也是通过 `SHOW` 命令查看可用分析算法是显示的名称。
 - `desc`：算法的描述信息
 
-### 核心方法输入与输出约定
-
-`execute` 是算法处理的核心方法。调用该方法的时候，`self.list` 已经设置好输入数组。
-
-异常检测输出结果
-
-`execute` 的返回值是长度与 `self.list` 相同的数组，数组位置为 -1 的即为异常值点。例如：输入数组是 [2, 2, 2, 2, 100]， 如果 100 是异常点，那么返回值是 [1, 1, 1, 1, -1]。
-
-预测输出结果
-
-对于预测算法，`AbstractForecastService` 的对象属性说明如下：
-
-|属性名称|说明|默认值|
-|---|---|---|
-|period|输入时间序列的周期性，多少个数据点表示一个完整的周期。如果没有周期性，那么设置为 0 即可|	0|
-|start_ts|预测结果的开始时间|	0|
-|time_step|预测结果的两个数据点之间时间间隔|0	|
-|fc_rows|预测结果的数量|	0	|
-|return_conf|预测结果中是否包含置信区间范围，如果不包含置信区间，那么上界和下界与自身相同|	1|	
-|conf|置信区间分位数 0.05|
-
-
-预测返回结果如下：
-```python
-return {
-    "rows": self.fc_rows,   # 预测数据行数
-    "period": self.period,  # 数据周期性，同输入
-    "algo": "holtwinters",  # 预测使用的算法
-    "mse": mse,				# 预测算法的 mse
-    "res": res              # 结果数组 [时间戳数组, 预测结果数组, 预测结果执行区间下界数组，预测结果执行区间上界数组]
-}
+```SQL
+--- algo 后面的参数 algo_name 即为类名称 `name`
+SELECT COUNT(*) FROM foo ANOMALY_DETECTION(col_name, 'algo=algo_name')
 ```
-
-
-## 示例代码
-
-```python
-import numpy as np
-from service import AbstractAnomalyDetectionService
-
-# 算法实现类名称 需要以下划线 "_" 开始，并以 Service 结束，如下 _IqrService 是 IQR 异常检测算法的实现类。
-class _IqrService(AbstractAnomalyDetectionService):
-    """ IQR algorithm 定义类，从 AbstractAnomalyDetectionService 继承，并实现 AbstractAnomalyDetectionService 类的抽象函数  """
-
-	# 定义算法调用关键词，全小写ASCII码(必须添加)
-    name = 'iqr'
-
-	# 该算法的描述信息(建议添加)
-    desc = """found the anomaly data according to the inter-quartile range"""
-
-    def __init__(self):
-        super().__init__()
-
-    def execute(self):
-		""" execute 是算法实现逻辑的核心实现，直接修改该实现即可 """
-
-		# self.list 是输入数值列，list 类型，例如：[1,2,3,4,5]。设置 self.list 的方法在父类中已经进行了定义。实现自己的算法，修改该文件即可，以下代码使用自己的实现替换即可。
-        #lower = np.quantile(self.list, 0.25)
-        #upper = np.quantile(self.list, 0.75)
-
-        #min_val = lower - 1.5 * (upper - lower)
-        #max_val = upper + 1.5 * (upper - lower)
-        #threshold = [min_val, max_val]
-
-		# 返回值是与输入数值列长度相同的数据列，异常值对应位置是 -1。例如上述输入数据列，返回数值列是 [1, 1, 1, 1, -1],表示 [5] 是异常值。
-        return [-1 if k < threshold[0] or k > threshold[1] else 1 for k in self.list]
-
-	
-    def set_params(self, params):
-		"""该算法无需任何输入参数，直接重载父类该函数，不处理算法参数设置逻辑"""
-        pass
-```
-
-
-## 单元测试
-
-在测试文件目录中的 anomaly_test.py 中增加单元测试用例。
-
-```python
-def test_iqr(self):
-	""" 测试 _IqrService 类 """
-    s = loader.get_service("iqr")
-
-    # 设置需要进行检测的输入数据
-    s.set_input_list(AnomalyDetectionTest.input_list)
-
-	#  测试 set_params 的处理逻辑
-    try:
-        s.set_params({"k": 2})
-    except ValueError as e:
-        self.assertEqual(1, 0)
-
-    r = s.execute()
-	
-	# 绘制异常检测结果
-    draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr")
-	
-	# 检查结果
-    self.assertEqual(r[-1], -1)
-    self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
-```
-
+  
 ## 需要模型的算法
 
 针对特定数据集，进行模型训练的算法，在训练完成后。需要将训练得到的模型保存在 model 目录中。需要注意的是，针对每个算法，需要建立独立的文件夹。例如 auto_encoder 的训练算法在 model 目录下建立 autoencoder 的目录，使用该算法针对不同数据集训练得到的模型，均需要放置在该目录下。
