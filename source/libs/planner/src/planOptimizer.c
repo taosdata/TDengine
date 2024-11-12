@@ -3491,10 +3491,34 @@ static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* 
   }
 }
 
+static int32_t eliminateProjOptFindProjectPrefix(SProjectLogicNode* pProj, SProjectLogicNode* pChild, SNodeList** pNewChildTargets) {
+  bool orderMatch = false;
+  int32_t code = 0;
+  SNode* pProjection = NULL, *pChildTarget = NULL;
+  FORBOTH(pProjection, pProj->pProjections, pChildTarget, pChild->node.pTargets) {
+    if (!pProjection) break;
+    if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+      orderMatch = false;
+      break;
+    }
+    SNode* pNew = NULL;
+    code = nodesCloneNode(pChildTarget, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(pNewChildTargets, pNew);
+    }
+    if (TSDB_CODE_SUCCESS != code && pNewChildTargets) {
+      nodesDestroyList(*pNewChildTargets);
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
   int32_t     code = 0;
+  bool        needOrderMatch = false;
 
   if (NULL == pProjectNode->node.pParent) {
     SNodeList* pNewChildTargets = NULL;
@@ -3504,7 +3528,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     }
     SNode *    pProjection = NULL, *pChildTarget = NULL;
     bool       orderMatch = true;
-    bool       needOrderMatch =
+    needOrderMatch =
         QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
     if (needOrderMatch) {
       // For sql: select ... from (select ... union all select ...);
@@ -3574,6 +3598,19 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     nodesDestroyNode((SNode*)pProjectNode);
     // if pChild is a project logic node, remove its projection which is not reference by its target.
     alignProjectionWithTarget(pChild);
+    if (needOrderMatch) {
+      SNode* pChildProj = NULL;
+      FOREACH(pChildProj, pChild->pChildren) {
+        if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChildProj)) {
+          SProjectLogicNode* pChildLogic = (SProjectLogicNode*)pChildProj;
+          SNodeList* pNewChildTargetsForChild = NULL;
+          code = eliminateProjOptFindProjectPrefix((SProjectLogicNode*)pChild, pChildLogic, &pNewChildTargetsForChild);
+          if (TSDB_CODE_SUCCESS != code) break;
+          nodesDestroyList(pChildLogic->node.pTargets);
+          pChildLogic->node.pTargets = pNewChildTargetsForChild;
+        }
+      }
+    }
   }
   pCxt->optimized = true;
   return code;
