@@ -56,11 +56,7 @@ class TDTestCase:
         t2.start()
         tdLog.info("t2 threading started,wait compact db tran finish")
         event2.wait()
-        rowLen = tdSql.query('show vgroups')
-        if rowLen > 0:
-            vgroupId = tdSql.getData(0, 0)
-            tdLog.info(f"splitVgroupThread vgroupId:{vgroupId}")
-            tdSql.error('REDISTRIBUTE VGROUP 5 DNODE 1;', expectErrInfo="Transaction not completed due to conflict with compact")
+        tdSql.error('REDISTRIBUTE VGROUP 5 DNODE 1;', expectErrInfo="Transaction not completed due to conflict with compact")
         tdLog.info("wait compact db finish")
         t2.join()
 
@@ -126,6 +122,7 @@ class TDTestCase:
                 tdLog.info(f"transaction not finished")
 
     def RedistributeVGroups(self):
+        tdLog.info("REDISTRIBUTE VGROUP start")
         sql = f"REDISTRIBUTE VGROUP 5 DNODE 1"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
@@ -150,7 +147,7 @@ class TDTestCase:
         rowLen = tdSql.query('show vgroups')
         if rowLen > 0:
             vgroupId = tdSql.getData(0, 0)
-            tdLog.debug(f"splitVgroupThread vgroupId:{vgroupId}")
+            tdLog.info(f"splitVgroupThread vgroupId:{vgroupId} start")
             tdSql.execute(f"split vgroup {vgroupId}")
         else:
             tdLog.exit("get vgroupId fail!")
