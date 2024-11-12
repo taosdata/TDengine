@@ -178,8 +178,10 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(handle_get_heap)
             .service(get_task_activities_by_id)
             .service(get_task_metrics)
+            .service(get_task_csv_files)
             .service(get_tmq_task_vgroup_progress)
             .service(get_tmq_task_table_progress)
+            .service(check_exists_files)
             .service(download_files)
             .service(upload_files)
             .service(privileges::privileges_migrate)
@@ -401,6 +403,7 @@ impl Cli {
                 task::get_task_activities_by_id,
                 task::upload_files,
                 task::filemeta,
+                task::check_exists_files,
                 task::download_files,
                 metrics::profile,
                 metrics::metrics_desc,

@@ -1189,6 +1189,13 @@ export function getOptionsValue(data) {
   return data[optionsField];
 }
 
+export function getCSVOptions(data, definition) {
+  let queryArr = [];
+  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr, definition);
+  getGroupsQuery(data[groupsFieldAfterConnection], queryArr, definition);
+  return queryArr;
+}
+
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
@@ -1226,7 +1233,19 @@ function handleProtocolData(protocol, definition) {
     dsn += protocol;
   }
   if(id=='csv'){
-    return dsn+(Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
+    let csvFileConfig = store.state.csvFileListener || {file_or_dir: "1", keep_processed_files: true}
+    if (csvFileConfig.file_or_dir === '1') {
+      return dsn + store.state.csvfiles.map(item => item.response[0]).join(',') 
+                + '?file_or_dir=' + csvFileConfig.file_or_dir 
+                + '&keep_processed_files=' + csvFileConfig.keep_processed_files
+    } else {
+      return dsn + csvFileConfig.fileurl
+                + '?file_or_dir=' + csvFileConfig.file_or_dir 
+                + '&file_pattern=' + csvFileConfig.file_pattern
+                + '&new_file_notify=' + csvFileConfig.new_file_notify
+                + '&notify_interval=' + csvFileConfig.notify_interval + 's'   // 固定单位为秒
+                + '&sort=' + csvFileConfig.sort 
+    }
   }
   return dsn + '://';
 }

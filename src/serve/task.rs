@@ -19,7 +19,7 @@ use taos::Code;
 use utoipa::*;
 
 use taosx_core::core_metrics::CoreMetrics;
-use taosx_core::{get_data_dir, get_file_upload_home_dir};
+use taosx_core::{get_csv_files_from_task, get_data_dir, get_file_upload_home_dir};
 
 use super::controller::agent::AgentActivityFilter;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
@@ -684,6 +684,33 @@ pub(super) async fn get_task_metrics(
     }
 }
 
+/// Get csv files json string of a task for displaying on the web UI
+#[get("/tasks/{id}/csv_files")]
+pub(super) async fn get_task_csv_files(
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+) -> impl Responder {
+    let task_id = id.into_inner();
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(task)) => {
+            let csv_files = get_csv_files_from_task(Some(task_id), &task.from).await;
+            match csv_files {
+                Ok(csv_files) => serde_json::to_string(&csv_files).unwrap(),
+                Err(err) => {
+                    tracing::error!("get task csv files error: {}", err);
+                    "{}".to_string()
+                }
+            }
+        }
+        Ok(None) => "{}".to_string(),
+        Err(err) => {
+            tracing::error!("get task csv files error: {}", err);
+            "{}".to_string()
+        }
+    }
+}
+
 /// Get tmq task progress by given task ID in respect of the vgroup consume progress.
 #[get("/tasks/{id}/vgroup_progress")]
 pub(super) async fn get_tmq_task_vgroup_progress(
@@ -827,12 +854,14 @@ pub struct FileMeta {
 pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
+    file_pattern: Option<String>,
     has_header: bool,
     skip: Option<usize>,
     delimiter: Option<String>,
     quote: Option<String>,
     comment: Option<String>,
     sample: Option<usize>,
+    sort: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -856,20 +885,33 @@ pub struct FileMetaHeader {
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
     match get_filemeta(filemeta_request.into_inner()).await {
         Ok(filemeta) => Ok(HttpResponse::Ok().json(filemeta)),
-        Err(err) => Err(Failed::from_error(err)),
+        Err(err) => Err(Failed::from_error(format!("{:#}", err))),
     }
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header, skip, delimiter, quote, comment, sample) = (
+    let (
+        filepath_or_filedir,
+        file_type,
+        file_pattern,
+        has_header,
+        skip,
+        delimiter,
+        quote,
+        comment,
+        sample,
+        sort,
+    ) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
+        filemeta_request.file_pattern,
         filemeta_request.has_header,
         filemeta_request.skip.unwrap_or(0),
         filemeta_request.delimiter.unwrap_or_default(),
         filemeta_request.quote.unwrap_or_default(),
         filemeta_request.comment.unwrap_or_default(),
         filemeta_request.sample.unwrap_or(5),
+        filemeta_request.sort.unwrap_or(1),
     );
 
     let delimiter = delimiter.trim();
@@ -913,12 +955,14 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .collect_vec();
             let csv_header = taosx_core::csv_header(
                 filepath_or_filedir,
+                file_pattern,
                 has_header,
                 skip,
                 Some(delimiter),
                 quote,
                 comment,
                 sample,
+                sort,
             )
             .await?;
             if csv_header.columns == 0 {
@@ -963,6 +1007,24 @@ pub struct DownloadParams {
     tag = "tasks",
     responses(
         (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "file check exists error", body = Failed)
+    ),
+    params(
+        DownloadParams
+    )
+)]
+#[get("/check_exists")]
+pub async fn check_exists_files(params: Query<DownloadParams>) -> impl Responder {
+    match download(params).await {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({"exists": true}))),
+        Err(_) => Ok::<_, Failed>(HttpResponse::Ok().json(serde_json::json!({"exists": false}))),
+    }
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
         (status = 500, description = "file download error", body = Failed)
     ),
     params(
@@ -979,11 +1041,17 @@ pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> 
 
 async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
     let file_path = file_path.into_inner().file_path;
-    let data_dir = get_data_dir();
-    let file_path = data_dir.join(file_path);
-    let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
-    if meta.is_dir() {
-        anyhow::bail!("not support path");
+    // 先按绝对路径后按相对路径
+    if let Ok(file) = NamedFile::open(file_path.clone()) {
+        Ok(file)
+    } else {
+        let data_dir = get_data_dir();
+        let file_path = data_dir.join(file_path);
+        let meta =
+            std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
+        if meta.is_dir() {
+            anyhow::bail!("not support path");
+        }
+        Ok(NamedFile::open(file_path)?)
     }
-    Ok(NamedFile::open(file_path)?)
 }

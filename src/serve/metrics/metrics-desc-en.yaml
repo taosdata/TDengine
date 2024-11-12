@@ -69,3 +69,9 @@ kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
 kafka_consumed_messages: Number of messages has been consumed
 total_kafka_consumed_messages: Total consumed messages since task started
+total_csv_files: Total number of CSV files
+total_csv_files_completed: Total number of CSV files completed
+total_csv_files_completed_rows: Total number of rows in CSV files completed
+csv_files: Number of CSV files
+csv_files_completed: Number of CSV files completed in this task run
+csv_files_completed_rows: Number of rows in CSV files completed in this task run
