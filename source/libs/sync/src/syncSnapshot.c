@@ -429,7 +429,12 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
   pReceiver->startTime = 0;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
   pReceiver->pWriter = NULL;
-  (void)taosThreadMutexInit(&pReceiver->writerMutex, NULL);
+  code = taosThreadMutexInit(&pReceiver->writerMutex, NULL);
+  if (code != 0) {
+    taosMemoryFree(pReceiver);
+    pReceiver = NULL;
+    TAOS_RETURN(code);
+  }
   pReceiver->pSyncNode = pSyncNode;
   pReceiver->fromId = fromId;
   pReceiver->term = raftStoreGetTerm(pSyncNode);
@@ -441,7 +446,10 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
   SSyncSnapBuffer *pRcvBuf = NULL;
   code = syncSnapBufferCreate(&pRcvBuf);
   if (pRcvBuf == NULL) {
-    taosThreadMutexDestroy(&pReceiver->writerMutex);
+    int32_t ret = taosThreadMutexDestroy(&pReceiver->writerMutex);
+    if (ret != 0) {
+      sError("failed to destroy mutex since %s", tstrerror(ret));
+    }
     taosMemoryFree(pReceiver);
     pReceiver = NULL;
     TAOS_RETURN(code);
