@@ -3,7 +3,7 @@ sidebar_label: TDgpt
 title: TDgpt
 ---
 
-import TDgpt from '../pic/data-analysis.png';
+import TDgpt from './pic/data-analysis.png';
 
 ## 概述
 
