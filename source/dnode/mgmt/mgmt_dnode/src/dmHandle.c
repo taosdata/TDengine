@@ -308,14 +308,14 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
+          goto _exit;
         }
-        goto _exit;
       }
       if (!configRsp.isVersionVerified) {
-        
         persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
       }
     }
+    persistLocalConfig(pMgmt->path);
   }
 _exit:
   tFreeSConfigRsp(&configRsp);

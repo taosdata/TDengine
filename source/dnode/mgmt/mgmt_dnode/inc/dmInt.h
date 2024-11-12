@@ -66,6 +66,7 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
+int32_t dmStartConfigThread(SDnodeMgmt *pMgmt);
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);

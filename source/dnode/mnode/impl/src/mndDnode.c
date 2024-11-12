@@ -960,6 +960,8 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     code = contLen;
     goto _OVER;
   }
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pHead;
 _OVER:
 
   mndReleaseDnode(pMnode, pDnode);
