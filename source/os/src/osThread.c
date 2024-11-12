@@ -18,6 +18,8 @@
 #include "os.h"
 
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
+  OS_PARAM_CHECK(tid);
+  OS_PARAM_CHECK(start);
   int32_t code = pthread_create(tid, attr, start, arg);
   if (code) {
     taosThreadClear(tid);
@@ -28,6 +30,7 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
 }
 
 int32_t taosThreadAttrDestroy(TdThreadAttr *attr) { 
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_destroy(attr); 
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -37,6 +40,8 @@ int32_t taosThreadAttrDestroy(TdThreadAttr *attr) {
 }
 
 int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachstate) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(detachstate);
   int32_t code = pthread_attr_getdetachstate(attr, detachstate);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -46,6 +51,8 @@ int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachst
 }
 
 int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inheritsched) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(inheritsched);
   int32_t code = pthread_attr_getinheritsched(attr, inheritsched);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -55,6 +62,8 @@ int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inherit
 }
 
 int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param *param) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(param);
   int32_t code = pthread_attr_getschedparam(attr, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -64,6 +73,8 @@ int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param
 }
 
 int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(policy);
   int32_t code = pthread_attr_getschedpolicy(attr, policy);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -73,6 +84,8 @@ int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy) 
 }
 
 int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscope) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(contentionscope);
   int32_t code = pthread_attr_getscope(attr, contentionscope);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -82,6 +95,8 @@ int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscop
 }
 
 int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize) {
+  OS_PARAM_CHECK(attr);
+  OS_PARAM_CHECK(stacksize);
   int32_t code = pthread_attr_getstacksize(attr, stacksize);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -90,7 +105,8 @@ int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize) 
   return code;
 }
 
-int32_t taosThreadAttrInit(TdThreadAttr *attr) { 
+int32_t taosThreadAttrInit(TdThreadAttr *attr) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_init(attr); 
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -100,6 +116,7 @@ int32_t taosThreadAttrInit(TdThreadAttr *attr) {
 }
 
 int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setdetachstate(attr, detachstate);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -109,6 +126,7 @@ int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate) {
 }
 
 int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setinheritsched(attr, inheritsched);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -118,6 +136,7 @@ int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) 
 }
 
 int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedparam(attr, param);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -127,6 +146,7 @@ int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param
 }
 
 int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedpolicy(attr, policy);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -136,6 +156,7 @@ int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy) {
 }
 
 int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope) {
+  OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setscope(attr, contentionscope);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
