@@ -418,10 +418,11 @@ pipeline {
         }
         
         stage ('pre for build docs') {
-            agent{label "doc_build_0_30"}
             when {
+                beforeAgent true
                 expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
             }
+            agent{label "doc_build_0_30"}
             steps {
                 build_pre_docs()
             }
@@ -429,6 +430,7 @@ pipeline {
 
         stage('build Docs') {
             when {
+                beforeAgent true
                 expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
             }
             parallel {
