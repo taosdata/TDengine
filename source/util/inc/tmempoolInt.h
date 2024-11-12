@@ -103,7 +103,7 @@ typedef struct SMPMemHeader {
 } SMPMemHeader;
 
 typedef struct SMPMemTailer {
-
+  uint8_t tail;
 } SMPMemTailer;
 
 typedef struct SMPListNode {

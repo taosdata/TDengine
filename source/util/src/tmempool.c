@@ -179,8 +179,18 @@ uint32_t mpFileIdHashFp(const char* fileId, uint32_t len) {
   return *(uint32_t*)fileId;
 }
 
+void mpDestroyPosStat(SMPStatPos* pStat) {
+  taosHashCleanup(pStat->fileHash);
+  pStat->fileHash = NULL;
+  taosHashCleanup(pStat->remainHash);
+  pStat->remainHash = NULL;
+  taosHashCleanup(pStat->allocHash);
+  pStat->allocHash = NULL;
+  taosHashCleanup(pStat->freeHash);
+  pStat->freeHash = NULL;
+}
 
-int32_t mpInitStat(SMPStatPos* pStat, bool sessionStat) {
+int32_t mpInitPosStat(SMPStatPos* pStat, bool sessionStat) {
   pStat->remainHash = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == pStat->remainHash) {
     uError("memPool init posStat remainHash failed, error:%s, sessionStat:%d", tstrerror(terrno), sessionStat);
@@ -235,7 +245,7 @@ int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
     MP_ERR_RET((*gMPFps[gMPMgmt.strategy].initFp)(pPool, poolName, cfg));
   }
 
-  MP_ERR_RET(mpInitStat(&pPool->stat.posStat, false));
+  MP_ERR_RET(mpInitPosStat(&pPool->stat.posStat, false));
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1180,6 +1190,8 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
 
   mpCheckStatDetail(pPool, pSession, "DestroySession");
 
+  mpDestroyPosStat(&pSession->stat.posStat);
+
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 
   mpPushIdleNode(pPool, &pPool->sessionCache, (SMPListNode*)pSession);
@@ -1198,7 +1210,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob) {
     MP_ERR_JRET((*gMPFps[gMPMgmt.strategy].initSessionFp)(pPool, pSession));
   }
 
-  MP_ERR_JRET(mpInitStat(&pSession->stat.posStat, true));
+  MP_ERR_JRET(mpInitPosStat(&pSession->stat.posStat, true));
   
   pSession->pJob = (SMPJob*)pJob;
   (void)atomic_add_fetch_32(&pSession->pJob->remainSession, 1);
@@ -1293,6 +1305,8 @@ void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t siz
     mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
   } else if (0 == size){
     input.pMem = input.pOrigMem;
+    input.pOrigMem = NULL;
+    input.size = input.origSize;
     MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
     mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
     input.pMem = NULL;
@@ -1301,6 +1315,8 @@ void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t siz
     mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
 
     input.pMem = input.pOrigMem;
+    input.pOrigMem = NULL;
+    input.size = input.origSize;
     input.procFlags = MP_STAT_PROC_FLAG_EXEC;
     MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
     mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
@@ -1453,6 +1469,8 @@ void taosMemPoolClose(void* poolHandle) {
 
   mpCheckStatDetail(pPool, NULL, "PoolClose");
 
+  mpDestroyPosStat(&pPool->stat.posStat);
+
   taosMemoryFree(pPool->name);
   mpDestroyCacheGroup(&pPool->sessionCache);
 }
@@ -1556,7 +1574,12 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
   }
 #endif
 
-  taosGetTotalMemory(&tsTotalMemoryKB);
+  code = taosGetTotalMemory(&tsTotalMemoryKB);
+  if (TSDB_CODE_SUCCESS != code) {
+    uInfo("fail to system total memory, error: %s", tstrerror(code));
+    return code;
+  }
+
   if (tsTotalMemoryKB <= 0) {
     uInfo("memory pool disabled since no enough system total memory, size: %" PRId64 "KB", tsTotalMemoryKB);
     return code;
@@ -1602,7 +1625,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
     return code;
   }  
 
-  uInfo("memory pool initialized");
+  uInfo("memory pool initialized, reservedSize:%dMB, freeAfterReserved:%" PRId64 "MB", tsMinReservedMemorySize, freeSizeAfterRes/1048576UL);
 
   return code;
 }
