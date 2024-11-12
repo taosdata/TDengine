@@ -1886,7 +1886,7 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
 
-    if (nData) {
+    if (pData) {
       code = tRealloc(&pColData->pData, pColData->nData + nData);
       if (code) goto _exit;
       (void)memcpy(pColData->pData + pColData->nData, pData, nData);
@@ -3046,7 +3046,13 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    if (taosMemorySize(pBind->buffer) < (int64_t)pBind->buffer_length * pBind->num) {
+      return TSDB_CODE_TSC_STMT_BUFFER_OVERFLOW;
+    }
     for (int32_t i = 0; i < pBind->num; ++i) {
+      if (pBind->buffer_length < pBind->length[i]) {
+        return TSDB_CODE_TSC_STMT_BUFFER_OVERFLOW;
+      }
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
           code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
@@ -3063,6 +3069,10 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
       }
     }
   } else {  // fixed-length data type
+    if (pBind->buffer_length < TYPE_BYTES[pColData->type] ||
+        taosMemorySize(pBind->buffer) < (int64_t)TYPE_BYTES[pColData->type] * pBind->num) {
+      return TSDB_CODE_TSC_STMT_BUFFER_OVERFLOW;
+    }
     bool allValue;
     bool allNull;
     if (pBind->is_null) {
