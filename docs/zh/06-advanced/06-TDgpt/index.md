@@ -10,7 +10,8 @@ TDgpt 运行在部署于 TDengine 集群中的 AI Node (ANode)中。每个 TDeng
 
 下图是部署了 TDgpt 的 TDengine 集群示意图。
 
-<img src="./pic/data-analysis.png" width="560" alt="TDgpt架构图" />
+import TDgpt from '../pic/data-analysis.png';
+<img src={TDgpt} width="560" alt="TDgpt架构图" />
 
 通过注册指令将 ANode 注册到 MNode 中以后，就加入到 TDengine 集群，并可被查询引擎动态调用执行。在查询处理过程中，查询引擎根据生成的物理执行计划，**按需**向 ANode 请求高级时序数据分析服务。用户可通过SQL语句与 ANode 节点交互，并使用其提供的全部分析服务。需要注意的是 ANode 不直接接受用户的数据分析请求。同时 ANode 提供高效的动态注册机制，其注册和卸载过程完全不影响 TDengine 集群的服务，只影响提供对应的查询服务能力。
 
