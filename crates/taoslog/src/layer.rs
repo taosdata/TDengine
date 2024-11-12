@@ -139,7 +139,7 @@ impl<Q, S, M> TaosLayer<Q, S, M> {
                 }
 
                 {
-                    if let Some(fields) = span.extensions_mut().remove::<RecordFields>() {
+                    if let Some(fields) = span.extensions().get::<RecordFields>().cloned() {
                         kvs.extend(fields.0.into_iter());
                     }
                 }
@@ -363,7 +363,8 @@ fn format_str(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+
+    use tracing_subscriber::fmt::MakeWriter;
 
     use crate::{
         fake::Qid,
@@ -372,19 +373,49 @@ mod tests {
         QidManager,
     };
 
+    struct TestWriter(std::sync::mpsc::Sender<String>);
+
+    impl<'a> MakeWriter<'a> for TestWriter {
+        type Writer = Self;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            Self(self.0.clone())
+        }
+    }
+
+    impl std::io::Write for TestWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.send(String::from_utf8(buf.to_vec()).unwrap()).ok();
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn layer_test() {
         use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+        let (tx, rx) = std::sync::mpsc::channel();
         let _guard = tracing_subscriber::registry()
-            .with(TaosLayer::<Qid, _, _>::new(Mutex::new(std::io::empty())))
+            .with(TaosLayer::<Qid, _, _>::new(TestWriter(tx.clone())))
             .set_default();
 
         tracing::info_span!("outer", "k" = "kkk").in_scope(|| {
+            tracing::info!("this is a test info log");
+            let s = rx.recv().unwrap();
+            assert!(s.contains("k:kkk"));
+            assert!(s.contains("this is a test info log"));
             // test qid init
             let qid: Qid = Span.get_qid().unwrap();
             assert_eq!(qid.get(), 9223372036854775807);
             Span.set_qid(&Qid::from(999));
             tracing::info_span!("inner").in_scope(|| {
+                tracing::info!("this is a test inner info log");
+                let s = rx.recv().unwrap();
+                assert!(s.contains("k:kkk"));
+                assert!(s.contains("this is a test inner info log"));
                 // test qid inherit
                 let qid: Qid = Span.get_qid().unwrap();
                 assert_eq!(qid.get(), 999);
