@@ -1224,10 +1224,18 @@ export function getDataSources(lang) {
                         },
                         "description": "Query all child nodes starting from this node.\n",
                         "placeholder": "For example root.parent"
-                    }, {
-                        "name": "pattern", "display": "Regex pattern", "hint": {
+                    },{
+                        "name": "node_id_pattern", "display": "Point ID", "if": "!pattern", "hint": {
                             "type": "str"
-                        }, "description": "Match the data point TagName.\n"
+                        }, "description": "Regex pattern match the data point id.\n"
+                    }, {
+                        "name": "browse_name_pattern", "display": "Point Name", "if": "!pattern", "hint": {
+                            "type": "str"
+                        }, "description": "Regex pattern match the data point tag name.\n"
+                    }, {
+                        "name": "pattern", "display": "Regex pattern", "if": "pattern",  "hint": {
+                            "type": "str"
+                        }, "description": "Match the data point TagName or ID.\n"
                     }, {
                         "name": "super_table_expression",
                         "display": "Super Table Name",
@@ -4581,9 +4589,17 @@ export function getDataSources(lang) {
                         "description": "从该节点开始查询所有子节点, 多级父节点间用“.”相连接。\n",
                         "placeholder": "例如 root.parent"
                     }, {
-                        "name": "pattern", "display": "正则匹配", "hint": {
+                      "name": "node_id_pattern", "display": "节点 ID", "if": "!pattern", "hint": {
+                          "type": "str"
+                      }, "description": "数据点位 id 需要满足设置的正则表达式。\n"
+                    }, {
+                        "name": "browse_name_pattern", "display": "节点名称", "if": "!pattern", "hint": {
                             "type": "str"
                         }, "description": "数据点位 TagName 需要满足设置的正则表达式。\n"
+                    }, {
+                        "name": "pattern", "display": "正则匹配", "if": "pattern", "hint": {
+                            "type": "str"
+                        }, "description": "数据点位 id 或者 TagName 需要满足设置的正则表达式。\n"
                     }, {
                         "name": "super_table_expression",
                         "display": "超级表名称",
