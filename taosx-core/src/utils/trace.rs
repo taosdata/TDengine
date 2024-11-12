@@ -42,10 +42,6 @@ bitfield! {
 }
 
 impl Qid {
-    pub fn set_instance_id(&mut self, instance_id: u8) {
-        self.inner_set_instance_id(instance_id);
-        taoslog::utils::Span.set_qid(self);
-    }
     pub fn set_task_id(&mut self, task_id: u16) {
         self.inner_set_task_id(task_id);
         taoslog::utils::Span.set_qid(self);
@@ -180,7 +176,7 @@ impl Clone for Qid {
 impl QidManager for Qid {
     fn init() -> Self {
         let mut this = Self(0);
-        this.set_instance_id(*INSTANCE_ID.get().unwrap());
+        this.inner_set_instance_id(*INSTANCE_ID.get().unwrap());
         this
     }
 
