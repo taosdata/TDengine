@@ -4,6 +4,9 @@ import jenkins.model.CauseOfInterruption
 docs_only=0
 node {
 }
+file_zh_changed = ''
+file_en_changed = ''
+
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -64,6 +67,7 @@ def check_docs() {
             ''',
             returnStdout: true
         ).trim()
+
         if (file_changed == '') {
             echo "docs PR"
             docs_only=1
@@ -73,6 +77,75 @@ def check_docs() {
         env.FILE_CHANGED = file_changed
     }
 }
+
+def build_pre_docs(td_repo, tools_repo){
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            hostname
+            date
+            env
+        '''
+        
+        sh '''
+            cd ${DOC_WKC}/${td_repo}
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout ''' + env.CHANGE_TARGET + '''
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD 
+        '''
+
+        sh '''
+             cd ${DOC_WKC}/${tools_repo}
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git remote prune origin
+            git checkout ''' + env.CHANGE_TARGET + '''
+            git pull >/dev/null
+        '''
+
+        file_zh_changed = sh (
+            script: '''
+                cd ${DOC_WKC}/${td_repo}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        )
+
+        file_en_changed = sh (
+            script: '''
+                cd ${DOC_WKC}/${td_repo}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
+            ''',
+            returnStdout: true
+        )
+    }
+}
+
+def build_zh_docs(){
+    sh '''
+        cd ${DOC_WKC}/${zh_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
+}
+
+def build_en_docs(){
+    sh '''
+        cd ${DOC_WKC}/${en_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
+}
+
+
 def pre_test(){
     sh '''
         hostname
@@ -344,12 +417,58 @@ pipeline {
         WK = '/var/lib/jenkins/workspace/TDinternal'
         WKC = '/var/lib/jenkins/workspace/TDinternal/community'
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
+        DOC_WKC = '/root/doc_ci_work'
+        td_repo = 'TDengine'
+        zh_doc_repo = 'docs.taosdata.com'
+        en_doc_repo = 'docs.tdengine.com'
+        tools_repo = 'taos-tools'
     }
     stages {
-        stage('check') {
+        stage ('check_doc_file_changed') {
+            agent{label "doc_build_0_30"}
+            // when {
+            //     expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\//  }
+            // }
+            steps {
+                script {
+                    build_pre_docs()
+                }
+            }
+        }
+        stage('Build Docs') {
+            when {
+                expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\// || file_zh_changed != '' || file_en_changed != '' }
+            }
+            parallel {
+                stage('Build zh Docs') {
+                    agent{label "doc_build_0_30"}
+                    when {
+                        expression { file_zh_changed != '' }
+                    }
+                    steps {
+                        build_zh_docs()
+                    }
+                }
+                stage('Build en Docs') {
+                    agent{label "doc_build_0_30"}
+                    when {
+                        expression { file_en_changed != '' }
+                    }
+                    steps {
+                        build_en_docs()
+                    }
+                }
+            }
+            post {
+                unsuccessful {
+                    error('Test stage failed, terminating pipeline.')
+                }
+            }
+        }
+        stage('check_nodoc_file_changed') {
             when {
                 allOf {
-                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    not { expression { env.CHANGE_BRANCH =~ /docs\//  || env.CHANGE_BRANCH =~ /doc\// }}
                 }
             }
             parallel {
@@ -360,7 +479,8 @@ pipeline {
                     }
                 }
             }
-        }
+        }   
+
         stage('run test') {
             when {
                 allOf {
