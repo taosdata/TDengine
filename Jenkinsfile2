@@ -6,7 +6,7 @@ node {
 }
 file_zh_changed = ''
 file_en_changed = ''
-
+file_no_doc_changed = ''
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -31,51 +31,6 @@ def abort_previous(){
     def buildNumber = env.BUILD_NUMBER as int
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
-}
-def check_docs() {
-    if (env.CHANGE_URL =~ /\/TDengine\//) {
-        sh '''
-            hostname
-            date
-            env
-        '''
-        sh '''
-            cd ${WKC}
-            git reset --hard
-            git clean -f
-            rm -rf examples/rust/
-            git remote prune origin
-            git fetch
-        '''
-        script {
-            sh '''
-                cd ${WKC}
-                git checkout ''' + env.CHANGE_TARGET + '''
-            '''
-        }
-        sh '''
-            cd ${WKC}
-            git remote prune origin
-            git pull >/dev/null
-            git fetch origin +refs/pull/${CHANGE_ID}/merge
-            git checkout -qf FETCH_HEAD
-        '''
-        def file_changed = sh (
-            script: '''
-                cd ${WKC}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
-            ''',
-            returnStdout: true
-        ).trim()
-
-        if (file_changed == '') {
-            echo "docs PR"
-            docs_only=1
-        } else {
-            echo file_changed
-        }
-        env.FILE_CHANGED = file_changed
-    }
 }
 
 def build_pre_docs(){
@@ -124,6 +79,22 @@ def build_pre_docs(){
             ''',
             returnStdout: true
         )
+        
+        file_no_doc_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v "*.md" || :
+            ''',
+            returnStdout: true
+        ).trim()
+
+        if (file_no_doc_changed == '') {
+            echo "docs PR"
+            docs_only=1
+        } else {
+            echo file_no_doc_changed
+        }
+        // env.file_no_doc_changed = file_no_doc_changed
     }
 }
 
@@ -437,7 +408,7 @@ pipeline {
         }
         stage('Build Docs') {
             when {
-                expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\// || file_zh_changed != '' || file_en_changed != '' }
+                expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
             }
             parallel {
                 stage('Build zh Docs') {
@@ -461,31 +432,15 @@ pipeline {
             }
             post {
                 unsuccessful {
-                    error('Test stage failed, terminating pipeline.')
+                    error('build docs stage failed, terminating pipeline.')
                 }
             }
         }
-        stage('check_nodoc_file_changed') {
-            when {
-                allOf {
-                    not { expression { env.CHANGE_BRANCH =~ /docs\//  || env.CHANGE_BRANCH =~ /doc\// }}
-                }
-            }
-            parallel {
-                stage('check docs') {
-                    agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
-                    steps {
-                        check_docs()
-                    }
-                }
-            }
-        }   
 
         stage('run test') {
             when {
                 allOf {
-                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                    expression { docs_only == 0 }
+                    not { expression { file_no_doc_changed == '' }}
                 }
             }
             parallel {
@@ -540,7 +495,7 @@ pipeline {
                                 script {
                                     sh '''
                                     mkdir -p ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}
-                                    echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                                    echo "''' + file_no_doc_changed + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/parallel_test
