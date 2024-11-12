@@ -443,26 +443,28 @@ pipeline {
             agent{label "doc_build_0_30"}
             when {
                 expression { env.CHANGE_BRANCH =~ /docs\// || env.CHANGE_BRANCH =~ /doc\// || file_zh_changed != '' || file_en_changed != '' }
-                }
+            }
             failFast true
             steps {
+                script {
                     build_pre_docs()
-            }
-            parallel {
-                stage('Build zh Docs') {
-                    when {
-                        expression { file_zh_changed != '' }
-                    }
-                    steps {
-                        build_zh_docs()
-                    }
                 }
-                stage('Build en Docs') {
-                    when {
-                        expression { file_en_changed != '' }
+                parallel {
+                    stage('Build zh Docs') {
+                        when {
+                            expression { file_zh_changed != '' }
+                        }
+                        steps {
+                            build_zh_docs()
+                        }
                     }
-                    steps {
-                        build_en_docs()
+                    stage('Build en Docs') {
+                        when {
+                            expression { file_en_changed != '' }
+                        }
+                        steps {
+                            build_en_docs()
+                        }
                     }
                 }
             }
