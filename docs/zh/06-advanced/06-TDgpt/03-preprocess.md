@@ -8,6 +8,9 @@ sidebar_label: "数据分析预处理"
 <img src="./pic/activity.png" width="560" alt="流程图" />
 
 ### 白噪声检查
+
+<img src="../pic/white-noise-data.png" width="430" alt="white-noise-data"/>
+
 白噪声检查采用 `Ljung-Box` 检验，`Ljung-Box` 统计量的计算过程需遍历整个输入时间序列。
 如果用户能够明确输入序列一定不是白噪声序列，那么可以通过增加参数 `wncheck=0` 要求分析平台忽略白噪声输入时间序列检查，从而节省 CPU 计算资源。
 TDgpt 暂不提供独立的时间序列白噪声检测功能。
