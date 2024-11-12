@@ -43,17 +43,11 @@ Anode 提供的服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信�
 
 ```ini
 [uwsgi]
-# charset
-env = LC_ALL = en_US.UTF-8
 
-# ip:port
+# Anode http service ip:port
 http = 127.0.0.1:6050
 
-# the local unix socket file than communicate to Nginx
-#socket = 127.0.0.1:8001
-#socket-timeout = 10
-
-# base directory
+# base directory for python files
 chdir = /usr/local/taos/taosanode/lib
 
 # initialize python file
@@ -62,38 +56,8 @@ wsgi-file = /usr/local/taos/taosanode/lib/taos/app.py
 # call module of uWSGI
 callable = app
 
-# auto remove unix Socket and pid file when stopping
-vacuum = true
-
-# socket exec model
-#chmod-socket = 664
-
-# uWSGI pid
-uid = root
-
-# uWSGI gid
-gid = root
-
-# main process
-master = true
-
-# the number of worker processes
-processes = 2
-
 # pid file
 pidfile = /usr/local/taos/taosanode/taosanode.pid
-
-# enable threads
-enable-threads = true
-
-# the number of threads for each process
-threads = 4
-
-# memory useage report
-memory-report = true
-
-# smooth restart
-reload-mercy = 10
 
 # conflict with systemctl, so do NOT uncomment this
 # daemonize = /var/log/taos/taosanode/taosanode.log
@@ -123,8 +87,8 @@ draw-result = 0
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而无法正常启动。
+该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
 
-其他的具体的配置信息，请参考  uWSGI 的官方配置文档说明。
 
 ### ANode 基本操作
 #### 创建 ANode
