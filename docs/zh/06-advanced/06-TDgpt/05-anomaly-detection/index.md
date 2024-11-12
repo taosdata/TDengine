@@ -11,7 +11,7 @@ FROM foo
 ANOMALY_WINDOW(i32, "algo=iqr");
 ```
 
-如下图所示，Anode 将返回时序数据异常窗口 [10:51:30, 10:54:40] 
+如下图所示，Anode 将返回时序数据异常窗口 [10:51:30, 10:53:40] 
 
 <img src="../pic/anomaly-detection.png" width="560" alt="异常检测" />
 
