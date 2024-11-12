@@ -127,35 +127,22 @@ def build_pre_docs(){
     }
 }
 
-def build_docs(){
-    parallel {
-        stage('Build zh Docs') {
-            when {
-                expression { file_zh_changed != '' }
-            }
-            steps {
-                sh '''
-                    cd ${DOC_WKC}/${zh_doc_repo}
-                    # git pull 
-                    yarn ass local
-                    yarn build
-                '''
-            }
-        }
-        stage('Build en Docs') {
-            when {
-                expression { file_en_changed != '' }
-            }
-            steps {
-                sh '''
-                    cd ${DOC_WKC}/${en_doc_repo}
-                    # git pull 
-                    yarn ass local
-                    yarn build
-                '''
-            }
-        }
-    }
+def build_zh_docs(){
+    sh '''
+        cd ${DOC_WKC}/${zh_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
+}
+
+def build_en_docs(){
+    sh '''
+        cd ${DOC_WKC}/${en_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
 }
 
 
@@ -448,19 +435,24 @@ pipeline {
                 }
                 stage('build docs') {
                     agent{label "doc_build_0_30"}
-                    stages {
-                        stage('Prepare') {
+                    steps {
+                         build_pre_docs()
+                    }
+                    parallel {
+                        stage('Build zh Docs') {
+                            when {
+                                expression { file_zh_changed != '' }
+                            }
                             steps {
-                                script {
-                                    build_pre_docs()
-                                }
+                                build_zh_docs()
                             }
                         }
-                        stage('Build') {
+                        stage('Build en Docs') {
+                            when {
+                                expression { file_en_changed != '' }
+                            }
                             steps {
-                                script {
-                                    build_docs()
-                                }
+                                build_en_docs()
                             }
                         }
                     }
