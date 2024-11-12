@@ -14,8 +14,8 @@ ANOMALY_WINDOW(i32, "algo=iqr");
 如下图所示，Anode 将返回时序数据异常窗口 [10:51:30, 10:54:40] 
 
 <img src="../pic/anomaly-detection.png" width="560" alt="异常检测" />
-在此基础上，用户可以
 
+在此基础上，用户可以针对异常窗口内的时序数据进行查询聚合、变换处理等操作。
 
 ### 语法
 
