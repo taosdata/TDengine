@@ -196,6 +196,7 @@ def pre_test(){
     '''
     return 1
 }
+
 def pre_test_build_mac() {
     sh '''
         hostname
@@ -216,6 +217,7 @@ def pre_test_build_mac() {
         date
     '''
 }
+
 def pre_test_win(){
     bat '''
         hostname
@@ -327,6 +329,7 @@ def pre_test_win(){
         git log -5
     '''
 }
+
 def pre_test_build_win() {
     bat '''
         echo "building ..."
@@ -356,6 +359,7 @@ def pre_test_build_win() {
     '''
     return 1
 }
+
 def run_win_ctest() {
     bat '''
         echo "windows ctest ..."
@@ -365,6 +369,7 @@ def run_win_ctest() {
         time /t
     '''
 }
+
 def run_win_test() {
     bat '''
         echo "windows test ..."
