@@ -78,7 +78,7 @@ def check_docs() {
     }
 }
 
-def build_pre_docs(td_repo, tools_repo){
+def build_pre_docs(){
     if (env.CHANGE_URL =~ /\/TDengine\//) {
         sh '''
             hostname
