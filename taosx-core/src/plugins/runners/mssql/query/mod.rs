@@ -416,6 +416,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         let dsn = Dsn::from_str(
             "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",

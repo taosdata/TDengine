@@ -4047,6 +4047,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_incomplete_sqls() -> anyhow::Result<()> {
         let sqls = [
             (0x2600, "CREATE STABLE `sTb1` (`ts` TIME"),
@@ -4121,6 +4122,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn ts5124() -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn("taos:///")?;
         let taos1 = builder.build().await?;

@@ -561,8 +561,12 @@ args = [
   "-Dwarnings",
 ]
 
+[tasks.test-without-cov]
+command = "cargo"
+args = ["nextest", "run", "--workspace"]
+
 [tasks.pre-commit]
-dependencies = ["fmt", "clippy"]
+dependencies = ["fmt", "clippy", "test-without-cov"]
 
 [tasks.explorer-ui]
 cwd = "explorer"

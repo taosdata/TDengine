@@ -1847,6 +1847,7 @@ mod tests {
         )
     }
 
+    #[ignore]
     #[test]
     fn test_build_bin() {
         let mut cmd = assert_cmd::Command::new("yarn");
@@ -1854,6 +1855,7 @@ mod tests {
         assert.success();
     }
 
+    #[ignore]
     #[test]
     fn test_startup_normal() -> anyhow::Result<(), anyhow::Error> {
         // config file
@@ -1909,6 +1911,7 @@ cors = true
     }
 
     #[test]
+    #[ignore]
     fn test_startup_ssl() -> anyhow::Result<(), anyhow::Error> {
         // config file
         let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;

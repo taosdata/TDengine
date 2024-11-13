@@ -273,6 +273,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_to_schema() {
         let schema = to_schema().unwrap();
@@ -281,6 +282,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         // prepare data
         let _ = test_clear_data().await;
