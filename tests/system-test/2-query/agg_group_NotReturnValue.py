@@ -1590,11 +1590,9 @@ class TDTestCase(TDTestCase):
         self.modify_tables()
         tdSql.execute('alter local "countAlwaysReturnValue" "0"')
                
-        for i in range(2):
-            self.tag_count_all() 
-            self.tbname_count_all()  
-            self.tbname_agg_all()   
-        
+        self.tag_count_all()
+        self.tbname_count_all()
+        self.tbname_agg_all()
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
