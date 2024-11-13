@@ -1861,8 +1861,8 @@ mod tests {
         let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
         config_file.write_str(
             r#"
-port = 6060
-addr = "0.0.0.0"
+port = 6061
+addr = "127.0.0.1"
 log_level = "info"
 cluster = "http://localhost:6041"
 x_api = "http://localhost:6050"
@@ -1875,7 +1875,7 @@ cors = true
         let assert = cmd
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
         Ok(())
@@ -1908,13 +1908,12 @@ cors = true
     }
 
     #[test]
-    #[ignore]
     fn test_startup_ssl() -> anyhow::Result<(), anyhow::Error> {
         // config file
         let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
         config_file.write_str(
             r#"
-port = 6060
+port = 6062
 addr = "0.0.0.0"
 log_level = "info"
 cluster = "http://localhost:6041"
@@ -1931,7 +1930,7 @@ certificate_key = "tests/assets/cert-key.pem"
         let assert = cmd
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
         Ok(())
