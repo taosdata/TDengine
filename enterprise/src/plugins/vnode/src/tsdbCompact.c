@@ -28,7 +28,7 @@ extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, 
 
 // tsdbCompactMonitor.c
 extern bool    tsdbCompMonHasTask(STsdb *tsdb);
-extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId);
+extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
 extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 
 // new code ====================================================================================
@@ -596,7 +596,18 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid));
+        int64_t compactSize = 0;
+        if (fset->farr[TSDB_FTYPE_DATA]) {
+          compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
+        }
+
+        SSttLvl *lvl;
+        TARRAY2_FOREACH(fset->lvlArr, lvl) {
+          STFileObj *fobj;
+          TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        }
+
+        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
       }
     }
   }
