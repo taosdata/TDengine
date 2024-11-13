@@ -115,59 +115,60 @@ class TDTestCase:
         tdLog.info("compact db start")
         newtdSql.execute('compact DATABASE db')
         event.set()
-        if self.waitCompactsZero() is False:
+        if self.waitCompactsZero(atdSql=newtdSql) is False:
                 tdLog.info(f"compact not finished")
 
     def alterDBThread(self, p, newtdSql):
         tdLog.info("alter db start")
         newtdSql.execute('ALTER DATABASE db REPLICA 3')
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
                 tdLog.info(f"transaction not finished")
 
     def balanceVGROUPThread(self, p, newtdSql):
         tdLog.info("balance VGROUP start")
         newtdSql.execute('BALANCE VGROUP')
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
                 tdLog.info(f"transaction not finished")
 
     def RedistributeVGroups(self, p, newtdSql):
         tdLog.info("REDISTRIBUTE VGROUP start")
         sql = f"REDISTRIBUTE VGROUP 5 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
 
         sql = f"REDISTRIBUTE VGROUP 4 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
         
         sql = f"REDISTRIBUTE VGROUP 3 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
         
         return True
 
     def splitVgroupThread(self, p, newtdSql):
-        rowLen = tdSql.query('show vgroups')
+        newtdSql.execute(f"use db;")
+        rowLen = newtdSql.query('show vgroups')
         if rowLen > 0:
-            vgroupId = tdSql.getData(0, 0)
+            vgroupId = newtdSql.getData(0, 0)
             tdLog.info(f"splitVgroupThread vgroupId:{vgroupId} start")
             newtdSql.execute(f"split vgroup {vgroupId}")
         else:
             tdLog.exit("get vgroupId fail!")
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(atdSql=newtdSql) is False:
             tdLog.info(f"transaction not finished")
     
-    def waitTransactionZero(self, seconds = 300, interval = 1):
+    def waitTransactionZero(self, atdSql, seconds = 300, interval = 1):
         # wait end
         for i in range(seconds):
             sql ="show transactions;"
-            rows = tdSql.query(sql)
+            rows = atdSql.query(sql)
             if rows == 0:
                 tdLog.info("transaction count became zero.")
                 return True
@@ -175,11 +176,11 @@ class TDTestCase:
             time.sleep(interval)
         
         return False 
-    def waitCompactsZero(self, seconds = 300, interval = 1):
+    def waitCompactsZero(self, atdSql, seconds = 300, interval = 1):
         # wait end
         for i in range(seconds):
             sql ="show compacts;"
-            rows = tdSql.query(sql)
+            rows = atdSql.query(sql)
             if rows == 0:
                 tdLog.info("compacts count became zero.")
                 return True
