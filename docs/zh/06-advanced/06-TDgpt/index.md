@@ -5,12 +5,11 @@ title: TDgpt
 
 import TDgpt from './pic/data-analysis.png';
 
-## 概述
 
 TDgpt 是 TDengine Enterprise 中针对时序数据提供高级分析功能的企业级组件，能够独立于 TDengine 主进程部署和运行，不消耗和占用 TDengine 主进程的资源，通过内置接口向 TDengine 提供运行时动态扩展的高级时序数据分析功能。TDgpt 具有服务无状态、功能易扩展、快速弹性部署、应用轻量化、高安全性等特点。
 TDgpt 运行在部署于 TDengine 集群中的 AI Node (ANode)中。每个 TDengine 集群中可以部署一个或若干个 ANode 节点，不同的 ANode 节点之间不相关，无同步或协同的要求。ANode 注册到 TDengine 集群以后，就可以通过内部接口提供服务。TDgpt 提供的高级时序数据分析服务可分为时序数据异常检测和时序数据预测分析两个类别。
 
-下图是部署了 TDgpt 的 TDengine 集群示意图。
+下图是部署 TDgpt 的 TDengine 集群示意图。
 <img src={TDgpt} width="560" alt="TDgpt架构图" />
 
 通过注册指令将 ANode 注册到 MNode 中以后，就加入到 TDengine 集群，并可被查询引擎动态调用执行。在查询处理过程中，查询引擎根据生成的物理执行计划，**按需**向 ANode 请求高级时序数据分析服务。用户可通过SQL语句与 ANode 节点交互，并使用其提供的全部分析服务。需要注意的是 ANode 不直接接受用户的数据分析请求。同时 ANode 提供高效的动态注册机制，其注册和卸载过程完全不影响 TDengine 集群的服务，只影响提供对应的查询服务能力。
