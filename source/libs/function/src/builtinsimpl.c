@@ -3037,61 +3037,58 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
-#if 0
-  int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-
-  // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
-  // this assumption is NOT always works if project operator exists in downstream.
-  if (blockDataOrder == TSDB_ORDER_ASC) {
+  if (pCtx->order == TSDB_ORDER_ASC && !pCtx->hasPrimaryKey) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       numOfElems++;
 
       if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-        doSaveLastrow(pCtx, data, i, cts, pInfo);
+        int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
+        if (code != TSDB_CODE_SUCCESS) return code;
       }
 
       break;
     }
-  } else {  // descending order
+  } else if (!pCtx->hasPrimaryKey && pCtx->order == TSDB_ORDER_DESC) {
+    // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
+    // this assumption is NOT always works if project operator exists in downstream.
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       numOfElems++;
 
       if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
-        doSaveLastrow(pCtx, data, i, cts, pInfo);
+        int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
+        if (code != TSDB_CODE_SUCCESS) return code;
       }
       break;
     }
-  }
-#else
+  } else {
+    int64_t* pts = (int64_t*)pInput->pPTS->pData;
+    int from = -1;
+    int32_t i = -1;
+    while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
+      bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+      char* data = isNull ? NULL : colDataGetData(pInputCol, i);
+      TSKEY cts = pts[i];
 
-  int64_t* pts = (int64_t*)pInput->pPTS->pData;
-  int from = -1;
-  int32_t i = -1;
-  while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
-    bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
-    char* data = isNull ? NULL : colDataGetData(pInputCol, i);
-    TSKEY cts = pts[i];
-
-    numOfElems++;
-    char* pkData = NULL;
-    if (pCtx->hasPrimaryKey) {
-      pkData = colDataGetData(pkCol, i);
-    }
-    if (pResInfo->numOfRes == 0 || pInfo->ts < cts ||
-        (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
-      int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+      numOfElems++;
+      char* pkData = NULL;
+      if (pCtx->hasPrimaryKey) {
+        pkData = colDataGetData(pkCol, i);
       }
-      pResInfo->numOfRes = 1;
+      if (pResInfo->numOfRes == 0 || pInfo->ts < cts ||
+          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+        int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        pResInfo->numOfRes = 1;
+      }
     }
-  }
 
-#endif
+  }
 
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;

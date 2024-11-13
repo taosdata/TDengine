@@ -810,7 +810,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, pCxt->pMetaCache);
   }
-
+  pCxt->pMetaCache->forceFetchViewMeta = true;
   return code;
 }
 
@@ -888,6 +888,7 @@ static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreat
 static int32_t collectMetaKeyFromDropViewStmt(SCollectMetaKeyCxt* pCxt, SDropViewStmt* pStmt) {
   int32_t code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName,
                                             pStmt->viewName, AUTH_TYPE_ALTER, pCxt->pMetaCache);
+  pCxt->pMetaCache->forceFetchViewMeta = true;
   return code;
 }
 
