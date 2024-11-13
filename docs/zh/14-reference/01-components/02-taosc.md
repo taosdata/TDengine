@@ -79,6 +79,7 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 |uDebugFlag       |           |共用功能模块的日志开关，取值范围同上|
 |rpcDebugFlag     |           |rpc 模块的日志开关，取值范围同上|
 |jniDebugFlag     |           |jni 模块的日志开关，取值范围同上|
+|qDebugFlag       |           |query 模块的日志开关，取值范围同上|
 |cDebugFlag       |           |客户端模块的日志开关，取值范围同上|
 |simDebugFlag     |           |内部参数，测试工具的日志开关，取值范围同上|
 |tqClientDebugFlag|3.3.4.3 之后|客户端模块的日志开关，取值范围同上|
