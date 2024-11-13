@@ -361,12 +361,10 @@ end;
 [UninstallDelete]
 Type: files; Name: "{app}\plugins\pi\*.*"
 Type: files; Name: "{app}\plugins\opc\*.*"
-Type: files; Name: "{app}\plugins\mqtt\*.*"
 Type: files; Name: "{app}\plugins\influxdb\*.*"
 Type: files; Name: "{app}\plugins\opentsdb\*.*"
 Type: dirifempty; Name: "{app}\plugins\pi";
 Type: dirifempty; Name: "{app}\plugins\opc";
-Type: dirifempty; Name: "{app}\plugins\mqtt";
 Type: dirifempty; Name: "{app}\plugins\influxdb";
 Type: dirifempty; Name: "{app}\plugins\opentsdb";
 

@@ -7591,6 +7591,7 @@ dependencies = [
  "notify",
  "openssl",
  "oracle",
+ "parking_lot 0.12.3",
  "parquet",
  "paste",
  "pretty_env_logger",
@@ -7617,6 +7618,7 @@ dependencies = [
  "sha2",
  "shadow-rs 0.35.2",
  "sled",
+ "snafu",
  "socket2",
  "sqlx",
  "sqlx-postgres",
@@ -7685,6 +7687,27 @@ dependencies = [
  "quanta",
  "serde",
  "sysinfo 0.32.0",
+]
+
+[[package]]
+name = "taosx-tools"
+version = "1.8.1"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "flume",
+ "fundu",
+ "rand 0.8.5",
+ "rayon",
+ "rumqttc",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "snafu",
+ "tokio",
+ "tokio-util",
+ "toml 0.8.19",
 ]
 
 [[package]]

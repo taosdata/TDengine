@@ -42,6 +42,7 @@ use tinytemplate::TinyTemplate;
 
 pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
+use tracing::instrument;
 
 use crate::plugins::transform::parse::ArrayForTaos;
 
@@ -1059,6 +1060,7 @@ impl Parser {
         Some((idx, field.as_ref()))
     }
 
+    #[instrument(skip_all)]
     fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
         let batch = self
             .parse
@@ -1095,6 +1097,7 @@ impl Parser {
             .collect()
     }
 
+    #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
         records: &RecordBatch,
