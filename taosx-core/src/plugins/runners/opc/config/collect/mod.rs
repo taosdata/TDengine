@@ -1,7 +1,8 @@
-use std::str::FromStr;
-
+use csv_async::AsyncReader;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use taos::Dsn;
+use tokio_stream::StreamExt;
 
 use crate::runners::opc::config::collect::da::DaCollectConfig;
 use crate::runners::opc::config::collect::dump::DumpConfig;
@@ -91,9 +92,160 @@ impl CollectConfig {
     }
 }
 
+/// 从 dsn 的参数 ua.nodes/da.tags 中解析出
+pub async fn parse_opc_node_ids(dsn: &Dsn, param_key: &str) -> anyhow::Result<Vec<String>> {
+    let param_val = dsn
+        .params
+        .get(param_key)
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .ok_or(anyhow::anyhow!(""))?;
+
+    let mut node_ids = vec![];
+    for node in param_val
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        if let Some(path) = node.strip_prefix('@') {
+            // 如果以 @ 开头，说明是 csv 文件路径
+            let csv_content = tokio::fs::read_to_string(path).await?;
+            let rdr = AsyncReader::from_reader(csv_content.as_bytes());
+            let mut records = rdr.into_records();
+            while let Some(record) = records.next().await {
+                let record = record?;
+                let node_id = record[0].to_string();
+                node_ids.push(node_id);
+            }
+        } else {
+            // 如果不以 @ 开头，以 :: 进行分割，第一列是 point_id
+            let node_id = node.split_once("::").map(|(id, _)| id).unwrap_or(node);
+            node_ids.push(node_id.to_string());
+        }
+    }
+
+    Ok(node_ids)
+}
+
+// pub fn get_string_vec_from_param_or_file_for_opc(
+//     dsn: &mut Dsn,
+//     key: &str,
+// ) -> Result<Vec<String>, String> {
+//     if let Some(nodes) = dsn.remove(key) {
+//         let mut rdr = ReaderBuilder::new()
+//             .delimiter(b',')
+//             .from_reader(nodes.as_bytes());
+//         let header = rdr.headers().map_err(|err| err.to_string())?;
+//         let (files, mut node_config): (Vec<_>, Vec<_>) = header
+//             .into_iter()
+//             // .split(",")
+//             .map(|s| s.trim())
+//             .filter(|s| !s.is_empty())
+//             .map(|s| s.to_string())
+//             .partition(|v| v.starts_with("@"));
+//         // dbg!(&files, &node_config);
+//         for file in files {
+//             tracing::info!(
+//                 "current log: {}",
+//                 std::env::current_dir().unwrap().to_str().unwrap()
+//             );
+//             let f = std::fs::File::open(&file[1..]);
+//             if f.is_err() {
+//                 tracing::warn!(
+//                     "file: {} read error, cause: {}",
+//                     &file[1..],
+//                     f.err().unwrap()
+//                 );
+//                 continue;
+//                 // return Err("file read error".to_string());
+//             }
+//             let buf = std::io::BufReader::new(f.unwrap());
+//             let mut file_data = buf.lines().collect_vec();
+//             // remove header
+//             if file_data.remove(0).is_err() {
+//                 tracing::warn!("file: {} content length < 1", file);
+//             }
+//
+//             node_config.extend(
+//                 file_data
+//                     .iter()
+//                     .filter_map(|r| r.as_ref().ok())
+//                     .map(|s| s.replace(",", "::")),
+//             );
+//         }
+//         if node_config.is_empty() {
+//             tracing::warn!("node config is empty");
+//             // return Err(format!("node config set but is empty: {nodes}"));
+//         }
+//         return Ok(node_config);
+//     }
+//     // tracing::warn!("node config is empty");
+//     Err("Nodes not set".to_string())
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taos::IntoDsn;
+
+    #[tokio::test]
+    async fn test_parse_opc_node_ids_in_dsn() {
+        // given
+        let dsn = "opcua://?ua.nodes=@./tests/opc/ua.nodes"
+            .into_dsn()
+            .unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 2);
+        assert_eq!(node_ids[0], "ns=3;i=1002");
+        assert_eq!(node_ids[1], "ns=3;i=1007");
+
+        // given
+        let dsn = "opcda://?ua.nodes=@./tests/opc/ua.nodes,ns=3;i=1001,ns=3;i=1003"
+            .into_dsn()
+            .unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "ua.nodes").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 4);
+        assert_eq!(node_ids[0], "ns=3;i=1002");
+        assert_eq!(node_ids[1], "ns=3;i=1007");
+        assert_eq!(node_ids[2], "ns=3;i=1001");
+        assert_eq!(node_ids[3], "ns=3;i=1003");
+
+        // given
+        let dsn = "opcda://?da.tags=@./tests/opc/da.tags".into_dsn().unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "da.tags").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 2);
+        assert_eq!(node_ids[0], "tag1");
+        assert_eq!(node_ids[1], "tag2");
+
+        // given
+        let dsn = "opcda://?da.tags=@./tests/opc/da.tags,tag3::tb3,tag4::tb4"
+            .into_dsn()
+            .unwrap();
+        // when
+        let node_ids = parse_opc_node_ids(&dsn, "da.tags").await.unwrap();
+        // then
+        assert_eq!(node_ids.len(), 4);
+        assert_eq!(node_ids[0], "tag1");
+        assert_eq!(node_ids[1], "tag2");
+        assert_eq!(node_ids[2], "tag3");
+        assert_eq!(node_ids[3], "tag4");
+    }
+
+    // #[test]
+    // fn test_parse_special_nodes() {
+    //     let mut dsn = format!(
+    //         "opcua://?ua.nodes={}",
+    //         r#""ns=3;s=Special_""!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_""!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}","a::b""#
+    //     ).into_dsn().unwrap();
+    //
+    //     let config = get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes").unwrap();
+    //     assert_eq!(config[0], "ns=3;s=Special_\"!§$%");
+    // }
 
     #[test]
     fn test_parse_interval() {

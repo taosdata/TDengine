@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -431,6 +432,106 @@ func TestGetPointsInorder(t *testing.T) {
 	nextPoints, err := client.GetAllPoints(pointsConf)
 	assert.NoError(t, err)
 	assert.Equal(t, points, nextPoints)
+}
+
+func TestGetPointsRegexp(t *testing.T) {
+	type args struct {
+		conf config.PointsConfig
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    []common.Point
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "wrong reg",
+			args: args{
+				conf: config.PointsConfig{
+					Limit: 0,
+					Regex: "(\\())",
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+		{
+			name: "wrong name reg",
+			args: args{
+				conf: config.PointsConfig{
+					Limit:     0,
+					RegexName: "(\\())",
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+		{
+			name: "wrong id reg",
+			args: args{
+				conf: config.PointsConfig{
+					Limit:   0,
+					RegexID: "(\\())",
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+		{
+			name: "check with name and id",
+			args: args{
+				conf: config.PointsConfig{
+					Limit: 0,
+					Regex: ".*",
+
+					RegexID:   `ns=2;.*`,
+					RegexName: `.*int32`,
+					Ua:        config.UaPointsConfig{Root: "i=85"},
+				},
+			},
+			want: []common.Point{
+				{
+					ID:   "ns=2;i=1001",
+					Name: "int32",
+				},
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+
+	client, err := NewUAClient(ctx, connectConfig, 1, logrus.New().WithField("test", "test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		t.Log("close client")
+		client.Close()
+		t.Log("close client finish")
+	}()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := client.GetAllPoints(tt.args.conf)
+			if !tt.wantErr(t, err, fmt.Sprintf("GetAllPoints(%v)", tt.args.conf)) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "GetAllPoints(%v)", tt.args.conf)
+		})
+	}
 }
 
 func TestChangeCollectConfigObs(t *testing.T) {

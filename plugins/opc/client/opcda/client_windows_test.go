@@ -720,6 +720,46 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 			want:    nil,
 			wantErr: assert.Error,
 		},
+		{
+			name: "wrong name reg",
+			args: args{
+				conf: config.PointsConfig{
+					Limit:     0,
+					RegexName: "(\\())",
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+		{
+			name: "wrong id reg",
+			args: args{
+				conf: config.PointsConfig{
+					Limit:   0,
+					RegexID: "(\\())",
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+		{
+			name: "check with name and id",
+			args: args{
+				conf: config.PointsConfig{
+					Limit:     0,
+					Regex:     ".*",
+					RegexID:   `storage\.time.*`,
+					RegexName: `.*reg20`,
+				},
+			},
+			want: []common.Point{
+				{
+					ID:   "storage.time.reg20",
+					Name: "reg20",
+				},
+			},
+			wantErr: assert.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

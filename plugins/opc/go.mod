@@ -11,6 +11,7 @@ replace github.com/gopcua/opcua => github.com/taosdata/opcua v0.0.0-202406180728
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/apache/arrow/go/v14 v14.0.2
+	github.com/dlclark/regexp2 v1.11.4
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gopcua/opcua v0.5.3
 	github.com/konimarti/opc v0.4.0
