@@ -546,6 +546,8 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
     if (pDetail->compactId == compactId && pDetail->vgId == rsp->vgId && pDetail->dnodeId == rsp->dnodeId) {
       pDetail->newNumberFileset = rsp->numberFileset;
       pDetail->newFinished = rsp->finished;
+      pDetail->progress = rsp->progress;
+      pDetail->remainingTime = rsp->remainingTime;
 
       sdbCancelFetch(pMnode->pSdb, pIter);
       sdbRelease(pMnode->pSdb, pDetail);

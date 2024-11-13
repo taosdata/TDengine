@@ -90,15 +90,13 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false),
                                    pSdb, pCompactDetail);
 
-    int32_t percentage = 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&percentage, false), pSdb,
-                                   pCompactDetail);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->progress, false),
+                                   pSdb, pCompactDetail);
 
-    int64_t remainTime = 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&remainTime, false), pSdb,
-                                   pCompactDetail);
+    TAOS_CHECK_RETURN_WITH_RELEASE(
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->remainingTime, false), pSdb, pCompactDetail);
 
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);
@@ -111,7 +109,7 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 void tFreeCompactDetailObj(SCompactDetailObj *pCompact) {}
 
-int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj) {
+static int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -128,6 +126,9 @@ int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDet
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->newNumberFileset));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->newFinished));
+  // 1. add progress and remaining time
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->progress));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->remainingTime));
 
   tEndEncode(&encoder);
 
@@ -141,7 +142,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj) {
+static int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj) {
   int32_t  code = 0;
   int32_t  lino;
   SDecoder decoder = {0};
@@ -157,6 +158,14 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->newNumberFileset));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->newFinished));
+  // 1. add progress and remaining time decode
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->progress));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->remainingTime));
+  } else {
+    pObj->progress = 0;
+    pObj->remainingTime = 0;
+  }
 
   tEndDecode(&decoder);
 

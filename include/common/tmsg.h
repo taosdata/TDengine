@@ -1984,6 +1984,8 @@ typedef struct {
   int32_t dnodeId;
   int32_t numberFileset;
   int32_t finished;
+  int32_t progress;
+  int64_t remainingTime;
 } SQueryCompactProgressRsp;
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);

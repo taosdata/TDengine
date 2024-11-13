@@ -846,6 +846,8 @@ typedef struct {
   int64_t startTime;
   int32_t newNumberFileset;
   int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
 } SCompactDetailObj;
 
 typedef struct {
