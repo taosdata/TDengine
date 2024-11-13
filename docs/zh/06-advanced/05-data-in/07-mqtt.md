@@ -63,7 +63,7 @@ TDengine 可以通过 MQTT 连接器从 MQTT 代理订阅数据并将其写入 T
 
 在 **Clean Session** 中，选择是否清除会话。默认值为 true。
 
-在 **订阅主题及 QoS 配置** 中填写要消费的 Topic 名称。使用如下格式设置： `topic1::0,topic2::1`。
+在 **订阅主题及 QoS 配置** 中填写要消费的 Topic 名称和 QoS。使用如下格式设置： `{topic_name}::{qos}`（如：`my_topic::0`）。如果开启共享订阅，使用如下格式： `$share/{group_name}/{topic_name}::{qos}`，其中，`$share` 是固定前缀，表示启用共享订阅，`group_name` 是分组名称，类似 kafka 的消费者组。
 
 点击 **检查连通性** 按钮，检查数据源是否可用。
 
