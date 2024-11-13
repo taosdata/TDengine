@@ -1871,7 +1871,7 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
@@ -1897,7 +1897,7 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
@@ -1926,7 +1926,7 @@ certificate_key = "tests/assets/cert-key.pem"
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("taos-explorer");
+        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
