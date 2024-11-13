@@ -123,11 +123,9 @@ int32_t walInitWriteFileForSkip(SWal *pWal) {
   pWal->writeCur = 0;
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    if (pIdxTFile) (void)taosCloseFile(&pIdxTFile);
-    if (pLogTFile) (void)taosCloseFile(&pLogTFile);
+    (void)taosCloseFile(&pIdxTFile);
+    (void)taosCloseFile(&pLogTFile);
   }
-  (void)taosCloseFile(&pIdxTFile);
-  (void)taosCloseFile(&pLogTFile);
   TAOS_RETURN(code);
 }
 
