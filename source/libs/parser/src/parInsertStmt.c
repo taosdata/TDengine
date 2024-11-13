@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "geosWrapper.h"
 #include "os.h"
 #include "parInsertUtil.h"
 #include "parInt.h"
@@ -187,11 +188,24 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
+    } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      char* tmp = taosMemoryCalloc(1, colLen);
+      if (!tmp) {
+        code = terrno;
+        goto end;
+      }
+      memcpy(tmp, bind[c].buffer, colLen);
+      unsigned char* out = NULL;
+      code = parseGeotoTagData(tmp, pTagArray, pTagSchema, out);
+      taosMemoryFree(tmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        geosFreeBuffer(out);
+        goto end;
+      }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
-          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -250,6 +264,9 @@ end:
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFreeClear(p->pData);
+    }
+    if (p->type == TSDB_DATA_TYPE_GEOMETRY) {
+      geosFreeBuffer(p->pData);
     }
   }
   taosArrayDestroy(pTagArray);
@@ -539,11 +556,24 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
+    } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      char* tmp = taosMemoryCalloc(1, colLen);
+      if (!tmp) {
+        code = terrno;
+        goto end;
+      }
+      memcpy(tmp, bind[c].buffer, colLen);
+      unsigned char* out = NULL;
+      code = parseGeotoTagData(tmp, pTagArray, pTagSchema, out);
+      taosMemoryFree(tmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        geosFreeBuffer(out);
+        goto end;
+      }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
-          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -602,6 +632,9 @@ end:
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFreeClear(p->pData);
+    }
+    if (p->type == TSDB_DATA_TYPE_GEOMETRY) {
+      geosFreeBuffer(p->pData);
     }
   }
   taosArrayDestroy(pTagArray);
