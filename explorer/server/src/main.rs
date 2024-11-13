@@ -1855,7 +1855,6 @@ mod tests {
         assert.success();
     }
 
-    #[ignore]
     #[test]
     fn test_startup_normal() -> anyhow::Result<(), anyhow::Error> {
         // config file
@@ -1872,9 +1871,8 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::new("taos-explorer");
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))
@@ -1899,9 +1897,8 @@ cors = true
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::new("taos-explorer");
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))
@@ -1925,14 +1922,13 @@ x_api = "http://localhost:6050"
 grpc = "http://localhost:6055"
 cors = true
 [ssl]
-certificate = "/ssl-cert/cert.pem"
-certificate_key = "/ssl-cert/cert_key.pem"
+certificate = "tests/assets/cert.pem"
+certificate_key = "tests/assets/cert-key.pem"
 "#,
         )?;
 
-        let mut cmd = assert_cmd::Command::new("target/release/taos-explorer");
+        let mut cmd = assert_cmd::Command::new("taos-explorer");
         let assert = cmd
-            .current_dir("../../")
             .arg("-C")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))

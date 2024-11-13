@@ -1782,6 +1782,7 @@ mod tests {
         }
 
         let option = CsvOption {
+            has_header: false,
             quote: Some(b'"'),
             comment: Some(b'#'),
             batch_size: 1,
