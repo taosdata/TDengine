@@ -300,8 +300,8 @@ int32_t persistLocalConfig(const char *path);
 int32_t localConfigSerialize(SArray *array, char **serialized);
 int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
-
-void printConfigNotMatch(SArray *array);
+int32_t setAllConfigs(SConfig *pCfg);
+void    printConfigNotMatch(SArray *array);
 
 int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 #ifdef __cplusplus

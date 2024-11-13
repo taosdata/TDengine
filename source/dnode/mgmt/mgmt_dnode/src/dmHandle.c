@@ -312,10 +312,13 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         }
       }
       if (!configRsp.isVersionVerified) {
+        cfgLoadFromArray(tsCfg, configRsp.array);
         persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
       }
     }
+    setAllConfigs(tsCfg);
     persistLocalConfig(pMgmt->path);
+    setAllConfigs(tsCfg);
   }
 _exit:
   tFreeSConfigRsp(&configRsp);

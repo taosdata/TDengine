@@ -660,7 +660,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
                                 CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "safetyCheckLevel", tsSafetyCheckLevel, 0, 5, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
+                                CFG_CATEGORY_GLOBAL));
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
@@ -1890,6 +1891,140 @@ static int32_t cfgInitWrapper(SConfig **pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+int32_t setAllConfigs(SConfig *pCfg) {
+  int32_t code = 0;
+  int32_t lino = -1;
+  TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetS3Cfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetSystemCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetFileHandlesLimit(), &lino, _exit);
+_exit:
+  TAOS_RETURN(code);
+}
+
+int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
+  cJSON *pRoot = cJSON_Parse(buf);
+  if (pRoot == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (isGlobal) {
+    cJSON *pItem = cJSON_GetObjectItem(pRoot, "version");
+    if (pItem == NULL) {
+      cJSON_Delete(pRoot);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tsConfigVersion = pItem->valueint;
+  }
+
+  int32_t sz = taosArrayGetSize(array);
+  cJSON  *configs = cJSON_GetObjectItem(pRoot, "configs");
+  if (configs == NULL) {
+    cJSON_Delete(pRoot);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int i = 0; i < sz; i++) {
+    SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
+    cJSON       *pItem = cJSON_GetObjectItem(configs, item->name);
+    if (pItem == NULL) {
+      continue;
+    }
+    switch (item->dtype) {
+      {
+        case CFG_DTYPE_NONE:
+          break;
+        case CFG_DTYPE_BOOL:
+          item->bval = cJSON_IsTrue(pItem);
+          break;
+        case CFG_DTYPE_INT32:
+          item->i32 = pItem->valueint;
+          break;
+        case CFG_DTYPE_INT64:
+          item->i64 = atoll(cJSON_GetStringValue(pItem));
+          break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE:
+          item->fval = pItem->valuedouble;
+          break;
+        case CFG_DTYPE_STRING:
+        case CFG_DTYPE_DIR:
+        case CFG_DTYPE_LOCALE:
+        case CFG_DTYPE_CHARSET:
+        case CFG_DTYPE_TIMEZONE:
+          tstrncpy(item->str, pItem->valuestring, strlen(pItem->valuestring));
+          break;
+      }
+    }
+  }
+  cJSON_Delete(pRoot);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t readCfgFile(const char *path, bool isGlobal) {
+  int32_t code = 0;
+  char    filename[CONFIG_FILE_LEN] = {0};
+  SArray *array = NULL;
+  if (isGlobal) {
+    array = cfgGetGlobalCfg(tsCfg);
+    snprintf(filename, sizeof(filename), "%s%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP);
+  } else {
+    array = cfgGetLocalCfg(tsCfg);
+    snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
+  }
+
+  int64_t fileSize = 0;
+  char   *buf = NULL;
+  if (taosStatFile(filename, &fileSize, NULL, NULL) != 0) {
+    if (terrno != ENOENT) {
+      uError("failed to stat file:%s , since %s", filename, tstrerror(code));
+      code = terrno;
+    }
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+  TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  buf = (char *)taosMemoryMalloc(fileSize + 1);
+  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
+    uError("failed to read file:%s , config since %s", filename, tstrerror(code));
+    (void)taosCloseFile(&pFile);
+    taosMemoryFree(buf);
+    TAOS_RETURN(terrno);
+  }
+  char *serialized = NULL;
+  code = cfgDeserialize(array, buf, isGlobal);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to deserialize config from %s since %s", filename, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
+  int32_t      code = 0;
+  SConfigItem *pItem = NULL;
+  TAOS_CHECK_GET_CFG_ITEM(tsCfg, pItem, "forceReadConfig");
+  tsForceReadConfig = pItem->i32;
+  if (!tsForceReadConfig) {
+    code = readCfgFile(tsDataDir, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
+      TAOS_RETURN(code);
+    }
+    code = readCfgFile(tsDataDir, true);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
+      TAOS_RETURN(code);
+    }
+  }
+  TAOS_RETURN(code);
+}
+
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc) {
   if (tsCfg != NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1924,6 +2059,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
+  tryLoadCfgFromDataDir(tsCfg);
 
   if (tsc) {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
@@ -2602,6 +2738,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO:close file when error
 int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version) {
   // TODO: just tmp ,refactor later
   int32_t   code = 0;
@@ -2634,6 +2771,7 @@ int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version) {
     TAOS_RETURN(code);
   }
   taosWriteFile(pConfigFile, serialized, strlen(serialized));
+  (void)taosCloseFile(&pConfigFile);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2669,6 +2807,7 @@ int32_t persistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
   taosWriteFile(pConfigFile, serialized, strlen(serialized));
+  (void)taosCloseFile(&pConfigFile);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2837,40 +2976,3 @@ void printConfigNotMatch(SArray *array) {
     }
   }
 }
-
-// void printConfigNotMatch(SArray *array) {
-//   uError(
-//       "The global configuration parameters in the configuration file do not match those in the cluster. Please "
-//       "turn off the forceReadConfigFile option or modify the global configuration parameters that are not "
-//       "configured.");
-//   int32_t sz = taosArrayGetSize(array);
-//   for (int i = 0; i < sz; i++) {
-//     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-//     switch (item->dtype) {
-//       {
-//         case CFG_DTYPE_NONE:
-//           break;
-//         case CFG_DTYPE_BOOL:
-//           uError("config %s in cluster value is:%d", item->name, item->bval);
-//           break;
-//         case CFG_DTYPE_INT32:
-//           uError("config %s in cluster value is:%d", item->name, item->i32);
-//           break;
-//         case CFG_DTYPE_INT64:
-//           uError("config %s in cluster value is:%" PRId64, item->name, item->i64);
-//           break;
-//         case CFG_DTYPE_FLOAT:
-//         case CFG_DTYPE_DOUBLE:
-//           uError("config %s in cluster value is:%f", item->name, item->fval);
-//           break;
-//         case CFG_DTYPE_STRING:
-//         case CFG_DTYPE_DIR:
-//         case CFG_DTYPE_LOCALE:
-//         case CFG_DTYPE_CHARSET:
-//         case CFG_DTYPE_TIMEZONE:
-//           uError("config %s in cluster value is:%s", item->name, item->str);
-//           break;
-//       }
-//     }
-//   }
-// }
