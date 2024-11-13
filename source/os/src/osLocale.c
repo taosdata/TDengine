@@ -52,6 +52,9 @@ typedef struct CharsetPair {
 } CharsetPair;
 
 char *taosCharsetReplace(char *charsetstr) {
+  if (charsetstr == NULL) {
+    return NULL;
+  }
   CharsetPair charsetRep[] = {
       {"utf8", "UTF-8"},
       {"936", "CP936"},
@@ -76,6 +79,8 @@ char *taosCharsetReplace(char *charsetstr) {
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
 int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
+  OS_PARAM_CHECK(inLocale);
+  OS_PARAM_CHECK(inCharSet);
   if (!taosValidateEncodec(inCharSet)) {
     return terrno;
   }
@@ -90,6 +95,7 @@ int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
 }
 
 void taosGetSystemLocale(char *outLocale, char *outCharset) {
+  if (outLocale == NULL || outCharset == NULL) return;
 #ifdef WINDOWS
   char *locale = setlocale(LC_CTYPE, "en_US.UTF-8");
   if (locale != NULL) {
