@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include "executorInt.h"
 typedef struct SDynQueryCtrlExecInfo {
   int64_t prevBlkNum;
   int64_t prevBlkRows;

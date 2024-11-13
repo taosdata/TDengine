@@ -16,6 +16,8 @@
 #ifndef TDENGINE_QUERYTASK_H
 #define TDENGINE_QUERYTASK_H
 
+#include "executorInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
