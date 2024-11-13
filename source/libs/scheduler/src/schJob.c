@@ -345,6 +345,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
   pJob->levelNum = levelNum;
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  atomic_add_fetch_64(&pJob->seriousId, 1);
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -1038,6 +1039,7 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  atomic_add_fetch_64(&pJob->seriousId, 1);
 
   return TSDB_CODE_SUCCESS;
 }

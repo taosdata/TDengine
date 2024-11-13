@@ -640,7 +640,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId,
+    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
                                                pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
                                                pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
@@ -649,7 +649,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   } else {
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
-    req.sId = pSource->schedId;
+    req.sId = pSource->sId;
     req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;

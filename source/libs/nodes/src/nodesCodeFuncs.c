@@ -5261,7 +5261,7 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
 static const char* jkDownstreamSourceAddr = "Addr";
 static const char* jkDownstreamSourceClientId = "ClientId";
 static const char* jkDownstreamSourceTaskId = "TaskId";
-static const char* jkDownstreamSourceSchedId = "SchedId";
+static const char* jkDownstreamSourceSeriousId = "SeriousId";
 static const char* jkDownstreamSourceExecId = "ExecId";
 static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
 
@@ -5276,7 +5276,7 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceTaskId, pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceSchedId, pNode->schedId);
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceSeriousId, pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceExecId, pNode->execId);
@@ -5299,7 +5299,7 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
     code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceTaskId, &pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceSchedId, &pNode->schedId);
+    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceSeriousId, &pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceExecId, &pNode->execId);

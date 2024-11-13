@@ -34,14 +34,14 @@ void qwIncConcurrentTaskNumCb(void) {
   //TODO
 }
 
-int32_t qwInitJobInfo(uint64_t qId, SQWJobInfo* pJob) {
+int32_t qwInitJobInfo(QW_FPARAMS_DEF, SQWJobInfo* pJob) {
   pJob->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->pSessions) {
-    qError("fail to init session hash, code: 0x%x", terrno);
+    QW_TASK_ELOG("fail to init session hash, code: 0x%x", terrno);
     return terrno;
   }
 
-  int32_t code = taosMemPoolCallocJob(qId, (void**)&pJob->memInfo);
+  int32_t code = taosMemPoolCallocJob(qId, cId, (void**)&pJob->memInfo);
   if (TSDB_CODE_SUCCESS != code) {
     taosHashCleanup(pJob->pSessions);
     pJob->pSessions = NULL;
@@ -72,24 +72,53 @@ int32_t qwInitJobHash(void) {
 }
 
 
-int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
+void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
+  char id[sizeof(tId) + sizeof(eId) + 1] = {0};
+  QW_SET_TEID(id, tId, eId);
+  int32_t remainSessions = 0;
+
+  (void)taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
+
+  taosMemPoolDestroySession(gMemPoolHandle, session, &remainSessions);
+
+  if (0 == remainSessions) {
+    QW_LOCK(QW_WRITE, &pJobInfo->lock);
+    if (0 == taosHashGetSize(pJobInfo->pSessions)) {
+      atomic_store_8(&pJobInfo->destroyed, 1);
+      qwDestroyJobInfo(pJobInfo);
+      QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
+      
+      char id2[sizeof(qId) + sizeof(cId) + 1] = {0};
+      QW_SET_QCID(id2, qId, cId);
+      (void)taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2));
+      QW_TASK_DLOG_E("the whole query job removed");
+    } else {
+      QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
+    }
+  }
+}
+
+int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
   int32_t code = TSDB_CODE_SUCCESS;
   SQWJobInfo* pJob = NULL;
+  char id[sizeof(qId) + sizeof(cId) + 1] = {0};
 
   if (NULL == gQueryMgmt.pJobInfo) {
     QW_ERR_RET(qwInitJobHash());
   }
+
+  QW_SET_QCID(id, qId, cId);
   
   while (true) {
-    pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, &qId, sizeof(qId));
+    pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, id, sizeof(id));
     if (NULL == pJob) {
       SQWJobInfo jobInfo = {0};
-      code = qwInitJobInfo(qId, &jobInfo);
+      code = qwInitJobInfo(QW_FPARAMS(), &jobInfo);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
       
-      code = taosHashPut(gQueryMgmt.pJobInfo, &qId, sizeof(qId), &jobInfo, sizeof(jobInfo));
+      code = taosHashPut(gQueryMgmt.pJobInfo, id, sizeof(id), &jobInfo, sizeof(jobInfo));
       if (TSDB_CODE_SUCCESS != code) {
         qwDestroyJobInfo(&jobInfo);
         if (TSDB_CODE_DUP_KEY == code) {
@@ -97,31 +126,68 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
           continue;
         }
         
+        QW_TASK_ELOG("fail to put job to job hash, error: %s", tstrerror(code));
         return code;
       }
 
-      pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, &qId, sizeof(qId));
+      pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, id, sizeof(id));
       if (NULL == pJob) {
-        qError("QID:0x%" PRIx64 " not in joj hash, may be dropped", qId);
+        QW_TASK_ELOG_E("job not in job hash, may be dropped");
         return TSDB_CODE_QRY_JOB_NOT_EXIST;
       }
+    }
+
+    if (atomic_load_8(&pJob->destroyed)) {
+      continue;
     }
 
     break;
   }
 
-  ctx->pJobInfo = pJob;
+  *ppJob = pJob;
 
-  char id[sizeof(tId) + sizeof(eId)] = {0};
-  QW_SET_TEID(id, tId, eId);
+  return code;
+}
 
-  QW_ERR_JRET(taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo));
+int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SQWJobInfo* pJob = NULL;
+  SQWSessionInfo session = {.mgmt = mgmt,
+                            .sId = sId,
+                            .qId = qId,
+                            .cId = cId,
+                            .tId = tId,
+                            .rId = rId,
+                            .eId = eId
+  };
 
-  code = taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("fail to put session into query session hash, code: 0x%x", code);
-    QW_ERR_JRET(code);
-  }
+  do {
+    QW_ERR_JRET(qwRetrieveJobInfo(QW_FPARAMS(), &pJob));
+
+    ctx->pJobInfo = pJob;
+
+    char id[sizeof(tId) + sizeof(eId) + 1] = {0};
+    QW_SET_TEID(id, tId, eId);
+
+    QW_ERR_JRET(taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo, id));
+    session.sessionMp = *ppSession;
+
+    QW_LOCK(QW_READ, &pJob->lock);
+    if (atomic_load_8(&pJob->destroyed)) {
+      QW_UNLOCK(QW_READ, &pJob->lock);
+      continue;
+    }
+
+    code = taosHashPut(pJob->pSessions, id, sizeof(id), &session, sizeof(session));
+    if (TSDB_CODE_SUCCESS != code) {
+      QW_UNLOCK(QW_READ, &pJob->lock);
+      QW_TASK_ELOG("fail to put session into query session hash, code: 0x%x", code);
+      QW_ERR_JRET(code);
+    }
+    QW_UNLOCK(QW_READ, &pJob->lock);
+
+    break;
+  } while (true);
 
 _return:
 

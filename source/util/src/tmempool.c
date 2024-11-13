@@ -317,7 +317,7 @@ int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) 
   if (quota > 0 && cAllocSize / 1048576UL > quota) {
     code = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;
     uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pJob->job.jobId, cAllocSize, quota);
-    pPool->cfg.cb.reachFp(pJob->job.jobId, code);
+    pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -326,7 +326,7 @@ int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) 
     code = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
     uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64" while keeping reserveSize %dMB", 
         pPool->name, atomic_load_64(&tsCurrentAvailMemorySize), size, *pPool->cfg.reserveSize);
-    pPool->cfg.cb.reachFp(pJob->job.jobId, code);
+    pPool->cfg.cb.reachFp(pJob->job.jobId, pJob->job.clientId, code);
     (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
     MP_RET(code);
   }
@@ -1174,7 +1174,7 @@ void taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg) {
   (void)mpUpdateCfg(pPool);
 }
 
-void taosMemPoolDestroySession(void* poolHandle, void* session) {
+void taosMemPoolDestroySession(void* poolHandle, void* session, int32_t* remainSessions) {
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
   if (NULL == poolHandle || NULL == pSession) {
@@ -1182,7 +1182,9 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
     return;
   }
 
-  (void)atomic_sub_fetch_32(&pSession->pJob->remainSession, 1);
+  if (remainSessions) {
+    *remainSessions = atomic_sub_fetch_32(&pSession->pJob->remainSession, 1);
+  }
   
   //TODO;
 
@@ -1191,18 +1193,24 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
   mpCheckStatDetail(pPool, pSession, "DestroySession");
 
   mpDestroyPosStat(&pSession->stat.posStat);
+  taosMemFreeClear(pSession->sessionId);
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 
   mpPushIdleNode(pPool, &pPool->sessionCache, (SMPListNode*)pSession);
 }
 
-int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob) {
+int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, char* sessionId) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = NULL;
 
   MP_ERR_JRET(mpPopIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
+
+  pSession->sessionId = taosStrdup(sessionId);
+  if (NULL == pSession->sessionId) {
+    MP_ERR_JRET(terrno);
+  }
 
   TAOS_MEMCPY(&pSession->ctrl, &pPool->ctrl, sizeof(pSession->ctrl));
 
@@ -1218,7 +1226,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob) {
 _return:
 
   if (TSDB_CODE_SUCCESS != code) {
-    taosMemPoolDestroySession(poolHandle, pSession);
+    taosMemPoolDestroySession(poolHandle, pSession, NULL);
     pSession = NULL;
     (void)atomic_add_fetch_64(&pPool->stat.statSession.initFail, 1);
   } else {
@@ -1503,7 +1511,7 @@ int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fil
   return code;
 }
 
-int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob) {
+int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob) {
   int32_t code = TSDB_CODE_SUCCESS;
   *ppJob = taosMemoryCalloc(1, sizeof(SMPJob));
   if (NULL == *ppJob) {
@@ -1513,6 +1521,7 @@ int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob) {
 
   SMPJob* pJob = (SMPJob*)*ppJob;
   pJob->job.jobId = jobId;
+  pJob->job.clientId = cId;
 
   return code;
 }

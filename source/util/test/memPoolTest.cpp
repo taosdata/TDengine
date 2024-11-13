@@ -64,6 +64,12 @@ threadlocal void* mptThreadPoolSession = NULL;
       *(uint32_t *)((char *)(id) + sizeof(tId)) = (eId);              \
     } while (0)
 
+#define MPT_SET_QCID(id, qId, cId)                                                 \
+      do {                                                                            \
+        *(uint64_t *)(id) = (qId);                                                    \
+        *(uint64_t *)((char *)(id) + sizeof(qId)) = (cId);                            \
+      } while (0)
+
 
 #define mptEnableMemoryPoolUsage(_pool, _session) do { mptThreadPoolHandle = _pool; mptThreadPoolSession = _session; } while (0) 
 #define mptDisableMemoryPoolUsage() (mptThreadPoolHandle = NULL, mptThreadPoolSession = NULL) 
@@ -294,7 +300,7 @@ int32_t mptInitJobInfo(uint64_t qId, SMPTJobInfo* pJob) {
     return terrno;
   }
 
-  int32_t code = taosMemPoolCallocJob(qId, (void**)&pJob->memInfo);
+  int32_t code = taosMemPoolCallocJob(qId, 0, (void**)&pJob->memInfo);
   if (TSDB_CODE_SUCCESS != code) {
     taosHashCleanup(pJob->pSessions);
     pJob->pSessions = NULL;
@@ -349,10 +355,10 @@ int32_t mptInitSession(uint64_t qId, uint64_t tId, int32_t eId, SMPTestJobCtx* p
   pJobCtx->pJob = pJob;
   pJob->pCtx = pJobCtx;
 
-  assert(0 == taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo));
-
-  char id[sizeof(tId) + sizeof(eId)] = {0};
+  char id[sizeof(tId) + sizeof(eId) + 0] = {0};
   MPT_SET_TEID(id, tId, eId);
+
+  assert(0 == taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo, id));
 
   assert(0 == taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES));
 
@@ -411,7 +417,7 @@ int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
     assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[i].stat, sizeof(*pStat)));
     
     mptDestroyTaskCtx(&pJobCtx->taskCtxs[i], pJobCtx->pSessions[i]);
-    taosMemPoolDestroySession(gMemPoolHandle, pJobCtx->pSessions[i]);
+    taosMemPoolDestroySession(gMemPoolHandle, pJobCtx->pSessions[i], NULL);
   }
 
   uDebug("JOB:0x%x idx:%d destroyed, code:0x%x", pJobCtx->jobId, pJobCtx->jobIdx, pJobCtx->pJob->errCode);
@@ -455,7 +461,12 @@ void mptRetireJob(SMPTJobInfo* pJob) {
   
   mptCheckCompareJobInfo(pCtx);
 
-  mptResetJob(pCtx);
+  int32_t taskRunning = atomic_load_32(&pCtx->taskRunningNum);
+  if (0 == taskRunning) {
+    mptDestroyJob(pCtx, false);
+  } else {
+    uDebug("JOB:0x%x retired but will not destroy cause of task running, num:%d", pCtx->jobId, taskRunning);
+  }
 }
 
 int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
@@ -516,17 +527,20 @@ void mptRetireJobsCb(int64_t retireSize, int32_t errCode) {
 }
 
 
-void mptRetireJobCb(uint64_t jobId, int32_t errCode) {
-  SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashGet(mptCtx.pJobs, &jobId, sizeof(jobId));
+void mptRetireJobCb(uint64_t jobId, uint64_t clientId, int32_t errCode) {
+  char id[sizeof(jobId) + sizeof(clientId) + 1] = {0};
+  MPT_SET_QCID(id, jobId, clientId);
+
+  SMPTJobInfo* pJob = (SMPTJobInfo*)taosHashGet(mptCtx.pJobs, id, sizeof(id));
   if (NULL == pJob) {
-    uError("QID:0x%" PRIx64 " fail to get job from job hash", jobId);
+    uError("QID:0x%" PRIx64 " CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
     return;
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    uInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
+    uInfo("QID:0x%" PRIx64 " CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
   } else {
-    uDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
+    uDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
 
@@ -546,11 +560,13 @@ void mptWriteMem(void* pStart, int32_t size) {
 void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
   int32_t actId = 0;
   bool actDone = false;
-  int32_t size = taosRand() % mptCtrl.maxSingleAllocSize;
+  int32_t size = 0;
   int32_t osize = 0, nsize = 0;
   
   while (!actDone) {
     actId = taosRand() % 10;
+    size = (taosRand() % 10) ? (taosRand() % (mptCtrl.maxSingleAllocSize / 100)) : (taosRand() % mptCtrl.maxSingleAllocSize);
+    
     switch (actId) {
       case 0: { // malloc
         if (pTask->memIdx >= MPT_MAX_MEM_ACT_TIMES) {
@@ -925,8 +941,13 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
   int64_t poolUsedSize = 0;
   
   taosMemPoolGetUsedSizeBegin(gMemPoolHandle, &usedSize, &needEnd);
+  
   for (int32_t i = 0; i < jobNum; ++i) {
     SMPTestJobCtx* pJobCtx = &mptCtx.jobCtxs[i];
+
+    while (taosRTryLockLatch(&pJobCtx->jobExecLock)) {
+    }
+
     int64_t jobUsedSize = 0;
     for (int32_t m = 0; m < pJobCtx->taskNum; ++m) {
       SMPStatDetail* pStat = NULL;
@@ -941,6 +962,8 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
     }
     
     assert(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
+
+    taosRUnLockLatch(&pJobCtx->jobExecLock);
 
     poolUsedSize += jobUsedSize;
   }

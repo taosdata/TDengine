@@ -26,7 +26,6 @@ void qwStopAllTasks(SQWorker *mgmt) {
   uint64_t qId, cId, tId, sId;
   int32_t  eId;
   int64_t  rId = 0;
-  int32_t  code = TSDB_CODE_SUCCESS;
 
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
@@ -34,41 +33,9 @@ void qwStopAllTasks(SQWorker *mgmt) {
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, cId, tId, eId);
 
-    QW_LOCK(QW_WRITE, &ctx->lock);
-
     sId = ctx->sId;
 
-    QW_TASK_DLOG_E("start to force stop task");
-
-    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-      QW_TASK_WLOG_E("task already dropping");
-      QW_UNLOCK(QW_WRITE, &ctx->lock);
-
-      pIter = taosHashIterate(mgmt->ctxHash, pIter);
-      continue;
-    }
-
-    if (QW_QUERY_RUNNING(ctx)) {
-      code = qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
-      if (TSDB_CODE_SUCCESS != code) {
-        QW_TASK_ELOG("task running, async kill failed, error: %x", code);
-      } else {
-        QW_TASK_DLOG_E("task running, async killed");
-      }
-    } else if (QW_FETCH_RUNNING(ctx)) {
-      QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
-      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
-      QW_TASK_DLOG_E("task fetching, update drop received");
-    } else {
-      code = qwDropTask(QW_FPARAMS());
-      if (TSDB_CODE_SUCCESS != code) {
-        QW_TASK_ELOG("task drop failed, error: %x", code);
-      } else {
-        QW_TASK_DLOG_E("task dropped");
-      }
-    }
-
-    QW_UNLOCK(QW_WRITE, &ctx->lock);
+    qwStopTask(QW_FPARAMS(), ctx);
 
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
@@ -79,7 +46,7 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus   *sch = NULL;
 
-  QW_ERR_RET(qwAcquireScheduler(mgmt, req->sId, QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, req->clientId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
@@ -1167,8 +1134,8 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
     QW_RET(qwProcessHbLinkBroken(mgmt, qwMsg, req));
   }
 
-  QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
-  QW_ERR_JRET(qwRegisterHbBrokenLinkArg(mgmt, req->sId, &qwMsg->connInfo));
+  QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->clientId, QW_READ, &sch));
+  QW_ERR_JRET(qwRegisterHbBrokenLinkArg(mgmt, req->clientId, &qwMsg->connInfo));
 
   sch->hbBrokenTs = 0;
 
@@ -1184,7 +1151,7 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
   QW_UNLOCK(QW_WRITE, &sch->hbConnLock);
 
-  QW_DLOG("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, handle:%p, ahandle:%p", req->sId,
+  QW_DLOG("hb connection updated, clientId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, handle:%p, ahandle:%p", req->clientId,
           req->epId.nodeId, req->epId.ep.fqdn, req->epId.ep.port, qwMsg->connInfo.handle, qwMsg->connInfo.ahandle);
 
   qwReleaseScheduler(QW_READ, mgmt);
@@ -1261,13 +1228,13 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   while (pIter) {
     SQWSchStatus *sch1 = (SQWSchStatus *)pIter;
     if (NULL == sch1->hbConnInfo.handle) {
-      uint64_t *sId = taosHashGetKey(pIter, NULL);
-      QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+      uint64_t *clientId = taosHashGetKey(pIter, NULL);
+      QW_TLOG("cancel send hb to client %" PRIx64 " cause of no connection handle", *clientId);
 
       if (sch1->hbBrokenTs > 0 && ((currentMs - sch1->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) &&
           taosHashGetSize(sch1->tasksHash) <= 0) {
-        if (NULL == taosArrayPush(pExpiredSch, sId)) {
-          QW_ELOG("add sId 0x%" PRIx64 " to expiredSch failed, code:%x", *sId, terrno);
+        if (NULL == taosArrayPush(pExpiredSch, clientId)) {
+          QW_ELOG("add clientId 0x%" PRIx64 " to expiredSch failed, code:%x", *clientId, terrno);
           taosHashCancelIterate(mgmt->schHash, pIter);
           break;
         }
@@ -1356,7 +1323,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
 _return:
 
-  qwFreeTaskCtx(&ctx);
+  qwFreeTaskCtx(QW_FPARAMS(), &ctx);
 
   QW_RET(TSDB_CODE_SUCCESS);
 }
@@ -1632,15 +1599,19 @@ _return:
 }
 
 
-void qWorkerRetireJob(uint64_t jobId, int32_t errCode) {
-  SQWJobInfo* pJob = (SQWJobInfo*)taosHashGet(gQueryMgmt.pJobInfo, &jobId, sizeof(jobId));
+void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
+  char id[sizeof(jobId) + sizeof(clientId) + 1] = {0};
+  QW_SET_QCID(id, jobId, clientId);
+
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashGet(gQueryMgmt.pJobInfo, id, sizeof(id));
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 " fail to get job from job hash", jobId);
+    qError("QID:0x%" PRIx64 " CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
     return;
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    qInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
+    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, 
+        jobId, clientId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
 
     qwRetireJob(pJob);
   } else {
@@ -1650,7 +1621,6 @@ void qWorkerRetireJob(uint64_t jobId, int32_t errCode) {
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
-  uint64_t jobId = 0;
   int64_t retiredSize = 0;
   while (retiredSize < retireSize && NULL != pJob) {
     if (atomic_load_8(&pJob->retired)) {
@@ -1660,14 +1630,13 @@ void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
 
     if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
-      jobId = pJob->memInfo->jobId;
 
       qwRetireJob(pJob);
 
       retiredSize += aSize;    
 
-      qDebug("QID:0x%" PRIx64 " job retired cause of mid level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
-      jobId, aSize, retireSize);
+      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job retired in batch, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+      pJob->memInfo->jobId, pJob->memInfo->clientId, aSize, retireSize);
     }
 
     pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);

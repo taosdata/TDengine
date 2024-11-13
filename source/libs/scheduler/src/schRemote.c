@@ -456,11 +456,17 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
 
   int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
+#if 0
   if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
     SCH_RET(schHandleJobRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   } else if (SCH_TASKSET_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
     SCH_RET(schHandleTaskSetRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
+#else 
+  if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
+    SCH_RET(schHandleJobRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
+  }
+#endif
 
   pTask->redirectCtx.inRedirect = false;
 
@@ -1042,7 +1048,7 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction) {
   int32_t         msgType = TDMT_SCH_QUERY_HEARTBEAT;
 
   req.header.vgId = nodeEpId->nodeId;
-  req.sId = schMgmt.sId;
+  req.clientId = schMgmt.clientId;
   TAOS_MEMCPY(&req.epId, nodeEpId, sizeof(SQueryNodeEpId));
 
   SCH_LOCK(SCH_READ, &schMgmt.hbLock);
@@ -1137,7 +1143,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DELETE: {
       SVDeleteReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = schMgmt.sId;
+      req.sId = pJob->seriousId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1171,7 +1177,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SSubQueryMsg qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = schMgmt.sId;
+      qMsg.sId = pJob->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1227,7 +1233,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_SCH_MERGE_FETCH: {
       SResFetchReq req = {0};
       req.header.vgId = addr->nodeId;
-      req.sId = schMgmt.sId;
+      req.sId = pJob->seriousId;
       req.queryId = pJob->queryId;
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
@@ -1255,7 +1261,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskDropReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = schMgmt.sId;
+      qMsg.sId = pJob->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;
@@ -1285,7 +1291,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &rpcCtx));
 
       SSchedulerHbReq req = {0};
-      req.sId = schMgmt.sId;
+      req.clientId = schMgmt.clientId;
       req.header.vgId = addr->nodeId;
       req.epId.nodeId = addr->nodeId;
       TAOS_MEMCPY(&req.epId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
@@ -1313,7 +1319,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       STaskNotifyReq qMsg;
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
-      qMsg.sId = schMgmt.sId;
+      qMsg.sId = pJob->seriousId;
       qMsg.queryId = pJob->queryId;
       qMsg.clientId = pTask->clientId;
       qMsg.taskId = pTask->taskId;

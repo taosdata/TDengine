@@ -70,7 +70,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status, bool
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
+int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t clientId, int32_t rwType) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash =
       taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -82,7 +82,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
   }
 
   QW_LOCK(QW_WRITE, &mgmt->schLock);
-  int32_t code = taosHashPut(mgmt->schHash, &sId, sizeof(sId), &newSch, sizeof(newSch));
+  int32_t code = taosHashPut(mgmt->schHash, &clientId, sizeof(clientId), &newSch, sizeof(newSch));
   if (0 != code) {
     if (!HASH_NODE_EXIST(code)) {
       QW_UNLOCK(QW_WRITE, &mgmt->schLock);
@@ -99,15 +99,15 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAcquireSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch, int32_t nOpt) {
+int32_t qwAcquireSchedulerImpl(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQWSchStatus **sch, int32_t nOpt) {
   while (true) {
     QW_LOCK(rwType, &mgmt->schLock);
-    *sch = taosHashGet(mgmt->schHash, &sId, sizeof(sId));
+    *sch = taosHashGet(mgmt->schHash, &clientId, sizeof(clientId));
     if (NULL == (*sch)) {
       QW_UNLOCK(rwType, &mgmt->schLock);
 
       if (QW_NOT_EXIST_ADD == nOpt) {
-        QW_ERR_RET(qwAddSchedulerImpl(mgmt, sId, rwType));
+        QW_ERR_RET(qwAddSchedulerImpl(mgmt, clientId, rwType));
 
         nOpt = QW_NOT_EXIST_RET_ERR;
 
@@ -126,12 +126,12 @@ int32_t qwAcquireSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQW
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAcquireAddScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
-  return qwAcquireSchedulerImpl(mgmt, sId, rwType, sch, QW_NOT_EXIST_ADD);
+int32_t qwAcquireAddScheduler(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQWSchStatus **sch) {
+  return qwAcquireSchedulerImpl(mgmt, clientId, rwType, sch, QW_NOT_EXIST_ADD);
 }
 
-int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
-  return qwAcquireSchedulerImpl(mgmt, sId, rwType, sch, QW_NOT_EXIST_RET_ERR);
+int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQWSchStatus **sch) {
+  return qwAcquireSchedulerImpl(mgmt, clientId, rwType, sch, QW_NOT_EXIST_RET_ERR);
 }
 
 void qwReleaseScheduler(int32_t rwType, SQWorker *mgmt) { QW_UNLOCK(rwType, &mgmt->schLock); }
@@ -190,7 +190,7 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
 int32_t qwAddTaskStatus(QW_FPARAMS_DEF, int32_t status) {
   SQWSchStatus *tsch = NULL;
   int32_t       code = 0;
-  QW_ERR_RET(qwAcquireAddScheduler(mgmt, sId, QW_READ, &tsch));
+  QW_ERR_RET(qwAcquireAddScheduler(mgmt, cId, QW_READ, &tsch));
 
   QW_ERR_JRET(qwAddTaskStatusImpl(QW_FPARAMS(), tsch, 0, status, NULL));
 
@@ -298,7 +298,7 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   QW_RET(code);
 }
 
-void qwFreeTaskCtx(SQWTaskCtx *ctx) {
+void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   }
@@ -322,7 +322,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   taosArrayDestroy(ctx->tbInfo);
 
   if (gMemPoolHandle && ctx->memPoolSession) {
-    taosMemPoolDestroySession(gMemPoolHandle, ctx->memPoolSession);
+    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession);
   }
 }
 
@@ -407,7 +407,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
-  qwFreeTaskCtx(&octx);
+  qwFreeTaskCtx(QW_FPARAMS(), &octx);
   ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
@@ -423,7 +423,7 @@ int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_QTID(id, qId, cId, tId, eId);
 
-  if (qwAcquireScheduler(mgmt, sId, QW_WRITE, &sch)) {
+  if (qwAcquireScheduler(mgmt, cId, QW_WRITE, &sch)) {
     QW_TASK_WLOG_E("scheduler does not exist");
     return TSDB_CODE_SUCCESS;
   }
@@ -457,7 +457,7 @@ int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask) {
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
-  QW_ERR_RET(qwAcquireScheduler(mgmt, sId, QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, cId, QW_READ, &sch));
   QW_ERR_JRET(qwAcquireTaskStatus(QW_FPARAMS(), QW_READ, sch, &task));
 
   QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status, dynamicTask));
@@ -597,16 +597,18 @@ void qwDestroyImpl(void *pMgmt) {
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
-  uint64_t qId, cId, tId;
+  uint64_t qId, cId, tId, sId;
   int32_t  eId;
+  int64_t  rId = 0;
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
 
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, cId, tId, eId);
-
-    qwFreeTaskCtx(ctx);
+    sId = ctx->sId;
+    
+    qwFreeTaskCtx(QW_FPARAMS(), ctx);
     QW_TASK_DLOG_E("task ctx freed");
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
     taskCount++;
@@ -694,23 +696,23 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t num = taosArrayGetSize(pExpiredSch);
   for (int32_t i = 0; i < num; ++i) {
-    uint64_t     *sId = taosArrayGet(pExpiredSch, i);
+    uint64_t     *clientId = taosArrayGet(pExpiredSch, i);
     SQWSchStatus *pSch = NULL;
-    if (NULL == sId) {
-      qError("get the %dth sch failed, code:%x", i, terrno);
+    if (NULL == clientId) {
+      qError("get the %dth client failed, code:%x", i, terrno);
       break;
     }
 
-    code = qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch);
+    code = qwAcquireScheduler(mgmt, *clientId, QW_WRITE, &pSch);
     if (TSDB_CODE_SUCCESS != code) {
-      qError("acquire sch %" PRIx64 " failed, code:%x", *sId, code);
+      qError("acquire client %" PRIx64 " failed, code:%x", *clientId, code);
       continue;
     }
 
     if (taosHashGetSize(pSch->tasksHash) <= 0) {
       qwDestroySchStatus(pSch);
-      code = taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
-      qDebug("sch %" PRIx64 " destroy result code:%x", *sId, code);
+      code = taosHashRemove(mgmt->schHash, clientId, sizeof(*clientId));
+      qDebug("client %" PRIx64 " destroy result code:%x", *clientId, code);
     }
 
     qwReleaseScheduler(QW_WRITE, mgmt);
@@ -718,10 +720,77 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
 }
 
 void qwDestroyJobInfo(SQWJobInfo* pJob) {
-  //TODO
+  if (NULL == pJob) {
+    return;
+  }
+
+  taosMemoryFreeClear(pJob->memInfo);
+  taosHashCleanup(pJob->pSessions);
+  pJob->pSessions = NULL;
+}
+
+void qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  QW_LOCK(QW_WRITE, &ctx->lock);
+  
+  QW_TASK_DLOG_E("start to force stop task");
+  
+  if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+    QW_TASK_WLOG_E("task already dropping");
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+  
+    return;
+  }
+  
+  if (QW_QUERY_RUNNING(ctx)) {
+    code = qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
+    if (TSDB_CODE_SUCCESS != code) {
+      QW_TASK_ELOG("task running, async kill failed, error: %x", code);
+    } else {
+      QW_TASK_DLOG_E("task running, async killed");
+    }
+  } else if (QW_FETCH_RUNNING(ctx)) {
+    QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
+    QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+    QW_TASK_DLOG_E("task fetching, update drop received");
+  } else {
+    code = qwDropTask(QW_FPARAMS());
+    if (TSDB_CODE_SUCCESS != code) {
+      QW_TASK_ELOG("task drop failed, error: %x", code);
+    } else {
+      QW_TASK_DLOG_E("task dropped");
+    }
+  }
+  
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
+}
+
+void qwRetireTask(QW_FPARAMS_DEF) {
+  SQWTaskCtx    *ctx = NULL;
+
+  int32_t code = qwAcquireTaskCtx(QW_FPARAMS(), &ctx);
+  if (TSDB_CODE_SUCCESS != code) {
+    return;
+  }
+
+  qwStopTask(QW_FPARAMS(), ctx);
+
+  qwReleaseTaskCtx(mgmt, ctx);
 }
 
 void qwRetireJob(SQWJobInfo* pJob) {
-  //TODO
+  if (NULL == pJob) {
+    return;
+  }
+
+  void* pIter = taosHashIterate(pJob->pSessions, NULL);
+  while (pIter) {
+    SQWSessionInfo* pSession = (SQWSessionInfo*)pIter;
+
+    qwRetireTask((SQWorker *)pSession->mgmt, pSession->sId, pSession->qId, pSession->cId, pSession->tId, pSession->rId, pSession->eId);
+
+    pIter = taosHashIterate(pJob->pSessions, pIter);
+  }
 }
 

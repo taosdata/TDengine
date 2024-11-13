@@ -9276,7 +9276,7 @@ int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pR
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tEncodeU16(&encoder, pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->epId.ep.fqdn));
@@ -9323,7 +9323,7 @@ int32_t tDeserializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->epId.nodeId));
   TAOS_CHECK_EXIT(tDecodeU16(&decoder, &pReq->epId.ep.port));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->epId.ep.fqdn));

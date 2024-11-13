@@ -308,7 +308,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .type = QUERY_NODE_DOWNSTREAM_SOURCE,
         .clientId = pTask->clientId,
         .taskId = pTask->taskId,
-        .schedId = schMgmt.sId,
+        .sId = pJob->seriousId,
         .execId = pTask->execId,
         .addr = pTask->succeedAddr,
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
@@ -565,6 +565,7 @@ int32_t schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, i
   SCH_ERR_JRET(schResetTaskSetLevelInfo(pJob, pTask));
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  atomic_add_fetch_64(&pJob->seriousId, 1);
 
   code = schDoTaskRedirect(pJob, pTask, pData, rspCode);
 
@@ -1150,7 +1151,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->clientId, pTask->taskId,
+  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, pJob->seriousId, pJob->queryId, pTask->clientId, pTask->taskId,
                                         pJob->refId, pTask->execId, &qwMsg, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
@@ -1410,7 +1411,7 @@ int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->clientId, pTask->taskId,
+  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, pJob->seriousId, pJob->queryId, pTask->clientId, pTask->taskId,
                                         pJob->refId, pTask->execId, &pRsp, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {

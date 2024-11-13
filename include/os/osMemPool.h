@@ -33,6 +33,7 @@ typedef enum MemPoolEvictPolicy {
 
 typedef struct SMemPoolJob {
   uint64_t           jobId;
+  uint64_t           clientId;
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
 } SMemPoolJob;
@@ -79,7 +80,7 @@ typedef void (*mpDecConcSessionNum)(void);
 typedef void (*mpIncConcSessionNum)(void);
 typedef void (*mpSetConcSessionNum)(int32_t);
 typedef void (*mpReserveFailFp)(int64_t, int32_t);
-typedef void (*mpReserveReachFp)(uint64_t, int32_t);
+typedef void (*mpReserveReachFp)(uint64_t, uint64_t, int32_t);
 typedef void (*mpCfgUpdate)(void*, void*);
 
 typedef struct SMemPoolCallBack {
@@ -122,9 +123,9 @@ void   *taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignme
 void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
 void    taosAutoMemoryFree(void *ptr);
-int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob);
-void    taosMemPoolDestroySession(void* poolHandle, void* session);
-int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob);
+int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, char *sessionId);
+void    taosMemPoolDestroySession(void* poolHandle, void* session, int32_t* remainSessions);
+int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob);
 void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
 void    taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd);

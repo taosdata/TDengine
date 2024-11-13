@@ -96,7 +96,7 @@ void qwDbgDumpSchInfo(SQWorker *mgmt, SQWSchStatus *sch, int32_t i) {
   int32_t taskNum = taosHashGetSize(sch->tasksHash);
   QW_DLOG("***The %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs, taskNum);
 
-  uint64_t qId, cId, tId;
+  uint64_t qId, cId, tId, sId = 0;
   int32_t  eId;
   SQWTaskStatus *pTask = NULL;
   void *pIter = taosHashIterate(sch->tasksHash, NULL);
@@ -118,19 +118,20 @@ void qwDbgDumpTasksInfo(SQWorker *mgmt) {
 
   int32_t i = 0;
   SQWTaskCtx *ctx = NULL;
-  uint64_t qId, cId, tId;
+  uint64_t qId, cId, tId, sId;
   int32_t  eId;
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, cId, tId, eId);
+    sId = ctx->sId;
     
     QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, queryMsgType:%d, "
-      "sId:%" PRId64 ", level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
+      "level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
       "rspCode:%x, affectedRows:%" PRId64 ", taskHandle:%p, sinkHandle:%p, tbNum:%d, events:%d,%d,%d,%d,%d",
       ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->queryMsgType,
-      ctx->sId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
+      ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
       ctx->queryInQueue, ctx->rspCode, ctx->affectedRows, ctx->taskHandle, ctx->sinkHandle, (int32_t)taosArrayGetSize(ctx->tbInfo),
       ctx->events[QW_EVENT_CANCEL], ctx->events[QW_EVENT_READY], 
       ctx->events[QW_EVENT_FETCH], ctx->events[QW_EVENT_DROP], ctx->events[QW_EVENT_CQUERY]);

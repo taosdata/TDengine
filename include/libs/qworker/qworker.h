@@ -113,7 +113,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
 
 int32_t qWorkerDbgEnableDebug(char *option);
 
-void qWorkerRetireJob(uint64_t jobId, int32_t errCode);
+void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode);
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode);
 

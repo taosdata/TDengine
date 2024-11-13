@@ -350,10 +350,10 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *pConn) {
+int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t clientId, SRpcHandleInfo *pConn) {
   SSchedulerHbReq req = {0};
   req.header.vgId = mgmt->nodeId;
-  req.sId = sId;
+  req.clientId = clientId;
 
   int32_t msgSize = tSerializeSSchedulerHbReq(NULL, 0, &req);
   if (msgSize < 0) {
@@ -720,6 +720,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
   int32_t         code = 0;
   SSchedulerHbReq req = {0};
   SQWorker       *mgmt = (SQWorker *)qWorkerMgmt;
+  uint64_t        clientId = 0;
 
   QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
   QW_STAT_INC(mgmt->stat.msgStat.hbProcessed, 1);
@@ -735,7 +736,8 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  uint64_t sId = req.sId;
+  clientId = req.clientId;
+
   SQWMsg   qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info};
   if (TSDB_CODE_RPC_BROKEN_LINK == pMsg->code) {
     QW_SCH_DLOG("receive Hb msg due to network broken, error:%s", tstrerror(pMsg->code));
