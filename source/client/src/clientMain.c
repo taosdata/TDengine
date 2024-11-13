@@ -1803,7 +1803,7 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
 
   if (bind->num > 1) {
     tscError("invalid bind number %d for %s", bind->num, __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
     return terrno;
   }
 
@@ -1819,7 +1819,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
 
   if (bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("invalid bind num %d", bind->num);
-    terrno = TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
     return terrno;
   }
 
@@ -1831,7 +1831,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   }
   if (0 == insert && bind->num > 1) {
     tscError("only one row data allowed for query");
-    terrno = TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
     return terrno;
   }
 
@@ -1859,7 +1859,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, in
   }
   if (0 == insert && bind->num > 1) {
     tscError("only one row data allowed for query");
-    terrno = TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
     return terrno;
   }
 
@@ -2019,7 +2019,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         tscError("invalid bind num %d", bind->num);
-        terrno = TSDB_CODE_INVALID_PARA;
+        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         return terrno;
       }
 
@@ -2027,7 +2027,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       (void)stmtIsInsert2(stmt, &insert);
       if (0 == insert && bind->num > 1) {
         tscError("only one row data allowed for query");
-        terrno = TSDB_CODE_INVALID_PARA;
+        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         return terrno;
       }
 

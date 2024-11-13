@@ -467,9 +467,11 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -674,7 +676,7 @@ typedef struct {
   int32_t tsSlowLogThreshold;
   int32_t tsSlowLogMaxLen;
   int32_t tsSlowLogScope;
-  int32_t tsSlowLogThresholdTest;
+  int32_t tsSlowLogThresholdTest;   //Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
 
@@ -2305,6 +2307,7 @@ typedef struct {
 typedef struct {
   SExplainRsp rsp;
   uint64_t    qId;
+  uint64_t    cId;
   uint64_t    tId;
   int64_t     rId;
   int32_t     eId;
@@ -2658,6 +2661,7 @@ typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2687,6 +2691,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int32_t  execId;
 } SQueryContinueReq;
@@ -2721,6 +2726,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int32_t         execId;
   SOperatorParam* pOpParam;
@@ -2736,6 +2742,7 @@ typedef struct {
 
 typedef struct {
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2782,6 +2789,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2795,6 +2803,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
   int32_t  execId;
@@ -2811,6 +2820,7 @@ typedef struct {
   SMsgHead        header;
   uint64_t        sId;
   uint64_t        queryId;
+  uint64_t        clientId;
   uint64_t        taskId;
   int64_t         refId;
   int32_t         execId;
@@ -2827,9 +2837,11 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE        1
-#define STREAM_TRIGGER_WINDOW_CLOSE   2
-#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_TRIGGER_AT_ONCE            1
+#define STREAM_TRIGGER_WINDOW_CLOSE       2
+#define STREAM_TRIGGER_MAX_DELAY          3
+#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE 4
+
 #define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
@@ -3216,6 +3228,7 @@ int tDecodeSVCreateTbBatchRsp(SDecoder* pCoder, SVCreateTbBatchRsp* pRsp);
 typedef struct {
   char*    name;
   uint64_t suid;  // for tmq in wal format
+  int64_t  uid;
   int8_t   igNotExists;
 } SVDropTbReq;
 
@@ -4257,6 +4270,7 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
   uint64_t taskId;
   uint32_t sqlLen;
   uint32_t phyLen;

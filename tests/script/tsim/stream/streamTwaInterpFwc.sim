@@ -1,0 +1,114 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 4;
+sql use test;
+
+sql create stable st(ts timestamp, a int, b int , c int)tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stream streams1 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt1 as select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s) fill(value, 100, 200);
+sql create stream streams2 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt2 as select _wstart, count(a), twa(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s) fill(prev);
+sql create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt3 as select _irowts, interp(a), interp(b), interp(c), now, timezone(), ta from st partition by tbname,ta every(2s) fill(value, 100, 200, 300);
+sql create stream streams4 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt4 as select _irowts, interp(a), interp(b), interp(c), now, timezone(), ta from st partition by tbname,ta every(2s) fill(prev);
+sql create stream streams5 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into  streamt5 as select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s);
+
+run tsim/stream/checkTaskStatus.sim
+
+$loop_count = 0
+
+_data:
+
+sql insert into t1 values(now +  3000a,1,1,1) (now +  3100a,5,10,10) (now +  3200a,5,10,10)  (now + 5100a,20,1,1) (now + 5200a,30,10,10) (now + 5300a,40,10,10);
+sql insert into t2 values(now +  3000a,1,1,1) (now +  3100a,2,10,10) (now +  3200a,30,10,10) (now + 5100a,10,1,1) (now + 5200a,40,10,10) (now + 5300a,7,10,10);
+
+sleep 2000
+
+$loop_count = $loop_count + 1
+if $loop_count < 10 then
+  goto _data
+endi
+
+print sql  select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s) order by 1, 2;
+sql  select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s) order by 1, 2;
+$query1_rows = $rows
+print ======query1_rows=$query1_rows
+
+$query1_data01 = $data01
+print ======query1_data01=$query1_data01
+
+print select last(*) from (select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s)) order by 1,2 desc;
+sql  select _wstart, count(a), sum(b), now, timezone(), ta  from st partition by tbname,ta interval(2s) order by 1,2 desc;
+print $data00 $data01 $data02 $data03 $data04
+
+loop0:
+
+sleep 2000
+
+print sql select * from streamt1 order by 1, 2;
+sql select * from streamt1 order by 1, 2;
+print ======streamt1=rows=$rows
+
+if $rows < $query1_rows then
+  goto loop0
+endi
+
+if $data01 != $query1_data01 then
+  print =============data01=$data01
+  print ======query1_data01=$query1_data01
+  return -1
+endi
+
+print sql select * from streamt2 order by 1, 2;
+sql select * from streamt2 order by 1, 2;
+print ======streamt2=rows=$rows
+
+if $rows < $query1_rows then
+  goto loop0
+endi
+
+if $data01 != $query1_data01 then
+  print =============data01=$data01
+  print ======query1_data01=$query1_data01
+  return -1
+endi
+
+print sql select * from streamt3 order by 1, 2;
+sql select * from streamt3 order by 1, 2;
+print ======streamt3=rows=$rows
+
+if $rows < $query1_rows then
+  goto loop0
+endi
+
+print sql select * from streamt4 order by 1, 2;
+sql select * from streamt4 order by 1, 2;
+print ======streamt4=rows=$rows
+
+if $rows < $query1_rows then
+  goto loop0
+endi
+
+print sql select * from streamt5 order by 1, 2;
+sql select * from streamt5 order by 1, 2;
+print ======streamt5=rows=$rows
+
+if $rows < $query1_rows then
+  return -1
+endi
+
+if $data01 != $query1_data01 then
+  print =============data01=$data01
+  print ======query1_data01=$query1_data01
+  return -1
+endi
+
+print end
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

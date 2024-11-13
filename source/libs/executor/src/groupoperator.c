@@ -1326,7 +1326,6 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
-
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = NULL;
     code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
@@ -1508,6 +1507,7 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
+      case STREAM_GET_RESULT:
       case STREAM_GET_ALL: {
         (*ppRes) = pBlock;
         return code;

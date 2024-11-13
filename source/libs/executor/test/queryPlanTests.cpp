@@ -2384,7 +2384,7 @@ void qptCreateWindowPhysiNode(SWindowPhysiNode* pWindow) {
   pWindow->watermark = taosRand();
   pWindow->deleteMark = taosRand();
   pWindow->igExpired = taosRand();
-  pWindow->destHasPrimayKey = taosRand();
+  pWindow->destHasPrimaryKey = taosRand();
   pWindow->mergeDataBlock = QPT_RAND_BOOL_V;
 }
 

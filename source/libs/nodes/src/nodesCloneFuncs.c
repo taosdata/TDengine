@@ -678,9 +678,12 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
+  COPY_OBJECT_FIELD(streamNodeOption, sizeof(SStreamNodeOption));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -789,7 +792,7 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(destHasPrimayKey);
+  COPY_SCALAR_FIELD(destHasPrimaryKey);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -848,6 +851,7 @@ static int32_t slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
 
 static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
+  COPY_SCALAR_FIELD(clientId);
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);

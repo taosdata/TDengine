@@ -131,7 +131,7 @@ static void clearStreamBlock(SOperatorInfo* pOperator) {
   }
 }
 
-void resetTaskInfo(qTaskInfo_t tinfo) {
+void qResetTaskInfoCode(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->code = 0;
   clearStreamBlock(pTaskInfo->pRoot);
@@ -1098,6 +1098,23 @@ _end:
   return code;
 }
 
+static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow);
+  }
+  SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
+  *pWaterMark = pScanOp->twAggSup.waterMark;
+  *pInterval = pScanOp->interval;
+  *pLastWindow = pScanOp->lastScanRange;
+  return TSDB_CODE_SUCCESS; 
+}
+
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow);
+}
+
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -1159,6 +1176,19 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
     } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT) {
       SStreamCountAggOperatorInfo* pInfo = pOperator->info;
       STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
+
+      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
+
+      pSup->calTriggerSaved = pSup->calTrigger;
+      pSup->deleteMarkSaved = pSup->deleteMark;
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      pSup->deleteMark = INT64_MAX;
+      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
+      pInfo->ignoreExpiredData = false;
+      qInfo("save stream task:%s, param for state: %d", GET_TASKID(pTaskInfo), pInfo->ignoreExpiredData);
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC) {
+      SStreamTimeSliceOperatorInfo* pInfo = pOperator->info;
+      STimeWindowAggSupp*           pSup = &pInfo->twAggSup;
 
       qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
 
