@@ -121,6 +121,9 @@ int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pCompMonitor->totalCompTasks;
   rsp->finished = rsp->numberFileset - TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);
+  // TODO: make progress and remaining time more accurate
+  rsp->progress = (rsp->numberFileset == 0) ? 100 : (rsp->finished * 100) / rsp->numberFileset;
+  rsp->remainingTime = 640000;
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
