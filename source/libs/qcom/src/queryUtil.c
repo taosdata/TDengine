@@ -674,6 +674,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 _exit:
   tdDestroySVCreateTbReq(*pDst);
   taosMemoryFree(*pDst);
+  *pDst = NULL;
   return terrno;
 }
 
