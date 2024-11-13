@@ -498,7 +498,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
           continue;
         }
 
-        mInfo("stream:0x%" PRIx64 "checkpointId:%" PRId64
+        mInfo("stream:0x%" PRIx64 " checkpointId:%" PRId64
               " transId:%d failed issue task-reset trans to reset all tasks status",
               pInfo->streamUid, pInfo->checkpointId, pInfo->transId);
 
