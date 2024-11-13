@@ -1599,8 +1599,9 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pActions, action);
 
-    mInfo("trans:%d, current action:%d, stage:%s, actionType(0:log,1:msg):%d", pTrans->id, pTrans->actionPos,
-          mndTransStr(pAction->stage), pAction->actionType);
+    mInfo("trans:%d, current action:%d, stage:%s, actionType:%s, msgSent:%d, msgReceived:%d", pTrans->id,
+          pTrans->actionPos, mndTransStr(pAction->stage), mndTransTypeStr(pAction->actionType), pAction->msgSent,
+          pAction->msgReceived);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {
@@ -2462,6 +2463,7 @@ static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       SArray *pActions = mndTransGetAction(pShowIter->pTrans, pShowIter->pTrans->stage);
 
       mndTransShowActions(pSdb, pShowIter, pShow, pBlock, rows, &numOfRows, pActions, taosArrayGetSize(pActions), 0);
+      break;
     } else {
       mInfo("retrieve trans detail from iter, id:%d, iterStage:%d, IterNum:%d", pShowIter->pTrans->id, pShowIter->stage,
             pShowIter->num);
