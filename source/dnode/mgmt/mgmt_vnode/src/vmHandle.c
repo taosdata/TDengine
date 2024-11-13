@@ -421,6 +421,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
+  vmRemoveFromCreatingHash(pMgmt, req.vgId);
+
 _OVER:
   if (code != 0) {
     int32_t r = 0;
