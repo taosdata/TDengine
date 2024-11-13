@@ -297,17 +297,16 @@ _start:
 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
 
-    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    char    value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
-
+    SDiskCfg* pDiskCfg = NULL;
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char*     buf = &value[VARSTR_HEADER_SIZE];
-      SDiskCfg* pDiskCfg = taosArrayGet(pItem->array, index);
-      valueLen = snprintf(buf, TSDB_CONFIG_VALUE_LEN, "%s l:%d p:%d d:%" PRIi8, pDiskCfg->dir, pDiskCfg->level,
-                          pDiskCfg->primary, pDiskCfg->disable);
+      pDiskCfg = taosArrayGet(pItem->array, index);
+      valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
       index++;
     } else {
-      TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen), NULL,
+      TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_PATH_LEN, &valueLen), NULL,
                       _exit);
     }
     varDataSetLen(value, valueLen);
@@ -330,6 +329,23 @@ _start:
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
+
+    char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (strcasecmp(pItem->name, "dataDir") == 0) {
+      char* buf = &info[VARSTR_HEADER_SIZE];
+      valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
+                              pDiskCfg->primary, pDiskCfg->disable);
+    } else {
+      valueLen = 0;
+    }
+    varDataSetLen(info, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, info, false), NULL, _exit);
 
     numOfRows++;
     if (index > 0 && index <= exSize) {
