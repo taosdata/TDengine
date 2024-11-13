@@ -359,7 +359,6 @@ pipeline {
                         WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
-                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
