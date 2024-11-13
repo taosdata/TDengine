@@ -138,6 +138,7 @@ typedef struct {
   int8_t scanMeta;
   int8_t deleteMsg;
   int8_t enableRef;
+  int8_t scanDropCtb;
 } SWalFilterCond;
 
 // todo hide this struct
