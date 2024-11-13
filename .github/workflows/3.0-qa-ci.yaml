@@ -298,19 +298,19 @@ jobs:
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
 
-      - name: mqtt & opc Report
+      - name: opc Report
         run: |
-          # mqtt report
-          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged
-          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/mqtt
-          # 1.mqtt 单元测试覆盖率文件
-          mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
-          # 2.mqtt 端到端测试覆盖率文件
-          go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_e2e_report.txt
-          # 3.mqtt 总的覆盖率报告
-          /root/go/bin/gocov convert mqtt_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit/index.html
-          /root/go/bin/gocov convert mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e/index.html
-          /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged/index.html
+          # # mqtt report
+          # mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged
+          # cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/mqtt
+          # # 1.mqtt 单元测试覆盖率文件
+          # mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
+          # # 2.mqtt 端到端测试覆盖率文件
+          # go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_e2e_report.txt
+          # # 3.mqtt 总的覆盖率报告
+          # /root/go/bin/gocov convert mqtt_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/unit/index.html
+          # /root/go/bin/gocov convert mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/e2e/index.html
+          # /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/merged/index.html
          
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
           # opc report
