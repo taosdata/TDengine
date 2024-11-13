@@ -90,6 +90,16 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false),
                                    pSdb, pCompactDetail);
 
+    int32_t percentage = 0;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&percentage, false), pSdb,
+                                   pCompactDetail);
+
+    int64_t remainTime = 0;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&remainTime, false), pSdb,
+                                   pCompactDetail);
+
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);
   }
