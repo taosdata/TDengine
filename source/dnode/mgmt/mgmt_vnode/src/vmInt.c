@@ -105,6 +105,7 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   pCreatingVnode->vgId = vgId;
   pCreatingVnode->diskPrimary = diskId;
 
+  dTrace("vgId:%d, put vnode into creating hash, pCreatingVnode:%p", vgId, pCreatingVnode);
   int32_t r = taosHashPut(pMgmt->creatingHash, &vgId, sizeof(int32_t), &pCreatingVnode, sizeof(SVnodeObj *));
   if (r != 0) {
     dError("vgId:%d, failed to put vnode to creatingHash", vgId);
@@ -556,13 +557,15 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 void vmRemoveFromCreatingHash(SVnodeMgmt *pMgmt, int32_t vgId) {
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
   SVnodeObj *pOld = NULL;
-  int32_t    r = taosHashGetDup(pMgmt->closedHash, &vgId, sizeof(int32_t), (void *)&pOld);
+  int32_t    r = taosHashGetDup(pMgmt->creatingHash, &vgId, sizeof(int32_t), (void *)&pOld);
   if (r != 0) {
-    dError("vgId:%d, failed to get vnode from closedHash", vgId);
+    dError("vgId:%d, failed to get vnode from creating Hash", vgId);
   }
   if (pOld) {
+    dTrace("vgId:%d, free vnode pOld:%p", vgId, &pOld);
     vmFreeVnodeObj(&pOld);
   }
+  dTrace("vgId:%d, remove from creating Hash", vgId);
   r = taosHashRemove(pMgmt->creatingHash, &vgId, sizeof(int32_t));
   if (r != 0) {
     dError("vgId:%d, failed to remove vnode from hash", vgId);
