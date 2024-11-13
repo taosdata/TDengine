@@ -381,6 +381,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     vmReleaseVnode(pMgmt, pVnode);
+    vmRemoveFromCreatingHash(pMgmt, req.vgId);
     (void)tFreeSCreateVnodeReq(&req);
     code = terrno != 0 ? terrno : -1;
     return code;
@@ -421,9 +422,9 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
+_OVER:
   vmRemoveFromCreatingHash(pMgmt, req.vgId);
 
-_OVER:
   if (code != 0) {
     int32_t r = 0;
     r = taosThreadRwlockWrlock(&pMgmt->lock);
