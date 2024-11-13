@@ -425,7 +425,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_table_meta_querier() {
+    async fn test_table_meta_querier_with_taos() {
         // given
         let dsn = "taos:///";
         let db_name = "taosx_core_utils_table_meta";
