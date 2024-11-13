@@ -563,7 +563,16 @@ args = [
 
 [tasks.test-without-cov]
 command = "cargo"
-args = ["nextest", "run", "--workspace", "--no-fail-fast", "--retries", "0"]
+args = [
+  "nextest",
+  "run",
+  "--workspace",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/_with_taos$/)",
+]
 
 [tasks.pre-commit]
 dependencies = ["fmt", "clippy", "test-without-cov"]
