@@ -4,10 +4,10 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-ANode 可以运行在 Linux/Windows/Mac 操作系统之上，要求部署 Anode 的节点安装有 3.10 及以上版本的Python环境，以及相应的 Python 包自动安装组件 Pip。
+为了使用 TDgpt 的高级时序数据分析功能功能，需要在 TDengine 集群中安装部署 AI node（Anode）。ANode 可以运行在 Linux/Windows/Mac 等操作系统之上。请确保安装部署 Anode之前，系统中已经具备 3.10 及以上版本的Python环境，以及相应的 Python 包自动安装组件 Pip，否则无法正常安装 Anode。
 
 ### 安装及卸载
-不同操作系统上安装及部署操作有差异，主要包括安装/卸载操作、安装路径、Anode服务的启停等几个方面。本小节以 Linux 系统为例，说明安装部署的整个流程。使用Linux环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 ANode 的安装部署工作，使用如下命令：
+不同操作系统上安装及部署操作有细微的差异，主要是安装/卸载操作、安装路径、Anode服务的启停等几个方面。下面将以 Linux 系统为例，说明安装部署的整个流程。使用 Linux 环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 ANode 的安装部署工作，使用如下命令：
 
 ```bash
 tar -xzvf TDengine-enterprise-anode-1.0.0.tar.gz
@@ -15,7 +15,7 @@ cd TDengine-enterprise-anode-1.0.0
 sudo ./install.sh
 ```
 
-在安装完成 ANode 之后，执行命令 `rmtaosanode` 即可。
+在安装完成 ANode 之后，执行命令 `rmtaosanode` 即可已经安装的 Anode。
 ANode 使用 Python 虚拟环境运行，避免影响安装环境中现有的 Python 库。安装后的默认 Python 虚拟环境目录位于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 执行的命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，手动删除即可。
 
 ### 启停服务
@@ -82,8 +82,9 @@ log-level = DEBUG
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而无法正常启动。
-该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置及其含义和说明请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
-对于 Anode 运行配置主要是以下几个：
+上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数设置及其含义和说明请参考 [uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+
+Anode 运行配置主要是以下：
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
 - model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
 - log-level: app-log文件的日志级别
