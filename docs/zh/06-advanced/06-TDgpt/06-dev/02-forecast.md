@@ -84,10 +84,32 @@ class _MyForecastService(AbstractForecastService):
 SELECT COUNT(*) FROM foo ANOMALY_DETECTION(col, 'algo=myad')
 ```
 
-将该文件保存在 `./taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。通过执行 `SHOW ANODES FULL` 能够看到新加入的算法，然后就可以通过 SQL 语句调用该预测算法。
+将该文件保存在 `./taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。通过执行 `SHOW ANODES FULL` 能够看到新加入的算法，通过 SQL 语句调用该预测算法。
 
 ```SQL
 --- 对 col 列进行异常检测，通过指定 algo 参数为 myfc 来调用新添加的预测类
 SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
+```
+
+
+### 单元测试
+
+在测试目录`taosanalytics/test`中的 forecast_test.py 中增加单元测试用例或添加新的测试文件。单元测试依赖 Python Unit test 包。
+
+```python
+def test_myfc(self):
+    """ 测试 myfc 类 """
+    s = loader.get_service("myfc")
+
+    # 设置用于预测分析的数据
+    s.set_input_list(self.get_input_list())
+    # 检查预测结果应该全部为 1
+    r = s.set_params(
+        {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
+    )
+    r = s.execute()
+
+    expected_list = [1] * 10
+    self.assertEqlist(r["res"][0], expected_list)
 ```
