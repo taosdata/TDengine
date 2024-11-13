@@ -1749,17 +1749,18 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t vgId;
-  int64_t numOfTables;
-  int64_t memSize;
-  int64_t l1Size;
-  int64_t l2Size;
-  int64_t l3Size;
-  int64_t cacheSize;
-  int64_t walSize;
-  int64_t metaSize;
-  int64_t rawDataSize;
-  int64_t s3Size;
+  int32_t     vgId;
+  int64_t     numOfTables;
+  int64_t     memSize;
+  int64_t     l1Size;
+  int64_t     l2Size;
+  int64_t     l3Size;
+  int64_t     cacheSize;
+  int64_t     walSize;
+  int64_t     metaSize;
+  int64_t     rawDataSize;
+  int64_t     s3Size;
+  const char* dbname;
 } SDbSizeStatisInfo;
 
 typedef struct {

@@ -73,6 +73,7 @@ typedef struct SSysTableScanInfo {
   SLimitInfo             limitInfo;
   int32_t                tbnameSlotId;
   STableListInfo*        pTableListInfo;
+  SSDataBlock*           pResBlock;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
 } SSysTableScanInfo;
@@ -2015,40 +2016,15 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
-static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
+static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pStaticsInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-
-  SSDataBlock* p = NULL;
-  int32_t      numOfRows = 0;
-
-  const char* db = NULL;
-  int32_t     vgId = 0;
-  int32_t     numOfCols = 0;
-
-  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
-  if (pInfo->readHandle.mnd != NULL) {
-    // code = buildSysUsageInfo(pInfo, pOperator->resultInfo.capacity);
-    // QUERY_CHECK_CODE(code, lino, _end);
-
-    // code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-    // QUERY_CHECK_CODE(code, lino, _end);
-    // pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-
-    setOperatorCompleted(pOperator);
-    return NULL;
-    // return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
-  }
-  if (pInfo->pCur == NULL) {
-    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
-  }
-
-  blockDataCleanup(pInfo->pRes);
-
-  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+  int32_t            vgId = 0;
+  const char*        db = NULL;
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &pStaticsInfo->dbname, &vgId, NULL, NULL);
 
   SDbSizeStatisInfo staticsInfo = {0};
 
@@ -2057,86 +2033,147 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = vnodeEstimateRawDataSize(pOperator, &staticsInfo);
+  return vnodeEstimateRawDataSize(pOperator, &staticsInfo);
+_end:
+  return code;
+}
+static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  SDbSizeStatisInfo  staticsInfo = {0};
+
+  SSDataBlock* p = NULL;
+  int32_t      numOfRows = 0;
+
+  const char* db = NULL;
+  int32_t     numOfCols = 0;
+
+  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
+  if (pInfo->readHandle.mnd != NULL) {
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+  }
+  SSDataBlock* pBlock = pInfo->pRes;
+
+  code = buildVgDiskUsage(pOperator, &staticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SName sn = {0};
-  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (pInfo->showRewrite) {
+    SSDataBlock*      pBlock = pInfo->pRes;
+    SDBBlockUsageInfo usageInfo = {0};
+    int32_t           len = tSerializeBlockDbUsage(NULL, 0, &usageInfo);
 
-  code = tNameGetDbName(&sn, varDataVal(dbname));
-  QUERY_CHECK_CODE(code, lino, _end);
+    usageInfo.numOfSttRows = 120;
+    usageInfo.numOfInmemRows = 120;
+    usageInfo.numOfBlocks = 120;
 
-  varDataSetLen(dbname, strlen(varDataVal(dbname)));
+    char* p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+    QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+    int32_t tempRes = tSerializeBlockDbUsage(varDataVal(p), len, &usageInfo);
+    if (tempRes != len) {
+      taosMemoryFree(p);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    varDataSetLen(p, len);
 
-  p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
-  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+    int32_t          slotId = 1;
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 1);
+    QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfo, 0, p, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    taosMemoryFree(p);
+    if (slotId != 0) {
+      SColumnInfoData* p1 = taosArrayGet(pBlock->pDataBlock, 0);
+      QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
+      int64_t v = 0;
+      // colDataSetInt64(p1, 0, &v);
+    }
 
-  code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
-  QUERY_CHECK_CODE(code, lino, _end);
+    pBlock->info.rows = 1;
+    pOperator->status = OP_EXEC_DONE;
+    pInfo->pRes->info.rows = pBlock->info.rows;
+    // code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, pBlock->pDataBlock, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    SName sn = {0};
+    char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    code = tNameFromString(&sn, staticsInfo.dbname, T_NAME_ACCT | T_NAME_DB);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
-  QUERY_CHECK_CODE(code, lino, _end);
+    code = tNameGetDbName(&sn, varDataVal(dbname));
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
-  QUERY_CHECK_CODE(code, lino, _end);
+    varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.walSize, false);  // wal
-  QUERY_CHECK_CODE(code, lino, _end);
+    p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+    QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.memSize, false);  // memtable
-  QUERY_CHECK_CODE(code, lino, _end);
+    code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l1Size, false);  // l1_size
-  QUERY_CHECK_CODE(code, lino, _end);
+    SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l2Size, false);  // l2_size
-  QUERY_CHECK_CODE(code, lino, _end);
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l3Size, false);  // l3_size
-  QUERY_CHECK_CODE(code, lino, _end);
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.walSize, false);  // wal
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.s3Size, false);  // s3_size
-  QUERY_CHECK_CODE(code, lino, _end);
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.memSize, false);  // memtable
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.rawDataSize, false);  // estimate_size
-  QUERY_CHECK_CODE(code, lino, _end);
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l1Size, false);  // l1_size
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  numOfRows += 1;
-  pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-  pInfo->pCur = NULL;
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l2Size, false);  // l2_size
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  if (numOfRows > 0) {
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l3Size, false);  // l3_size
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.s3Size, false);  // s3_size
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.rawDataSize, false);  // estimate_size
+    QUERY_CHECK_CODE(code, lino, _end);
+    numOfRows += 1;
     pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
 
-    p->info.rows = numOfRows;
-    pInfo->pRes->info.rows = numOfRows;
+    if (numOfRows > 0) {
+      p->info.rows = numOfRows;
+      pInfo->pRes->info.rows = numOfRows;
 
-    code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
-    QUERY_CHECK_CODE(code, lino, _end);
+      code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
+      QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-    QUERY_CHECK_CODE(code, lino, _end);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
+      numOfRows = 0;
+    }
 
-    numOfRows = 0;
+    blockDataDestroy(p);
+    p = NULL;
+
+    pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+    setOperatorCompleted(pOperator);
   }
-  blockDataDestroy(p);
-  p = NULL;
-
-  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-  setOperatorCompleted(pOperator);
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2209,7 +2246,11 @@ _end:
   }
   return NULL;
 }
+static SSDataBlock* sysTableScanUsageRewrite(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
+  return NULL;
+}
 static SSDataBlock* sysTableScanUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -2331,7 +2372,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       if (dbName[0]) TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       (void)sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
     }
-
+    bool         filter = true;
     SSDataBlock* pBlock = NULL;
     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserTables(pOperator);
@@ -2343,12 +2384,15 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
                IS_SYS_DBNAME(dbName)) {
       pBlock = sysTableScanUserSTables(pOperator);
     } else if (strncasecmp(name, TSDB_INS_TABLE_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
+      if (pInfo->showRewrite) {
+        filter = false;
+      }
       pBlock = sysTableScanUsage(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
 
-    sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
+    if (filter) sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
     if (pBlock != NULL) {
       bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
       if (limitReached) {
@@ -2524,6 +2568,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
 
   SScanPhysiNode*     pScanNode = &pScanPhyNode->scan;
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
+  QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t num = 0;
   code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
@@ -2540,6 +2585,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+
   pInfo->pCondition = pScanNode->node.pConditions;
   code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -3280,8 +3326,13 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
 
   void* pList = tableListGetInfo(pTableListInfo, 0);
 
-  code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL, (void**)&pInfo->pHandle,
-                                                  pTaskInfo->id.str, NULL);
+  if (pInfo->showRewrite) {
+    code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, pInfo->pRes,
+                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
+  } else {
+    code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL,
+                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
+  }
   cleanupQueryTableDataCond(&cond);
   QUERY_CHECK_CODE(code, line, _end);
 
