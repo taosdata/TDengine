@@ -304,7 +304,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
       if (configRsp.forceReadConfig) {
         if (configRsp.isConifgVerified) {
-          persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+          persistGlobalConfig(getGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
@@ -312,13 +312,12 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         }
       }
       if (!configRsp.isVersionVerified) {
-        cfgLoadFromArray(tsCfg, configRsp.array);
-        persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+        persistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
       }
     }
     setAllConfigs(tsCfg);
     persistLocalConfig(pMgmt->path);
-    setAllConfigs(tsCfg);
+    tsConfigInited = 1;
   }
 _exit:
   tFreeSConfigRsp(&configRsp);
@@ -329,9 +328,9 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SConfigReq req = {0};
 
-  req.cver = tsConfigVersion;
+  req.cver = tsdmConfigVersion;
   req.forceReadConfig = tsForceReadConfig;
-  req.array = cfgGetGlobalCfg(tsCfg);
+  req.array = getGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
   int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);

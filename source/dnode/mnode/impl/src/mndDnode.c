@@ -934,21 +934,21 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
-  configRsp.cver = tsConfigVersion;
+  configRsp.cver = tsmmConfigVersion;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(cfgGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
+    if (compareSConfigItemArrays(getGlobalCfg(tsCfg), configReq.array, diffArray)) {
       configRsp.array = diffArray;
     } else {
       configRsp.isConifgVerified = 1;
       taosArrayDestroy(diffArray);
     }
   } else {
-    configRsp.array = cfgGetGlobalCfg(tsCfg);
-    if (configReq.cver == tsConfigVersion) {
-      configRsp.isConifgVerified = 1;
+    configRsp.array = getGlobalCfg(tsCfg);
+    if (configReq.cver == tsmmConfigVersion) {
+      configRsp.isVersionVerified = 1;
     } else {
-      configRsp.array = cfgGetGlobalCfg(tsCfg);
+      configRsp.array = getGlobalCfg(tsCfg);
     }
   }
 

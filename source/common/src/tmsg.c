@@ -1635,6 +1635,7 @@ int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
   if (pReq->forceReadConfig) {
+    pReq->array = taosArrayInit(128, sizeof(SConfigItem));
     TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
   }
   tEndDecode(&decoder);
@@ -1677,7 +1678,9 @@ int32_t tDeserializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->forceReadConfig));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isConifgVerified));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isVersionVerified));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->cver));
   if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
+    pRsp->array = taosArrayInit(128, sizeof(SConfigItem));
     TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pRsp->array));
   }
 _exit:

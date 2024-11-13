@@ -45,7 +45,8 @@ char          tsVersionName[16] = "community";
 uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
-int32_t       tsConfigVersion = 0;
+int32_t       tsdmConfigVersion = -1;
+int32_t       tsmmConfigVersion = 0;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
@@ -1917,7 +1918,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
       cJSON_Delete(pRoot);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tsConfigVersion = pItem->valueint;
+    tsdmConfigVersion = pItem->valueint;
   }
 
   int32_t sz = taosArrayGetSize(array);
@@ -1968,10 +1969,10 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
   char    filename[CONFIG_FILE_LEN] = {0};
   SArray *array = NULL;
   if (isGlobal) {
-    array = cfgGetGlobalCfg(tsCfg);
+    array = getGlobalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP);
   } else {
-    array = cfgGetLocalCfg(tsCfg);
+    array = getLocalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
   }
 
@@ -2801,7 +2802,7 @@ int32_t persistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
   char *serialized = NULL;
-  code = localConfigSerialize(cfgGetLocalCfg(tsCfg), &serialized);
+  code = localConfigSerialize(getLocalCfg(tsCfg), &serialized);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(code));
     TAOS_RETURN(code);
@@ -2852,16 +2853,15 @@ _exit:
 }
 
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  int32_t      sz = 0;
-  ECfgDataType dtype = CFG_DTYPE_NONE;
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t sz = 0;
   tDecodeI32(pDecoder, &sz);
   for (int i = 0; i < sz; i++) {
     SConfigItem item = {0};
     TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &item.name));
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t *)&dtype));
-    switch (dtype) {
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t *)&item.dtype));
+    switch (item.dtype) {
       {
         case CFG_DTYPE_NONE:
           break;
@@ -2887,6 +2887,7 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array) {
           break;
       }
     }
+    taosArrayPush(array, &item);
   }
 _exit:
   return code;

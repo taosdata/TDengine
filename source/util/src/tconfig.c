@@ -1537,5 +1537,7 @@ void cfgDestroyIter(SConfigIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-SArray *cfgGetLocalCfg(SConfig *pCfg) { return pCfg->localArray; }
-SArray *cfgGetGlobalCfg(SConfig *pCfg) { return pCfg->globalArray; }
+SArray *getLocalCfg(SConfig *pCfg) { return pCfg->localArray; }
+SArray *getGlobalCfg(SConfig *pCfg) { return pCfg->globalArray; }
+void    setLocalCfg(SConfig *pCfg, SArray *pArray) { pCfg->localArray = pArray; };
+void    setGlobalCfg(SConfig *pCfg, SArray *pArray) { pCfg->globalArray = pArray; };

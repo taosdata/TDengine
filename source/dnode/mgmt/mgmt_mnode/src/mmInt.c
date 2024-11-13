@@ -45,7 +45,9 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return code;
 }
 
-static void mmBuildConfigForDeploy(SMnodeMgmt *pMgmt) { persistGlobalConfig(cfgGetGlobalCfg(tsCfg), pMgmt->path, 0); }
+static void mmBuildConfigForDeploy(SMnodeMgmt *pMgmt) {
+  persistGlobalConfig(getGlobalCfg(tsCfg), pMgmt->path, tsmmConfigVersion);
+}
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
   pOption->deploy = true;
