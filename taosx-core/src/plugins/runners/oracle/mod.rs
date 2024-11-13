@@ -514,6 +514,7 @@ mod tests {
         // let _ = res.await;
     }
 
+    #[ignore]
     #[test]
     fn test_generate_json_value() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();

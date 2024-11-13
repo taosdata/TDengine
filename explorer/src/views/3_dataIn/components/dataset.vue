@@ -1,237 +1,245 @@
 <template>
   <div label-width="0px">
     <el-radio-group
-      v-if="config.radio != false"
-      class="mb20"
-      v-model="isAll"
-      :disabled="formDisabled"
+        v-if="config.radio != false"
+        v-model="isAll"
+        :disabled="formDisabled"
     >
-      <el-radio label="file">{{ $t('uploadcsv') }}</el-radio>
-      <el-radio label="*">{{ allCategoryText }}</el-radio>
+      <el-radio label="file">{{ $t('uploadcsv') }}aa</el-radio>
+      <el-radio label="*">{{ allCategoryText }}bb</el-radio>
     </el-radio-group>
-    <section
-      v-show="isAll != '*'"
-      class="flexStart mb20"
-      :style="{'cursor': $COMMUNITY ? 'not-allowed' : 'pointer'}"
-    >
-      <uploadCsv
-        v-model="value"
-        :config="config"
-        :isOpcDataset="isOpc"
-      >
-      </uploadCsv>
-
-      <el-tooltip
-        v-if="isOpc"
-        effect="light"
-        :content="$t('downloadTemplateTip')">
-        <a
-          v-if="config.templateUrl"
-          class="ml20"
-          :class="{'disabled': $COMMUNITY }"
-          @click="handleDownEmptyTemplate"
-        >
-          <i class="el-icon-download"></i>
-          {{ $t('downloadTemplate') }}</a
-        >
-      </el-tooltip>
-      <el-tooltip
-        v-else
-        effect="light"
-        :content="$t('downloadTemplateTip')">
-        <a
-          v-if="config.templateUrl"
-          class="ml20"
-          :href="config.templateUrl"
-          :class="{'disabled': $COMMUNITY }"
-          download
-        >
-          <i class="el-icon-download"></i>
-          {{ $t('downloadTemplate') }}</a
-        >
-      </el-tooltip>
-      <el-tooltip
-        class="opc_download_point"
-        effect="light"
-        :content="downloadPontTipText"
-        v-if="isOpc">
-        <a
-          class="ml20"
-          :class="{'disabled': $COMMUNITY }"
-          @click.prevent="openDialog"
-        >
-          <i class="el-icon-download"></i>
-          {{ downloadPointsText }} 
-          <div class="csv_progress">
-            <el-progress v-if="progressVisble" :percentage="percentage" :format="format"/>
-          </div>
-          </a
-        >
-      </el-tooltip>
-      <el-tooltip
-        effect="light"
-        :content="downloadPontTipText"
-        v-else>
-        <a
-          class="ml20"
-          :class="{'disabled': $COMMUNITY }"
-          @click.prevent="downloadAllPointFile"
-        >
-          <i class="el-icon-download"></i>
-          {{ downloadPointsText }}</a
-        >
-      </el-tooltip>
+    <div v-show="isAll != '*'" class="mb20">
       <section
-        v-if="isEdit"
-        class="file-list">
-        <div
-          v-for="file in oldFiles"
-          :key="file.name"
-          class="file-item"
-          @click="handleDownload(file.path, file.name)"
-        >
-          <el-tooltip
-            effect="light"
-            :content="$t('downloadCSVInUseTip')"
-          >
-            <p class="file-name">
-              <i class="el-icon-download"></i>
-              <span>{{ $t('downloadCSVInUse') }}</span>
-            </p>
-          </el-tooltip>
-        </div>
-      </section>
-      <section>
-        <el-button
-          v-if="isShowAddOpcPoint"
-          type="primary"
-          size="mini"
-          class="ml15"
-          @click="handleOpcPoint"
-          >{{ $t('dataIn.addOpcPoint') }}</el-button
-        >
-      </section>
-      <el-button
-        v-if="value"
-        :loading="loading"
-        :disabled="loading"
-        type="primary"
-        size="mini"
-        class="ml15"
-        @click="search"
-        >{{ $t('datasource.transformer.preview') }}</el-button
+          class="flexStart mb20"
+          :style="{'cursor': $COMMUNITY ? 'not-allowed' : 'pointer'}"
       >
-    </section>
+        <uploadCsv
+            v-model="value"
+            :config="config"
+            :isOpcDataset="isOpc"
+        >
+        </uploadCsv>
+
+        <section
+            v-if="isEdit"
+            class="file-list">
+          <div
+              v-for="file in oldFiles"
+              :key="file.name"
+              class="file-item"
+              @click="handleDownload(file.path, file.name)"
+          >
+            <el-tooltip
+                effect="light"
+                :content="$t('downloadCSVInUseTip')"
+            >
+              <p class="file-name">
+                <i class="el-icon-download"></i>
+                <span>{{ $t('downloadCSVInUse') }}</span>
+              </p>
+            </el-tooltip>
+          </div>
+        </section>
+
+      </section>
+      <div>
+        <el-tooltip
+            v-if="isOpc"
+            effect="light"
+            :content="$t('downloadTemplateTip')">
+          <a
+              v-if="config.templateUrl"
+              :class="{'disabled': $COMMUNITY }"
+              @click="handleDownEmptyTemplate"
+          >
+            <i class="el-icon-download"></i>
+            {{ $t('downloadTemplate') }}</a
+          >
+        </el-tooltip>
+        <el-tooltip
+            v-else
+            effect="light"
+            :content="$t('downloadTemplateTip')">
+          <a
+              v-if="config.templateUrl"
+              :href="config.templateUrl"
+              :class="{'disabled': $COMMUNITY }"
+              download
+          >
+            <i class="el-icon-download"></i>
+            {{ $t('downloadTemplate') }}</a
+          >
+        </el-tooltip>
+        <el-tooltip
+            class="opc_download_point"
+            effect="light"
+            :content="downloadPontTipText"
+            v-if="isOpc">
+          <a
+              class="ml20"
+              :class="{'disabled': $COMMUNITY }"
+              @click.prevent="openDialog"
+          >
+            <i class="el-icon-download"></i>
+            {{ downloadPointsText }}
+            <div class="csv_progress">
+              <el-progress v-if="progressVisble" :percentage="percentage" :format="format"/>
+            </div>
+          </a
+          >
+        </el-tooltip>
+        <el-tooltip
+            effect="light"
+            :content="downloadPontTipText"
+            v-else>
+          <a
+              class="ml20"
+              :class="{'disabled': $COMMUNITY }"
+              @click.prevent="downloadAllPointFile"
+          >
+            <i class="el-icon-download"></i>
+            {{ downloadPointsText }}</a
+          >
+        </el-tooltip>
+
+        <el-button
+            v-if="isShowAddOpcPoint"
+            type="primary"
+            size="mini"
+            class="ml15"
+            @click="handleOpcPoint"
+        >{{ $t('dataIn.addOpcPoint') }}
+        </el-button
+        >
+
+        <el-button
+            v-if="value"
+            :loading="loading"
+            :disabled="loading"
+            type="primary"
+            size="mini"
+            class="ml15"
+            @click="search"
+        >{{ $t('datasource.transformer.preview') }}
+        </el-button
+        >
+      </div>
+    </div>
     <el-dialog
-      :title="$t('dataIn.filterPointTitle')"
-      :visible.sync="dialogVisible"
-      :close-on-click-modal="false"
-      width="500px">
+        :title="$t('dataIn.filterPointTitle')"
+        :visible.sync="dialogVisible"
+        :close-on-click-modal="false"
+        width="500px">
       <div slot="title">
         <div class="el-dialog_cus_itle">{{ $t('dataIn.filterPointTitle') }}</div>
         <DocsContent
-          :content="$t('dataIn.filterPoinDesc')"
+            :content="$t('dataIn.filterPoinDesc')"
         />
       </div>
       <div>
-        <el-form 
-        size="small" 
-        :model="info" 
-        ref="conditionForm"
-        label-width="150px"
-        label-position="left">
+        <el-form
+            size="small"
+            :model="info"
+            ref="conditionForm"
+            label-width="150px"
+            label-position="left">
           <el-form-item
-            :label="$t('dataIn.rootNode')"
-            prop="root"
+              :label="$t('dataIn.rootNode')"
+              prop="root"
           >
-            <el-input style="width: 300px" v-model="info.root" :placeholder="$t('dataIn.rootNodePlaceholder.' + sourceParent.sourceForm.type)"></el-input>
+            <el-input style="width: 300px" v-model="info.root"
+                      :placeholder="$t('dataIn.rootNodePlaceholder.' + sourceParent.sourceForm.type)"></el-input>
           </el-form-item>
           <el-form-item
-            :label="$t('dataIn.namespace')"
-            prop="namespaces"
-            v-if="isOpcUa"
+              :label="$t('dataIn.namespace')"
+              prop="namespaces"
+              v-if="isOpcUa"
           >
-            <el-select style="width: 300px" v-model="info.namespaces" :multiple="true" :placeholder="$t('dataIn.namespacePlaceholder')">
+            <el-select style="width: 300px" v-model="info.namespaces" :multiple="true"
+                       :placeholder="$t('dataIn.namespacePlaceholder')">
               <el-option
-                v-for="item in namespaceList"
-                :key="item.label"
-                :value="item.value"
-                :label="item.label"
+                  v-for="item in namespaceList"
+                  :key="item.label"
+                  :value="item.value"
+                  :label="item.label"
               ></el-option>
             </el-select>
-          </el-form-item><el-form-item
-            :label="$t('dataIn.pointRegexp')"
-            prop="pattern"
+          </el-form-item>
+          <el-form-item
+              :label="$t('dataIn.pointRegexp')"
+              prop="pattern"
           >
-            <el-input style="width: 300px" v-model="info.pattern" :placeholder="$t('dataIn.pointRegexpPlaceholder.' + sourceParent.sourceForm.type)"></el-input>
+            <el-input style="width: 300px" v-model="info.pattern"
+                      :placeholder="$t('dataIn.pointRegexpPlaceholder.' + sourceParent.sourceForm.type)"></el-input>
           </el-form-item>
         </el-form>
       </div>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="dialogVisible = false">{{ $t('cancel')}}</el-button>
-        <el-button type="primary" @click="submit" :loading="requestIng">{{ $t('confirm')}}</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('cancel') }}</el-button>
+        <el-button type="primary" @click="submit" :loading="requestIng">{{ $t('confirm') }}</el-button>
       </span>
     </el-dialog>
     <el-dialog
-      :title="$t('dataIn.addOpcPoint')"
-      :visible.sync="dialogPointVisible"
-      :close-on-click-modal="false"
-      width="600px">
+        :title="$t('dataIn.addOpcPoint')"
+        :visible.sync="dialogPointVisible"
+        :close-on-click-modal="false"
+        width="600px">
       <div slot="title">
         <div class="el-dialog_cus_itle">{{ $t('dataIn.addOpcPoint') }}</div>
         <DocsContent
-          :content="$t('dataIn.addPointDesc')"
+            :content="$t('dataIn.addPointDesc')"
         />
       </div>
       <div>
-        <el-form 
-          size="small" 
-          ref="addPointForm"
-          :model="opcPointForm"
-          label-width="220px"
-          label-position="left">
-        <template v-for="(config,index) in opcPointForm.opcCsvHeaders">
-          <el-form-item
-            :label="config.is_tag ? `tag::${config.type}::${config.name}`  : config.name"
-            :prop="'opcCsvHeaders.'+ index + '.value'"
-            :key="config.name"
-            :class="[{'hidden-required': !config.required}]"
-            :rules="[
+        <el-form
+            size="small"
+            ref="addPointForm"
+            :model="opcPointForm"
+            label-width="220px"
+            label-position="left">
+          <template v-for="(config,index) in opcPointForm.opcCsvHeaders">
+            <el-form-item
+                :label="config.is_tag ? `tag::${config.type}::${config.name}`  : config.name"
+                :prop="'opcCsvHeaders.'+ index + '.value'"
+                :key="config.name"
+                :class="[{'hidden-required': !config.required}]"
+                :rules="[
               { required: config.required, message: $t('required', [config.name])}
             ]"
-          >
-          <template slot="label">
-            <el-tooltip placement="top" effect="light" :open-delay="0" v-if="config.description">
-              <template slot="content">
-                <DocsContent
-                  v-if="config.description"
-                  :content="lang == 'zh' ? config.description_cn : config.description"
-                />
-              </template>
-              <span>
-                <span>{{ config.is_tag ? `tag::${config.type}::${config.name}`  : config.name }}</span>
+            >
+              <template slot="label">
+                <el-tooltip placement="top" effect="light" :open-delay="0" v-if="config.description">
+                  <template slot="content">
+                    <DocsContent
+                        v-if="config.description"
+                        :content="lang == 'zh' ? config.description_cn : config.description"
+                    />
+                  </template>
+                  <span>
+                <span>{{ config.is_tag ? `tag::${config.type}::${config.name}` : config.name }}</span>
                 <span v-if="config.description" style="margin-left: 1px">
                   <Icon name="label_info" class="info_icon_custom"></Icon>
                 </span>
               </span>
-            </el-tooltip>
+                </el-tooltip>
+              </template>
+              <el-input v-if="!config.choices" style="width: 300px" v-model="config.value"></el-input>
+              <el-select v-else style="width: 300px" v-model="config.value"
+                         :placeholder="$t('dataIn.namespacePlaceholder')">
+                <el-option
+                    v-for="item in config.choices"
+                    :key="item"
+                    :value="item"
+                    :label="item"
+                ></el-option>
+              </el-select>
+            </el-form-item>
           </template>
-            <el-input v-if="!config.choices" style="width: 300px" v-model="config.value"></el-input>
-            <el-select v-else style="width: 300px" v-model="config.value" :placeholder="$t('dataIn.namespacePlaceholder')">
-              <el-option
-                v-for="item in config.choices"
-                :key="item"
-                :value="item"
-                :label="item"
-              ></el-option>
-            </el-select>
-          </el-form-item>
-        </template>
         </el-form>
       </div>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="dialogPointVisible = false">{{ $t('cancel')}}</el-button>
-        <el-button type="primary" @click="submitAddPoint" :loading="requestIng">{{ $t('confirm')}}</el-button>
+        <el-button @click="dialogPointVisible = false">{{ $t('cancel') }}</el-button>
+        <el-button type="primary" @click="submitAddPoint" :loading="requestIng">{{ $t('confirm') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -239,13 +247,21 @@
 
 <script>
 import uploadCsv from './uploadCsv.vue';
-import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTicket, checkReadyFile, getCsvEmptyTemplate, addOpcPoint, getOpcCsvHeader } from '@/api/explorer/datain';
-import { getDsnData } from '../utils';
-import { downloadFileBlob } from '@/utils/file';
-import { handleDownload } from '../utils';
+import {
+  downlaodAllNodes as downloadAllPointFile,
+  downlaodOpcPointFile,
+  getTicket,
+  checkReadyFile,
+  getCsvEmptyTemplate,
+  addOpcPoint,
+  getOpcCsvHeader
+} from '@/api/explorer/datain';
+import {getDsnData} from '../utils';
+import {downloadFileBlob} from '@/utils/file';
+import {handleDownload} from '../utils';
 import DocsContent from '@/views/support/components/editorContentDisplay.vue';
 import mixinItem from '../mixins/opcPreviewPoint.js';
-import { Message } from "element-ui";
+import {Message} from "element-ui";
 
 export default {
   props: {
@@ -260,7 +276,7 @@ export default {
   },
   mixins: [mixinItem],
   inject: ['getCurrentDefinition', 'sourceParent'],
-  components: { uploadCsv, DocsContent },
+  components: {uploadCsv, DocsContent},
   data() {
     this.textMap = {};
     return {
@@ -269,9 +285,7 @@ export default {
       oldFiles: [],
       dialogVisible: false,
       progressVisble: false,
-      info: {
-
-      },
+      info: {},
       ticket: '',
       percentage: 5,
       completed: false,
@@ -290,11 +304,11 @@ export default {
             field: 'enable',
             defaultValue: '1',
             type: 'select',
-            choices: ['1','0'],
+            choices: ['1', '0'],
             required: false,
             description: '指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表'
           },
-      ]
+        ]
       }
     };
   },
@@ -317,7 +331,7 @@ export default {
     },
     allCategoryText() {
       return this.$t(
-        // 'dataIn.' +
+          // 'dataIn.' +
           {
             point_file: 'allPoints',
             template_for_pi_point_file: 'allTemplate',
@@ -329,14 +343,14 @@ export default {
     downloadPontTipText() {
       const isPi = (this.currentDefinition.id === 'pi' || this.currentDefinition.id === 'pibackfill');
       return this.$t(
-        // 'dataIn.' +
+          // 'dataIn.' +
           (isPi
-            ? {
+              ? {
                 point_file: 'downloadPiPointTip',
                 template_for_pi_point_file: 'downloadAfElementTip',
                 template_for_af_element_file: 'downloadAfElementTip'
               }[this.config.field]
-            : 'dataIn.downloadnodestip')
+              : 'dataIn.downloadnodestip')
       );
     },
     allData() {
@@ -375,17 +389,17 @@ export default {
       }[this.config.field];
     },
     isOpc() {
-      return ["opcua","opcda"].includes(this.sourceParent.sourceForm.type)
+      return ["opcua", "opcda"].includes(this.sourceParent.sourceForm.type)
     },
     isOpcUa() {
       return ["opcua"].includes(this.sourceParent.sourceForm.type)
     },
     namespaceList() {
-      const { namespaces = [] } = this.$store.state.app.connectivityCheckResult
+      const {namespaces = []} = this.$store.state.app.connectivityCheckResult
       let list = []
-      namespaces.map((item,index) => {
+      namespaces.map((item, index) => {
         if (index > 0) {
-          list.push({ label: item, value: index}) 
+          list.push({label: item, value: index})
         }
       })
       return list
@@ -398,7 +412,7 @@ export default {
       return this.oldValue && this.value != '*' && this.value === this.oldValue && this.isEdit
     },
     lang() {
-     return localStorage.getItem('local_language');
+      return localStorage.getItem('local_language');
     },
     agentId() {
       return this.sourceParent.sourceForm.agent
@@ -414,7 +428,8 @@ export default {
       }
     }
   },
-  created() {},
+  created() {
+  },
   mounted() {
     if (this.value != '*' && this.value && this.isEdit) {
       this.oldFiles = this.getFileList(this.value);
@@ -431,15 +446,15 @@ export default {
       this.requestIng = true;
       let from = url + `&categories=${this.category}`;
       downloadAllPointFile(from, via)
-        .then(res => {
-          if(res && res.code) {
-            return this.$error(res.message)
-          }
-          downloadFileBlob(res, this.allCategoryText + '.csv');
-        })
-        .finally(() => {
-          this.requestIng = false;
-        });
+          .then(res => {
+            if (res && res.code) {
+              return this.$error(res.message)
+            }
+            downloadFileBlob(res, this.allCategoryText + '.csv');
+          })
+          .finally(() => {
+            this.requestIng = false;
+          });
     },
     handleDownload,
     getFileList(data) {
@@ -464,21 +479,21 @@ export default {
       if (this.requestIng) return;
       try {
         this.requestIng = true;
-        let  filterParm = ''
+        let filterParm = ''
         Object.keys(this.info).map(key => {
           if (this.info[key]) {
-            filterParm += '&' + [key] + '=' + this.info[key] 
+            filterParm += '&' + [key] + '=' + this.info[key]
           }
         })
-  
+
         let from = filterParm ? url + filterParm : url
-        
+
         this.progressVisble = true
         let result = await getTicket(from, via, this.category)
         this.ticket = result.ticket
-  
+
         this.timer = setInterval(async () => {
-          let { complete } = await checkReadyFile(result.ticket)
+          let {complete} = await checkReadyFile(result.ticket)
           this.completed = complete
           const randomNum = Math.floor(Math.random() * 4);
 
@@ -486,7 +501,7 @@ export default {
             this.percentage = this.percentage < 95 ? this.percentage + randomNum : 99;
           }
         }, 2000);
-        this.dialogVisible = false  
+        this.dialogVisible = false
       } catch (error) {
         this.timer && clearInterval(this.timer)
       }
@@ -503,7 +518,7 @@ export default {
       setTimeout(() => {
         this.progressVisble = false;
         this.percentage = 5;
-      },500)
+      }, 500)
     },
     format(percentage) {
       // return percentage === 100 ? 'CSV 文件准备中' : `${percentage}%`;
@@ -515,9 +530,9 @@ export default {
       downloadFileBlob(res, this.$t('downloadTemplate') + '.csv');
     },
     async handleOpcPoint() {
-      // 获取csv header 
+      // 获取csv header
       const result = await getOpcCsvHeader(this.taskId)
-      if (result && Object.hasOwnProperty.call(result,'code')) {
+      if (result && Object.hasOwnProperty.call(result, 'code')) {
         this.$error(result?.message);
         return
       }
@@ -539,7 +554,7 @@ export default {
           params.via = this.agentId
         }
         const result = await addOpcPoint(params)
-        if (result && Object.hasOwnProperty.call(result,'code')) {
+        if (result && Object.hasOwnProperty.call(result, 'code')) {
           this.requestIng = false;
           this.$error(result?.message);
           return
@@ -569,55 +584,68 @@ export default {
 .file-list {
   margin-left: 20px;
   color: $color-primary;
+
   .file-item {
     display: flex;
     align-items: center;
     font-size: 14px;
     cursor: pointer;
+
     &:not-first-child {
       margin-top: 5px;
     }
+
     .file-name {
       flex: 1;
       @extend .nowrap;
+
       & > i {
         margin-right: 3px;
       }
     }
+
     .file-btn {
       font-size: 12px;
       display: none;
       padding-left: 20px;
+
       span {
         cursor: pointer;
+
         & + span {
           margin-left: 10px;
         }
       }
     }
+
     &:hover {
       color: $color-primary;
       background-color: #f5f7fa;
+
       .file-btn {
         display: flex;
       }
     }
   }
 }
+
 .opc_download_point {
   position: relative;
 }
+
 .csv_progress {
   position: absolute;
   width: 150px;
   // left: 18px;
 }
+
 .el-dialog_cus_itle {
   line-height: 26px;
   font-weight: 500;
   font-size: 20px;
   color: #4d6992;
 }
+
 .disabled {
   pointer-events: none;
   filter: alpha(opacity=50);

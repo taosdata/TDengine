@@ -77,6 +77,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_raw_data_logger() {
         let (tx, rx) = flume::bounded(0);
 

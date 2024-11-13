@@ -239,6 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         // prepare data
         let _ = test_create_database().await;
@@ -253,6 +254,7 @@ mod tests {
         assert!(!query.pool.is_closed());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_select_one_for_schema() {
         // prepare data

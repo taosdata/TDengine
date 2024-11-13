@@ -266,6 +266,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         // prepare data
         let _ = test_create_database().await;

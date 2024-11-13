@@ -14,27 +14,10 @@ use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use taoslog::middleware::TaosRootSpanBuilder;
-use taosx_core::utils::trace::Qid;
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
-
-use controller::*;
-use data_sources::*;
-use taosx_core::plugins::transform::sample::DsSampleIn;
-pub use task::check_parser_timestamp_precision;
-use task::*;
-
-use crate::build;
-use crate::serve::controller::agent::{
-    Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
-    AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
-};
-use crate::serve::opc::AddPointReq;
-use crate::serve::opc::GetPointsHeaderReq;
-use crate::serve::opc::PointDetail;
 
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
@@ -46,6 +29,21 @@ use self::{
         TaskScheduler,
     },
 };
+use crate::build;
+use crate::serve::controller::agent::{
+    Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
+    AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
+};
+use crate::serve::opc::AddPointReq;
+use crate::serve::opc::GetPointsHeaderReq;
+use crate::serve::opc::PointDetail;
+use controller::*;
+use data_sources::*;
+use taoslog::middleware::TaosRootSpanBuilder;
+use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::utils::trace::Qid;
+pub use task::check_parser_timestamp_precision;
+use task::*;
 
 mod agent;
 mod controller;
@@ -162,7 +160,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(download_all_data_set_file)
             .service(download_pi_default_config)
             .service(download_point_template_file)
-            .service(check_point_file_valid)
+            .service(data_sources::is_opc_csv_valid)
             .service(init_download_file_task)
             .service(check_point_file_ready)
             .service(download_point_file)
@@ -178,8 +176,10 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(handle_get_heap)
             .service(get_task_activities_by_id)
             .service(get_task_metrics)
+            .service(get_task_csv_files)
             .service(get_tmq_task_vgroup_progress)
             .service(get_tmq_task_table_progress)
+            .service(check_exists_files)
             .service(download_files)
             .service(upload_files)
             .service(privileges::privileges_migrate)
@@ -374,13 +374,10 @@ impl Cli {
                     ActivityOrder,
                     DsSampleIn,
                     DsSampleOut,
-
                     TaskBatchReq,
-
                     PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
-
                 ),
                 responses(
                 )
@@ -401,6 +398,7 @@ impl Cli {
                 task::get_task_activities_by_id,
                 task::upload_files,
                 task::filemeta,
+                task::check_exists_files,
                 task::download_files,
                 metrics::profile,
                 metrics::metrics_desc,
@@ -416,20 +414,18 @@ impl Cli {
                 check_point_file_ready,
                 download_point_file,
                 download_point_template_file,
+                data_sources::is_opc_csv_valid,
                 page_point_data,
                 opc::get_point_header,
                 opc::append_point,
-
                 agent::create_agent,
                 agent::update_agent,
                 agent::delete_agent,
                 agent::get_agents,
                 agent::get_agent_activities,
-
                 privileges::privileges_migrate,
                 privileges::privileges_export,
                 privileges::privileges_import,
-
                 routes::cluster::get_cluster_connector_transferred,
             ),
             tags(

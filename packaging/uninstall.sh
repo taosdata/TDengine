@@ -212,7 +212,6 @@ remove_custom_log_dir() {
 }
 
 remove_plugin_logs() {
-    ${csudo}rm -rf ${LOG_DIR}/mqtt-*.log*
     ${csudo}rm -rf ${LOG_DIR}/influxdb-*.log*
     ${csudo}rm -rf ${LOG_DIR}/opc-*.log*
     ${csudo}rm -rf ${LOG_DIR}/opc.log*
@@ -233,7 +232,6 @@ remove_taos_agent() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     # remove plugins, but keep the udt plugin
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/influxdb
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/mqtt
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/opc
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins/opentsdb
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh

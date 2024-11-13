@@ -112,27 +112,6 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
           cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
 
-      - name: Build mqtt
-        run: |
-          cd plugins/mqtt
-          go build -cover -o taosx-mqtt
-
-      - name: Run Mqtt Unit Test
-        continue-on-error: true
-        run: |
-          cd plugins/mqtt
-          echo "run mqtt unit test"
-          go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=20s ./...
-
-      - name: Copy MQTT Files
-        run: |
-          cd plugins/mqtt
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
-          cp mqtt_unit_report.txt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/
-          rm mqtt_unit_report.txt
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/
-          cp taosx-mqtt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/mqtt/
-
   build_java:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: remove_artifacts

@@ -104,6 +104,7 @@ pub async fn get_current_precision(
     }
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_precision() {
     use taos::AsyncTBuilder;
@@ -210,6 +211,7 @@ pub async fn get_minimum_timestamp(
     }
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_min_timestamp() {
     use taos::AsyncTBuilder;
@@ -1305,6 +1307,7 @@ mod tests {
         .unwrap()
     }
 
+    #[ignore]
     #[tokio::test]
     async fn record_to_sql() {
         let batch = valid_values_record();

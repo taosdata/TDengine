@@ -5,14 +5,47 @@ use crate::runners::opc::OpcType;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
+/// 动态点位更新的模式
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum UpdateMode {
+    None,
+    Append,
+    Update,
+}
+
+impl FromStr for UpdateMode {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "none" => Ok(UpdateMode::None),
+            "append" => Ok(UpdateMode::Append),
+            "update" => Ok(UpdateMode::Update),
+            _ => Err(anyhow::anyhow!(
+                "invalid update mode: {}, must be none/append/update",
+                s
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsConfig {
+    /// 正则表达式，匹配 NodeId || BrowseName，兼容旧版本
     pub regex: Option<String>,
-    pub limit: usize, // always 0
+    /// 正则表达式，匹配 NodeId
+    pub regex_id: Option<String>,
+    /// 正则表达式，匹配 BrowseName
+    pub regex_name: Option<String>,
+    // always 0
+    pub limit: usize,
+    /// 点位更新模式
     pub update_mode: Option<UpdateMode>,
+    /// 点位更新间隔
     pub update_interval: Option<usize>,
-
+    /// OPC UA 配置
     pub ua: Option<PointsUaConfig>,
+    /// OPC DA 配置
     pub da: Option<PointsDaConfig>,
 }
 
@@ -35,18 +68,36 @@ impl PointsConfig {
         let points_mode = PointsMode::from_dsn(dsn)?;
         let (update_mode, update_interval) = match points_mode {
             PointsMode::ByCsv => {
-                // default update_mode is Append, default update_interval is 60 seconds
+                // default update_mode is append, default update_interval is 60 seconds
                 (Some(UpdateMode::Append), Some(60usize))
             }
             PointsMode::ByCommand => {
-                let update_mode = Self::parse_update_mode(dsn)?;
-                let update_interval = Self::parse_update_interval(dsn)?;
+                let update_mode = dsn
+                    .params
+                    .get("update_mode")
+                    .map(|v| v.parse::<UpdateMode>())
+                    .transpose()?;
+                let update_interval = dsn
+                    .params
+                    .get("update_interval")
+                    .map(|v| {
+                        v.parse::<usize>().map_err(|err| {
+                            anyhow::anyhow!(
+                                "invalid update_interval: {}, cause: {}",
+                                v,
+                                err.to_string()
+                            )
+                        })
+                    })
+                    .transpose()?;
                 (update_mode, update_interval)
             }
         };
 
         Ok(Self {
-            regex: Self::parse_regex(dsn),
+            regex: Self::parse_regex("pattern", dsn),
+            regex_id: Self::parse_regex("node_id_pattern", dsn),
+            regex_name: Self::parse_regex("browse_name_pattern", dsn),
             limit: 0,
             update_mode,
             update_interval,
@@ -55,92 +106,9 @@ impl PointsConfig {
         })
     }
 
-    fn parse_regex(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("pattern").map(|v| v.to_string())
-    }
-
-    pub fn parse_update_mode(dsn: &Dsn) -> anyhow::Result<Option<UpdateMode>> {
-        dsn.params
-            .get("update_mode")
-            .map(|v| v.parse::<UpdateMode>())
-            .transpose()
-    }
-
-    fn parse_update_interval(dsn: &Dsn) -> anyhow::Result<Option<usize>> {
-        dsn.params
-            .get("update_interval")
-            .map(|v| {
-                v.parse::<usize>().map_err(|err| {
-                    anyhow::anyhow!("invalid update_interval: {}, cause: {}", v, err.to_string())
-                })
-            })
-            .transpose()
-    }
-}
-
-#[cfg(test)]
-mod points_config_tests {
-    use super::*;
-
-    #[test]
-    fn test_from_dsn() {
-        let dsn = Dsn::from_str("opcua://?").unwrap();
-        let config = PointsConfig::from_dsn(&dsn).unwrap();
-        assert_eq!(config.regex, None);
-        assert_eq!(config.limit, 0);
-        assert_eq!(config.update_mode, None);
-        assert_eq!(config.update_interval, None);
-        assert!(config.da.is_none());
-
-        let ua = config.ua.unwrap();
-        assert_eq!(ua.root, None);
-        assert_eq!(ua.namespaces, None);
-    }
-
-    #[test]
-    fn test_parse_update_mode() {
-        let dsn = Dsn::from_str("opc://?update_mode=none").unwrap();
-        let points_config = PointsConfig::parse_update_mode(&dsn).unwrap();
-        assert_eq!(points_config, Some(UpdateMode::None));
-
-        let dsn = Dsn::from_str("opc://?update_mode=append").unwrap();
-        let points_config = PointsConfig::parse_update_mode(&dsn).unwrap();
-        assert_eq!(points_config, Some(UpdateMode::Append));
-
-        let dsn = Dsn::from_str("opc://?update_mode=update").unwrap();
-        let points_config = PointsConfig::parse_update_mode(&dsn).unwrap();
-        assert_eq!(points_config, Some(UpdateMode::Update));
-
-        let dsn = Dsn::from_str("opc://").unwrap();
-        let points_config = PointsConfig::parse_update_mode(&dsn).unwrap();
-        assert_eq!(points_config, None);
-
-        let dsn = Dsn::from_str("opc://?update_mode=invalid").unwrap();
-        let points_config = PointsConfig::parse_update_mode(&dsn);
-        assert!(points_config.is_err());
-        assert_eq!(
-            points_config.err().unwrap().to_string(),
-            "invalid update mode: invalid, must be none/append/update".to_string()
-        );
-    }
-
-    #[test]
-    fn test_parse_update_interval() {
-        let dsn = Dsn::from_str("opc://?update_interval=10").unwrap();
-        let points_config = PointsConfig::parse_update_interval(&dsn).unwrap();
-        assert_eq!(points_config, Some(10));
-
-        let dsn = Dsn::from_str("opc://").unwrap();
-        let points_config = PointsConfig::parse_update_interval(&dsn).unwrap();
-        assert_eq!(points_config, None);
-
-        let dsn = Dsn::from_str("opc://?update_interval=invalid").unwrap();
-        let points_config = PointsConfig::parse_update_interval(&dsn);
-        assert!(points_config.is_err());
-        assert_eq!(
-            points_config.err().unwrap().to_string(),
-            "invalid update_interval: invalid, cause: invalid digit found in string".to_string()
-        );
+    /// 从 dsn 中解析正则表达式类型的参数
+    fn parse_regex(param: &str, dsn: &Dsn) -> Option<String> {
+        dsn.params.get(param).map(|v| v.to_string())
     }
 }
 
@@ -182,12 +150,75 @@ impl PointsUaConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PointsDaConfig {
+    access_path: Option<Vec<String>>,
+}
+
+impl PointsDaConfig {
+    pub fn from_dsn(dsn: &Dsn) -> Option<Self> {
+        let access_path = dsn.params.get("root").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            let access_path = v.split(".").map(|v| v.to_string()).collect::<Vec<String>>();
+            Some(access_path)
+        });
+
+        Some(Self { access_path })
+    }
+}
+
 #[cfg(test)]
-mod points_ua_config_tests {
+mod tests {
     use super::*;
 
     #[test]
-    fn test_from_dsn() {
+    fn test_from_str_of_update_mode() {
+        assert_eq!("none".parse::<UpdateMode>().unwrap(), UpdateMode::None);
+        assert_eq!("None".parse::<UpdateMode>().unwrap(), UpdateMode::None);
+
+        assert_eq!("append".parse::<UpdateMode>().unwrap(), UpdateMode::Append);
+        assert_eq!("Append".parse::<UpdateMode>().unwrap(), UpdateMode::Append);
+
+        assert_eq!("update".parse::<UpdateMode>().unwrap(), UpdateMode::Update);
+        assert_eq!("Update".parse::<UpdateMode>().unwrap(), UpdateMode::Update);
+
+        let update_mode = "invalid".parse::<UpdateMode>();
+        assert!(update_mode.is_err());
+        assert_eq!(
+            update_mode.err().unwrap().to_string(),
+            "invalid update mode: invalid, must be none/append/update".to_string()
+        );
+    }
+
+    #[test]
+    fn test_from_dsn_of_points_config() {
+        // pattern 不以 _Error 结尾
+        let dsn = Dsn::from_str("opcua://?pattern=%5E%28%3F%21%2e_Error%2e%24%29").unwrap();
+        let config = PointsConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.regex, Some("^(?!._Error.$)".to_string()));
+        assert_eq!(config.regex_id, None);
+        assert_eq!(config.regex_name, None);
+
+        // browse_name_pattern 不以 _Error 结尾
+        let dsn =
+            Dsn::from_str("opcua://?browse_name_pattern=%5E%28%3F%21%2e_Error%2e%24%29").unwrap();
+        let config = PointsConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.regex, None);
+        assert_eq!(config.regex_id, None);
+        assert_eq!(config.regex_name, Some("^(?!._Error.$)".to_string()));
+
+        // node_id_pattern 不以 _Error 结尾
+        let dsn = Dsn::from_str("opcua://?node_id_pattern=%5E%28%3F%21%2e_Error%2e%24%29").unwrap();
+        let config = PointsConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.regex, None);
+        assert_eq!(config.regex_id, Some("^(?!._Error.$)".to_string()));
+        assert_eq!(config.regex_name, None);
+    }
+
+    #[test]
+    fn test_from_dsn_of_points_ua_config() {
         let dsn = Dsn::from_str("opc://?root=Root&namespaces=1,2,3").unwrap();
         let points_ua_config = PointsUaConfig::from_dsn(&dsn).unwrap();
         assert_eq!(points_ua_config.root, Some("Root".to_string()));
@@ -221,33 +252,9 @@ mod points_ua_config_tests {
             "invalid namespaces: invalid, cause: invalid digit found in string".to_string()
         );
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PointsDaConfig {
-    access_path: Option<Vec<String>>,
-}
-
-impl PointsDaConfig {
-    pub fn from_dsn(dsn: &Dsn) -> Option<Self> {
-        let access_path = dsn.params.get("root").and_then(|v| {
-            if v.is_empty() {
-                return None;
-            }
-            let access_path = v.split(".").map(|v| v.to_string()).collect::<Vec<String>>();
-            Some(access_path)
-        });
-
-        Some(Self { access_path })
-    }
-}
-
-#[cfg(test)]
-mod points_da_config_tests {
-    use super::*;
 
     #[test]
-    fn test_from_dsn() {
+    fn test_from_dsn_of_points_da_config() {
         let dsn = Dsn::from_str("opc://?root=Root").unwrap();
         let points_da_config = PointsDaConfig::from_dsn(&dsn).unwrap();
         assert_eq!(points_da_config.access_path, Some(vec!["Root".to_string()]));
@@ -262,28 +269,5 @@ mod points_da_config_tests {
         let dsn = Dsn::from_str("opc://?root=").unwrap();
         let points_da_config = PointsDaConfig::from_dsn(&dsn).unwrap();
         assert_eq!(points_da_config.access_path, None);
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum UpdateMode {
-    None,
-    Append,
-    Update,
-}
-
-impl FromStr for UpdateMode {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "none" => Ok(UpdateMode::None),
-            "append" => Ok(UpdateMode::Append),
-            "update" => Ok(UpdateMode::Update),
-            _ => Err(anyhow::anyhow!(
-                "invalid update mode: {}, must be none/append/update",
-                s
-            )),
-        }
     }
 }

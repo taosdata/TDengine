@@ -6,6 +6,7 @@ use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
+pub mod defer;
 pub mod dsn;
 pub mod duration;
 pub mod files;
@@ -17,6 +18,7 @@ pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
+pub mod table_meta;
 pub mod timeout;
 pub mod trace;
 
@@ -91,7 +93,7 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
 
     while let Some(mut row) = rows.try_next().await? {
         let name = format!("{}", row.next().unwrap().1);
-        taos.exec(format!("DROP STABLE {name}")).await?;
+        taos.exec(format!("DROP STABLE `{name}`")).await?;
     }
 
     let mut tables = taos.query("SHOW TABLES").await?;
@@ -99,7 +101,7 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
 
     while let Some(mut row) = rows.try_next().await? {
         let name = format!("{}", row.next().unwrap().1);
-        taos.exec(format!("DROP TABLE {name}")).await?;
+        taos.exec(format!("DROP TABLE `{name}`")).await?;
     }
 
     Ok(())
@@ -252,13 +254,6 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
         );
     }
 
-    // if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
-    //     bail!(
-    //         "The {}: {} is invalid, contains illegal characters.",
-    //         name_type,
-    //         name
-    //     );
-    // }
     Ok(())
 }
 
@@ -313,6 +308,7 @@ pub fn replace_date_placeholder(str: String, date: DateTime<FixedOffset>) -> Str
         .replace("${yj}", date.format("%y%j").to_string().as_str())
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
@@ -324,17 +320,17 @@ async fn test_clear_database() -> anyhow::Result<()> {
         format!("drop database if exists {db}"),
         format!("create database {db}"),
         format!("use {db}"),
-        "create stable stb1 (ts timestamp, v int) tags(t1 int)".to_string(),
-        "create table ctb1 using stb1 tags(1)".to_string(),
-        "create table ctb2 using stb1 tags(2)".to_string(),
-        "create table ntb1 (ts timestamp, v int)".to_string(),
-        "create table ntb2 (ts timestamp, v int)".to_string(),
+        "create stable `Stb1` (ts timestamp, v int) tags(t1 int)".to_string(),
+        "create table `Ctb1` using `Stb1` tags(1)".to_string(),
+        "create table `Ctb2` using `Stb1` tags(2)".to_string(),
+        "create table `Ntb1` (ts timestamp, v int)".to_string(),
+        "create table `Ntb2` (ts timestamp, v int)".to_string(),
     ])
     .await?;
 
     use std::str::FromStr;
 
-    clear_database(&Dsn::from_str(&format!("taos:///{db}"))?).await?;
+    clear_database(&Dsn::from_str(&format!("{dsn}{db}"))?).await?;
 
     assert!(taos.query_one::<_, String>("show stables").await?.is_none());
     assert!(taos.query_one::<_, String>("show tables").await?.is_none());

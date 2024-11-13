@@ -47,7 +47,7 @@ command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
 
 [tasks.plugins]
-dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
+dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
 
 [tasks.taos-explorer]
 script = """
@@ -66,7 +66,6 @@ script = """
 set -ex
 rm -rf plugins/influxdb/target
 rm -rf plugins/opentsdb/target
-rm -rf plugins/mqtt/dist
 rm -rf plugins/opc/taosx-opc
 """
 
@@ -77,17 +76,6 @@ args = ["package", "-f", "plugins/influxdb/pom.xml"]
 [tasks.taosx-opentsdb]
 command = "mvn"
 args = ["package", "-f", "plugins/opentsdb/pom.xml"]
-
-[tasks.taosx-mqtt]
-cwd = "plugins/mqtt"
-script = """
-commit=$(git rev-parse HEAD | cut -c 1-8)
-built=$(date +"%F %T %:z")
-path=github.com/taosdata/taosx/plugins/mqtt
-go mod tidy
-go build -o dist/taosx-mqtt \
-  -ldflags "-X $path/version.Commit=${commit} -X '$path/version.BuildTime=$built'"
-"""
 
 [tasks.taosx-opc]
 cwd = "plugins/opc"
@@ -108,7 +96,6 @@ PKG=target/packaging/linux
 mkdir -p $PKG/usr/bin
 mkdir -p $PKG/usr/local/taos/plugins/influxdb
 mkdir -p $PKG/usr/local/taos/plugins/opentsdb
-mkdir -p $PKG/usr/local/taos/plugins/mqtt
 mkdir -p $PKG/usr/local/taos/plugins/opc
 
 mkdir -p $PKG/etc/systemd
@@ -117,7 +104,6 @@ mkdir -p $PKG/etc/taos
 cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
 cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taos/plugins/influxdb
 cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taos/plugins/opentsdb
-cp plugins/mqtt/dist/taosx-mqtt $PKG/usr/local/taos/plugins/mqtt/
 cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
 cp packaging/uninstall.sh $PKG/usr/local/taos/
 
@@ -141,10 +127,9 @@ sudo systemctl start taosx
 [tasks.dev-install-plugins]
 script = """
 plugins=/usr/local/taos/plugins
-sudo mkdir -p $plugins/opc $plugins/mqtt $plugins/influxdb $plugins/opentsdb
+sudo mkdir -p $plugins/opc $plugins/influxdb $plugins/opentsdb
 sudo cp plugins/influxdb/target/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
 sudo cp plugins/opentsdb/target/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
-sudo cp plugins/mqtt/dist/taosx-mqtt /usr/local/taos/plugins/mqtt/
 sudo cp plugins/opc/taosx-opc /usr/local/taos/plugins/opc/
 """
 [tasks.install]
@@ -253,7 +238,6 @@ cp ./target/release/taosx ./docker/serve/release/taosx
 cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
 cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
 cp ./plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
-cp ./plugins/mqtt/dist/taosx-mqtt ./docker/serve/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER}-$commit ./docker/serve/
 rm -rf ./docker/serve/release
 rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
@@ -274,7 +258,6 @@ cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx ./docker/serve/release/ta
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/mqtt/taosx-mqtt ./docker/serve/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
 rm -rf ./docker/serve/release
 rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
@@ -291,7 +274,6 @@ cp ./target/release/taosx-agent ./docker/agent/release/taosx-agent
 cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/agent/release/plugins/taosx-influxdb.jar
 cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/agent/release/plugins/taosx-opentsdb.jar
 cp ./plugins/opc/taosx-opc ./docker/agent/release/plugins/taosx-opc
-cp ./plugins/mqtt/dist/taosx-mqtt ./docker/agent/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/agent:${VER_NUMBER}-$commit ./docker/agent/
 rm -rf ./docker/agent/release
 """
@@ -308,7 +290,6 @@ cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx-agent ./docker/agent/rele
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/agent/release/plugins/taosx-influxdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/agent/release/plugins/taosx-opentsdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/agent/release/plugins/taosx-opc
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/mqtt/taosx-mqtt ./docker/agent/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/agent:${VER_NUMBER} ./docker/agent/
 rm -rf ./docker/agent/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
@@ -329,7 +310,6 @@ cp ./target/release/taos-explorer ./docker/integrated/release/taos-explorer
 cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/integrated/release/plugins/taosx-influxdb.jar
 cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/integrated/release/plugins/taosx-opentsdb.jar
 cp ./plugins/opc/taosx-opc ./docker/integrated/release/plugins/taosx-opc
-cp ./plugins/mqtt/dist/taosx-mqtt ./docker/integrated/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit ./docker/integrated/
 rm -rf ./docker/integrated/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
@@ -350,25 +330,62 @@ cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taos-explorer ./docker/integrat
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/integrated/release/plugins/taosx-influxdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/integrated/release/plugins/taosx-opentsdb.jar
 cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/integrated/release/plugins/taosx-opc
-cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/mqtt/taosx-mqtt ./docker/integrated/release/plugins/taosx-mqtt
 docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER} ./docker/integrated/
 rm -rf ./docker/integrated/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
 
 [tasks.build-docker-dev]
+cwd = "docker/dev/"
 script = """
-echo use CentOS 7 as dev image with docker/dev/Dockerfile .
-docker build -f docker/dev/Dockerfile -t taosx/dev .
+echo use manylinux2014 as base image with docker/dev/Dockerfile .
+docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev .
 """
 
+# # Examples
+#
+# 1. Build aarch64 taosx: cargo make build-centos7-release --platform linux/arm64 -p taosx
+# 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
+#
 [tasks.build-centos7-release]
-# dependencies = ["build-docker-dev"]
+dependencies = ["build-docker-dev"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
-mkdir -p target/centos7
-docker compose run --remove-orphans --rm build \
-  cargo build --release $@
+
+# Get platform
+export PLATFORM=$(echo "$@" | rg '\\--platform (\\S+)' -o -r '$1')
+export EXTRAS=$(echo "$@" | rg '\\--platform (\\S+)' -r '')
+
+case "${PLATFORM}" in
+  "linux/amd64" | "linux/arm64")
+    echo Build taosX release for target $PLATFORM
+    export TARGET_DIR=$PWD/target/${PLATFORM}
+    mkdir -p $TARGET_DIR
+    docker run --platform $PLATFORM --rm \
+      -v .:/app -v $HOME:$HOME \
+      -v $HOME/.cargo/registry:/root/.cargo/registry \
+      -v $HOME/.cargo/git:/root/.cargo/git \
+      -v $TARGET_DIR:/app/target \
+      taosx/dev \
+      cargo build --release $EXTRAS
+    ;;
+  "")
+    export TARGET_DIR=$PWD/target/centos7
+    mkdir -p $TARGET_DIR
+    docker run --rm \
+      -v .:/app -v $HOME:$HOME \
+      -v $HOME/.cargo/registry:/root/.cargo/registry \
+      -v $HOME/.cargo/git:/root/.cargo/git \
+      -v $TARGET_DIR:/app/target \
+      taosx/dev \
+      cargo build --release $@
+    ;;
+  *)
+    echo Unsupported platform $PLATFORM
+    exit -1
+    ;;
+esac
+
 """
 
 [tasks.build-centos7-sani]
@@ -544,8 +561,12 @@ args = [
   "-Dwarnings",
 ]
 
+[tasks.test-without-cov]
+command = "cargo"
+args = ["nextest", "run", "--workspace"]
+
 [tasks.pre-commit]
-dependencies = ["fmt", "clippy"]
+dependencies = ["fmt", "clippy", "test-without-cov"]
 
 [tasks.explorer-ui]
 cwd = "explorer"
