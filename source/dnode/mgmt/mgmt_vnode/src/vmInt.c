@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 #include "libs/function/tudf.h"
+#include "osMemory.h"
 #include "tfs.h"
 #include "vnd.h"
 
@@ -87,17 +88,15 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
     }
   }
 
-  code = taosThreadMutexUnlock(&pMgmt->mutex);
-  if (code != 0) {
-    goto _OVER;
-  }
-
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
-
   SVnodeObj *pCreatingVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
   if (pCreatingVnode == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->lock);
-    dError("failed to alloc vnode since %s", terrstr());
+    code = -1;
+    if (terrno != 0) code = terrno;
+    dError("failed to alloc vnode since %s", tstrerror(code));
+    int32_t r = taosThreadMutexUnlock(&pMgmt->mutex);
+    if (r != 0) {
+      dError("vgId:%d, failed to unlock mutex since %s", vgId, tstrerror(r));
+    }
     goto _OVER;
   }
   (void)memset(pCreatingVnode, 0, sizeof(SVnodeObj));
@@ -105,12 +104,32 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   pCreatingVnode->vgId = vgId;
   pCreatingVnode->diskPrimary = diskId;
 
-  dTrace("vgId:%d, put vnode into creating hash, pCreatingVnode:%p", vgId, pCreatingVnode);
-  int32_t r = taosHashPut(pMgmt->creatingHash, &vgId, sizeof(int32_t), &pCreatingVnode, sizeof(SVnodeObj *));
-  if (r != 0) {
-    dError("vgId:%d, failed to put vnode to creatingHash", vgId);
+  code = taosThreadRwlockWrlock(&pMgmt->lock);
+  if (code != 0) {
+    int32_t r = taosThreadMutexUnlock(&pMgmt->mutex);
+    if (r != 0) {
+      dError("vgId:%d, failed to unlock mutex since %s", vgId, tstrerror(r));
+    }
+    taosMemoryFree(pCreatingVnode);
+    goto _OVER;
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+
+  dTrace("vgId:%d, put vnode into creating hash, pCreatingVnode:%p", vgId, pCreatingVnode);
+  code = taosHashPut(pMgmt->creatingHash, &vgId, sizeof(int32_t), &pCreatingVnode, sizeof(SVnodeObj *));
+  if (code != 0) {
+    dError("vgId:%d, failed to put vnode to creatingHash", vgId);
+    taosMemoryFree(pCreatingVnode);
+  }
+
+  int32_t r = taosThreadRwlockUnlock(&pMgmt->lock);
+  if (r != 0) {
+    dError("vgId:%d, failed to unlock since %s", vgId, tstrerror(r));
+  }
+
+  code = taosThreadMutexUnlock(&pMgmt->mutex);
+  if (code != 0) {
+    goto _OVER;
+  }
 
 _OVER:
 
