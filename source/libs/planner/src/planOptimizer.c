@@ -3491,14 +3491,14 @@ static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* 
   }
 }
 
-static int32_t eliminateProjOptFindProjectPrefix(SProjectLogicNode* pProj, SProjectLogicNode* pChild, SNodeList** pNewChildTargets) {
-  bool orderMatch = false;
+static int32_t eliminateProjOptFindProjPrefixWithOrderCheck(SProjectLogicNode* pProj, SProjectLogicNode* pChild, SNodeList** pNewChildTargets, bool *orderMatch) {
   int32_t code = 0;
   SNode* pProjection = NULL, *pChildTarget = NULL;
+  *orderMatch = true;
   FORBOTH(pProjection, pProj->pProjections, pChildTarget, pChild->node.pTargets) {
     if (!pProjection) break;
     if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
-      orderMatch = false;
+      *orderMatch = false;
       break;
     }
     SNode* pNew = NULL;
@@ -3508,7 +3508,30 @@ static int32_t eliminateProjOptFindProjectPrefix(SProjectLogicNode* pProj, SProj
     }
     if (TSDB_CODE_SUCCESS != code && pNewChildTargets) {
       nodesDestroyList(*pNewChildTargets);
+      *pNewChildTargets = NULL;
       break;
+    }
+  }
+  return code;
+}
+
+static int32_t eliminateProjOptPushTargetsToSetOpChildren(SProjectLogicNode* pSetOp) {
+  SNode*  pChildProj = NULL;
+  int32_t code = 0;
+  bool    orderMatch = false;
+  FOREACH(pChildProj, pSetOp->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChildProj)) {
+      SProjectLogicNode* pChildLogic = (SProjectLogicNode*)pChildProj;
+      SNodeList* pNewChildTargetsForChild = NULL;
+      code = eliminateProjOptFindProjPrefixWithOrderCheck(pSetOp, pChildLogic, &pNewChildTargetsForChild, &orderMatch);
+      if (TSDB_CODE_SUCCESS != code) break;
+      nodesDestroyList(pChildLogic->node.pTargets);
+      pChildLogic->node.pTargets = pNewChildTargetsForChild;
+      alignProjectionWithTarget((SLogicNode*)pChildLogic);
+      if (pChildLogic->isSetOpProj) {
+        code = eliminateProjOptPushTargetsToSetOpChildren(pChildLogic);
+        if (TSDB_CODE_SUCCESS != code) break;
+      }
     }
   }
   return code;
@@ -3518,35 +3541,19 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
   int32_t     code = 0;
-  bool        needOrderMatch = false;
+  bool        isSetOpProj = false;
+  bool        orderMatch = false;
 
   if (NULL == pProjectNode->node.pParent) {
     SNodeList* pNewChildTargets = NULL;
-    code = nodesMakeList(&pNewChildTargets);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
     SNode *    pProjection = NULL, *pChildTarget = NULL;
-    bool       orderMatch = true;
-    needOrderMatch =
+    isSetOpProj =
         QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
-    if (needOrderMatch) {
+    if (isSetOpProj) {
       // For sql: select ... from (select ... union all select ...);
       // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
       // union all project targets have same columns in the same order. See detail in TD-30188
-      FORBOTH(pProjection, pProjectNode->pProjections, pChildTarget, pChild->pTargets) {
-        if (!pProjection) break;
-        if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
-          orderMatch = false;
-          break;
-        }
-        SNode* pNew = NULL;
-        code = nodesCloneNode(pChildTarget, &pNew);
-        if (TSDB_CODE_SUCCESS == code) {
-          code = nodesListStrictAppend(pNewChildTargets, pNew);
-        }
-        if (TSDB_CODE_SUCCESS != code) break;
-      }
+      code = eliminateProjOptFindProjPrefixWithOrderCheck(pProjectNode, (SProjectLogicNode*)pChild, &pNewChildTargets, &orderMatch);
     } else {
       FOREACH(pProjection, pProjectNode->pProjections) {
         FOREACH(pChildTarget, pChild->pTargets) {
@@ -3554,7 +3561,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
             SNode* pNew = NULL;
             code = nodesCloneNode(pChildTarget, &pNew);
             if (TSDB_CODE_SUCCESS == code) {
-              code = nodesListStrictAppend(pNewChildTargets, pNew);
+              code = nodesListMakeStrictAppend(&pNewChildTargets, pNew);
             }
             break;
           }
@@ -3569,8 +3576,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       return code;
     }
 
-    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) &&
-        (!needOrderMatch || (needOrderMatch && orderMatch))) {
+    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) && (!isSetOpProj || orderMatch)) {
       nodesDestroyList(pChild->pTargets);
       pChild->pTargets = pNewChildTargets;
     } else {
@@ -3598,18 +3604,9 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     nodesDestroyNode((SNode*)pProjectNode);
     // if pChild is a project logic node, remove its projection which is not reference by its target.
     alignProjectionWithTarget(pChild);
-    if (needOrderMatch) {
-      SNode* pChildProj = NULL;
-      FOREACH(pChildProj, pChild->pChildren) {
-        if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChildProj)) {
-          SProjectLogicNode* pChildLogic = (SProjectLogicNode*)pChildProj;
-          SNodeList* pNewChildTargetsForChild = NULL;
-          code = eliminateProjOptFindProjectPrefix((SProjectLogicNode*)pChild, pChildLogic, &pNewChildTargetsForChild);
-          if (TSDB_CODE_SUCCESS != code) break;
-          nodesDestroyList(pChildLogic->node.pTargets);
-          pChildLogic->node.pTargets = pNewChildTargetsForChild;
-        }
-      }
+    if (isSetOpProj && orderMatch) {
+      // Since we have eliminated the outer proj, we need to push down the new targets to the children of the set operation.
+      code = eliminateProjOptPushTargetsToSetOpChildren((SProjectLogicNode*)pChild);
     }
   }
   pCxt->optimized = true;
