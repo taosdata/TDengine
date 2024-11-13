@@ -5618,6 +5618,7 @@ int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->name));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->value));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pInfo->info));
   return 0;
 }
 
@@ -5625,6 +5626,7 @@ int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->name));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->value));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->scope));
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pInfo->info));
   return 0;
 }
 
