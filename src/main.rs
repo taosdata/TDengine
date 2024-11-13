@@ -613,6 +613,9 @@ fn init_tracing_layers(
     #[cfg(feature = "tokio-tracing")]
     {
         layers.push(console_subscriber::spawn().boxed());
+        env_filter = env_filter
+            .add_directive("tokio=trace".parse()?)
+            .add_directive("runtime=trace".parse()?);
     }
 
     let layered;

@@ -77,3 +77,9 @@ mqtt_unprocessed_messages: Number of messages currently in the cache queue in th
 mqtt_processing_batches: Number of batches currently being processed in this task run
 mqtt_discarded_messages: Number of messages discarded in this task run
 mqtt_discarded_dump_messages: Number of messages discarded by the dump operation during this task run
+total_csv_files: Total number of CSV files
+total_csv_files_completed: Total number of CSV files completed
+total_csv_files_completed_rows: Total number of rows in CSV files completed
+csv_files: Number of CSV files
+csv_files_completed: Number of CSV files completed in this task run
+csv_files_completed_rows: Number of rows in CSV files completed in this task run

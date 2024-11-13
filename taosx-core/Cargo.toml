@@ -77,7 +77,7 @@ zstd = "0.13.0"
 either = "1.8"
 serde_regex = "1"
 tinytemplate = "1.2.1"
-serde_json_path = "0.6.0"
+serde_json_path = "0.7"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
 notify = "6.1.1"

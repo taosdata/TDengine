@@ -18,7 +18,8 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::runners::opc::config::csv::CsvParser;
+use taosx_core::runners::opc::config::model::ModelType;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
@@ -302,9 +303,14 @@ pub(super) async fn data_source_collection(
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct DsnAgentQuery {
+    /// source dsn
     #[param(allow_reserved)]
     dsn: String,
+    /// sink dsn
+    to: Option<String>,
+    /// agent id
     via: Option<i64>,
+    /// request timeout
     timeout: Option<u64>,
 }
 
@@ -680,16 +686,16 @@ pub(super) async fn download_point_template_file(
     ),
 )]
 #[get("/ds/in/point/file/is_valid")]
-pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl Responder {
+pub async fn is_opc_csv_valid(req: Query<DsnAgentQuery>) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
-    let query = query.into_inner();
+    let query = req.into_inner();
     let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_opc_csv_valid_impl(query.dsn),
+        is_opc_csv_valid_impl(query),
     )
     .await;
 
@@ -717,23 +723,32 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
     }
 }
 
-async fn is_opc_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
-    let dsn = dsn.into_dsn()?;
+async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+    let from = req.dsn.into_dsn()?;
 
-    let csv_config = OPCConfig::parse_csv_config_file(&dsn).ok_or(anyhow::anyhow!(
-        "csv_config_file not found in the dsn: {}",
-        dsn.to_string()
-    ))?;
+    let parser = CsvParser::from_dsn(&from)
+        .map_err(|err| anyhow::anyhow!("failed to parse dsn: {}, cause: {:?}", from, err))?;
 
-    if csv_config.is_empty() {
-        anyhow::bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
+    let model_config = parser
+        .parse()
+        .await
+        .map_err(|err| anyhow::anyhow!("failed to parse dsn: {}, cause: {:?}", from, err))?;
+
+    // 检查 csv 文件是否满足合法性
+    model_config
+        .validate()
+        .map_err(|err| anyhow::anyhow!("failed to validate csv file, cause: {:?}", err))?;
+
+    // 如果 req.dsn.model_type 和 req.to 不为空，则检查 database 中的 schema 和 csv 中的 schema 是否冲突
+    if let (Some(model_type), Some(to)) = (ModelType::from_dsn(&from), req.to.as_ref()) {
+        let to = to.into_dsn()?;
+        model_config
+            .validate_with_sink(model_type, &to)
+            .await
+            .map_err(|err| anyhow::anyhow!("conflict between csv and database, cause: {:?}", err))?
     }
 
-    let parser = plugins::runners::opc::config::csv::CsvParser::from_dsn(&dsn)?;
-
-    let model_config = parser.parse().await?;
-
-    model_config.validate()
+    Ok(())
 }
 
 #[get("/ds/in/download/pi_default_config")]

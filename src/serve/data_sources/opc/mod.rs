@@ -7,6 +7,7 @@ use taos::{Code, IntoDsn};
 use utoipa::*;
 
 use taosx_core::runners::opc::config::csv::column::CsvColumn;
+use taosx_core::runners::opc::config::csv::get_csv_headers;
 use taosx_core::{get_data_dir, runners};
 use taosx_ipc::prelude::IpcDataType;
 
@@ -225,7 +226,7 @@ async fn get_point_header_impl(
     let _ = std::env::set_current_dir(get_data_dir());
 
     // get csv header
-    let csv_headers = runners::opc::get_csv_headers(&dsn).await?;
+    let csv_headers = get_csv_headers(&dsn).await?;
 
     // to PointDetail list
     let mut point_details = Vec::new();
@@ -280,37 +281,34 @@ async fn append_point_impl(
 ) -> anyhow::Result<()> {
     let task_id = req.task_id;
     let point = req.point.clone();
-
     // find task detail
     let task = task_store
         .get(task_id)
         .await?
         .ok_or(anyhow::anyhow!("task: {} not found", task_id))?;
-
-    // get dsn
-    let dsn = task.from.clone().into_dsn()?;
-    tracing::debug!("add point for task: {}, dsn: {:?}", task_id, dsn);
+    tracing::debug!("append point for task: {}", task_id);
 
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
+    let from = task.from.clone().into_dsn()?;
+    let to = task.to.clone().into_dsn()?;
+
     // Vec<PointDetail> to csv
     let line = PointDetail::to_csv(point, true).await?;
-    tracing::debug!("append opc point to csv, data: \n{}", line);
 
     // append point to the csv file
-    runners::opc::append_point(&dsn, line.clone()).await?;
+    runners::opc::append_point_to_csv(&from, &to, line.clone()).await?;
 
     // send the new csv to agent if via is not None
     if let Some(agent_id) = req.via {
-        task_store.send_opc_csv_to_agnet(agent_id, &dsn).await?;
+        task_store.send_opc_csv_to_agnet(agent_id, &from).await?;
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[tokio::test]

@@ -18,6 +18,7 @@ pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
+pub mod table_meta;
 pub mod timeout;
 pub mod trace;
 
@@ -253,13 +254,6 @@ pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::R
         );
     }
 
-    // if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
-    //     bail!(
-    //         "The {}: {} is invalid, contains illegal characters.",
-    //         name_type,
-    //         name
-    //     );
-    // }
     Ok(())
 }
 
