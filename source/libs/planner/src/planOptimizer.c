@@ -3501,15 +3501,17 @@ static int32_t eliminateProjOptFindProjPrefixWithOrderCheck(SProjectLogicNode* p
       *orderMatch = false;
       break;
     }
-    SNode* pNew = NULL;
-    code = nodesCloneNode(pChildTarget, &pNew);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeStrictAppend(pNewChildTargets, pNew);
-    }
-    if (TSDB_CODE_SUCCESS != code && pNewChildTargets) {
-      nodesDestroyList(*pNewChildTargets);
-      *pNewChildTargets = NULL;
-      break;
+    if (pNewChildTargets) {
+      SNode* pNew = NULL;
+      code = nodesCloneNode(pChildTarget, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeStrictAppend(pNewChildTargets, pNew);
+      }
+      if (TSDB_CODE_SUCCESS != code && pNewChildTargets) {
+        nodesDestroyList(*pNewChildTargets);
+        *pNewChildTargets = NULL;
+        break;
+      }
     }
   }
   return code;
@@ -3543,6 +3545,8 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   int32_t     code = 0;
   bool        isSetOpProj = false;
   bool        orderMatch = false;
+  bool        sizeMatch = LIST_LENGTH(pProjectNode->pProjections) == LIST_LENGTH(pChild->pTargets);
+  bool        needReplaceTargets = true;
 
   if (NULL == pProjectNode->node.pParent) {
     SNodeList* pNewChildTargets = NULL;
@@ -3553,7 +3557,12 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       // For sql: select ... from (select ... union all select ...);
       // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
       // union all project targets have same columns in the same order. See detail in TD-30188
-      code = eliminateProjOptFindProjPrefixWithOrderCheck(pProjectNode, (SProjectLogicNode*)pChild, &pNewChildTargets, &orderMatch);
+      code = eliminateProjOptFindProjPrefixWithOrderCheck(pProjectNode, (SProjectLogicNode*)pChild,
+                                                          sizeMatch ? NULL : &pNewChildTargets, &orderMatch);
+      if (TSDB_CODE_SUCCESS == code && sizeMatch && orderMatch) {
+        pNewChildTargets = pChild->pTargets;
+        needReplaceTargets = false;
+      }
     } else {
       FOREACH(pProjection, pProjectNode->pProjections) {
         FOREACH(pChildTarget, pChild->pTargets) {
@@ -3577,10 +3586,12 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     }
 
     if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) && (!isSetOpProj || orderMatch)) {
-      nodesDestroyList(pChild->pTargets);
-      pChild->pTargets = pNewChildTargets;
+      if (needReplaceTargets) {
+        nodesDestroyList(pChild->pTargets);
+        pChild->pTargets = pNewChildTargets;
+      }
     } else {
-      nodesDestroyList(pNewChildTargets);
+      if (needReplaceTargets) nodesDestroyList(pNewChildTargets);
       OPTIMIZE_FLAG_SET_MASK(pProjectNode->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_PROJ);
       pCxt->optimized = true;
       return TSDB_CODE_SUCCESS;
@@ -3603,10 +3614,10 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
     // if pChild is a project logic node, remove its projection which is not reference by its target.
-    alignProjectionWithTarget(pChild);
-    if (isSetOpProj && orderMatch) {
+    if (needReplaceTargets) {
+      alignProjectionWithTarget(pChild);
       // Since we have eliminated the outer proj, we need to push down the new targets to the children of the set operation.
-      code = eliminateProjOptPushTargetsToSetOpChildren((SProjectLogicNode*)pChild);
+      if (isSetOpProj && orderMatch && !sizeMatch) code = eliminateProjOptPushTargetsToSetOpChildren((SProjectLogicNode*)pChild);
     }
   }
   pCxt->optimized = true;

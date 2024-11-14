@@ -399,7 +399,12 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(6)
         tdSql.checkCols(3)
-        tdSql.execute("drop database ep_iot")
+
+        sql = "select scdw_code, scdw_name, jzmc, fdgl, jzzt,ts from ((select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组1' as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组2' as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp)) where scdw_code like '%%';"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkCols(6)
+        tdSql.checkRows(6)
+        ##tdSql.execute("drop database ep_iot")
 
     def run(self):
         tdSql.prepare()
