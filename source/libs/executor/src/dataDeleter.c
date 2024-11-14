@@ -258,6 +258,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDeleter->pDataBlocks);
   (void)taosThreadMutexDestroy(&pDeleter->mutex);
+  nodesDestroyNode((SNode*)pDeleter->pSchema);
+  pDeleter->pSchema = NULL;
 
   taosMemoryFree(pDeleter->pManager);
 
@@ -280,7 +282,7 @@ static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
 }
 
 
-int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+int32_t createDataDeleter(SDataSinkManager* pManager, SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pParam == NULL) {
@@ -310,6 +312,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
+  pDataSink->pInputDataBlockDesc = NULL;
 
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;
