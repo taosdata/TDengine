@@ -3,17 +3,20 @@ title: 异常检测算法
 description: 异常检测算法
 ---
 
-时序数据异常检测，在TDengine 查询处理中以异常窗口的形式服务。因此，可以将异常检测获得的窗口视为一种特殊的**事件窗口**，区别在于异常窗口的触发条件和结束条件不是用户指定，而是检测算法自动识别。因此，可以应用在事件窗口上的函数均可应用在异常窗口中。由于异常检测结果是一个时间窗口，因此调用异常检测的方式也与使用事件窗口的方式相同，在 `WHERE` 子句中使用 `ANOMALY_WINDOW` 关键词即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`, `_WEND`, `_WDURATION`）也能够像其他窗口函数一样使用。例如：
+import ad from '../pic/anomaly-detection.png';
+
+TDengine 中定义了异常（状态）窗口来提供异常检测服务。异常窗口可以视为一种特殊的**事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于——时间窗口的起始时间和结束时间均是分析算法识别确定，不是用户给定的表达式进行判定。因此，在 `WHERE` 子句中使用 `ANOMALY_WINDOW` 关键词即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`, `_WEND`, `_WDURATION`）也能够像其他时间窗口一样用于描述异常窗口的起始时间(`_WSTART`)、结束时间(`_WEND`)、持续时间(`_WDURATION`)。例如：
 
 ```SQL
-SELECT _wstart, _wend, SUM(i32) 
+--- 使用异常检测算法 IQR 对输入列 col_val 进行异常检测。同时输出异常窗口的起始时间、结束时间、以及异常窗口内 col 列的和。
+SELECT _wstart, _wend, SUM(col) 
 FROM foo
-ANOMALY_WINDOW(i32, "algo=iqr");
+ANOMALY_WINDOW(col_val, "algo=iqr");
 ```
 
-如下图所示，Anode 将返回时序数据异常窗口 [10:51:30, 10:54:40] 
+如下图所示，Anode 将返回时序数据异常窗口 $[10:51:30, 10:53:40]$ 
 
-<img src="../pic/anomaly-detection.png" width="560" alt="异常检测" />
+<img src={ad} width="760" alt="异常检测" />
 
 在此基础上，用户可以针对异常窗口内的时序数据进行查询聚合、变换处理等操作。
 
@@ -34,31 +37,25 @@ algo=expr1
 3. 异常检测的结果可以作为外层查询的子查询输入，在 `SELECT` 子句中使用的聚合函数或标量函数与其他类型的窗口查询相同。
 4. 输入数据默认进行白噪声检查，如果输入数据是白噪声，将不会有任何（异常）窗口信息返回。
 
-**参数说明**
+### 参数说明
 |参数|含义|默认值|
 |---|---|---|
 |algo|异常检测调用的算法|iqr|
-|wncheck|对输入数据列是否进行白噪声检查|取值为 0 或者 1，默认值为 1，表示进行白噪声检查|
+|wncheck|对输入数据列是否进行白噪声检查，取值为0或1|1|
 
-异常检测的返回结果以窗口形式呈现，因此窗口查询相关的伪列在这种场景下仍然可用。可用的伪列如下：
-1. `_WSTART`： 异常窗口开始时间戳
-2. `_WEND`：异常窗口结束时间戳
-3. `_WDURATION`：异常窗口持续时间
 
-**示例**
+### 示例
 ```SQL
 --- 使用 iqr 算法进行异常检测，检测列 i32 列。
 SELECT _wstart, _wend, SUM(i32) 
-FROM ai.atb
+FROM foo
 ANOMALY_WINDOW(i32, "algo=iqr");
 
 --- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列
 SELECT _wstart, _wend, SUM(i32) 
-FROM ai.atb
+FROM foo
 ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
-```
 
-```
 taos> SELECT _wstart, _wend, count(*) FROM ai.atb ANOMAYL_WINDOW(i32);
          _wstart         |          _wend          |   count(*)    |
 ====================================================================
@@ -67,7 +64,7 @@ Query OK, 1 row(s) in set (0.028946s)
 ```
 
 
-**可用异常检测算法**
+### 内置异常检测算法
 - iqr
 - ksigma
 - grubbs

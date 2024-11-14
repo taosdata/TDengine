@@ -4,10 +4,11 @@ sidebar_label: "安装部署"
 ---
 
 ### 环境准备
-ANode 可以运行在 Linux/Windows/Mac 操作系统之上，要求部署 Anode 的节点安装有 3.10 及以上版本的Python环境，以及相应的 Python 包自动安装组件 Pip。
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 可以运行在 Linux/Windows/MacOS 等平台上，同时需要 3.10 或以上版本的 Python 环境支持。
 
 ### 安装及卸载
-不同操作系统上安装及部署操作有差异，主要包括安装/卸载操作、安装路径、Anode服务的启停等几个方面。本小节以 Linux 系统为例，说明安装部署的整个流程。使用Linux环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 ANode 的安装部署工作，使用如下命令：
+不同操作系统上安装及部署 Anode 有一些差异，主要是卸载操作、安装路径、服务启停等方面。本文以 Linux 系统为例，说明安装部署的流程。
+使用 Linux 环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 Anode 的安装部署工作，命令如下：
 
 ```bash
 tar -xzvf TDengine-enterprise-anode-1.0.0.tar.gz
@@ -15,11 +16,11 @@ cd TDengine-enterprise-anode-1.0.0
 sudo ./install.sh
 ```
 
-在安装完成 ANode 之后，执行命令 `rmtaosanode` 即可。
-ANode 使用 Python 虚拟环境运行，避免影响安装环境中现有的 Python 库。安装后的默认 Python 虚拟环境目录位于 `/var/lib/taos/taosanode/venv/`。为了避免反复安装虚拟环境带来的开销，卸载 ANode 执行的命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不需要 Python 的虚拟环境，手动删除即可。
+对于已经安装的 Anode，执行命令 `rmtaosanode` 即可完成卸载。
+为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
 
 ### 启停服务
-在 Linux 系统中，安装 ANode 以后可以使用 `systemd` 来管理 ANode 服务。使用如下命令可以启动/停止/检查状态。
+在 Linux 系统中，安装 Anode 以后会自动创建 `taosadnoded` 服务。可以使用 `systemd` 来管理 Anode 服务，使用如下命令启动/停止/检查 Anode。
 
 ```bash
 systemctl start  taosanoded
@@ -28,6 +29,8 @@ systemctl status taosanoded
 ```
 
 ### 目录及配置说明
+安装完成后，Anode 主体目录结构如下：
+
 |目录/文件|说明|
 |---------------|------|
 |/usr/local/taos/taosanode/bin|可执行文件目录|
@@ -39,7 +42,8 @@ systemctl status taosanoded
 
 #### 配置说明
 
-Anode 提供的服务使用 uWSGI 驱动，因此 ANode 和 uWSGI 的配置信息共同存放在相同的配置文件 `taosanode.ini`，该配置文件默认位于 `/etc/taos/`目录下，其具体内容及说明如下：
+Anode 的服务需要使用 uWSGI 驱动驱动运行，因此 Anode 和 uWSGI 的配置信息共同存放在相同的配置文件 `taosanode.ini` 中，该配置文件默认位于 `/etc/taos/` 目录下。
+具体内容及配置项说明如下：
 
 ```ini
 [uwsgi]
@@ -81,23 +85,24 @@ log-level = DEBUG
 ```
 
 **提示**
-请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而无法正常启动。
-该配置文件只包含了使用 Anode提供服务的最基础的配置参数，对于 uWSGI 的其他配置参数设置及其含义和说明请参考[uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
-对于 Anode 运行配置主要是以下几个：
+请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而导致 Anode 无法正常启动。
+上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+
+Anode 运行配置主要是以下：
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
 - model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
 - log-level: app-log文件的日志级别
 
 
-### ANode 基本操作
-#### 创建 ANode
+### Anode 基本操作
+#### 创建 Anode
 ```sql 
 CREATE ANODE {node_url}
 ```
-node_url 是提供服务的 ANode 的 IP 和 PORT, 例如：`create anode 'http://localhost:6050'`。启动 ANode 以后如果不注册到 TDengine 集群中，则无法提供正常的服务。不建议 ANode 注册到两个或多个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`create anode 'http://localhost:6050'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
-#### 查看 ANode
-列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`。
+#### 查看 Anode
+列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
 ```sql
 SHOW ANODES;
 ```
@@ -114,8 +119,8 @@ UPDATE ANODE {node_id}
 UPDATE ALL ANODES
 ```
 
-#### 删除 ANode
+#### 删除 Anode
 ```sql
 DROP ANODE {anode_id}
 ```
-删除 ANode 只是将 ANode 从 TDengine 集群中删除，管理 ANode 的启停仍然需要使用`systemctl`命令。
+删除 Anode 只是将 Anode 从 TDengine 集群中删除，管理 Anode 的启停仍然需要使用 `systemctl` 命令。卸载 Anode 则需要使用上面提到的 `rmtaosanode` 命令。

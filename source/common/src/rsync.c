@@ -119,11 +119,21 @@ static int32_t execCommand(char* command) {
 }
 
 void stopRsync() {
-  int32_t code =
+  int32_t pid = 0;
+  int32_t code = 0;
+  char    buf[128] = {0};
+
 #ifdef WINDOWS
-      system("taskkill /f /im rsync.exe");
+  code = system("taskkill /f /im rsync.exe");
 #else
-      system("pkill rsync");
+  code = taosGetPIdByName("rsync", &pid);
+  if (code == 0) {
+    int32_t ret = tsnprintf(buf, tListLen(buf), "kill -9 %d", pid);
+    if (ret > 0) {
+      uInfo("kill rsync program pid:%d", pid);
+      code = system(buf);
+    }
+  }
 #endif
 
   if (code != 0) {
