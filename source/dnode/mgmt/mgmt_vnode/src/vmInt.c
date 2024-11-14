@@ -63,14 +63,18 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   int32_t     numOfVnodes = 0;
   SVnodeObj **ppVnodes = NULL;
 
-  code = vmGetAllVnodeListFromHashWithCreating(pMgmt, &numOfVnodes, &ppVnodes);
+  code = taosThreadMutexLock(&pMgmt->mutex);
   if (code != 0) {
     return code;
   }
 
-  code = taosThreadMutexLock(&pMgmt->mutex);
+  code = vmGetAllVnodeListFromHashWithCreating(pMgmt, &numOfVnodes, &ppVnodes);
   if (code != 0) {
-    goto _OVER;
+    int32_t r = taosThreadMutexUnlock(&pMgmt->mutex);
+    if (r != 0) {
+      dError("vgId:%d, failed to unlock mutex since %s", vgId, tstrerror(r));
+    }
+    return code;
   }
 
   for (int32_t v = 0; v < numOfVnodes; v++) {
