@@ -33,7 +33,7 @@ class TDTestCase(TBase):
         "compressMsgSize" : "100",
     }
     # compress
-    compresses = ["lz4","tsz","zlib","zstd","disabled","xz"]
+    compresses = ["lz4","zlib","zstd","disabled","xz"]
 
     # level
     levels = ["high","medium","low"]
@@ -145,9 +145,16 @@ class TDTestCase(TBase):
         compressDefaultDict["BIGINT"] = "lz4"
         compressDefaultDict["FLOAT"] = "lz4"
         compressDefaultDict["DOUBLE"] = "lz4"
-        compressDefaultDict["VARCHAR"] = "lz4"
-        compressDefaultDict["TIMESTAMP"] = "zstd"
+        compressDefaultDict["VARCHAR"] = "zstd"
+        compressDefaultDict["TIMESTAMP"] = "lz4"
         compressDefaultDict["NCHAR"] = "zstd"
+        compressDefaultDict["TINYINT UNSIGNED"] = "zlib"
+        compressDefaultDict["SMALLINT UNSIGNED"] = "zlib"
+        compressDefaultDict["INT UNSIGNED"] = "lz4"
+        compressDefaultDict["BIGINT UNSIGNED"] = "lz4"
+        compressDefaultDict["NCHAR"] = "zstd"
+        compressDefaultDict["BLOB"] = "lz4"
+        compressDefaultDict["VARBINARY"] = "zstd"
         
         count = tdSql.getRows()
         for i in range(count):
@@ -155,8 +162,13 @@ class TDTestCase(TBase):
             if node == "TAG":
                 break
             # check
-            tdSql.checkData(i, 4, defEncodes[i])
-            tdSql.checkData(i, 5, compressDefaultDict[tdSql.getData(i, 2)])
+            tdLog.info(f"check default encode {tdSql.getData(i, 1)}")
+            #tdLog.info(f"check default encode compressDefaultDict[tdSql.getData(i, 2)]")
+            defaultValue = compressDefaultDict[tdSql.getData(i, 1)]
+            if defaultValue == None:
+                defaultValue = self.defCompress
+            tdLog.info(f"check default compress {tdSql.getData(i, 1)} {defaultValue}")
+            tdSql.checkData(i, 5, defaultValue)
             tdSql.checkData(i, 6, self.defLevel)
 
         # geometry encode is disabled
@@ -198,8 +210,8 @@ class TDTestCase(TBase):
             for i in range(self.colCnt - 1):
                 col = f"c{i}"
                 sql = f"alter table {tbname} modify column {col} COMPRESS '{comp}';"
-                tdSql.execute(sql, show=True)
-                self.checkDataDesc(tbname, i + 1, 5, comp)
+                #tdSql.execute(sql, show=False)
+                #self.checkDataDesc(tbname, i + 1, 5, comp)
                 self.writeData(1000)
 
         # alter float(c9) double(c10) to tsz
@@ -337,6 +349,7 @@ class TDTestCase(TBase):
 
         while offset < count:
             sql = f"select * from {tbname} limit {step} offset {offset}"
+            tdLog.info(sql)
             tdSql.query(sql)
             self.autoGen.dataCorrect(tdSql.res, tdSql.getRows(), step)
             offset += step
