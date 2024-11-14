@@ -1104,6 +1104,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   (void)strcpy(info.name, "statusInterval");
   (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   (void)strcpy(info.scope, "server");
+  // fill info.info
   if (taosArrayPush(rsp.variables, &info) == NULL) {
     code = terrno;
     goto _OVER;
