@@ -1,0 +1,146 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+$i = 0
+$dbPrefix = db
+$tbPrefix = tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+$N = 2000
+
+print =============== step1
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, b bool encode 'disabled', t tinyint encode 'disabled', s smallint encode 'disabled', i int encode 'disabled', big bigint encode 'disabled', str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = 1591200000000 + $count
+   sql insert into $tb values(  $ms , 1, 0, $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then
+  return -1
+endi
+
+sql flush database $db
+
+sql select * from $tb
+if $rows != $N then
+  return -1
+endi
+
+sql alter table $tb modify column ts encode 'disabled'
+
+$count = 0
+while $count < $N
+   $ms = 1591200030000 + $count
+   sql insert into $tb values(  $ms , 1, 0, $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+$M = 4000
+sql select * from $tb
+if $rows != $M then
+  return -1
+endi
+
+sql flush database $db
+
+sql select * from $tb
+if $rows != $M then
+  return -1
+endi
+
+
+$stb1 = txx1 
+sql create table txx1 (ts timestamp encode 'disabled' compress 'disabled' level 'h', f int compress 'lz4') tags(t int)
+
+$count = 0
+$subTb1 = txx1_sub1
+$subTb2 = txx1_sub2
+
+sql create table $subTb1 using $stb1 tags(1)  
+sql create table $subTb2 using $stb1 tags(2)  
+
+while $count < $N
+   $ms = 1591200030000 + $count
+   sql insert into $subTb1 values(  $ms , 1)
+
+   $ms2 = 1591200040000 + $count
+   sql insert into $subTb2 values(  $ms2 , 1)
+   $count = $count + 1
+endw
+
+$count = 0
+sql select * from $stb1
+if $rows != $M then
+  return -1
+endi
+
+sql flush database $db
+
+sql select * from $stb1
+if $rows != $M then
+  return -1
+endi
+
+$L = 8000
+sql alter table $stb1 modify column ts encode 'delta-i'
+sql alter table $stb1 modify column f encode 'disabled'
+
+while $count < $N
+   $ms = 1591200050000 + $count
+   sql insert into $subTb1 values(  $ms , 1)
+
+   $ms2 = 1591200060000 + $count
+   sql insert into $subTb2 values(  $ms2 , 1)
+   $count = $count + 1
+endw
+
+
+sql select * from $stb1
+if $rows != $L then
+  return -1
+endi
+
+sql flush database $db
+
+sql select * from $stb1
+if $rows != $L then
+  return -1
+endi
+
+sql alter table $stb1 modify column ts encode 'disabled'
+
+
+$count = 0
+$I = 12000
+while $count < $N
+   $ms = 1591200070000 + $count
+   sql insert into $subTb1 values(  $ms , 1)
+
+   $ms2 = 1591200080000 + $count
+   sql insert into $subTb2 values(  $ms2 , 1)
+   $count = $count + 1
+endw
+
+
+sql select * from $stb1
+if $rows != $I then
+  return -1
+endi
+
+sql flush database $db
+
+sql select * from $stb1
+if $rows != $I then
+  return -1
+endi
+

@@ -48,8 +48,6 @@ void    taosCloseCmd(TdCmdPtr *ppCmd);
 
 void *taosLoadDll(const char *filename);
 
-void *taosLoadSym(void *handle, char *name);
-
 void taosCloseDll(void *handle);
 
 int32_t taosSetConsoleEcho(bool on);

@@ -48,6 +48,7 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
+            "safetyCheckLevel":"2"
         }
 
     def getLogDir(self):
@@ -149,7 +150,8 @@ class TDDnode:
             "statusInterval": "1",
             "enableQueryHb": "1",
             "supportVnodes": "1024",
-            "telemetryReporting": "0"
+            "telemetryReporting": "0",
+            "safetyCheckLevel":"2"
         }
 
     def init(self, path, remoteIP = ""):
@@ -592,8 +594,7 @@ class TDDnode:
 
     def forcestop(self):
         if self.asan:
-            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" + \
-                (self.execPath, self.index)
+            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
             os.system(stopCmd)
             return

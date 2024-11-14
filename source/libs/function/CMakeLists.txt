@@ -1,6 +1,10 @@
 aux_source_directory(src FUNCTION_SRC)
 aux_source_directory(src/detail FUNCTION_SRC_DETAIL)
 list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
+IF(COMPILER_SUPPORT_AVX2)
+    MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
+    set_source_files_properties(src/detail/tminmaxavx.c PROPERTIES COMPILE_FLAGS -mavx2)
+ENDIF()
 add_library(function STATIC ${FUNCTION_SRC} ${FUNCTION_SRC_DETAIL})
 target_include_directories(
     function
@@ -140,6 +144,11 @@ target_link_libraries(
 
 # SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
+
+if(${TD_DARWIN})
+    target_compile_options(udfd PRIVATE -Wno-error=deprecated-non-prototype)
+endif()
+
 target_include_directories(
     udfd
     PUBLIC

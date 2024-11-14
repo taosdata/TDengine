@@ -1,9 +1,11 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
-docs_only=0
 node {
 }
+file_zh_changed = ''
+file_en_changed = ''
+file_no_doc_changed = ''
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -29,7 +31,7 @@ def abort_previous(){
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
 }
-def check_docs() {
+def check_docs(){
     if (env.CHANGE_URL =~ /\/TDengine\//) {
         sh '''
             hostname
@@ -40,39 +42,94 @@ def check_docs() {
             cd ${WKC}
             git reset --hard
             git clean -f
-            rm -rf examples/rust/
             git remote prune origin
             git fetch
-        '''
-        script {
-            sh '''
-                cd ${WKC}
-                git checkout ''' + env.CHANGE_TARGET + '''
-            '''
-        }
-        sh '''
-            cd ${WKC}
-            git remote prune origin
+            git checkout ''' + env.CHANGE_TARGET + '''
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
-            git checkout -qf FETCH_HEAD
+            git checkout -qf FETCH_HEAD 
         '''
-        def file_changed = sh (
+
+        file_zh_changed = sh (
             script: '''
                 cd ${WKC}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        )
+
+        file_en_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep  "^docs/en/" || :
+            ''',
+            returnStdout: true
+        )
+        
+        file_no_doc_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v "*.md" || :
             ''',
             returnStdout: true
         ).trim()
-        if (file_changed == '') {
-            echo "docs PR"
-            docs_only=1
-        } else {
-            echo file_changed
-        }
-        env.FILE_CHANGED = file_changed
+        echo "file_zh_changed: ${file_zh_changed}"
+        echo "file_en_changed: ${file_en_changed}"
+        echo "file_no_doc_changed: ${file_no_doc_changed}"
     }
 }
+
+def build_pre_docs(){
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            hostname
+            date
+            env
+        '''
+        
+        sh '''
+            cd ${DOC_WKC}/${td_repo}
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout ''' + env.CHANGE_TARGET + '''
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD 
+        '''
+
+        sh '''
+             cd ${DOC_WKC}/${tools_repo}
+            git reset --hard
+            git clean -f
+            git fetch
+            git remote prune origin
+            git checkout ''' + env.CHANGE_TARGET + '''
+            git pull >/dev/null
+        '''
+    }
+}
+
+def build_zh_docs(){
+    sh '''
+        cd ${DOC_WKC}/${zh_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
+}
+
+def build_en_docs(){
+    sh '''
+        cd ${DOC_WKC}/${en_doc_repo}
+        # git pull 
+        yarn ass local
+        yarn build
+    '''
+}
+
+
 def pre_test(){
     sh '''
         hostname
@@ -153,6 +210,7 @@ def pre_test(){
     '''
     return 1
 }
+
 def pre_test_build_mac() {
     sh '''
         hostname
@@ -173,6 +231,7 @@ def pre_test_build_mac() {
         date
     '''
 }
+
 def pre_test_win(){
     bat '''
         hostname
@@ -273,17 +332,8 @@ def pre_test_win(){
         cd %WIN_COMMUNITY_ROOT%
         git submodule update --init --recursive
     '''
-    bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        git branch
-        git reset --hard
-        git pull
-    '''
-    bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        git log -5
-    '''
 }
+
 def pre_test_build_win() {
     bat '''
         echo "building ..."
@@ -303,16 +353,14 @@ def pre_test_build_win() {
         time /t
     '''
     bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        python.exe -m pip install --upgrade pip
-        python -m pip uninstall taospy -y 
-        python -m pip install taospy==2.7.16
-        python -m pip uninstall taos-ws-py -y 
-        python -m pip install taos-ws-py==0.3.3
+        cd %WIN_COMMUNITY_ROOT%/tests/ci
+        pip3 install taospy==2.7.16 
+        pip3 install taos-ws-py==0.3.3
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
 }
+
 def run_win_ctest() {
     bat '''
         echo "windows ctest ..."
@@ -322,10 +370,10 @@ def run_win_ctest() {
         time /t
     '''
 }
+
 def run_win_test() {
     bat '''
         echo "windows test ..."
-        cd %WIN_CONNECTOR_ROOT%
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
         time /t
@@ -344,28 +392,67 @@ pipeline {
         WK = '/var/lib/jenkins/workspace/TDinternal'
         WKC = '/var/lib/jenkins/workspace/TDinternal/community'
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
+        DOC_WKC = '/root/doc_ci_work'
+        td_repo = 'TDengine'
+        zh_doc_repo = 'docs.taosdata.com'
+        en_doc_repo = 'docs.tdengine.com'
+        tools_repo = 'taos-tools'
     }
     stages {
-        stage('check') {
+        stage ('check doc file changed') {
+            agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}            
+            steps {
+                check_docs()
+            }
+        }
+        
+        stage ('pre for build docs') {
             when {
-                allOf {
-                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                }
+                beforeAgent true
+                expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
+            }
+            agent{label "doc_build_0_30"}
+            steps {
+                build_pre_docs()
+            }
+        }
+
+        stage('build Docs') {
+            when {
+                beforeAgent true
+                expression { env.CHANGE_BRANCH =~ /(?i)doc.*/ || file_zh_changed != '' || file_en_changed != '' }
             }
             parallel {
-                stage('check docs') {
-                    agent{label " slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52  || slave1_59 || slave1_63 ||  worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
+                stage('build zh docs') {
+                    agent{label "doc_build_0_30"}
+                    when {
+                        expression { file_zh_changed != '' }
+                    }
                     steps {
-                        check_docs()
+                        build_zh_docs()
+                    }
+                }
+                stage('build en docs') {
+                    agent{label "doc_build_0_30"}
+                    when {
+                        expression { file_en_changed != '' }
+                    }
+                    steps {
+                        build_en_docs()
                     }
                 }
             }
+            post {
+                unsuccessful {
+                    error('build docs stage failed, terminating pipeline.')
+                }
+            }
         }
+
         stage('run test') {
             when {
                 allOf {
-                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                    expression { docs_only == 0 }
+                    not { expression { file_no_doc_changed == '' }}
                 }
             }
             parallel {
@@ -375,7 +462,6 @@ pipeline {
                         WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
-                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -420,7 +506,7 @@ pipeline {
                                 script {
                                     sh '''
                                     mkdir -p ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}
-                                    echo "''' + env.FILE_CHANGED + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                                    echo "''' + file_no_doc_changed + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/parallel_test

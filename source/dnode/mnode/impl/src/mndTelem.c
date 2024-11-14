@@ -115,9 +115,9 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", version), &lino, _OVER);
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", buildinfo), &lino, _OVER);
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", gitinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", td_version), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", td_buildinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", td_gitinfo), &lino, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "email", pMgmt->email), &lino, _OVER);
 
   mndBuildRuntimeInfo(pMnode, pJson);

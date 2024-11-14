@@ -72,6 +72,7 @@ typedef struct SDatabaseOptions {
   int8_t      compressionLevel;
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
+  char        dnodeListStr[TSDB_DNODE_LIST_LEN];
   char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;

@@ -69,6 +69,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_S3_COMPACT,
   DB_OPTION_KEEP_TIME_OFFSET,
   DB_OPTION_ENCRYPT_ALGORITHM,
+  DB_OPTION_DNODES,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {

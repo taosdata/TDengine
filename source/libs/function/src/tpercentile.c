@@ -224,7 +224,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value, int32_t *index
 
   *index = -1;
 
-  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v)) {
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v) || isinf(v)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -232,6 +232,8 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value, int32_t *index
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
   if (fabs(span) < DBL_EPSILON) {
     *index = 0;
+  } else if (isinf(span)) {
+    *index = -1;
   } else {
     double slotSpan = span / pBucket->numOfSlots;
     *index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
@@ -267,18 +269,16 @@ static void resetSlotInfo(tMemBucket *pBucket) {
 }
 
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
-                         tMemBucket **pBucket) {
+                         tMemBucket **pBucket, int32_t numOfElements) {
   *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (*pBucket == NULL) {
     return terrno;
   }
 
   if (hasWindowOrGroup) {
-    // With window or group by, we need to shrink page size and reduce page num to save memory.
-    (*pBucket)->numOfSlots = DEFAULT_NUM_OF_SLOT / 8 ;  // 128 bucket
+    // With window or group by, we need to shrink page size to save memory.
     (*pBucket)->bufPageSize = 4096;  // 4k per page
   } else {
-    (*pBucket)->numOfSlots = DEFAULT_NUM_OF_SLOT;
     (*pBucket)->bufPageSize = 16384 * 4;  // 16k per page
   }
 
@@ -300,6 +300,8 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   }
 
   (*pBucket)->elemPerPage = ((*pBucket)->bufPageSize - sizeof(SFilePage)) / (*pBucket)->bytes;
+  (*pBucket)->numOfSlots = TMIN((int16_t)(numOfElements / ((*pBucket)->elemPerPage * 6)) + 1, DEFAULT_NUM_OF_SLOT);
+
   (*pBucket)->comparFn = getKeyComparFunc((*pBucket)->type, TSDB_ORDER_ASC);
 
   (*pBucket)->hashFunc = getHashFunc((*pBucket)->type);
@@ -585,7 +587,7 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         // try next round
         tMemBucket *tmpBucket = NULL;
         int32_t code = tMemBucketCreate(pMemBucket->bytes, pMemBucket->type, pSlot->range.dMinVal, pSlot->range.dMaxVal,
-                                            false, &tmpBucket);
+                                            false, &tmpBucket, pSlot->info.size);
         if (TSDB_CODE_SUCCESS != code) {
           tMemBucketDestroy(&tmpBucket);
           return code;
