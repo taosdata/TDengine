@@ -347,6 +347,7 @@ typedef struct {
   tb_uid_t                             suid;
   tb_uid_t                             uid;
   STSchema                            *pTSchema;
+  SArray                              *ctxArray;
 } SRocksCache;
 
 typedef struct {

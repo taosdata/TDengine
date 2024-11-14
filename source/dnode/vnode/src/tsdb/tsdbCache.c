@@ -234,6 +234,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   pTsdb->rCache.suid = -1;
   pTsdb->rCache.uid = -1;
   pTsdb->rCache.pTSchema = NULL;
+  pTsdb->rCache.ctxArray = NULL;
 
   TAOS_RETURN(code);
 
@@ -267,6 +268,7 @@ static void tsdbCloseRocksCache(STsdb *pTsdb) {
   rocksdb_cache_destroy(pTsdb->rCache.blockcache);
   rocksdb_comparator_destroy(pTsdb->rCache.my_comparator);
   taosMemoryFree(pTsdb->rCache.pTSchema);
+  taosArrayDestroy(pTsdb->rCache.ctxArray);
 }
 
 static void rocksMayWrite(STsdb *pTsdb, bool force) {
@@ -1340,7 +1342,6 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   TSDBROW    lRow = {.type = TSDBROW_ROW_FMT, .pTSRow = aRow[nRow - 1], .version = version};
   STSchema  *pTSchema = NULL;
   int32_t    sver = TSDBROW_SVERSION(&lRow);
-  SArray    *ctxArray = NULL;
   SSHashObj *iColHash = NULL;
 
   TAOS_CHECK_GOTO(tsdbUpdateSkm(pTsdb, suid, uid, sver), &lino, _exit);
@@ -1349,10 +1350,13 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   TSDBROW tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t nCol = pTSchema->numOfCols;
 
-  ctxArray = taosArrayInit(nCol * 2, sizeof(SLastUpdateCtx));
-  if (ctxArray == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  if (!pTsdb->rCache.ctxArray) {
+    pTsdb->rCache.ctxArray = taosArrayInit(nCol * 2, sizeof(SLastUpdateCtx));
+    if (!pTsdb->rCache.ctxArray) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    }
   }
+  SArray *ctxArray = pTsdb->rCache.ctxArray;
 
   // 1. prepare by lrow
   STsdbRowKey tsdbRowKey = {0};
@@ -1436,8 +1440,8 @@ _exit:
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
   }
 
-  taosArrayDestroy(ctxArray);
   tSimpleHashCleanup(iColHash);
+  taosArrayClear(ctxArray);
 
   TAOS_RETURN(code);
 }
