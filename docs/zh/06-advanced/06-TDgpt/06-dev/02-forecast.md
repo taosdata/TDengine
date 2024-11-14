@@ -10,8 +10,8 @@ sidebar_label: "预测算法"
 `execute` 方法执行完成后的返回一个如下字典对象， 预测返回结果如下：
 ```python
 return {
-    "mse": mse,		    # 预测算法的拟合数据最小均方误差(minimum squared error)
-    "res": res              # 结果数组 [时间戳数组, 预测结果数组, 预测结果执行区间下界数组，预测结果执行区间上界数组]
+    "mse": mse, # 预测算法的拟合数据最小均方误差(minimum squared error)
+    "res": res  # 结果数组 [时间戳数组, 预测结果数组, 预测结果执行区间下界数组，预测结果执行区间上界数组]
 }
 ```
 
