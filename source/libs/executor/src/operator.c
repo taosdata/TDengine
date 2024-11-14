@@ -944,4 +944,24 @@ int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   return pOperator->resultDataBlockId;
 }
 
+int32_t operatorResultCheck(SOperatorInfo* pOperator, SSDataBlock* pRes) {
+  CHECK_CONDITION_FAILED(pOperator);
+  CHECK_CONDITION_FAILED(pRes);
 
+  CHECK_CONDITION_FAILED(pOperator->exprSupp.numOfExprs == pRes->pDataBlock->size);
+  CHECK_CONDITION_FAILED(pOperator->resultDataBlockId == pRes->info.id.blockId);
+
+  for(int i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SExprInfo info = pOperator->exprSupp.pExprInfo[i];
+    int32_t slotId = info.base.resSchema.slotId;
+    SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pRes->pDataBlock, slotId);
+    CHECK_CONDITION_FAILED(pCol);
+
+    CHECK_CONDITION_FAILED(info.base.resSchema.slotId == pCol->info.colId);
+    CHECK_CONDITION_FAILED(info.base.resSchema.type == pCol->info.type);
+    CHECK_CONDITION_FAILED(info.base.resSchema.bytes == pCol->info.bytes);
+    CHECK_CONDITION_FAILED(info.base.resSchema.precision == pCol->info.precision);
+    CHECK_CONDITION_FAILED(info.base.resSchema.scale == pCol->info.scale);
+  }
+  return TSDB_CODE_SUCCESS;
+}

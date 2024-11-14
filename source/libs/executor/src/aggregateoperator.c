@@ -277,6 +277,11 @@ _end:
   return pBlock != NULL;
 }
 
+int32_t aggregateResultCheck(SOperatorInfo* pOperator, SSDataBlock* ppRes) {
+  CHECK_CONDITION_FAILED(operatorResultCheck(pOperator, ppRes) == TSDB_CODE_SUCCESS);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
@@ -314,6 +319,9 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   size_t rows = blockDataGetNumOfRows(pInfo->pRes);
   pOperator->resultInfo.totalRows += rows;
 
+  code = aggregateResultCheck(pOperator, pInfo->pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -323,12 +331,6 @@ _end:
 
   (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
   return code;
-}
-
-static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t code = getAggregateResultNext(pOperator, &pRes);
-  return pRes;
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
