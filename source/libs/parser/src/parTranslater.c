@@ -1853,7 +1853,7 @@ static bool clauseSupportAlias(ESqlClause clause) {
   return SQL_CLAUSE_GROUP_BY == clause || SQL_CLAUSE_PARTITION_BY == clause || SQL_CLAUSE_ORDER_BY == clause;
 }
 
-static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool *translateAsAlias) {
+static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool* translateAsAlias) {
   *translateAsAlias = false;
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
@@ -1862,7 +1862,7 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
 
   if (pCxt->pParseCxt->biMode) {
     SNode** ppNode = (SNode**)pCol;
-    bool ret;
+    bool    ret;
     pCxt->errCode = biRewriteToTbnameFunc(pCxt, ppNode, &ret);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
     if (ret) {
@@ -1876,9 +1876,8 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
   } else {
     bool found = false;
     res = translateColumnWithoutPrefix(pCxt, pCol);
-    if (!(*pCol)->node.asParam &&
-        res != DEAL_RES_CONTINUE &&
-        res != DEAL_RES_END && pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
+    if (!(*pCol)->node.asParam && res != DEAL_RES_CONTINUE && res != DEAL_RES_END &&
+        pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
     }
@@ -3311,26 +3310,28 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
-  
+
   if (resultType == -1) {
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  
+
   if (commonType->type == newType->type) {
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((resultType == TSDB_DATA_TYPE_VARCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  if ((resultType == TSDB_DATA_TYPE_VARCHAR) &&
+      (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN);
-  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) && (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
+  } else if ((resultType == TSDB_DATA_TYPE_NCHAR) &&
+             (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
-  
+
   commonType->type = resultType;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5480,7 +5481,7 @@ static EDealRes translateGroupPartitionByImpl(SNode** pNode, void* pContext) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   STranslateContext*       pTransCxt = pCxt->pTranslateCxt;
   if (QUERY_NODE_VALUE == nodeType(*pNode)) {
-    SValueNode* pVal = (SValueNode*) *pNode;
+    SValueNode* pVal = (SValueNode*)*pNode;
     if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
       return DEAL_RES_CONTINUE;
     }
@@ -5528,8 +5529,7 @@ static int32_t translateGroupByList(STranslateContext* pCxt, SSelectStmt* pSelec
   if (NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pGroupByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -5540,8 +5540,7 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
     return TSDB_CODE_SUCCESS;
   }
 
-  SReplaceGroupByAliasCxt cxt = {
-      .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
+  SReplaceGroupByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pPartitionByList, translateGroupPartitionByImpl, &cxt);
 
   return pCxt->errCode;
@@ -7559,6 +7558,12 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
 
+  // auto-compact options
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -7922,6 +7927,79 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (NULL == pOptions->pCompactIntervalNode) return TSDB_CODE_SUCCESS;
+
+  if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactIntervalNode)) {
+    return pCxt->errCode;
+  }
+  if (TIME_UNIT_MINUTE != pOptions->pCompactIntervalNode->unit &&
+      TIME_UNIT_HOUR != pOptions->pCompactIntervalNode->unit) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_interval unit: %c, only %c, %c allowed",
+                                   pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR);
+  }
+  pOptions->compactInterval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+
+  // TODO: check the semantic of compact_interval
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (NULL == pOptions->pCompactTimeRangeList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOptions->pCompactTimeRangeList) != 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range, should have 2 values");
+  }
+
+  SValueNode* pStart = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 0);
+  SValueNode* pEnd = (SValueNode*)nodesListGetNode(pOptions->pCompactTimeRangeList, 1);
+  if (DEAL_RES_ERROR == translateValue(pCxt, pStart)) {
+    return pCxt->errCode;
+  }
+  if (DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
+    return pCxt->errCode;
+  }
+  if (TIME_UNIT_MINUTE != pStart->unit && TIME_UNIT_HOUR != pStart->unit && TIME_UNIT_DAY != pStart->unit) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range start unit: %c, only %c, %c, %c allowed",
+                                   pStart->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+  }
+  if (TIME_UNIT_MINUTE != pEnd->unit && TIME_UNIT_HOUR != pEnd->unit && TIME_UNIT_DAY != pEnd->unit) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_range end unit: %c, only %c, %c, %c allowed",
+                                   pEnd->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+  }
+  pOptions->compactStartTime = getBigintFromValueNode(pStart);
+  pOptions->compactEndTime = getBigintFromValueNode(pEnd);
+
+  // TODO: check the semantic of compact_time_range
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbCompactTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (NULL == pOptions->pCompactTimeOffsetNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pCompactTimeOffsetNode)) {
+    return pCxt->errCode;
+  }
+  if (TIME_UNIT_MINUTE != pOptions->pCompactTimeOffsetNode->unit &&
+      TIME_UNIT_HOUR != pOptions->pCompactTimeOffsetNode->unit) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option compact_time_offset unit: %c, only %c, %c allowed",
+                                   pOptions->pCompactTimeOffsetNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR);
+  }
+  pOptions->compactTimeOffset = getBigintFromValueNode(pOptions->pCompactTimeOffsetNode);
+
+  // TODO: check the semantic of compact_time_offset
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code =
       checkDbRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
@@ -8037,6 +8115,15 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactIntervalOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeRangeOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbCompactTimeOffsetOption(pCxt, pOptions);
   }
   return code;
 }
@@ -8274,6 +8361,10 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
   pReq->s3Compact = pStmt->pOptions->s3Compact;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
+  pReq->compactInterval = pStmt->pOptions->compactInterval;
+  pReq->compactStartTime = pStmt->pOptions->compactStartTime;
+  pReq->compactEndTime = pStmt->pOptions->compactEndTime;
+  pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   return code;
 }
 
@@ -10601,7 +10692,8 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[]) {
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len,
+                                                char* defaultName[]) {
   for (int32_t i = 0; defaultName[i] != NULL; i++) {
     if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
       snprintf(aliasName, len, "%s", defaultName[i]);
@@ -10627,8 +10719,8 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
-static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
-                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SHashObj* pUserAliasSet,
+                                                SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (!pSelect->hasInterpFunc ||
       (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_irowts", ((SFunctionNode*)pProj)->functionName))) {
@@ -10675,7 +10767,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
@@ -10707,7 +10799,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
 }
 
 static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
-                                              SCMCreateStreamReq* pReq) {
+                                           SCMCreateStreamReq* pReq) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SHashObj*    pUserAliasSet = NULL;
   int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
@@ -11070,21 +11162,18 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
     if (pStmt->pOptions->fillHistory) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream unsupported Fill history");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream unsupported Fill history");
     }
 
     if (pStmt->pOptions->ignoreExpired != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore expired 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore expired 0");
     }
 
     if (pStmt->pOptions->ignoreUpdate != 1) {
-      return generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-          "When trigger was force window close, Stream must not set  ignore update 0");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream must not set  ignore update 0");
     }
 
     if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {

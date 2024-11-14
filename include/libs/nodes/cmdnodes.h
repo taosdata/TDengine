@@ -109,6 +109,14 @@ typedef struct SDatabaseOptions {
   SValueNode* s3KeepLocalStr;
   int8_t      s3Compact;
   int8_t      withArbitrator;
+  // for auto-compact
+  SValueNode* pCompactIntervalNode;
+  int32_t     compactInterval;
+  SNodeList*  pCompactTimeRangeList;
+  int32_t     compactStartTime;
+  int32_t     compactEndTime;
+  SValueNode* pCompactTimeOffsetNode;
+  int32_t     compactTimeOffset;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -348,7 +356,7 @@ typedef struct SShowStmt {
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
-  bool          withFull; // for show users full;
+  bool          withFull;  // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -658,7 +666,7 @@ typedef struct SCreateTSMAStmt {
   bool            ignoreExists;
   char            tsmaName[TSDB_TABLE_NAME_LEN];
   char            dbName[TSDB_DB_NAME_LEN];
-  char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
+  char            tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base tsma name
   char            originalTbName[TSDB_TABLE_NAME_LEN];
   STSMAOptions*   pOptions;
   SNode*          pPrevQuery;
@@ -667,10 +675,10 @@ typedef struct SCreateTSMAStmt {
 } SCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
-  ENodeType     type;
-  bool          ignoreNotExists;
-  char          dbName[TSDB_DB_NAME_LEN];
-  char          tsmaName[TSDB_TABLE_NAME_LEN];
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
 
 #ifdef __cplusplus

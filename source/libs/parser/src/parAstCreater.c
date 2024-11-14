@@ -1800,6 +1800,10 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
+  pOptions->compactInterval = TSDB_DEFAULT_COMPACT_INTERVAL;
+  pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
+  pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
+  pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1844,6 +1848,10 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
   pOptions->dnodeListStr[0] = 0;
+  pOptions->compactInterval = TSDB_DEFAULT_COMPACT_INTERVAL;
+  pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
+  pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
+  pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1991,6 +1999,17 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       } else {
         COPY_STRING_FORM_STR_TOKEN(pDbOptions->dnodeListStr, (SToken*)pVal);
       }
+      break;
+    case DB_OPTION_COMPACT_INTERVAL:
+      pDbOptions->pCompactIntervalNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      break;
+    case DB_OPTION_COMPACT_TIME_RANGE:
+      pDbOptions->pCompactTimeRangeList = pVal;
+      break;
+    case DB_OPTION_COMPACT_TIME_OFFSET:
+      pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      ;
+      break;
     default:
       break;
   }

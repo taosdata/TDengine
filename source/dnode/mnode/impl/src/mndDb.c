@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
 #include "audit.h"
+#include "command.h"
 #include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
@@ -34,7 +35,6 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
-#include "command.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 27
@@ -795,6 +795,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .tsdbPageSize = pCreate->tsdbPageSize,
       .withArbitrator = pCreate->withArbitrator,
       .encryptAlgorithm = pCreate->encryptAlgorithm,
+      .compactInterval = pCreate->compactInterval,
+      .compactStartTime = pCreate->compactStartTime,
+      .compactEndTime = pCreate->compactEndTime,
+      .compactTimeOffset = pCreate->compactTimeOffset,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -1134,6 +1138,32 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->withArbitrator >= TSDB_MIN_DB_WITH_ARBITRATOR && pAlter->withArbitrator != pDb->cfg.withArbitrator) {
     pDb->cfg.withArbitrator = pAlter->withArbitrator;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactInterval != TSDB_DEFAULT_COMPACT_INTERVAL && pAlter->compactInterval != pDb->cfg.compactInterval) {
+    pDb->cfg.compactInterval = pAlter->compactInterval;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactStartTime != TSDB_DEFAULT_COMPACT_START_TIME &&
+      pAlter->compactStartTime != pDb->cfg.compactStartTime) {
+    pDb->cfg.compactStartTime = pAlter->compactStartTime;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactEndTime != TSDB_DEFAULT_COMPACT_END_TIME && pAlter->compactEndTime != pDb->cfg.compactEndTime) {
+    pDb->cfg.compactEndTime = pAlter->compactEndTime;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->compactTimeOffset != TSDB_DEFAULT_COMPACT_TIME_OFFSET &&
+      pAlter->compactTimeOffset != pDb->cfg.compactTimeOffset) {
+    pDb->cfg.compactTimeOffset = pAlter->compactTimeOffset;
     pDb->vgVersion++;
     code = 0;
   }
@@ -1560,8 +1590,8 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
 
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -1941,9 +1971,9 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       continue;
     } else {
       mTrace("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
-            " numOfTables:%d, changed to vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
-            pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
-            pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
+             " numOfTables:%d, changed to vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
+             pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
+             pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
     }
 
     if (pDbCacheInfo->cfgVersion < pDb->cfgVersion) {
@@ -1955,7 +1985,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
       if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
-        bool exist = false;
+        bool    exist = false;
         int32_t code = mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
         if (TSDB_CODE_SUCCESS != code) {
           mndReleaseDb(pMnode, pDb);
@@ -2386,7 +2416,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)strictVstr, false), &lino, _OVER);
 
     char    durationVstr[128] = {0};
-    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], sizeof(durationVstr) - VARSTR_HEADER_SIZE, pDb->cfg.daysPerFile);
+    int32_t len = formatDurationOrKeep(&durationVstr[VARSTR_HEADER_SIZE], sizeof(durationVstr) - VARSTR_HEADER_SIZE,
+                                       pDb->cfg.daysPerFile);
 
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2402,9 +2433,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep1Str, keep2Str, keep0Str);
     } else {
-        len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%s,%s,%s", keep0Str, keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
