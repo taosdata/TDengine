@@ -7,7 +7,7 @@ use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
 use taoslog::utils::{QidMetadataGetter, Span};
@@ -24,11 +24,10 @@ pub fn sign_string(input: &str) -> String {
 }
 
 fn verify_string(input: &str, expected: &str) -> bool {
-    let result = sign_string(input);
-    result == expected
+    dbg!(sign_string(input)) == dbg!(expected)
 }
 
-pub fn record_binding_phone_email(server: &str, phone_email: &str, file: &PathBuf) {
+pub fn record_binding_phone_email(server: &str, phone_email: &str, file: &Path) {
     let sign = sign_string(phone_email);
     let binding_record = format!("{}|{}|{}\n", server, phone_email, sign);
     // 打开文件，追加写入，如果文件不存在，则创建
@@ -41,7 +40,7 @@ pub fn record_binding_phone_email(server: &str, phone_email: &str, file: &PathBu
     file.flush().unwrap();
 }
 
-pub fn check_phone_email_verified(filename: &PathBuf, current_server: &str) -> io::Result<()> {
+pub fn check_phone_email_verified(filename: &Path, current_server: &str) -> io::Result<()> {
     let file = File::open(filename)?;
     let reader = io::BufReader::new(file);
 
@@ -78,6 +77,7 @@ lazy_static! {
         Mutex::new(HashMap::new());
 }
 
+// Use owned key type since it will be persisted in global cache.
 pub fn generate_verification_code(key: String) -> String {
     let mut code = String::new();
     for _ in 0..4 {
@@ -90,12 +90,12 @@ pub fn generate_verification_code(key: String) -> String {
 }
 
 #[derive(Serialize, Debug)]
-struct RequestBodySendVerificationCode {
-    phone: String,
-    email: String,
-    code: String,
+struct RequestBodySendVerificationCode<'a> {
+    phone: &'a str,
+    email: &'a str,
+    code: &'a str,
     duration: u8,
-    language: String,
+    language: &'a str,
 }
 
 #[derive(Deserialize, Debug)]
@@ -103,16 +103,18 @@ struct ResponseCloudOpenApi {
     code: u32,
 }
 
+const CLOUD_OPENAPI_URL_CN: &str = "https://cloud.taosdata.com/openapi";
+const CLOUD_OPENAPI_URL_EN: &str = "https://cloud.tdengine.com/openapi";
 // 如果配置了url，则使用配置的url，否则根据语言选择默认的url
-fn get_url_prefix(url_config: Option<String>, lang: &str) -> String {
-    url_config.unwrap_or_else(|| match lang {
-        "zh_CN" => "https://cloud.taosdata.com/openapi".to_string(),
-        _ => "https://cloud.tdengine.com/openapi".to_string(),
+fn get_url_prefix<'a>(url_config: Option<&'a str>, lang: &str) -> &'a str {
+    url_config.unwrap_or(match lang {
+        "zh_CN" => CLOUD_OPENAPI_URL_CN,
+        _ => CLOUD_OPENAPI_URL_EN,
     })
 }
 
 pub async fn send_verification_code_with_cloud_open_api(
-    url_config: Option<String>,
+    url_config: Option<&str>,
     phone_email: &str,
     lang: &str,
 ) -> anyhow::Result<u32> {
@@ -123,8 +125,8 @@ pub async fn send_verification_code_with_cloud_open_api(
         None => phone = phone_email,
     }
 
-    let mut url = get_url_prefix(url_config, lang);
-    url.push_str("/trial/verification-code");
+    let url = get_url_prefix(url_config, lang);
+    let url = format!("{url}/trial/verification-code");
 
     let duration = 10_u8;
 
@@ -135,14 +137,14 @@ pub async fn send_verification_code_with_cloud_open_api(
     );
 
     let body = RequestBodySendVerificationCode {
-        phone: phone.to_string(),
-        email: email.to_string(),
-        code,
+        phone,
+        email,
+        code: &code,
         duration: 10,
-        language: lang.to_string(),
+        language: lang,
     };
     let json_body = serde_json::to_string(&body)?;
-    log::debug!("json_body: {}", json_body);
+    tracing::debug!("json_body: {}", json_body);
 
     let response = request_cloud(url, Method::POST, json_body, string_to_sign)
         .await?
@@ -170,7 +172,7 @@ async fn request_cloud(
     let mut qid: Qid = Span.get_qid().unwrap_or_else(Qid::init);
     qid.add_sequence_id();
 
-    log::info!("post url: {}, request body:{}", url, json_body);
+    tracing::info!("post url: {}, request body:{}", url, json_body);
 
     // 连接超时时间为30秒，请求超时时间为60秒
     let http_client = reqwest::Client::builder()
@@ -192,39 +194,30 @@ async fn request_cloud(
         .body(json_body)
         .send()
         .await?;
-    log::info!("response: {:?}", response);
+    tracing::info!("response: {:?}", response);
 
     Ok(response)
 }
 
-fn get_explore_version() -> String {
-    // let mut version = "unknown".to_string();
-    // let metadata = MetadataCommand::new().exec().unwrap();
-    // for package in metadata.packages {
-    //     if package.name == "taos-explorer" {
-    //         version = package.version.to_string();
-    //         break;
-    //     }
-    // }
-    // version
-    "1.8.0".to_string()
+fn get_explore_version() -> &'static str {
+    crate::build::PKG_VERSION
 }
 
 #[derive(Serialize, Debug)]
-struct RequestBodyReportVerificationStatus {
-    phone: String,
-    email: String,
-    code: String,
-    name: String,
+struct RequestBodyReportVerificationStatus<'a> {
+    phone: &'a str,
+    email: &'a str,
+    code: &'a str,
+    name: &'a str,
     #[serde(rename = "taosdVersion")]
-    taosd_version: String,
+    taosd_version: &'a str,
     #[serde(rename = "explorerVersion")]
-    explorer_version: String,
+    explorer_version: &'a str,
 }
 
 // 上报验证状态到云端
 pub async fn report_verification_status_to_cloud(
-    url_config: Option<String>,
+    url_config: Option<&str>,
     phone_email: &str,
     code: &str,
     lang: &str,
@@ -237,22 +230,24 @@ pub async fn report_verification_status_to_cloud(
         None => phone = phone_email,
     }
 
-    let mut url = get_url_prefix(url_config, lang);
-    url.push_str("/trial/verification-result");
+    let url = format!(
+        "{}/trial/verification-result",
+        get_url_prefix(url_config, lang)
+    );
 
     let explorer_version = get_explore_version();
     let string_to_sign = format!(
         "code={}&email={}&explorerVersion={}&name={}&phone={}&taosdVersion=",
         code, email, explorer_version, name, phone
     );
-    log::debug!("string_to_sign: {}", string_to_sign);
+    tracing::debug!("string_to_sign: {}", string_to_sign);
 
     let body = RequestBodyReportVerificationStatus {
-        phone: phone.to_string(),
-        email: email.to_string(),
-        code: code.to_string(),
-        name: name.to_string(),
-        taosd_version: "".to_string(),
+        phone,
+        email,
+        code,
+        name,
+        taosd_version: "",
         explorer_version,
     };
     let json_body = serde_json::to_string(&body)?;
@@ -266,18 +261,18 @@ pub async fn report_verification_status_to_cloud(
 }
 
 #[derive(Serialize, Debug)]
-struct RequestBodyTaosdInfo {
-    phone: String,
-    email: String,
+struct RequestBodyTaosdInfo<'a> {
+    phone: &'a str,
+    email: &'a str,
     #[serde(rename = "taosdVersion")]
-    taosd_version: String,
+    taosd_version: &'a str,
     #[serde(rename = "instanceId")]
-    cluster_id: String,
+    cluster_id: &'a str,
 }
 
 // 上报连接的 taosd 信息到云端
 pub async fn report_taosd_info_to_cloud(
-    url_config: Option<String>,
+    url_config: Option<&str>,
     phone_email: &str,
     lang: &str,
     cluster_id: &str,
@@ -290,29 +285,31 @@ pub async fn report_taosd_info_to_cloud(
         None => phone = phone_email,
     }
 
-    let mut url = get_url_prefix(url_config, lang);
-    url.push_str("/trial/verification-result");
+    let url = format!(
+        "{}/trial/verification-result",
+        get_url_prefix(url_config, lang)
+    );
 
     let string_to_sign = format!(
         "email={}&instanceId={}&phone={}&taosdVersion={}",
         email, cluster_id, phone, taosd_version
     );
-    log::debug!("string_to_sign: {}", string_to_sign);
+    tracing::debug!("string_to_sign: {}", string_to_sign);
 
     let body = RequestBodyTaosdInfo {
-        phone: phone.to_string(),
-        email: email.to_string(),
-        taosd_version: taosd_version.to_string(),
-        cluster_id: cluster_id.to_string(),
+        phone,
+        email,
+        taosd_version,
+        cluster_id,
     };
     let json_body = serde_json::to_string(&body)?;
-    log::debug!("json_body: {}", json_body);
+    tracing::debug!("json_body: {}", json_body);
 
     let response = request_cloud(url, Method::PUT, json_body, string_to_sign)
         .await?
         .json::<ResponseCloudOpenApi>()
         .await?;
-    log::debug!(
+    tracing::debug!(
         "report_verification_status_to_cloud success: {}",
         response.code
     );
@@ -326,7 +323,7 @@ fn save_to_cache(key: String, code: &String) {
         .unwrap()
         .as_secs()
         + 60 * 5;
-    log::debug!(
+    tracing::debug!(
         "save_to_cache: key: {}, code: {}, expire_time: {}",
         key,
         code,
@@ -344,9 +341,9 @@ fn save_to_cache(key: String, code: &String) {
 
 pub fn check_security_code(key: &str, code: &str) -> String {
     let mut codes = VERIFICATION_CODES.lock().unwrap();
-    log::debug!("check_security_code: key: {}, code: {}", key, code);
+    tracing::debug!("check_security_code: key: {}, code: {}", key, code);
     if let Some(verification_code) = codes.get(key) {
-        log::debug!("find the code in cache: {:?}", verification_code);
+        tracing::debug!("find the code in cache: {:?}", verification_code);
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -363,7 +360,7 @@ pub fn check_security_code(key: &str, code: &str) -> String {
             return "error".to_string();
         }
     }
-    log::debug!("not find the code in cache");
+    tracing::debug!("not find the code in cache");
 
     "none".to_string()
 }
@@ -405,38 +402,18 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    fn prepare_test_file(filename: &PathBuf) {
-        let content = "localhost:8080|15801381212|eac0aedab66250c36d517fa9401a8c415efc26afe8f95b2b70619918dbcf4d6c\nlocalhost:6060|15801381212@163.com|bc16f1f1a1157efa3c2c0481adeabef083eeb3f8626c39d575fc7256ef8edabb\n";
+    fn prepare_test_file(filename: &Path) {
+        let content = b"localhost:8080|15801381212|0729f126a96de7b5f6e14a934034cd76beefa6f0\nlocalhost:6060|15801381212@163.com|167c7598ad08de1019a031c61cde2d822242dc66\n";
         std::fs::write(filename, content).unwrap();
     }
 
-    // #[test]
-    // fn test_report_verification_status_to_cloud() {
-    //     let phone_email = "15801381212";
-    //     let code = "1234";
-    //     let lang = "zh_CN";
-    //     let taosd_version = "2.0.0";
-    //     println!("========report_verification_status_to_cloud");
-    //     report_verification_status_to_cloud(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), phone_email, code.to_string(), lang, taosd_version.to_string());
-    // }
-
-    // #[tokio::test]
-    // async fn test_send_verification_code_with_cloud_open_api() {
-    //     let phone = "13466397075";
-    //     let email = "37376532@qq.com";
-    //     let lang = "zh_CN";
-    //     send_verification_code_with_cloud_open_api(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), phone, lang).await.unwrap();
-    //     send_verification_code_with_cloud_open_api(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), email, lang).await.unwrap();
-    // }
-
     #[test]
-    #[ignore]
     fn test_check_phone_email_verified() {
-        let filename = PathBuf::from("phone_email_verified.txt");
+        let filename = assert_fs::NamedTempFile::new("phone_email_verified.txt").unwrap();
+
         prepare_test_file(&filename);
 
-        let result = check_phone_email_verified(&filename, "localhost:8080");
-        assert!(result.is_ok());
+        check_phone_email_verified(&filename, "localhost:8080").expect("should be ok");
 
         let result = check_phone_email_verified(&filename, "localhost:6060");
         assert!(result.is_ok());
@@ -444,15 +421,15 @@ mod tests {
         let result = check_phone_email_verified(&filename, "localhost:5050");
         assert!(result.is_err());
 
-        let empty_filename = PathBuf::from("empty_phone_email_verified.txt");
+        let empty_filename =
+            assert_fs::NamedTempFile::new("empty_phone_email_verified.txt").unwrap();
         let result = check_phone_email_verified(&empty_filename, "localhost:8080");
         assert!(result.is_err());
     }
 
     #[test]
-    #[ignore]
     fn test_record_binding_phone_email() {
-        let filename = PathBuf::from("phone_email_verified.txt");
+        let filename = assert_fs::NamedTempFile::new("phone_email_verified.txt").unwrap();
         prepare_test_file(&filename);
 
         let server = "localhost:8080";
@@ -464,9 +441,8 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_empty_record_binding_phone_email() {
-        let filename = PathBuf::from("empty_phone_email_verified.txt");
+        let filename = assert_fs::NamedTempFile::new("empty_phone_email_verified.txt").unwrap();
         let server = "localhost:8080";
         let phone_email = "15801381212";
         record_binding_phone_email(server, phone_email, &filename);
@@ -501,5 +477,169 @@ mod tests {
 
         // 再次验证时，已经失效了，不能重复使用
         assert_eq!(check_security_code(phone_email, &code), "none");
+    }
+
+    #[test]
+    fn test_url_config() {
+        assert_eq!(get_url_prefix(None, "zh_CN"), CLOUD_OPENAPI_URL_CN);
+        assert_eq!(get_url_prefix(None, "_"), CLOUD_OPENAPI_URL_EN);
+        assert_eq!(get_url_prefix(None, "AnyOther"), CLOUD_OPENAPI_URL_EN);
+    }
+
+    #[tokio::test]
+    async fn test_verification_online() {
+        let _ = tracing_subscriber::fmt().try_init();
+        let mut server = mockito::Server::new_async().await;
+        let url = server.url();
+        let openapi = format!("{url}/openapi");
+
+        // Case 1: URL error
+        let res =
+            send_verification_code_with_cloud_open_api(Some(&openapi), "test@example.com", "zh_CN")
+                .await;
+        assert!(res.is_err(), "{res:?}");
+
+        let verify = "/openapi/trial/verification-code";
+
+        // Case 2: Mock success
+        let m1 = server
+            .mock("POST", verify)
+            .match_body(mockito::Matcher::Regex(
+                r#""email":"test@example.com""#.to_string(),
+            ))
+            .with_body(r#"{"code":200}"#)
+            .create_async()
+            .await;
+
+        let res =
+            send_verification_code_with_cloud_open_api(Some(&openapi), "test@example.com", "zh_CN")
+                .await;
+        assert_eq!(res.unwrap(), 200);
+        m1.assert_async().await;
+
+        // Case 3: Mock failed.
+        let m1 = server
+            .mock("POST", verify)
+            .match_body(mockito::Matcher::Regex(
+                r#""phone":"13500000000""#.to_string(),
+            ))
+            .with_body(r#"{"code":500}"#)
+            .create_async()
+            .await;
+
+        let res =
+            send_verification_code_with_cloud_open_api(Some(&openapi), "13500000000", "zh_CN")
+                .await;
+        assert_eq!(res.unwrap(), 500);
+        m1.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_report_verification() {
+        let _ = tracing_subscriber::fmt().try_init();
+        let mut server = mockito::Server::new_async().await;
+        let url = server.url();
+        let openapi = format!("{url}/openapi");
+        let res = report_verification_status_to_cloud(
+            Some(&openapi),
+            "test@example.com",
+            "200",
+            "zh_CN",
+            "Test Name",
+        )
+        .await;
+        assert!(res.is_err(), "{res:?}");
+        let verify = "/openapi/trial/verification-result";
+        let m1 = server
+            .mock("POST", verify)
+            .match_body(mockito::Matcher::Regex(
+                r#""email":"test@example.com""#.to_string(),
+            ))
+            .with_body(r#"{"code":200}"#)
+            .create_async()
+            .await;
+
+        let res = report_verification_status_to_cloud(
+            Some(&openapi),
+            "test@example.com",
+            "200",
+            "zh_CN",
+            "Test Name",
+        )
+        .await;
+        assert_eq!(res.unwrap(), 200);
+        m1.assert_async().await;
+
+        let m2 = server
+            .mock("POST", verify)
+            .match_body(mockito::Matcher::Regex(
+                r#""phone":"13500000000""#.to_string(),
+            ))
+            .with_body(r#"{"code":500}"#)
+            .create_async()
+            .await;
+
+        let res = report_verification_status_to_cloud(
+            Some(&openapi),
+            "13500000000",
+            "200",
+            "zh_CN",
+            "Test Name",
+        )
+        .await;
+        assert_eq!(res.unwrap(), 500);
+        m2.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_report_taosd_info_to_cloud() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
+            .try_init();
+        let mut server = mockito::Server::new_async().await;
+        let url = server.url();
+        let openapi = format!("{url}/openapi");
+        let res = report_taosd_info_to_cloud(
+            Some(&openapi),
+            "test@example.com",
+            "200",
+            "zh_CN",
+            "Test Name",
+        )
+        .await;
+        assert!(res.is_err(), "{res:?}");
+        let verify = "/openapi/trial/verification-result";
+        let m1 = server
+            .mock("PUT", verify)
+            .match_body(mockito::Matcher::Regex(
+                r#""email":"test@example.com""#.to_string(),
+            ))
+            .with_body(r#"{"code":200}"#)
+            .create_async()
+            .await;
+
+        let res = report_taosd_info_to_cloud(
+            Some(&openapi),
+            "test@example.com",
+            "zh_CN",
+            "ID",
+            "version",
+        )
+        .await;
+        assert_eq!(res.unwrap(), 200);
+        m1.assert_async().await;
+
+        let m2 = server
+            .mock("PUT", verify)
+            .match_body(mockito::Matcher::Regex(r#""instanceId":"ID""#.to_string()))
+            .with_body(r#"{"code":500}"#)
+            .create_async()
+            .await;
+
+        let res =
+            report_taosd_info_to_cloud(Some(&openapi), "13500000000", "zh_CN", "ID", "version")
+                .await;
+        assert_eq!(res.unwrap(), 500);
+        m2.assert_async().await;
     }
 }

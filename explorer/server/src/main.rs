@@ -662,7 +662,7 @@ async fn send_verification_code(
         _ => "en_US",
     };
     let result = verification::send_verification_code_with_cloud_open_api(
-        args.cloud_open_api.clone(),
+        args.cloud_open_api.as_deref(),
         str_phone_email,
         lang_code,
     )
@@ -711,7 +711,7 @@ async fn check_verification_code(
         };
 
         let report_result = verification::report_verification_status_to_cloud(
-            args.cloud_open_api.clone(),
+            args.cloud_open_api.as_deref(),
             str_phone_email,
             str_verification_code,
             lang_code,
@@ -725,7 +725,7 @@ async fn check_verification_code(
                 let taosd_info = query_taosd_info_guess(&args).await;
                 if let Some((cluster_id, taosd_version)) = taosd_info {
                     let r = verification::report_taosd_info_to_cloud(
-                        args.cloud_open_api.clone(),
+                        args.cloud_open_api.as_deref(),
                         str_phone_email,
                         lang_code,
                         &cluster_id,
@@ -790,7 +790,7 @@ async fn report_taosd_info(
     };
 
     let report_result = verification::report_taosd_info_to_cloud(
-        args.cloud_open_api.clone(),
+        args.cloud_open_api.as_deref(),
         body.phone_email.as_ref().unwrap(),
         lang_code,
         body.cluster_id.as_ref().unwrap(),

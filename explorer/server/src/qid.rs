@@ -55,7 +55,9 @@ impl QidManager for Qid {
             inner: QidInner(0),
             first: true,
         };
-        this.inner.set_instance_id(*INSTANCE_ID.get().unwrap());
+        if let Some(id) = INSTANCE_ID.get() {
+            this.inner.set_instance_id(*id);
+        }
         this
     }
 

@@ -5,6 +5,7 @@ use std::str::FromStr;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder};
 use taos::{Dsn, TryStreamExt};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum TableType {
     // #[serde(rename = "CHILD_TABLE")]
