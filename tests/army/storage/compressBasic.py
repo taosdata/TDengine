@@ -137,7 +137,18 @@ class TDTestCase(TBase):
         defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
                        "simple8b","simple8b","delta-d","delta-d","bit-packing",
                        "disabled","disabled","disabled","disabled"]        
-
+        compressDefaultDict = {};
+        compressDefaultDict["BOOL"] = "zstd"
+        compressDefaultDict["TINYINT"] = "zlib"
+        compressDefaultDict["SMALLINT"] = "zlib"
+        compressDefaultDict["INT"] = "lz4"
+        compressDefaultDict["BIGINT"] = "lz4"
+        compressDefaultDict["FLOAT"] = "lz4"
+        compressDefaultDict["DOUBLE"] = "lz4"
+        compressDefaultDict["VARCHAR"] = "lz4"
+        compressDefaultDict["TIMESTAMP"] = "zstd"
+        compressDefaultDict["NCHAR"] = "zstd"
+        
         count = tdSql.getRows()
         for i in range(count):
             node = tdSql.getData(i, 3)
@@ -145,7 +156,7 @@ class TDTestCase(TBase):
                 break
             # check
             tdSql.checkData(i, 4, defEncodes[i])
-            tdSql.checkData(i, 5, self.defCompress)
+            tdSql.checkData(i, 5, compressDefaultDict[tdSql.getData(i, 2)])
             tdSql.checkData(i, 6, self.defLevel)
 
         # geometry encode is disabled
