@@ -51,12 +51,12 @@ algo=expr1
 ```SQL
 --- 使用 iqr 算法进行异常检测，检测列 i32 列。
 SELECT _wstart, _wend, SUM(i32) 
-FROM ai.atb
+FROM foo
 ANOMALY_WINDOW(i32, "algo=iqr");
 
 --- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列
 SELECT _wstart, _wend, SUM(i32) 
-FROM ai.atb
+FROM foo
 ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
 ```
 
