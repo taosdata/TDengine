@@ -395,7 +395,7 @@ bool taosIsDir(const char *dirname) {
 }
 
 char *taosDirName(char *name) {
-  if(name == NULL) {
+  if (name == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -425,7 +425,7 @@ char *taosDirName(char *name) {
 }
 
 char *taosDirEntryBaseName(char *name) {
-  if(name == NULL) {
+  if (name == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -592,7 +592,7 @@ int taosGetDirSize(const char *path, int64_t *size) {
     return code = terrno;
   }
   int32_t nBytes = 0;
-  char    fullPath[512] = {0};
+  char    fullPath[1024] = {0};
 
   int64_t       totalSize = 0;
   TdDirEntryPtr de = NULL;
@@ -610,13 +610,13 @@ int taosGetDirSize(const char *path, int64_t *size) {
     if (taosIsDir(fullPath)) {
       code = taosGetDirSize(fullPath, &subSize);
       if (code != 0) {
-        taosCloseDir(&pDir);
+        TAOS_UNUSED(taosCloseDir(&pDir));
         return code;
       }
     } else {
       code = taosStatFile(fullPath, &subSize, NULL, NULL);
       if (code != 0) {
-        taosCloseDir(&pDir);
+        TAOS_UNUSED(taosCloseDir(&pDir));
         return code;
       }
     }
