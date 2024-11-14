@@ -331,7 +331,7 @@ _start:
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
 
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (strcasecmp(pItem->name, "dataDir") == 0) {
+    if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
       char* buf = &info[VARSTR_HEADER_SIZE];
       valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
                               pDiskCfg->primary, pDiskCfg->disable);
