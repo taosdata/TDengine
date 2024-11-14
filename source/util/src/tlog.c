@@ -374,7 +374,7 @@ static OldFileKeeper *taosOpenNewFile() {
   }
 
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
-  tsLogObj.logHandle->pFile = pFile;
+  atomic_store_ptr(&tsLogObj.logHandle->pFile, pFile);
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
@@ -666,7 +666,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsAsyncLog) {
       TAOS_UNUSED(taosPushLogBuffer(tsLogObj.logHandle, buffer, len));
     } else {
-      TAOS_UNUSED(taosWriteFile(tsLogObj.logHandle->pFile, buffer, len));
+      TAOS_UNUSED(taosWriteFile(atomic_load_ptr(tsLogObj.logHandle->pFile), buffer, len));
     }
 
     if (tsNumOfLogLines > 0) {
