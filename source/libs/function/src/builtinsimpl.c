@@ -3039,7 +3039,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
   if (pCtx->order == TSDB_ORDER_ASC && !pCtx->hasPrimaryKey) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
-      char* data = colDataGetData(pInputCol, i);
+      bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+      char* data = isNull ? NULL : colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       numOfElems++;
 
@@ -3054,7 +3055,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
     // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
     // this assumption is NOT always works if project operator exists in downstream.
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      char* data = colDataGetData(pInputCol, i);
+      bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
+      char* data = isNull ? NULL : colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       numOfElems++;
 
