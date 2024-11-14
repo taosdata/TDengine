@@ -102,9 +102,10 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   }
 
   ((SMsgHead*)buf)->vgId = vgId;
+  char* bufx = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
   SEncoder encoder;
-  tEncoderInit(&encoder, buf, tlen);
+  tEncoderInit(&encoder, (uint8_t*)bufx, tlen);
   if ((code = tEncodeStreamTaskRunReq(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);

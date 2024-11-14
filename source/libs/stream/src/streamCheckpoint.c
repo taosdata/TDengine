@@ -1140,15 +1140,12 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
     SRpcMsg  rpcMsg = {0};
     SEncoder encoder;
 
-    SRetrieveChkptTriggerReq req =
-        {
-            .streamId = pTask->id.streamId,
-            .downstreamTaskId = pTask->id.taskId,
-            .downstreamNodeId = vgId,
-            .upstreamTaskId = pUpstreamTask->taskId,
-            .upstreamNodeId = pUpstreamTask->nodeId,
-            .checkpointId = checkpointId,
-        };
+    SRetrieveChkptTriggerReq req = {.streamId = pTask->id.streamId,
+                                    .downstreamTaskId = pTask->id.taskId,
+                                    .downstreamNodeId = vgId,
+                                    .upstreamTaskId = pUpstreamTask->taskId,
+                                    .upstreamNodeId = pUpstreamTask->nodeId,
+                                    .checkpointId = checkpointId};
 
     tEncodeSize(tEncodeRetrieveChkptTriggerReq, &req, tlen, ret);
     if (ret < 0) {

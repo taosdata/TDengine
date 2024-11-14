@@ -1232,12 +1232,13 @@ int32_t doProcessDummyRspMsg(SStreamMeta* UNUSED_PARAM(pMeta), SRpcMsg* pMsg) {
 }
 
 int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  SMStreamHbRspMsg rsp;
-  int32_t          len = 0;
+  SMStreamHbRspMsg rsp = {0};
   int32_t          code = 0;
   SDecoder         decoder;
+  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t          len = pMsg->contLen - sizeof(SMsgHead);
 
-  tDecoderInit(&decoder, (uint8_t*)pMsg->pCont, len);
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
   code = tDecodeStreamHbRsp(&decoder, &rsp);
   if (code < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
