@@ -60,6 +60,7 @@ extern "C" {
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 #define SDB_GET_UINT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt8, uint8_t)
+#define SDB_GET_BOOL(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawBool, bool)
 
 #define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
   {                                                 \
@@ -81,6 +82,7 @@ extern "C" {
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 #define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
+#define SDB_SET_BOOL(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawBool, bool)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)              \
   {                                                                  \
@@ -162,7 +164,8 @@ typedef enum {
   SDB_GRANT = 26,  // grant log
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
-  SDB_MAX = 29
+  SDB_MAX = 29,
+  SDB_CFG = 30
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -373,7 +376,7 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 /**
  * @brief get valid number of rows, removed rows are ignored
  */
-int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type);
+int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type);
 
 /**
  * @brief Get the max id of the table, keyType of table should be INT32
@@ -407,6 +410,7 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
 int32_t  sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val);
 int32_t  sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val);
+int32_t  sdbSetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool val);
 int32_t  sdbSetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);
 int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
@@ -415,6 +419,7 @@ int32_t  sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen);
 int32_t  sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status);
 int32_t  sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val);
 int32_t  sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val);
+int32_t  sdbGetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool *val);
 int32_t  sdbGetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);

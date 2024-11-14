@@ -84,7 +84,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
-static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
@@ -123,7 +122,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
@@ -924,49 +922,7 @@ _OVER:
   return mndUpdClusterInfo(pReq);
 }
 
-static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
-  SMnode    *pMnode = pReq->info.node;
-  SConfigReq configReq = {0};
-  SDnodeObj *pDnode = NULL;
-  int32_t    code = -1;
 
-  tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
-  SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
-  SConfigRsp configRsp = {0};
-  configRsp.forceReadConfig = configReq.forceReadConfig;
-  configRsp.cver = tsmmConfigVersion;
-  if (configRsp.forceReadConfig) {
-    // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(getGlobalCfg(tsCfg), configReq.array, diffArray)) {
-      configRsp.array = diffArray;
-    } else {
-      configRsp.isConifgVerified = 1;
-      taosArrayDestroy(diffArray);
-    }
-  } else {
-    configRsp.array = getGlobalCfg(tsCfg);
-    if (configReq.cver == tsmmConfigVersion) {
-      configRsp.isVersionVerified = 1;
-    } else {
-      configRsp.array = getGlobalCfg(tsCfg);
-    }
-  }
-
-  int32_t contLen = tSerializeSConfigRsp(NULL, 0, &configRsp);
-  void   *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeSConfigRsp(pHead, contLen, &configRsp);
-  taosArrayDestroy(diffArray);
-  if (contLen < 0) {
-    code = contLen;
-    goto _OVER;
-  }
-  pReq->info.rspLen = contLen;
-  pReq->info.rsp = pHead;
-_OVER:
-
-  mndReleaseDnode(pMnode, pDnode);
-  return mndUpdClusterInfo(pReq);
-}
 
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;

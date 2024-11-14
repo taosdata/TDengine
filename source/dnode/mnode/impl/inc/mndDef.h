@@ -106,8 +106,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
-//  TRN_CONFLICT_TOPIC = 4,
-//  TRN_CONFLICT_TOPIC_INSIDE = 5,
+  //  TRN_CONFLICT_TOPIC = 4,
+  //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
 } ETrnConflct;
@@ -315,6 +315,7 @@ typedef struct {
   bool          mutexInited;
   TdThreadMutex mutex;
 } SArbGroup;
+
 
 typedef struct {
   int32_t maxUsers;
@@ -649,12 +650,12 @@ typedef struct {
   int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
-int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
-                           char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer);
-void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
-int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
+int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
+                           SMqConsumerObj** ppConsumer);
+void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
+int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
+void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int32_t vgId;
@@ -693,11 +694,11 @@ typedef struct {
   char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
-int32_t          tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub);
-int32_t          tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj **ppSub);
-void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
-int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
+int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
+int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
+void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
 // typedef struct {
 //   int32_t epoch;

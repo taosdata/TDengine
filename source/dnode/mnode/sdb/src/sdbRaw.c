@@ -84,6 +84,14 @@ int32_t sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val) {
   return 0;
 }
 
+int32_t sdbSetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool val) {
+  if (val) {
+    return sdbSetRawUInt8(pRaw, dataPos, 1);
+  } else {
+    return sdbSetRawUInt8(pRaw, dataPos, 0);
+  }
+}
+
 int32_t sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val) {
   int32_t code = 0;
   if (pRaw == NULL) {
@@ -212,6 +220,21 @@ int32_t sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val) {
 
   *val = *(uint8_t *)(pRaw->pData + dataPos);
   return 0;
+}
+
+int32_t sdbGetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool *val) {
+  int32_t code = 0;
+  uint8_t v = 0;
+  code = sdbGetRawUInt8(pRaw, dataPos, &v);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (v) {
+    *val = true;
+  } else {
+    *val = false;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val) {
