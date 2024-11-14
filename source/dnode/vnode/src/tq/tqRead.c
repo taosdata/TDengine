@@ -366,8 +366,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     } else if (pCont->msgType == TDMT_VND_DELETE) {
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-
-      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
+      EStreamType blockType = STREAM_DELETE_DATA;
+      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
           tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
@@ -382,6 +382,20 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
         return code;
       }
 
+    } else if (pCont->msgType == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
+      void* pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
+      int32_t len = pCont->bodyLen - sizeof(SMsgHead);
+      code = tqExtractDropCtbDataBlock(pBody, len, ver, (void**)pItem, 0);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (!*pItem) {
+          continue;
+        } else {
+          tqDebug("s-task:%s drop ctb msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+        }
+      } else {
+        terrno = code;
+        return code;
+      }
     } else {
       tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -1113,12 +1127,20 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       break;
     }
 
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
-      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
-      if (code != 0) {
-        tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);
-        continue;
+    int64_t      refId = *(int64_t*)pIter;
+    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
+    if (pTask != NULL) {
+      int32_t taskId = pTask->id.taskId;
+
+      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
+        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
+        if (code != 0) {
+          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
+        }
+      }
+      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
+      if (ret) {
+        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
       }
     }
   }

@@ -877,6 +877,8 @@ static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
     strcpy(dst, "window close");
   } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
     strcpy(dst, "max delay");
+  } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    strcpy(dst, "force window close");
   }
 }
 

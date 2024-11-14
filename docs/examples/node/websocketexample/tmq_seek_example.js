@@ -10,7 +10,6 @@ const groupId = "group1";
 const clientId = "client1";
 
 async function createConsumer() {
-
     let groupId = "group1";
     let clientId = "client1";
     let configMap = new Map([

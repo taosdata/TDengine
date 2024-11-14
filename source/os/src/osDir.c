@@ -116,7 +116,10 @@ void taosRemoveDir(const char *dirname) {
   return;
 }
 
-bool taosDirExist(const char *dirname) { return taosCheckExistFile(dirname); }
+bool taosDirExist(const char *dirname) {
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return false;
+  return taosCheckExistFile(dirname);
+}
 
 int32_t taosMkDir(const char *dirname) {
   if (taosDirExist(dirname)) return 0;
@@ -335,6 +338,8 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
 }
 
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
+  OS_PARAM_CHECK(dirname);
+  OS_PARAM_CHECK(outname);
   wordexp_t full_path;
   int32_t   code = wordexp(dirname, &full_path, 0);
   switch (code) {
@@ -357,6 +362,8 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 }
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
+  OS_PARAM_CHECK(dirname);
+  OS_PARAM_CHECK(realPath);
   char tmp[PATH_MAX] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
@@ -388,6 +395,10 @@ bool taosIsDir(const char *dirname) {
 }
 
 char *taosDirName(char *name) {
+  if(name == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 #ifdef WINDOWS
   char Drive1[MAX_PATH], Dir1[MAX_PATH];
   _splitpath(name, Drive1, Dir1, NULL, NULL);
@@ -414,12 +425,16 @@ char *taosDirName(char *name) {
 }
 
 char *taosDirEntryBaseName(char *name) {
+  if(name == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 #ifdef WINDOWS
   char Filename1[MAX_PATH], Ext1[MAX_PATH];
   _splitpath(name, NULL, NULL, Filename1, Ext1);
   return name + (strlen(name) - strlen(Filename1) - strlen(Ext1));
 #else
-  if (name == NULL || (name[0] == '/' && name[1] == '\0')) return name;
+  if ((name[0] == '/' && name[1] == '\0')) return name;
   char *pPoint = strrchr(name, '/');
   if (pPoint != NULL) {
     if (*(pPoint + 1) == '\0') {
@@ -517,9 +532,9 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
 }
 
 char *taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
-  /*if (pDirEntry == NULL) {*/
-  /*return NULL;*/
-  /*}*/
+  if (pDirEntry == NULL) {
+    return NULL;
+  }
 #ifdef WINDOWS
   return pDirEntry->findFileData.cFileName;
 #else

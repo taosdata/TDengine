@@ -31,7 +31,7 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
-typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
+typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
 typedef struct {
   void*        handle;
@@ -222,8 +222,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-void    resetTaskInfo(qTaskInfo_t tinfo);
-
+void    qResetTaskInfoCode(qTaskInfo_t tinfo);
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
 

@@ -107,7 +107,9 @@ typedef struct SStreamFillInfo {
   TSKEY                  end;      // endKey for fill
   TSKEY                  current;  // current Key for fill
   TSKEY                  preRowKey;
+  TSKEY                  prePointKey;
   TSKEY                  nextRowKey;
+  TSKEY                  nextPointKey;
   SResultRowData*        pResRow;
   SStreamFillLinearInfo* pLinearInfo;
   bool                   needFill;
@@ -116,6 +118,8 @@ typedef struct SStreamFillInfo {
   SArray*                delRanges;
   int32_t                delIndex;
   uint64_t               curGroupId;
+  bool                   hasNext;
+  SResultRowData*        pNonFillRow;                 
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);

@@ -55,6 +55,7 @@ int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 int32_t udfdCPluginClose() { return 0; }
 
 int32_t udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfCtx, udfName);
   char  initFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
   char *initSuffix = "_init";
   snprintf(initFuncName, sizeof(initFuncName), "%s%s", udfName, initSuffix);
@@ -68,6 +69,7 @@ int32_t udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const cha
 }
 
 int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfCtx, udfName);
   char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
   snprintf(processFuncName, sizeof(processFuncName), "%s", udfName); 
   TAOS_CHECK_RETURN(uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc)));
@@ -93,6 +95,7 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
 }
 
 int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(udf, pUdfCtx);
   int32_t         err = 0;
   SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
   if (NULL == udfCtx) {
@@ -146,6 +149,7 @@ _exit:
 }
 
 int32_t udfdCPluginUdfDestroy(void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   int32_t         code = 0;
   if (ctx->destroyFunc) {
@@ -157,6 +161,7 @@ int32_t udfdCPluginUdfDestroy(void *udfCtx) {
 }
 
 int32_t udfdCPluginUdfScalarProc(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(block, resultCol, udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->scalarProcFunc) {
     return ctx->scalarProcFunc(block, resultCol);
@@ -167,6 +172,7 @@ int32_t udfdCPluginUdfScalarProc(SUdfDataBlock *block, SUdfColumn *resultCol, vo
 }
 
 int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(buf, udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggStartFunc) {
     return ctx->aggStartFunc(buf);
@@ -178,6 +184,7 @@ int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
 }
 
 int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf, void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(block, interBuf, newInterBuf, udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggProcFunc) {
     return ctx->aggProcFunc(block, interBuf, newInterBuf);
@@ -189,6 +196,7 @@ int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdf
 
 int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
                                void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(inputBuf1, inputBuf2, outputBuf, udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggMergeFunc) {
     return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
@@ -199,6 +207,7 @@ int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2,
 }
 
 int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(buf, resultData, udfCtx);
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggFinishFunc) {
     return ctx->aggFinishFunc(buf, resultData);
@@ -360,6 +369,7 @@ int32_t udfdNewUdf(SUdf **pUdf,  const char *udfName);
 void  udfdGetFuncBodyPath(const SUdf *udf, char *path);
 
 int32_t udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
+  TAOS_UDF_CHECK_PTR_RCODE(plugin);
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
   plugin->openFunc = udfdCPluginOpen;
   plugin->closeFunc = udfdCPluginClose;
@@ -378,6 +388,7 @@ int32_t udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
 }
 
 int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[], void **func[], int numOfFuncs) {
+  TAOS_UDF_CHECK_PTR_RCODE(libPath, pLib, funcName, func);
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", libPath, uv_strerror(err));
@@ -394,6 +405,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 }
 
 int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
+  TAOS_UDF_CHECK_PTR_RCODE(plugin);
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
   // todo: windows support
   snprintf(plugin->libPath, PATH_MAX, "%s", "libtaospyudf.so");
@@ -439,6 +451,7 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
 }
 
 void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
+  TAOS_UDF_CHECK_PTR_RVOID(plugin);
   if (plugin->closeFunc) {
     if (plugin->closeFunc() != 0) {
       fnError("udf script c plugin close func failed.line:%d", __LINE__);
@@ -457,8 +470,9 @@ void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
 }
 
 void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
+  TAOS_UDF_CHECK_PTR_RVOID(plugin);
   if (plugin->closeFunc) {
-    if(plugin->closeFunc() != 0) {
+    if (plugin->closeFunc() != 0) {
       fnError("udf script python plugin close func failed.line:%d", __LINE__);
     }
   }
@@ -517,22 +531,29 @@ void udfdDeinitScriptPlugins() {
   if (plugin != NULL) {
     udfdDeinitPythonPlugin(plugin);
     taosMemoryFree(plugin);
+    global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON] = NULL;
   }
 
   plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB];
   if (plugin != NULL) {
     udfdDeinitCPlugin(plugin);
     taosMemoryFree(plugin);
+    global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB] = NULL;
   }
   return;
 }
 
 void udfdProcessRequest(uv_work_t *req) {
+  TAOS_UDF_CHECK_PTR_RVOID(req);
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
+  if (uvUdf == NULL) {
+    fnError("udf work is NULL");
+    return;
+  }
   SUdfRequest request = {0};
   if(decodeUdfRequest(uvUdf->input.base, &request) == NULL)
   {
-    taosMemoryFree(uvUdf->input.base);
+    taosMemoryFreeClear(uvUdf->input.base);
     fnError("udf request decode failed");
     return;
   }
@@ -557,7 +578,7 @@ void udfdProcessRequest(uv_work_t *req) {
   }
 }
 
-void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
+static void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   udfInfo->bufSize = udf->bufSize;
   if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
     udfInfo->funcType = UDF_FUNC_TYPE_AGG;
@@ -573,7 +594,8 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   udfInfo->scriptType = udf->scriptType;
 }
 
-int32_t udfdInitUdf(char *udfName, SUdf *udf) {
+static int32_t udfdInitUdf(char *udfName, SUdf *udf) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfName, udf);
   int32_t err = 0;
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udfName, udf);
   if (err != 0) {
@@ -611,6 +633,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 }
 
 int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
+  TAOS_UDF_CHECK_PTR_RCODE(pUdf, udfName);
   SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
   if (NULL == udfNew) {
     return terrno;
@@ -654,6 +677,7 @@ void udfdFreeUdf(void *pData) {
 }
 
 int32_t udfdGetOrCreateUdf(SUdf **ppUdf, const char *udfName) {
+  TAOS_UDF_CHECK_PTR_RCODE(ppUdf, udfName);
   uv_mutex_lock(&global.udfsMutex);
   SUdf  **pUdfHash = taosHashGet(global.udfsHash, udfName, strlen(udfName));
   int64_t currTime = taosGetTimestampMs();
@@ -693,6 +717,7 @@ int32_t udfdGetOrCreateUdf(SUdf **ppUdf, const char *udfName) {
 }
 
 void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
+  TAOS_UDF_CHECK_PTR_RVOID(uvUdf, request);
   // TODO: tracable id from client. connect, setup, call, teardown
   fnInfo("setup request. seq num: %" PRId64 ", udf name: %s", request->seqNum, request->setup.udfName);
 
@@ -760,11 +785,55 @@ _send:
   
   uvUdf->output = uv_buf_init(bufBegin, len);
 
-  taosMemoryFree(uvUdf->input.base);
+  taosMemoryFreeClear(uvUdf->input.base);
   return;
 }
 
+static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (output->colData.numOfRows != block->info.rows) {
+    fnError("udf scala result num of rows %d not equal to input rows %" PRId64, output->colData.numOfRows, block->info.rows);
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+  }
+
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_BYROW) {
+    for (int32_t i = 0; i < output->colData.numOfRows; ++i) {
+      if (!udfColDataIsNull(output, i)) {
+        if (IS_VAR_DATA_TYPE(output->colMeta.type)) {
+          TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.payload != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+          TAOS_UDF_CHECK_CONDITION(output->colData.varLenCol.varOffsets[i] >= 0 &&
+                                       output->colData.varLenCol.varOffsets[i] < output->colData.varLenCol.payloadLen,
+                                   TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+        } else {
+          TAOS_UDF_CHECK_CONDITION(
+              output->colMeta.bytes * output->colData.numOfRows <= output->colData.fixLenCol.dataLen,
+              TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+          break;
+        }
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkUDFAggResult(SSDataBlock *block, SUdfInterBuf *output) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (output->numOfResult != 1 && output->numOfResult != 0) {
+    fnError("udf agg result num of rows %d not equal to 1", output->numOfResult);
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+  }
+  TAOS_UDF_CHECK_CONDITION(output->buf != NULL, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+  TAOS_UDF_CHECK_CONDITION(output->bufLen > 0, TSDB_CODE_UDF_FUNC_EXEC_FAILURE);
+  return TSDB_CODE_SUCCESS;
+}
+
 void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
+  TAOS_UDF_CHECK_PTR_RVOID(uvUdf, request);
   SUdfCallRequest *call = &request->call;
   fnDebug("call request. call type %d, handle: %" PRIx64 ", seq num %" PRId64, call->callType, call->udfHandle,
           request->seqNum);
@@ -787,6 +856,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
         code = convertDataBlockToUdfDataBlock(&call->block, &input);
         if (code == TSDB_CODE_SUCCESS) code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
         freeUdfDataDataBlock(&input);
+        if (code == TSDB_CODE_SUCCESS) code = checkUDFScalaResult(&call->block, &output);
         if (code == TSDB_CODE_SUCCESS) code = convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       }
       freeUdfColumn(&output);
@@ -809,6 +879,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
         if (outBuf.buf != NULL) {
           code = udf->scriptPlugin->udfAggProcFunc(&input, &call->interBuf, &outBuf, udf->scriptUdfCtx);
           freeUdfInterBuf(&call->interBuf);
+          if (code == TSDB_CODE_SUCCESS) code = checkUDFAggResult(&call->block, &outBuf);
           subRsp->resultBuf = outBuf;
         } else {
           code = terrno;
@@ -900,11 +971,12 @@ _exit:
       break;
   }
 
-  taosMemoryFree(uvUdf->input.base);
+  taosMemoryFreeClear(uvUdf->input.base);
   return;
 }
 
 void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
+  TAOS_UDF_CHECK_PTR_RVOID(uvUdf, request);
   SUdfTeardownRequest *teardown = &request->teardown;
   fnInfo("teardown. seq number: %" PRId64 ", handle:%" PRIx64, request->seqNum, teardown->udfHandle);
   SUdfcFuncHandle *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
@@ -964,6 +1036,7 @@ _send:
 }
 
 void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
+  TAOS_UDF_CHECK_PTR_RVOID(udf, path);
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
 #ifdef WINDOWS
     snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".dll", global.udfDataDir, udf->name, udf->version, udf->createdTime);
@@ -987,6 +1060,7 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
 }
 
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
+  TAOS_UDF_CHECK_PTR_RCODE(pFuncInfo, udf);
   if (!osDataSpaceAvailable()) {
     terrno = TSDB_CODE_NO_DISKSPACE;
     fnError("udfd create shared library failed since %s", terrstr());
@@ -1022,6 +1096,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 }
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  TAOS_UDF_CHECK_PTR_RVOID(parent, pMsg);
   SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
 
   if (pEpSet) {
@@ -1093,6 +1168,7 @@ _return:
 }
 
 int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
+  TAOS_UDF_CHECK_PTR_RCODE(clientRpc, udfName, udf);
   SRetrieveFuncReq retrieveReq = {0};
   retrieveReq.numOfFuncs = 1;
   retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
@@ -1217,7 +1293,7 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  TAOS_CHECK_RETURN(taosVersionStrToInt(version, &(rpcInit.compatibilityVer)));
+  TAOS_CHECK_RETURN(taosVersionStrToInt(td_version, &rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -1233,6 +1309,7 @@ void udfdCloseClientRpc() {
 }
 
 void udfdOnWrite(uv_write_t *req, int status) {
+  TAOS_UDF_CHECK_PTR_RVOID(req);
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
     fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
@@ -1254,6 +1331,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
 }
 
 void udfdSendResponse(uv_work_t *work, int status) {
+  TAOS_UDF_CHECK_PTR_RVOID(work);
   SUvUdfWork *udfWork = (SUvUdfWork *)(work->data);
 
   if (udfWork->conn != NULL) {
@@ -1274,6 +1352,7 @@ void udfdSendResponse(uv_work_t *work, int status) {
 }
 
 void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
+  TAOS_UDF_CHECK_PTR_RVOID(handle, buf);
   SUdfdUvConn *ctx = handle->data;
   int32_t      msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
   if (ctx->inputCap == 0) {
@@ -1307,6 +1386,10 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
 }
 
 bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
+  if (pipe == NULL) {
+    fnError("udfd pipe is NULL, LINE:%d", __LINE__);
+    return false;
+  }
   if (pipe->inputTotal == -1 && pipe->inputLen >= sizeof(int32_t)) {
     pipe->inputTotal = *(int32_t *)(pipe->inputBuf);
   }
@@ -1318,6 +1401,7 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
+  TAOS_UDF_CHECK_PTR_RVOID(conn);
   char   *inputBuf = conn->inputBuf;
   int32_t inputLen = conn->inputLen;
 
@@ -1350,6 +1434,7 @@ void udfdHandleRequest(SUdfdUvConn *conn) {
 }
 
 void udfdPipeCloseCb(uv_handle_t *pipe) {
+  TAOS_UDF_CHECK_PTR_RVOID(pipe);
   SUdfdUvConn *conn = pipe->data;
   SUvUdfWork  *pWork = conn->pWorkList;
   while (pWork != NULL) {
@@ -1363,6 +1448,7 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
 }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
+  TAOS_UDF_CHECK_PTR_RVOID(client, buf);
   fnDebug("udfd read %zd bytes from client", nread);
   if (nread == 0) return;
 
@@ -1389,6 +1475,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 void udfdOnNewConnection(uv_stream_t *server, int status) {
+  TAOS_UDF_CHECK_PTR_RVOID(server);
   if (status < 0) {
     fnError("udfd new connection error. code: %s", uv_strerror(status));
     return;
@@ -1434,6 +1521,7 @@ _exit:
 }
 
 void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
+  TAOS_UDF_CHECK_PTR_RVOID(handle);
   fnInfo("udfd signal received: %d\n", signum);
   uv_fs_t req;
   int32_t code = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
@@ -1470,9 +1558,9 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-  (void)printf("udfd version: %s compatible_version: %s\n", version, compatible_version);
-  (void)printf("git: %s\n", gitinfo);
-  (void)printf("build: %s\n", buildinfo);
+  (void)printf("udfd version: %s compatible_version: %s\n", td_version, td_compatible_version);
+  (void)printf("git: %s\n", td_gitinfo);
+  (void)printf("build: %s\n", td_buildinfo);
 }
 
 static int32_t udfdInitLog() {
@@ -1482,6 +1570,7 @@ static int32_t udfdInitLog() {
 }
 
 void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+  TAOS_UDF_CHECK_PTR_RVOID(buf);
   buf->base = taosMemoryMalloc(suggested_size);
   if (buf->base == NULL) {
     fnError("udfd ctrl pipe alloc buffer failed");
@@ -1491,6 +1580,7 @@ void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
 }
 
 void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
+  TAOS_UDF_CHECK_PTR_RVOID(q, buf);
   if (nread < 0) {
     fnError("udfd ctrl pipe read error. %s", uv_err_name(nread));
     taosMemoryFree(buf->base);
@@ -1507,7 +1597,7 @@ static void removeListeningPipe() {
   int     err = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
   uv_fs_req_cleanup(&req);
   if(err) {
-    fnError("remove listening pipe %s failed, reason:%s, lino:%d", global.listenPipeName, uv_strerror(err), __LINE__);
+    fnInfo("remove listening pipe %s : %s, lino:%d", global.listenPipeName, uv_strerror(err), __LINE__);
   }
 }
 
@@ -1580,7 +1670,7 @@ static void udfdGlobalDataDeinit() {
   taosHashCleanup(global.udfsHash);
   uv_mutex_destroy(&global.udfsMutex);
   uv_mutex_destroy(&global.scriptPluginsMutex);
-  taosMemoryFree(global.loop);
+  taosMemoryFreeClear(global.loop);
   fnInfo("udfd global data deinit");
 }
 

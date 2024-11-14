@@ -154,6 +154,8 @@ typedef enum EStreamType {
   STREAM_TRANS_STATE,
   STREAM_MID_RETRIEVE,
   STREAM_PARTITION_DELETE_DATA,
+  STREAM_GET_RESULT,
+  STREAM_DROP_CHILD_TABLE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -392,6 +394,10 @@ typedef struct STUidTagInfo {
 #define TABLE_NAME_COLUMN_INDEX         6
 #define PRIMARY_KEY_COLUMN_INDEX        7
 
+//steam get result block column
+#define DATA_TS_COLUMN_INDEX            0
+#define DATA_VERSION_COLUMN_INDEX       1
+
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
@@ -405,6 +411,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 #define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
+  static bool showTsmaTables = false;
+  if (showTsmaTables) return false;
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
   if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {
     return true;

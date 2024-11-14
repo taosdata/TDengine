@@ -15,7 +15,7 @@ public class QueryServiceTest {
 
     @Test
     public void generateSuperTableQueries() {
-        String[] sqls = queryService.generateSuperTableQueries("restful_test");
+        String[] sqls = queryService.generateSuperTableQueries("test");
         for (String sql : sqls) {
             System.out.println(sql);
         }
@@ -23,8 +23,8 @@ public class QueryServiceTest {
 
     @Test
     public void querySuperTable() {
-        String[] sqls = queryService.generateSuperTableQueries("restful_test");
-        queryService.querySuperTable(sqls, 1000, 10, 10);
+        String[] sqls = queryService.generateSuperTableQueries("test");
+        queryService.querySuperTable(sqls, 100, 3, 3);
     }
 
     @BeforeClass

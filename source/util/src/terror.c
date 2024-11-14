@@ -164,6 +164,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ENCODE_PARAM_NULL,        "Not found compress pa
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
 
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
@@ -268,6 +269,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_WAL_LEVEL,        "Invalid option, wal_level 0 should be used with replica 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_LIST_FMT,   "Invalid dnode list format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_LIST_REPEAT,        "Duplicate items in the dnode list")
 
 // mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
@@ -358,8 +361,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis url response is NULL")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_RSP_IS_NULL,         "Analysis service response is NULL")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_URL_CANT_ACCESS,         "Analysis service can't access")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_FOUND,          "Analysis algorithm not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANAL_BUF_INVALID_TYPE,        "Analysis invalid buffer type")

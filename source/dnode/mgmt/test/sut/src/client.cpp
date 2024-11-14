@@ -54,7 +54,7 @@ void TestClient::DoInit() {
   rpcInit.parent = this;
   // rpcInit.secret = (char*)secretEncrypt;
   // rpcInit.spi = 1;
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
 
   clientRpc = rpcOpen(&rpcInit);
   ASSERT(clientRpc);

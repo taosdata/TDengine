@@ -629,6 +629,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC == type) {
+    code = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
@@ -870,15 +872,25 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
-  blockDataCheck(p, false);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(p);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("blockDataCheck failed, code:%s", tstrerror(code));
+    }
+  }
   return (code == 0) ? p : NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
   int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
-  blockDataCheck(p, false);
-  return (code == 0) ? p : NULL;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(p);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("blockDataCheck failed, code:%s", tstrerror(code));
+    }
+  }
+  return (code == 0)? p:NULL;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {

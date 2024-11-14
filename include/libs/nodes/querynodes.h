@@ -456,6 +456,7 @@ typedef struct SSelectStmt {
   bool          hasCountFunc;
   bool          hasUdaf;
   bool          hasStateKey;
+  bool          hasTwaOrElapsedFunc;
   bool          onlyHasKeepOrderFunc;
   bool          groupSort;
   bool          tagScan;

@@ -103,8 +103,9 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   return pEpInfo;
 }
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                       SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5, SStreamTask** p) {
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+                       int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
+                       SStreamTask** p) {
   *p = NULL;
 
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -120,6 +121,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
 
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
+  pTask->info.trigger = trigger;
   pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
@@ -211,22 +213,23 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   return 0;
 }
 
-void tFreeStreamTask(SStreamTask* pTask) {
-  char*   p = NULL;
-  int32_t taskId = pTask->id.taskId;
+void tFreeStreamTask(void* pParam) {
+  char*        p = NULL;
+  SStreamTask* pTask = pParam;
+  int32_t      taskId = pTask->id.taskId;
 
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   streamMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
-    SStreamTaskState pStatus = streamTaskGetStatus(pTask);
-    p = pStatus.name;
-    status1 = pStatus.state;
+    SStreamTaskState status = streamTaskGetStatus(pTask);
+    p = status.name;
+    status1 = status.state;
   }
   streamMutexUnlock(&pTask->lock);
 
-  stDebug("start to free s-task:0x%x %p, state:%s", taskId, pTask, p);
+  stDebug("start to free s-task:0x%x %p, state:%s, refId:%" PRId64, taskId, pTask, p, pTask->id.refId);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
@@ -234,12 +237,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
           " nextProcessVer:%" PRId64 ", checkpointCount:%d",
           taskId, pStatis->created, pStatis->checkTs, pStatis->readyTs, pStatis->updateCount, pStatis->latestUpdateTs,
           pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer, pStatis->checkpoint);
-
-  // remove the ref by timer
-  while (pTask->status.timerActive > 0) {
-    stDebug("s-task:%s wait for task stop timer activities, ref:%d", pTask->id.idStr, pTask->status.timerActive);
-    taosMsleep(100);
-  }
 
   if (pTask->schedInfo.pDelayTimer != NULL) {
     streamTmrStop(pTask->schedInfo.pDelayTimer);
@@ -428,8 +425,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return code;
   }
 
-  pTask->refCnt = 1;
-
+  pTask->id.refId = 0;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -441,7 +437,6 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.timerActive = 0;
 
   code = streamCreateStateMachine(pTask);
   if (pTask->status.pSM == NULL || code != TSDB_CODE_SUCCESS) {
@@ -837,28 +832,31 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
   int32_t      code = 0;
   SStreamMeta* pMeta = pTask->pMeta;
-  STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
+  SStreamTask* pStreamTask = NULL;
+
   if (pTask->info.fillHistory == 0) {
     return code;
   }
 
-  SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
-  if (ppStreamTask != NULL) {
+  code = streamMetaAcquireTaskUnsafe(pMeta, &pTask->streamTaskId, &pStreamTask);
+  if (code == 0) {
     stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
-            (int32_t)sTaskId.taskId);
+            (int32_t)pTask->streamTaskId.taskId);
 
-    streamMutexLock(&(*ppStreamTask)->lock);
-    CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
+    streamMutexLock(&(pStreamTask->lock));
+    CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
 
     if (resetRelHalt) {
       stDebug("s-task:0x%" PRIx64 " set the persistent status attr to be ready, prev:%s, status in sm:%s",
-              sTaskId.taskId, streamTaskGetStatusStr((*ppStreamTask)->status.taskStatus),
-              streamTaskGetStatus(*ppStreamTask).name);
-      (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
+              pTask->streamTaskId.taskId, streamTaskGetStatusStr(pStreamTask->status.taskStatus),
+              streamTaskGetStatus(pStreamTask).name);
+      pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, *ppStreamTask);
-    streamMutexUnlock(&(*ppStreamTask)->lock);
+    code = streamMetaSaveTask(pMeta, pStreamTask);
+    streamMutexUnlock(&(pStreamTask->lock));
+
+    streamMetaReleaseTask(pMeta, pStreamTask);
   }
 
   return code;
@@ -1281,4 +1279,28 @@ const char* streamTaskGetExecType(int32_t type) {
     default:
       return "invalid-exec-type";
   }
+}
+
+int32_t streamTaskAllocRefId(SStreamTask* pTask, int64_t** pRefId) {
+  *pRefId = taosMemoryMalloc(sizeof(int64_t));
+  if (*pRefId != NULL) {
+    **pRefId = pTask->id.refId;
+    int32_t code = metaRefMgtAdd(pTask->pMeta->vgId, *pRefId);
+    if (code != 0) {
+      stError("s-task:%s failed to add refId:%" PRId64 " into refId-mgmt, code:%s", pTask->id.idStr, pTask->id.refId,
+              tstrerror(code));
+    }
+    return code;
+  } else {
+    stError("s-task:%s failed to alloc new ref id, code:%s", pTask->id.idStr, tstrerror(terrno));
+    return terrno;
+  }
+}
+
+void streamTaskFreeRefId(int64_t* pRefId) {
+  if (pRefId == NULL) {
+    return;
+  }
+
+  metaRefMgtRemove(pRefId);
 }

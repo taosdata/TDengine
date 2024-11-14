@@ -30,8 +30,8 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 /*FULL*/   {"Full Join",          "Full Join",           NULL,                 NULL,                  NULL,                  NULL},
 };
 
-int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
-int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
+static int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
+static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
 
 char *qExplainGetDynQryCtrlType(EDynQueryType type) {
   switch (type) {
@@ -118,7 +118,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
   taosMemoryFree(pCtx);
 }
 
-int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, double ratio, EExplainMode mode) {
+static int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, double ratio, EExplainMode mode) {
   int32_t      code = 0;
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
@@ -158,7 +158,7 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNodeList **pChildren) {
+static int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNodeList **pChildren) {
   int32_t    tlen = 0;
   SNodeList *pPhysiChildren = pNode->pChildren;
 
@@ -180,7 +180,7 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, SExplainGroup *group) {
+static int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, SExplainGroup *group) {
   *pExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainExecInfo));
   if (NULL == (*pExecInfo)) {
     qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
@@ -217,7 +217,7 @@ int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, S
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode) {
+static int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode) {
   if (NULL == pNode) {
     *pResNode = NULL;
     qError("physical node is NULL");
@@ -250,7 +250,7 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
+static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
   int32_t          tlen = *len;
   int32_t          nodeNum = taosArrayGetSize(pExecInfo);
   SExplainExecInfo maxExecInfo = {0};
@@ -275,7 +275,7 @@ int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainBufAppendVerboseExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
+static int32_t qExplainBufAppendVerboseExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
   int32_t          tlen = 0;
   bool             gotVerbose = false;
   int32_t          nodeNum = taosArrayGetSize(pExecInfo);
@@ -297,7 +297,7 @@ int32_t qExplainBufAppendVerboseExecInfo(SArray *pExecInfo, char *tbuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t level) {
+static int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t level) {
   SQueryExplainRowInfo row = {0};
   row.buf = taosMemoryMalloc(len);
   if (NULL == row.buf) {
@@ -362,7 +362,7 @@ static char* qExplainGetScanDataLoad(STableScanPhysiNode* pScan) {
   return "unknown";
 }
 
-int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
+static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
   int32_t     tlen = 0;
   bool        isVerboseLine = false;
   char       *tbuf = ctx->tbuf;
@@ -1900,7 +1900,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
+static int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
   if (NULL == pResNode) {
     qError("explain res node is NULL");
     QRY_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -1915,7 +1915,7 @@ int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel) {
+static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel) {
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
@@ -1940,7 +1940,7 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
+static int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   int32_t      code = 0;
   SSDataBlock *pBlock = NULL;
   SExplainCtx *pCtx = (SExplainCtx *)ctx;
@@ -1966,7 +1966,8 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   pBlock->info.rows = rowNum;
 
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
 
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
@@ -1977,7 +1978,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
-  int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, taosArrayGetSize(pBlock->pDataBlock));
+  int32_t len = blockEncode(pBlock, rsp->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, taosArrayGetSize(pBlock->pDataBlock));
   if(len < 0) {
     qError("qExplainGetRspFromCtx: blockEncode failed");
     QRY_ERR_JRET(terrno);
@@ -1996,7 +1997,7 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
+static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
   int32_t        code = 0;
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
@@ -2079,7 +2080,7 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
+static int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
   if (EXPLAIN_MODE_ANALYZE != pCtx->mode) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2102,7 +2103,7 @@ int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
+static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
   QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0, false));
   QRY_ERR_RET(qExplainAppendPlanRows(pCtx));
   QRY_ERR_RET(qExplainGetRspFromCtx(pCtx, pRsp));
@@ -2111,6 +2112,7 @@ int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 }
 
 int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
+  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
@@ -2175,6 +2177,7 @@ _exit:
 }
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
+  if (!pDag || !pRsp) return TSDB_CODE_INVALID_PARA;
   int32_t      code = 0;
   SExplainCtx *pCtx = NULL;
 
@@ -2187,6 +2190,7 @@ _return:
 }
 
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs) {
+  if(!pDag || !pCtx) return TSDB_CODE_INVALID_PARA;
   QRY_ERR_RET(qExplainPrepareCtx(pDag, pCtx));
 
   (*pCtx)->reqStartTs = startTs;
@@ -2196,6 +2200,7 @@ int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs)
 }
 
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
+  if(!pCtx || !pRsp) return TSDB_CODE_INVALID_PARA;
   int32_t code = 0;
   pCtx->jobDoneTs = taosGetTimestampUs();
 
