@@ -50,6 +50,13 @@ class TDTestCase:
             self.basic.stop_dnode(2)
 
             tranId = tdSql.getData(0, 0)
+
+            tdLog.info('show transaction %d'%tranId)
+            rows=tdSql.query('show transaction %d'%tranId, queryTimes=1)
+            if rows != 13:
+                tdLog.exit(f"restore transaction detial error, rows={rows}")
+                return False
+
             tdLog.info('kill transaction %d'%tranId)
             tdSql.execute('kill transaction %d'%tranId, queryTimes=1 )
 
