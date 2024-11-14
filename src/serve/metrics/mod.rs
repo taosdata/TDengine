@@ -73,8 +73,8 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
     let dsn = parse_dsn_result.unwrap();
     let task_id = task.task.id;
     match dsn.driver.as_str() {
-        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id).await,
-        "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id).await,
+        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id, &dsn).await,
+        "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id, &dsn).await,
         "opc"
         | "opcua"
         | "opcda"
@@ -90,7 +90,7 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
         | runners::postgres::POSTGRES_ID
         | runners::oracle::ORACLE_ID
         | runners::mssql::MSSQL_ID
-        | runners::mongodb::MONGODB_ID => try_get_metrics::<IpcMetrics>(task_id).await,
+        | runners::mongodb::MONGODB_ID => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
         _ => None,
     }
 }
