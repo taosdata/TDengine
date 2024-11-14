@@ -11,337 +11,470 @@ description: TDengine 保留关键字的详细列表
 关键字列表如下：
 
 ### A
-
-- ABORT
-- ACCOUNT
-- ACCOUNTS
-- ADD
-- AFTER
-- AGGREGATE
-- ALIVE
-- ALL
-- ALTER
-- ANALYZE
-- AND
-- APPS
-- AS
-- ASC
-- AT_ONCE
-- ATTACH
+|关键字|说明|
+|----------------------|-|
+| ABORT                | |
+| ACCOUNT              | |
+| ACCOUNTS             | |
+| ADD                  | |
+| AFTER                | |
+| AGGREGATE            | |
+| ALIAS                | |
+| ALIVE                | |
+| ALL                  | |
+| ALTER                | |
+| ANALYZE              | 3.3.4.3 及后续版本 |
+| AND                  | |
+| ANODE                | 3.3.4.3 及后续版本 |
+| ANODES               | 3.3.4.3 及后续版本 |
+| ANOMALY_WINDOW       | 3.3.4.3 及后续版本 |
+| ANTI                 | |
+| APPS                 | |
+| ARBGROUPS            | |
+| ARROW                | |
+| AS                   | |
+| ASC                  | |
+| ASOF                 | |
+| AT_ONCE              | |
+| ATTACH               | |
 
 ### B
-
-- BALANCE
-- BEFORE
-- BEGIN
-- BETWEEN
-- BIGINT
-- BINARY
-- BITAND
-- BITNOT
-- BITOR
-- BLOCKS
-- BNODE
-- BNODES
-- BOOL
-- BUFFER
-- BUFSIZE
-- BY
+|关键字|说明|
+|----------------------|-|
+| BALANCE              | |
+| BEFORE               | |
+| BEGIN                | |
+| BETWEEN              | |
+| BIGINT               | |
+| BIN                  | |
+| BINARY               | |
+| BITAND               | |
+| BITAND               | |
+| BITNOT               | |
+| BITOR                | |
+| BLOB                 | |
+| BLOCKS               | |
+| BNODE                | |
+| BNODES               | |
+| BOOL                 | |
+| BOTH                 | |
+| BUFFER               | |
+| BUFSIZE              | |
+| BWLIMIT              | |
+| BY                   | |
 
 ### C
-
-- CACHE
-- CACHEMODEL
-- CACHESIZE
-- CASCADE
-- CAST
-- CHANGE
-- CLIENT_VERSION
-- CLUSTER
-- COLON
-- COLUMN
-- COMMA
-- COMMENT
-- COMP
-- COMPACT
-- CONCAT
-- CONFLICT
-- CONNECTION
-- CONNECTIONS
-- CONNS
-- CONSUMER
-- CONSUMERS
-- CONTAINS
-- COPY
-- COUNT
-- CREATE
-- CURRENT_USER
+|关键字|说明|
+|----------------------|-|
+| CACHE                | |
+| CACHEMODEL           | |
+| CACHESIZE            | |
+| CASE                 | |
+| CAST                 | |
+| CHANGE               | |
+| CHILD                | |
+| CLIENT_VERSION       | |
+| CLUSTER              | |
+| COLON                | |
+| COLUMN               | |
+| COMMA                | |
+| COMMENT              | |
+| COMP                 | |
+| COMPACT              | |
+| COMPACTS             | |
+| CONCAT               | |
+| CONFLICT             | |
+| CONNECTION           | |
+| CONNECTIONS          | |
+| CONNS                | |
+| CONSUMER             | |
+| CONSUMERS            | |
+| CONTAINS             | |
+| COPY                 | |
+| COUNT                | |
+| COUNT_WINDOW         | |
+| CREATE               | |
+| CREATEDB             | |
+| CURRENT_USER         | |
 
 ### D
-
-- DATABASE
-- DATABASES
-- DBS
-- DEFERRED
-- DELETE
-- DELIMITERS
-- DESC
-- DESCRIBE
-- DETACH
-- DISTINCT
-- DISTRIBUTED
-- DIVIDE
-- DNODE
-- DNODES
-- DOT
-- DOUBLE
-- DROP
-- DURATION
+|关键字|说明|
+|----------------------|-|
+| DATABASE             | |
+| DATABASES            | |
+| DBS                  | |
+| DECIMAL              | |
+| DEFERRED             | |
+| DELETE               | |
+| DELETE_MARK          | |
+| DELIMITERS           | |
+| DESC                 | |
+| DESCRIBE             | |
+| DETACH               | |
+| DISTINCT             | |
+| DISTRIBUTED          | |
+| DIVIDE               | |
+| DNODE                | |
+| DNODES               | |
+| DOT                  | |
+| DOUBLE               | |
+| DROP                 | |
+| DURATION             | |
 
 ### E
-
-- EACH
-- ENABLE
-- END
-- EVERY
-- EXISTS
-- EXPIRED
-- EXPLAIN
+|关键字|说明|
+|----------------------|-|
+| EACH                 | |
+| ELSE                 | |
+| ENABLE               | |
+| ENCRYPT_ALGORITHM    | |
+| ENCRYPT_KEY          | |
+| ENCRYPTIONS          | |
+| END                  | |
+| EQ                   | |
+| EVENT_WINDOW         | |
+| EVERY                | |
+| EXCEPT               | |
+| EXISTS               | |
+| EXPIRED              | |
+| EXPLAIN              | |
 
 ### F
-
-- FAIL
-- FILE
-- FILL
-- FIRST
-- FLOAT
-- FLUSH
-- FOR
-- FROM
-- FUNCTION
-- FUNCTIONS
+|关键字|说明|
+|----------------------|-|
+| FAIL                 | |
+| FHIGH                | 3.3.4.3 及后续版本 |
+| FILE                 | |
+| FILL                 | |
+| FILL_HISTORY         | |
+| FIRST                | |
+| FLOAT                | |
+| FLOW                 | 3.3.4.3 及后续版本 |
+| FLUSH                | |
+| FOR                  | |
+| FORCE                | |
+| FORCE_WINDOW_CLOSE   | 3.3.4.3 及后续版本 |
+| FROM                 | |
+| FROWTS               | 3.3.4.3 及后续版本 |
+| FULL                 | |
+| FUNCTION             | |
+| FUNCTIONS            | |
 
 ### G
-
-- GLOB
-- GRANT
-- GRANTS
-- GROUP
+|关键字|说明|
+|----------------------|-|
+| GE                   | |
+| GEOMETRY             | |
+| GLOB                 | |
+| GRANT                | |
+| GRANTS               | |
+| GROUP                | |
+| GT                   | |
 
 ### H
-
-- HAVING
-- HOST
+|关键字|说明|
+|----------------------|-|
+| HAVING               | |
+| HEX                  | |
+| HOST                 | |
 
 ### I
-
-- ID
-- IF
-- IGNORE
-- IMMEDIATE
-- IMPORT
-- IN
-- INDEX
-- INDEXES
-- INITIALLY
-- INNER
-- INSERT
-- INSTEAD
-- INT
-- INTEGER
-- INTERVAL
-- INTO
-- IS
-- IS NULL
+|关键字|说明|
+|----------------------|-|
+| ID                   | |
+| IF                   | |
+| IGNORE               | |
+| ILLEGAL              | |
+| IMMEDIATE            | |
+| IMPORT               | |
+| IN                   | |
+| INDEX                | |
+| INDEXES              | |
+| INITIALLY            | |
+| INNER                | |
+| INSERT               | |
+| INSTEAD              | |
+| INT                  | |
+| INTEGER              | |
+| INTERSECT            | |
+| INTERVAL             | |
+| INTO                 | |
+| IPTOKEN              | |
+| IROWTS               | |
+| IS                   | |
+| IS_IMPORT            | |
+| ISFILLED             | |
+| ISNULL               | |
 
 ### J
-
-- JOIN
-- JSON
+|关键字|说明|
+|----------------------|-|
+| JLIMIT               | |
+| JOIN                 | |
+| JSON                 | |
 
 ### K
-
-- KEEP
-- KEY
-- KILL
+|关键字|说明|
+|----------------------|-|
+| KEEP                 | |
+| KEEP_TIME_OFFSET     | |
+| KEY                  | |
+| KILL                 | |
 
 ### L
-
-- LAST
-- LAST_ROW
-- LICENCES
-- LIKE
-- LIMIT
-- LINEAR
-- LOCAL
+|关键字|说明|
+|----------------------|-|
+| LANGUAGE             | |
+| LAST                 | |
+| LAST_ROW             | |
+| LE                   | |
+| LEADER               | |
+| LEADING              | |
+| LEFT                 | |
+| LICENCES             | |
+| LIKE                 | |
+| LIMIT                | |
+| LINEAR               | |
+| LOCAL                | |
+| LOGS                 | |
+| LP                   | |
+| LSHIFT               | |
+| LT                   | |
 
 ### M
-
-- MATCH
-- MAX_DELAY
-- BWLIMIT
-- MAXROWS
-- MAX_SPEED
-- MERGE
-- META
-- MINROWS
-- MINUS
-- MNODE
-- MNODES
-- MODIFY
-- MODULES
+|关键字|说明|
+|----------------------|-|
+| MACHINES             | |
+| MATCH                | |
+| MAX_DELAY            | |
+| MAXROWS              | |
+| MEDIUMBLOB           | |
+| MERGE                | |
+| META                 | |
+| MINROWS              | |
+| MINUS                | |
+| MNODE                | |
+| MNODES               | |
+| MODIFY               | |
+| MODULES              | |
 
 ### N
-
-- NCHAR
-- NEXT
-- NMATCH
-- NONE
-- NOT
-- NOT NULL
-- NOW
-- NULL
-- NULLS
+|关键字|说明|
+|----------------------|-|
+| NCHAR                | |
+| NE                   | |
+| NEXT                 | |
+| NMATCH               | |
+| NONE                 | |
+| NORMAL               | |
+| NOT                  | |
+| NOTNULL              | |
+| NOW                  | |
+| NULL                 | |
+| NULL_F               | |
+| NULLS                | |
 
 ### O
-
-- OF
-- OFFSET
-- ON
-- OR
-- ORDER
-- OUTPUTTYPE
+|关键字|说明|
+|----------------------|-|
+| OF                   | |
+| OFFSET               | |
+| ON                   | |
+| ONLY                 | |
+| OR                   | |
+| ORDER                | |
+| OUTER                | |
+| OUTPUTTYPE           | |
 
 ### P
-
-- PAGES
-- PAGESIZE
-- PARTITIONS
-- PASS
-- PLUS
-- PORT
-- PPS
-- PRECISION
-- PREV
-- PRIVILEGE
+|关键字|说明|
+|----------------------|-|
+| PAGES                | |
+| PAGESIZE             | |
+| PARTITION            | |
+| PASS                 | |
+| PAUSE                | |
+| PI                   | |
+| PLUS                 | |
+| PORT                 | |
+| POSITION             | |
+| PPS                  | |
+| PRECISION            | |
+| PREV                 | |
+| PRIMARY              | |
+| PRIVILEGE            | |
+| PRIVILEGES           | |
 
 ### Q
-
-- QNODE
-- QNODES
-- QTIME
-- QUERIES
-- QUERY
+|关键字|说明|
+|----------------------|-|
+| QDURATION            | |
+| QEND                 | |
+| QNODE                | |
+| QNODES               | |
+| QSTART               | |
+| QTAGS                | |
+| QTIME                | |
+| QUERIES              | |
+| QUERY                | |
+| QUESTION             | |
 
 ### R
-
-- RAISE
-- RANGE
-- RATIO
-- READ
-- REDISTRIBUTE
-- RENAME
-- REPLACE
-- REPLICA
-- RESET
-- RESTRICT
-- RETENTIONS
-- REVOKE
-- ROLLUP
-- ROW
+|关键字|说明|
+|----------------------|-|
+| RAISE                | |
+| RAND                 | |
+| RANGE                | |
+| RATIO                | |
+| READ                 | |
+| RECURSIVE            | |
+| REDISTRIBUTE         | |
+| REM                  | |
+| REPLACE              | |
+| REPLICA              | |
+| RESET                | |
+| RESTORE              | |
+| RESTRICT             | |
+| RESUME               | |
+| RETENTIONS           | |
+| REVOKE               | |
+| RIGHT                | |
+| ROLLUP               | |
+| ROW                  | |
+| ROWTS                | |
+| RP                   | |
+| RSHIFT               | |
 
 ### S
-
-- SCHEMALESS
-- SCORES
-- SELECT
-- SEMI
-- SERVER_STATUS
-- SERVER_VERSION
-- SESSION
-- SET
-- SHOW
-- SINGLE_STABLE
-- SLIDING
-- SLIMIT
-- SMA
-- SMALLINT
-- SNODE
-- SNODES
-- SOFFSET
-- SPLIT
-- STABLE
-- STABLES
-- START
-- STATE
-- STATE_WINDOW
-- STATEMENT
-- STORAGE
-- STREAM
-- STREAMS
-- STRICT
-- STRING
-- SUBSCRIPTIONS
-- SYNCDB
-- SYSINFO
+|关键字|说明|
+|----------------------|-|
+| S3_CHUNKPAGES        | |
+| S3_COMPACT           | |
+| S3_KEEPLOCAL         | |
+| SCHEMALESS           | |
+| SCORES               | |
+| SELECT               | |
+| SEMI                 | |
+| SERVER_STATUS        | |
+| SERVER_VERSION       | |
+| SESSION              | |
+| SET                  | |
+| SHOW                 | |
+| SINGLE_STABLE        | |
+| SLASH                | |
+| SLIDING              | |
+| SLIMIT               | |
+| SMA                  | |
+| SMALLINT             | |
+| SMIGRATE             | |
+| SNODE                | |
+| SNODES               | |
+| SOFFSET              | |
+| SPLIT                | |
+| STABLE               | |
+| STABLES              | |
+| STAR                 | |
+| START                | |
+| STATE                | |
+| STATE_WINDOW         | |
+| STATEMENT            | |
+| STORAGE              | |
+| STREAM               | |
+| STREAMS              | |
+| STRICT               | |
+| STRING               | |
+| STT_TRIGGER          | |
+| SUBSCRIBE            | |
+| SUBSCRIPTIONS        | |
+| SUBSTR               | |
+| SUBSTRING            | |
+| SUBTABLE             | |
+| SYSINFO              | |
+| SYSTEM               | |
 
 ### T
-
-- TABLE
-- TABLES
-- TAG
-- TAGS
-- TBNAME
-- TIMES
-- TIMESTAMP
-- TIMEZONE
-- TINYINT
-- TO
-- TODAY
-- TOPIC
-- TOPICS
-- TRANSACTION
-- TRANSACTIONS
-- TRIGGER
-- TRIM
-- TSERIES
-- TTL
+|关键字|说明|
+|----------------------|-|
+| TABLE                | |
+| TABLE_PREFIX         | |
+| TABLE_SUFFIX         | |
+| TABLES               | |
+| TAG                  | |
+| TAGS                 | |
+| TBNAME               | |
+| THEN                 | |
+| TIMES                | |
+| TIMESTAMP            | |
+| TIMEZONE             | |
+| TINYINT              | |
+| TO                   | |
+| TODAY                | |
+| TOPIC                | |
+| TOPICS               | |
+| TRAILING             | |
+| TRANSACTION          | |
+| TRANSACTIONS         | |
+| TRIGGER              | |
+| TRIM                 | |
+| TSDB_PAGESIZE        | |
+| TSERIES              | |
+| TSMA                 | |
+| TSMAS                | |
+| TTL                  | |
 
 ### U
-
-- UNION
-- UNSIGNED
-- UPDATE
-- USE
-- USER
-- USERS
-- USING
+|关键字|说明|
+|----------------------|-|
+| UNION                | |
+| UNSAFE               | |
+| UNSIGNED             | |
+| UNTREATED            | |
+| UPDATE               | |
+| USE                  | |
+| USER                 | |
+| USERS                | |
+| USING                | |
 
 ### V
+|关键字|说明|
+|----------------------|-|
+| VALUE                | |
+| VALUE_F              | |
+| VALUES               | |
+| VARBINARY            | |
+| VARCHAR              | |
+| VARIABLE             | |
+| VARIABLES            | |
+| VERBOSE              | |
+| VGROUP               | |
+| VGROUPS              | |
+| VIEW                 | |
+| VIEWS                | |
+| VNODE                | |
+| VNODES               | |
 
-- VALUE
-- VALUES
-- VARCHAR
-- VARIABLE
-- VARIABLES
-- VERBOSE
-- VGROUP
-- VGROUPS
-- VIEW
-- VNODES
 
 ### W
-
-- WAL
-- WAL_FSYNC_PERIOD
-- WAL_LEVEL
-- WAL_RETENTION_PERIOD
-- WAL_RETENTION_SIZE
-- WATERMARK
-- WHERE
-- WINDOW_CLOSE
-- WITH
-- WRITE
+|关键字|说明|
+|----------------------|-|
+| WAL                  | |
+| WAL_FSYNC_PERIOD     | |
+| WAL_LEVEL            | |
+| WAL_RETENTION_PERIOD | |
+| WAL_RETENTION_SIZE   | |
+| WAL_ROLL_PERIOD      | |
+| WAL_SEGMENT_SIZE     | |
+| WATERMARK            | |
+| WDURATION            | |
+| WEND                 | |
+| WHEN                 | |
+| WHERE                | |
+| WINDOW               | |
+| WINDOW_CLOSE         | |
+| WINDOW_OFFSET        | |
+| WITH                 | |
+| WRITE                | |
+| WSTART              | |
 
 ### \_
 

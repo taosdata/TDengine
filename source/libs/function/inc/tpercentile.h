@@ -26,7 +26,7 @@ extern "C" {
 struct tMemBucket;
 
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
-                         struct tMemBucket **pBucket);
+                         struct tMemBucket **pBucket, int32_t numOfElements);
 
 void tMemBucketDestroy(struct tMemBucket **pBucket);
 
