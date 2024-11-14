@@ -607,7 +607,7 @@ int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* p
   tEncoderInit(&encoder, abuf, tlen);
   code = tEncodeRestoreCheckpointInfo(&encoder, &req);
   tEncoderClear(&encoder);
-  if (code == -1) {
+  if (code < 0) {
     taosMemoryFree(pBuf);
     return code;
   }

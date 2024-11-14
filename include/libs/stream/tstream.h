@@ -643,6 +643,11 @@ typedef struct SCheckpointConsensusInfo {
   int64_t streamId;
 } SCheckpointConsensusInfo;
 
+typedef struct SCheckpointConsensusEntry {
+  SRestoreCheckpointInfo req;
+  int64_t                ts;
+} SCheckpointConsensusEntry;
+
 void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related

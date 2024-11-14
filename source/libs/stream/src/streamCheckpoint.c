@@ -161,33 +161,52 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
 
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pRpcInfo, int32_t code) {
-  int32_t size = sizeof(SMsgHead) + sizeof(SCheckpointTriggerRsp);
-  void*   pBuf = rpcMallocCont(size);
-  if (pBuf == NULL) {
+  int32_t  ret = 0;
+  int32_t  tlen = 0;
+  void*    buf = NULL;
+  SEncoder encoder;
+
+  SCheckpointTriggerRsp req = {.streamId = pTask->id.streamId,
+                               .upstreamTaskId = pTask->id.taskId,
+                               .taskId = dstTaskId,
+                               .rspCode = code};
+
+  if (code == TSDB_CODE_SUCCESS) {
+    req.checkpointId = pTask->chkInfo.pActiveInfo->activeId;
+    req.transId = pTask->chkInfo.pActiveInfo->transId;
+  } else {
+    req.checkpointId = -1;
+    req.transId = -1;
+  }
+
+  tEncodeSize(tEncodeCheckpointTriggerRsp, &req, tlen, ret);
+  if (ret < 0) {
+    stError("s-task:%s encode checkpoint-trigger rsp msg failed, code:%s", pTask->id.idStr, tstrerror(code));
+    return ret;
+  }
+
+  buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+  if (buf == NULL) {
+    stError("s-task:%s malloc chkpt-trigger rsp failed for task:0x%x, since out of memory", pTask->id.idStr, dstTaskId);
     return terrno;
   }
 
-  SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+  ((SMsgHead*)buf)->vgId = htonl(downstreamNodeId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  ((SMsgHead*)pBuf)->vgId = htonl(downstreamNodeId);
-
-  pRsp->streamId = pTask->id.streamId;
-  pRsp->upstreamTaskId = pTask->id.taskId;
-  pRsp->taskId = dstTaskId;
-  pRsp->rspCode = code;
-
-  if (code == TSDB_CODE_SUCCESS) {
-    pRsp->checkpointId = pTask->chkInfo.pActiveInfo->activeId;
-    pRsp->transId = pTask->chkInfo.pActiveInfo->transId;
-  } else {
-    pRsp->checkpointId = -1;
-    pRsp->transId = -1;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((ret = tEncodeCheckpointTriggerRsp(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    tEncoderClear(&encoder);
+    stError("encode checkpoint-trigger rsp failed, code:%s", tstrerror(code));
+    return ret;
   }
+  tEncoderClear(&encoder);
 
-  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = size, .info = *pRpcInfo};
+  SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = tlen + sizeof(SMsgHead), .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
 
-  return 0;
+  return ret;
 }
 
 int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask) {
@@ -1115,23 +1134,46 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
       return TSDB_CODE_INVALID_PARA;
     }
 
-    SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
-    if (pReq == NULL) {
-      code = terrno;
+    int32_t  ret = 0;
+    int32_t  tlen = 0;
+    void*    buf = NULL;
+    SRpcMsg  rpcMsg = {0};
+    SEncoder encoder;
+
+    SRetrieveChkptTriggerReq req =
+        {
+            .streamId = pTask->id.streamId,
+            .downstreamTaskId = pTask->id.taskId,
+            .downstreamNodeId = vgId,
+            .upstreamTaskId = pUpstreamTask->taskId,
+            .upstreamNodeId = pUpstreamTask->nodeId,
+            .checkpointId = checkpointId,
+        };
+
+    tEncodeSize(tEncodeRetrieveChkptTriggerReq, &req, tlen, ret);
+    if (ret < 0) {
+      stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+    }
+
+    buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+    if (buf == NULL) {
       stError("vgId:%d failed to create msg to retrieve trigger msg for task:%s exec, code:out of memory", vgId, pId);
       continue;
     }
 
-    pReq->head.vgId = htonl(pUpstreamTask->nodeId);
-    pReq->streamId = pTask->id.streamId;
-    pReq->downstreamTaskId = pTask->id.taskId;
-    pReq->downstreamNodeId = vgId;
-    pReq->upstreamTaskId = pUpstreamTask->taskId;
-    pReq->upstreamNodeId = pUpstreamTask->nodeId;
-    pReq->checkpointId = checkpointId;
+    ((SRetrieveChkptTriggerReq*)buf)->head.vgId = htonl(vgId);
+    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-    SRpcMsg rpcMsg = {0};
-    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, pReq, sizeof(SRetrieveChkptTriggerReq));
+    tEncoderInit(&encoder, abuf, tlen);
+    if ((code = tEncodeRetrieveChkptTriggerReq(&encoder, &req)) < 0) {
+      rpcFreeCont(buf);
+      tEncoderClear(&encoder);
+      stError("encode retrieve checkpoint-trigger req failed, code:%s", tstrerror(code));
+      continue;
+    }
+    tEncoderClear(&encoder);
+
+    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, buf, tlen + sizeof(SMsgHead));
 
     code = tmsgSendReq(&pUpstreamTask->epSet, &rpcMsg);
     if (code == TSDB_CODE_SUCCESS) {

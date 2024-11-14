@@ -605,6 +605,98 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   pMsg->numOfTasks = -1;
 }
 
+int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->msgId));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->msgId));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+}
+
+int32_t tEncodeRetrieveChkptTriggerReq(SEncoder* pEncoder, const SRetrieveChkptTriggerReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->checkpointId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->upstreamNodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->upstreamTaskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->downstreamNodeId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->downstreamTaskId));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeRetrieveChkptTriggerReq(SDecoder* pDecoder, SRetrieveChkptTriggerReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->checkpointId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->upstreamNodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->upstreamTaskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->downstreamNodeId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->downstreamTaskId));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+}
+
+int32_t tEncodeCheckpointTriggerRsp(SEncoder* pEncoder, const SCheckpointTriggerRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->checkpointId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->upstreamTaskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->transId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->rspCode));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeCheckpointTriggerRsp(SDecoder* pDecoder, SCheckpointTriggerRsp* pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->checkpointId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->upstreamTaskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->transId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->rspCode));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+}
+
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   int32_t code = 0;
   int32_t lino;
@@ -830,11 +922,7 @@ int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpoin
   tEndEncode(pEncoder);
 
 _exit:
-  if (code) {
-    return code;
-  } else {
-    return pEncoder->pos;
-  }
+  return code;
 }
 
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
@@ -848,6 +936,34 @@ int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo*
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->transId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->taskId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->nodeId));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+}
+
+int32_t tEncodeStreamTaskRunReq (SEncoder* pEncoder, const SStreamTaskRunReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->reqType));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->reqType));
   tEndDecode(pDecoder);
 
 _exit:

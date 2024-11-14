@@ -553,12 +553,37 @@ void cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArr
 }
 
 void doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, int32_t vgId, int32_t msgId) {
-  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = sizeof(SMStreamHbRspMsg)};
-  rsp.pCont = rpcMallocCont(rsp.contLen);
+  int32_t ret = 0;
+  int32_t tlen = 0;
+  void   *buf = NULL;
 
-  SMStreamHbRspMsg *pMsg = rsp.pCont;
-  pMsg->head.vgId = htonl(vgId);
-  pMsg->msgId = msgId;
+  const SMStreamHbRspMsg msg = {.msgId = msgId};
+
+  tEncodeSize(tEncodeStreamHbRsp, &msg, tlen, ret);
+  if (ret < 0) {
+    mError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+  }
+
+  buf = rpcMallocCont(tlen + sizeof(SMsgHead));
+  if (buf == NULL) {
+    mError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
+    return;
+  }
+
+  ((SMStreamHbRspMsg*)buf)->head.vgId = htonl(vgId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((code = tEncodeStreamHbRsp(&encoder, &msg)) < 0) {
+    rpcFreeCont(buf);
+    tEncoderClear(&encoder);
+    mError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+    return;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen + sizeof(SMsgHead), .pCont = buf};
 
   tmsgSendRsp(&rsp);
   pRpcInfo->handle = NULL;  // disable auto rsp
