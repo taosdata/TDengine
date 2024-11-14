@@ -332,16 +332,6 @@ def pre_test_win(){
         cd %WIN_COMMUNITY_ROOT%
         git submodule update --init --recursive
     '''
-    bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        git branch
-        git reset --hard
-        git pull
-    '''
-    bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        git log -5
-    '''
 }
 
 def pre_test_build_win() {
@@ -363,12 +353,9 @@ def pre_test_build_win() {
         time /t
     '''
     bat '''
-        cd %WIN_CONNECTOR_ROOT%
-        python.exe -m pip install --upgrade pip
-        python -m pip uninstall taospy -y 
-        python -m pip install taospy==2.7.16
-        python -m pip uninstall taos-ws-py -y 
-        python -m pip install taos-ws-py==0.3.3
+        cd %WIN_COMMUNITY_ROOT%/tests/ci
+        pip3 install taospy==2.7.16 
+        pip3 install taos-ws-py==0.3.3
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
@@ -387,7 +374,6 @@ def run_win_ctest() {
 def run_win_test() {
     bat '''
         echo "windows test ..."
-        cd %WIN_CONNECTOR_ROOT%
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
         time /t
@@ -476,7 +462,6 @@ pipeline {
                         WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
-                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {

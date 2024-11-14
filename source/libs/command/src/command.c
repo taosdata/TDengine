@@ -56,6 +56,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
   if(len < 0) {
     taosMemoryFree(*pRsp);
+    *pRsp = NULL;
     return terrno;
   }
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
@@ -957,8 +958,8 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
 
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pBlock);
     taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
   }
   return terrno;
 }

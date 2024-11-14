@@ -1149,7 +1149,7 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword. For a table with composite primary key, only the data with the smallest primary key value is returned.
+**Description**: Return the unique values of this column. The effect is similar to `distinct` keyword. Return the row with the earliest timestamp for duplicate data. For a table with composite primary key, only the data with the smallest primary key value is returned.
 
 **Return value type**:Same as the data type of the column being operated upon
 

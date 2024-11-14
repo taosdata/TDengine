@@ -25,7 +25,7 @@
 #include "tunit.h"
 #include "tutil.h"
 
-#define CFG_NAME_PRINT_LEN 24
+#define CFG_NAME_PRINT_LEN 32
 #define CFG_SRC_PRINT_LEN  12
 
 struct SConfig {
