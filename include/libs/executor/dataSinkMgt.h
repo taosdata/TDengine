@@ -87,7 +87,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 

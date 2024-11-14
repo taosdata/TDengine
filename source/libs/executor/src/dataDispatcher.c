@@ -356,6 +356,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
+  nodesDestroyNode((SNode*)pDispatcher->pSchema);
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
@@ -436,7 +437,7 @@ int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
   return numOfCols;
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   int32_t code;
   code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
   if (code) {
@@ -460,6 +461,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->pManager = pManager;
   pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
+  pDataSink->pInputDataBlockDesc = NULL;
   dispatcher->outPutColCounts = getOutputColCounts(dispatcher->pSchema);
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;

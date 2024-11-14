@@ -363,7 +363,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     if (pHashObj->enableUpdate) {
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
     } else {
-      FREE_HASH_NODE(pHashObj->freeFp, pNewNode);
+      taosMemoryFreeClear(pNewNode);
       terrno = TSDB_CODE_DUP_KEY;
       code = terrno;
       goto _exit;

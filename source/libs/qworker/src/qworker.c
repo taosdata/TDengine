@@ -71,12 +71,13 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
 
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   qTaskInfo_t taskHandle = ctx->taskHandle;
-
+  int32_t code = TSDB_CODE_SUCCESS;
+  
   ctx->queryExecDone = true;
 
   if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
     if (ctx->explain && !ctx->explainRsped) {
-      QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
+      QW_ERR_JRET(qwSendExplainResponse(QW_FPARAMS(), ctx));
     }
 
     if (!ctx->needFetch) {
@@ -86,7 +87,13 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  if (!ctx->explain || ctx->explainRsped) {
+    qwFreeTaskHandle(ctx); 
+  }
+
+  return code;
 }
 
 int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t rspCode, bool quickRsp) {
@@ -483,6 +490,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg, int32
         qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
+          qwFreeSinkHandle(ctx);
         }
       }
 
@@ -868,6 +876,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
           atomic_store_8((int8_t *)&ctx->queryContinue, 0);
+          qwFreeSinkHandle(ctx);          
         }
 
         qwMsg->connInfo = ctx->dataConnInfo;
@@ -957,6 +966,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
+      qwFreeSinkHandle(ctx);
     }
   }
 
@@ -1582,6 +1592,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
       qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
       if (qComplete) {
         atomic_store_8((int8_t *)&ctx->queryEnd, true);
+        qwFreeSinkHandle(ctx); 
       }
 
       break;

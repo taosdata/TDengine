@@ -534,6 +534,8 @@ void    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx);
 void    qwRetireJob(SQWJobInfo* pJob);
 void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session);
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
+void    qwFreeTaskHandle(SQWTaskCtx *ctx);
+void    qwFreeSinkHandle(SQWTaskCtx *ctx);
 
 #ifdef __cplusplus
 }

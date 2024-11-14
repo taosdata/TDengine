@@ -39,7 +39,7 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
   SDataSinkManager* pManager = pSinkManager;
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
