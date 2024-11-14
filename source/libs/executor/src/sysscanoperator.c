@@ -61,6 +61,7 @@ typedef struct SSysTableScanInfo {
   bool                   sysInfo;
   bool                   showRewrite;
   bool                   restore;
+  bool                   skipFilterTable;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
   SSysTableIndex*        pIdx;        // idx for local table meta
@@ -1457,7 +1458,7 @@ _end:
 int32_t buildSysUsageInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
-  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_DISK_USAGE);
   QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
   code = blockDataEnsureCapacity(p, capacity);
@@ -2026,14 +2027,24 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
   const char*        db = NULL;
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &pStaticsInfo->dbname, &vgId, NULL, NULL);
 
-  SDbSizeStatisInfo staticsInfo = {0};
+  pStaticsInfo->vgId = vgId;
 
-  staticsInfo.vgId = vgId;
-
-  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, &staticsInfo);
+  code = pAPI->metaFn.getDBSize(pInfo->readHandle.vnode, pStaticsInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  return vnodeEstimateRawDataSize(pOperator, &staticsInfo);
+  code = vnodeEstimateRawDataSize(pOperator, pStaticsInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pStaticsInfo->memSize = pStaticsInfo->memSize >> 10;
+  pStaticsInfo->l1Size = pStaticsInfo->l1Size >> 10;
+  pStaticsInfo->l2Size = pStaticsInfo->l2Size >> 10;
+  pStaticsInfo->l3Size = pStaticsInfo->l3Size >> 10;
+  pStaticsInfo->cacheSize = pStaticsInfo->cacheSize >> 10;
+  pStaticsInfo->walSize = pStaticsInfo->walSize >> 10;
+  pStaticsInfo->metaSize = pStaticsInfo->metaSize >> 10;
+  pStaticsInfo->rawDataSize = pStaticsInfo->rawDataSize >> 10;
+  pStaticsInfo->s3Size = pStaticsInfo->s3Size >> 10;
+
 _end:
   return code;
 }
@@ -2069,9 +2080,9 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     SDBBlockUsageInfo usageInfo = {0};
     int32_t           len = tSerializeBlockDbUsage(NULL, 0, &usageInfo);
 
-    usageInfo.numOfSttRows = 120;
-    usageInfo.numOfInmemRows = 120;
-    usageInfo.numOfBlocks = 120;
+    usageInfo.dataInDiskSize = staticsInfo.l1Size + staticsInfo.l2Size + staticsInfo.l3Size;
+    usageInfo.walInDiskSize = staticsInfo.walSize;
+    usageInfo.rawDataSize = staticsInfo.rawDataSize;
 
     char* p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
     QUERY_CHECK_NULL(p, code, lino, _end, terrno);
@@ -2098,7 +2109,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     pBlock->info.rows = 1;
     pOperator->status = OP_EXEC_DONE;
     pInfo->pRes->info.rows = pBlock->info.rows;
-    // code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, pBlock->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SName sn = {0};
@@ -2111,7 +2121,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
     varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-    p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+    p = buildInfoSchemaTableMetaBlock(TSDB_INS_DISK_USAGE);
     QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
     code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
@@ -2130,10 +2140,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.memSize, false);  // memtable
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l1Size, false);  // l1_size
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2143,6 +2149,14 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
     pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.l3Size, false);  // l3_size
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.cacheSize, false);  // cache_size
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.metaSize, false);  // meta_size
     QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
@@ -2383,16 +2397,13 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
                IS_SYS_DBNAME(dbName)) {
       pBlock = sysTableScanUserSTables(pOperator);
-    } else if (strncasecmp(name, TSDB_INS_TABLE_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
-      if (pInfo->showRewrite) {
-        filter = false;
-      }
+    } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUsage(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
 
-    if (filter) sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
+    if (!pInfo->skipFilterTable) sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
     if (pBlock != NULL) {
       bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
       if (limitReached) {
@@ -2587,16 +2598,23 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 
   pInfo->pCondition = pScanNode->node.pConditions;
-  code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+
+  tNameAssign(&pInfo->name, &pScanNode->tableName);
+  const char* name = tNameGetTableName(&pInfo->name);
+  if (pInfo->showRewrite == false) {
+    code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  } else {
+    if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
+      pInfo->skipFilterTable = true;
+    }
+    code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0);
+  }
   QUERY_CHECK_CODE(code, lino, _error);
 
   initLimitInfo(pScanPhyNode->scan.node.pLimit, pScanPhyNode->scan.node.pSlimit, &pInfo->limitInfo);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
-
-  tNameAssign(&pInfo->name, &pScanNode->tableName);
-  const char* name = tNameGetTableName(&pInfo->name);
 
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
@@ -3326,13 +3344,8 @@ static int32_t vnodeEstimateDataSizeByUid(SOperatorInfo* pOperator, STableId* id
 
   void* pList = tableListGetInfo(pTableListInfo, 0);
 
-  if (pInfo->showRewrite) {
-    code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, pInfo->pRes,
-                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
-  } else {
-    code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL,
-                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
-  }
+  code = pReadHandle->api.tsdReader.tsdReaderOpen(pReadHandle->vnode, &cond, pList, num, NULL, (void**)&pInfo->pHandle,
+                                                  pTaskInfo->id.str, NULL);
   cleanupQueryTableDataCond(&cond);
   QUERY_CHECK_CODE(code, line, _end);
 

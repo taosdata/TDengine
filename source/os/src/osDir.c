@@ -591,23 +591,24 @@ int taosGetDirSize(const char *path, int64_t *size) {
       return TSDB_CODE_OUT_OF_RANGE;
     }
 
+    int64_t subSize = 0;
     if (taosIsDir(fullPath)) {
-      code = taosGetDirSize(fullPath, &totalSize);
+      code = taosGetDirSize(fullPath, &subSize);
       if (code != 0) {
         taosCloseDir(&pDir);
         return code;
       }
     } else {
-      int64_t fileSize = 0;
-      code = taosStatFile(fullPath, &fileSize, NULL, NULL);
+      code = taosStatFile(fullPath, &subSize, NULL, NULL);
       if (code != 0) {
         taosCloseDir(&pDir);
         return code;
       }
-      totalSize += fileSize;
     }
+    totalSize += subSize;
     fullPath[0] = 0;
   }
+
   *size = totalSize;
   TAOS_UNUSED(taosCloseDir(&pDir));
   return 0;

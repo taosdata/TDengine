@@ -6480,7 +6480,6 @@ int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   }
 
   SDBBlockUsageInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pInfo->minRows = INT32_MAX;
   return TSDB_CODE_SUCCESS;
 }
 int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx) {
@@ -6497,26 +6496,9 @@ int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx) {
     return TSDB_CODE_FAILED;
   }
 
-  pDistInfo->numOfBlocks += p1.numOfBlocks;
-  pDistInfo->numOfTables += p1.numOfTables;
-  pDistInfo->numOfInmemRows += p1.numOfInmemRows;
-  pDistInfo->numOfSttRows += p1.numOfSttRows;
-  pDistInfo->totalSize += p1.totalSize;
-  pDistInfo->totalRows += p1.totalRows;
-  pDistInfo->numOfFiles += p1.numOfFiles;
-
-  pDistInfo->defMinRows = p1.defMinRows;
-  pDistInfo->defMaxRows = p1.defMaxRows;
-  pDistInfo->rowSize = p1.rowSize;
-
-  if (pDistInfo->minRows > p1.minRows) {
-    pDistInfo->minRows = p1.minRows;
-  }
-  if (pDistInfo->maxRows < p1.maxRows) {
-    pDistInfo->maxRows = p1.maxRows;
-  }
-  pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
-
+  pDistInfo->dataInDiskSize += p1.dataInDiskSize;
+  pDistInfo->walInDiskSize += p1.walInDiskSize;
+  pDistInfo->rawDataSize += p1.rawDataSize;
   pResInfo->numOfRes = BLOCK_DISK_USAGE_RESULT_ROWS;  // default output rows
   return TSDB_CODE_SUCCESS;
 }
@@ -6529,21 +6511,10 @@ int32_t tSerializeBlockDbUsage(void* buf, int32_t bufLen, const SDBBlockUsageInf
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->rowSize));
 
-  TAOS_CHECK_EXIT(tEncodeU16(&encoder, pInfo->numOfFiles));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfBlocks));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfTables));
-
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->totalSize));
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->totalRows));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->maxRows));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->minRows));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->defMaxRows));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->defMinRows));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfInmemRows));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfSttRows));
-  TAOS_CHECK_EXIT(tEncodeU32(&encoder, pInfo->numOfVgroups));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->dataInDiskSize));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->walInDiskSize));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pInfo->rawDataSize));
 
   tEndEncode(&encoder);
 
@@ -6563,21 +6534,9 @@ int32_t tDeserializeBlockDbUsage(void* buf, int32_t bufLen, SDBBlockUsageInfo* p
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->rowSize));
-
-  TAOS_CHECK_EXIT(tDecodeU16(&decoder, &pInfo->numOfFiles));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfBlocks));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfTables));
-
-  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->totalSize));
-  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->totalRows));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->maxRows));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->minRows));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->defMaxRows));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->defMinRows));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfInmemRows));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfSttRows));
-  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pInfo->numOfVgroups));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->dataInDiskSize));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->walInDiskSize));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pInfo->rawDataSize));
 
 _exit:
   tDecoderClear(&decoder);
@@ -6591,26 +6550,17 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (NULL == pColInfo) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
-
-  if (pData->totalRows == 0) {
-    pData->minRows = 0;
-  }
-
   int32_t row = 0;
   char    st[256] = {0};
-  double  averageSize = 0;
-  if (pData->numOfBlocks != 0) {
-    averageSize = ((double)pData->totalSize) / pData->numOfBlocks;
-  }
-  uint64_t totalRawSize = pData->totalRows * pData->rowSize;
-  double   compRatio = 0;
-  if (totalRawSize != 0) {
-    compRatio = pData->totalSize * 100 / (double)totalRawSize;
+
+  uint64_t totalDiskSize = pData->dataInDiskSize;
+  uint64_t rawDataSize = pData->rawDataSize;
+  double   compressRadio = 0;
+  if (rawDataSize != 0) {
+    compressRadio = totalDiskSize * 100 / (double)rawDataSize;
   }
 
-  int32_t len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                          "Total_Blocks=[%d] Total_Size=[%.2f KiB] Average_size=[%.2f KiB] Compression_Ratio=[%.2f %c]",
-                          pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
+  int32_t len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio: %.2f", compressRadio);
 
   varDataSetLen(st, len);
   int32_t code = colDataSetVal(pColInfo, row++, st, false);
@@ -6618,14 +6568,8 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return code;
   }
 
-  int64_t avgRows = 0;
-  if (pData->numOfBlocks > 0) {
-    avgRows = pData->totalRows / pData->numOfBlocks;
-  }
-
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                  "Block_Rows=[%" PRId64 "] MinRows=[%d] MaxRows=[%d] AvgRows=[%" PRId64 "]", pData->totalRows,
-                  pData->minRows, pData->maxRows, avgRows);
+  len =
+      tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Disk_occupied: %" PRId64 "k", pData->dataInDiskSize);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {

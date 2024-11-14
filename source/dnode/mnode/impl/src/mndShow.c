@@ -142,7 +142,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ENCRYPTIONS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_TSMAS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USAGE, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, len) == 0) {
     type = TSDB_MGMT_TABLE_USAGE;
   } else {
     mError("invalid show name:%s len:%d", name, len);
@@ -364,9 +364,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
-    if(len < 0){
+    if (len < 0) {
       mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
-      code =  terrno;
+      code = terrno;
       return code;
     }
   }
@@ -390,7 +390,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 _exit:
   mndReleaseShowObj(pShow, false);
   blockDataDestroy(pBlock);
-  if(pRsp) {
+  if (pRsp) {
     rpcFreeCont(pRsp);
   }
   return code;

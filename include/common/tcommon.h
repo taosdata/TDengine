@@ -300,20 +300,9 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
 int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
 
 typedef struct SDBBlockUsageInfo {
-  uint32_t rowSize;
-  uint16_t numOfFiles;
-  uint32_t numOfTables;
-  uint32_t numOfBlocks;
-  uint64_t totalSize;
-  uint64_t totalRows;
-  int32_t  maxRows;
-  int32_t  minRows;
-  int32_t  defMinRows;
-  int32_t  defMaxRows;
-  int32_t  firstSeekTimeUs;
-  uint32_t numOfInmemRows;
-  uint32_t numOfSttRows;
-  uint32_t numOfVgroups;
+  uint64_t dataInDiskSize;
+  uint64_t walInDiskSize;
+  uint64_t rawDataSize;
 } SDBBlockUsageInfo;
 
 int32_t tSerializeBlockDbUsage(void* buf, int32_t bufLen, const SDBBlockUsageInfo* pInfo);
