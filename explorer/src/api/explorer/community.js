@@ -2450,6 +2450,32 @@ export function getDataSources(lang) {
                 placeholder: "topic1::0,topic2::1",
                 edit_disabled: true,
               },
+              {
+                name: "compression",
+                display: "Compression",
+                hint: {
+                  type: "str",
+                  choices: ["none", "gzip", "snappy", "lz4", "zstd"],
+                },
+                short_description:
+                  "To save network bandwidth, you can compress the data and send it to MQTT broker. The same compression algorithm is configured here to achieve decompression.",
+                description:
+                  "To save network bandwidth, you can compress the data and send it to MQTT broker. The same compression algorithm is configured here to achieve decompression.",
+                value: "none",
+              },
+              {
+                name: "char_encoding",
+                display: "Char Encoding",
+                hint: {
+                  type: "str",
+                  choices: ["utf8", "GBK"],
+                },
+                short_description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                description:
+                  "TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.",
+                value: "utf8",
+              },
             ],
           },
         ],
@@ -7277,6 +7303,32 @@ export function getDataSources(lang) {
                   "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`",
                 placeholder: "topic1::0,topic2::1",
                 edit_disabled: true,
+              },
+              {
+                name: "compression",
+                display: "数据压缩",
+                hint: {
+                  type: "str",
+                  choices: ["none", "gzip", "snappy", "lz4", "zstd"],
+                },
+                short_description:
+                  "为了节省网络带宽，您可以将数据压缩后发送给 mqtt broker，这里配置同样的压缩算法，可实现解压缩",
+                description:
+                  "为了节省网络带宽，您可以将数据压缩后发送给 mqtt broker，这里配置同样的压缩算法，可实现解压缩",
+                value: "none",
+              },
+              {
+                name: "char_encoding",
+                display: "字符编码",
+                hint: {
+                  type: "str",
+                  choices: ["utf8", "GBK"],
+                },
+                short_description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                description:
+                  "taosX 默认只接收 utf8 编码的字符串，如果发送端使用了非 utf8 编码，需要在这里指定。",
+                value: "utf8",
               },
             ],
           },
