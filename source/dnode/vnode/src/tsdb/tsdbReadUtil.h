@@ -30,13 +30,13 @@ extern "C" {
   do {                      \
     (_w)->skey = INT64_MAX; \
     (_w)->ekey = INT64_MIN; \
-  } while (0);
+  } while (0)
 
 #define INIT_KEYRANGE(_k)      \
   do {                         \
     (_k)->skey.ts = INT64_MAX; \
     (_k)->ekey.ts = INT64_MIN; \
-  } while (0);
+  } while (0)
 
 #define tRowGetKeyEx(_pRow, _pKey)                                         \
   {                                                                        \
@@ -72,7 +72,6 @@ typedef struct STsdbReaderInfo {
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
-  int32_t currentIndex;
   SArray* pData;
   int32_t numPerBucket;
   int32_t numOfTables;
@@ -241,7 +240,6 @@ typedef struct SDataBlockIter {
   int32_t    index;
   SArray*    blockList;  // SArray<SFileDataBlockInfo>
   int32_t    order;
-  SDataBlk   block;  // current SDataBlk data
 } SDataBlockIter;
 
 typedef struct SFileBlockDumpInfo {
@@ -321,7 +319,7 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
                                STsdbReader* pReader);
 void    clearBlockScanInfo(STableBlockScanInfo* p);
-void    destroyAllBlockScanInfo(SSHashObj* pTableMap);
+void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
 void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
 void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
 int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
@@ -335,7 +333,7 @@ void    clearBrinBlockIter(SBrinRecordIter* pIter);
 
 // initialize block iterator API
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList);
-bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
+bool    blockIteratorNext(SDataBlockIter* pBlockIter);
 
 // load tomb data API (stt/mem only for one table each, tomb data from data files are load for all tables at one time)
 int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);

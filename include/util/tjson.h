@@ -25,7 +25,7 @@ extern "C" {
 
 #define tjsonGetNumberValue(pJson, pName, val, code) \
   do {                                               \
-    uint64_t _tmp = 0;                               \
+    int64_t _tmp = 0;                                \
     code = tjsonGetBigIntValue(pJson, pName, &_tmp); \
     val = _tmp;                                      \
   } while (0)
