@@ -2547,7 +2547,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->tsdbPageSize) < 0) return -1;
   ENCODESQL();
 
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dnodeListStr));
+  if (tEncodeCStr(&encoder, pReq->dnodeListStr) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2613,7 +2613,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   DECODESQL();
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dnodeListStr));
+    if (tDecodeCStrTo(&decoder, pReq->dnodeListStr) < 0) return -1;
   }
   tEndDecode(&decoder);
 
