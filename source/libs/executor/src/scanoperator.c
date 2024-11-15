@@ -3468,11 +3468,6 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
-  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-  if (!pUpInfo) {
-    lino = __LINE__;
-    goto _end;
-  }
   SDecoder decoder = {0};
   pDeCoder = &decoder;
   tDecoderInit(pDeCoder, buf, tlen);
@@ -3481,14 +3476,21 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
-  code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
-  if (code == TSDB_CODE_SUCCESS) {
-    pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
-    pInfo->pUpdateInfo = pUpInfo;
-  } else {
-    taosMemoryFree(pUpInfo);
-    lino = __LINE__;
-    goto _end;
+  if (pInfo->pUpdateInfo != NULL) {
+    void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+    if (!pUpInfo) {
+      lino = __LINE__;
+      goto _end;
+    }
+    code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
+    if (code == TSDB_CODE_SUCCESS) {
+      pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
+      pInfo->pUpdateInfo = pUpInfo;
+    } else {
+      taosMemoryFree(pUpInfo);
+      lino = __LINE__;
+      goto _end;
+    }
   }
 
   if (tDecodeIsEnd(pDeCoder)) {
