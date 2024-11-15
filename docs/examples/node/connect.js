@@ -1,16 +1,23 @@
-const { options, connect } = require("@tdengine/rest");
+const taos = require('@tdengine/websocket');
 
-async function test() {
-  options.url = process.env.TDENGINE_CLOUD_URL;
-  options.query = { token: process.env.TDENGINE_CLOUD_TOKEN };
-  let conn = connect(options);
-  let cursor = conn.cursor();
+var url = process.env.TDENGINE_CLOUD_URL;
+var token = process.env.TDENGINE_CLOUD_TOKEN;
+async function createConnect() {
+  let conn = null;
   try {
-    let res = await cursor.query("show databases");
-    res.toString();
+    let conf = new taos.WSConfig(url);
+    conf.setToken(token);
+    conn = await taos.sqlConnect(conf);
+    let res = await conn.query('show databases');
+    while (await res.next()) {
+      let row = res.getData();
+      console.log(row[0]);
+    }
   } catch (err) {
-    console.log(err);
+    throw err;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
   }
 }
-
-test();

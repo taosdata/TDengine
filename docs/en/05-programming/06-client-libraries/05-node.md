@@ -4,13 +4,9 @@ title: TDengine Node.JS Client Library
 description: This document describes the TDengine Node.js client library.
 ---
 
- `@tdengine/rest` is the official Node.js language client library for TDengine. Node.js developers can develop applications to access TDengine instance data. `@tdengine/rest` connects to TDengine instances via the REST API.
+`@tdengine/websocket` is the official Node.js language client library for TDengine. Node.js developers can develop applications to access TDengine instance data. `@tdengine/websocket` connects to TDengine instances via the WebSocket API.
 
-The source code for the Node.js client library is located on [GitHub](https://github.com/taosdata/taos-connector-node/tree/3.0).
-
-## Version support
-
-Please refer to [version support list](/client-libraries/#version-support)
+The source code for the Node.js client library is located on [GitHub](https://github.com/taosdata/taos-connector-node/tree/main).
 
 ## Installation steps
 
@@ -21,7 +17,7 @@ Install the Node.js development environment
 ### Install via npm
 
 ```bash
-npm install @tdengine/rest
+npm install @tdengine/websocket
 ```
 
 ## Establishing a connection
@@ -33,7 +29,7 @@ npm install @tdengine/rest
 ## Usage examples
 
 ```javascript
-{{#include docs/examples/node/reference_example.js:usage}}
+{{#include docs/examples/node/insert.js:usage}}
 ```
 
 ## Frequently Asked Questions
@@ -44,20 +40,13 @@ npm install @tdengine/rest
    sudo systemctl start taosadapter
    ```
 
-2. Node.js versions
-
-   `@tdengine/client` supports Node.js v10.9.0 to 10.20.0 and 12.8.0 to 12.9.1.
-
-3. "Unable to establish connection", "Unable to resolve FQDN"
+2. "Unable to establish connection", "Unable to resolve FQDN"
 
    Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
 
 ## Important update records
 
-| package name         | version | TDengine version    | Description                                                  |
-| -------------------- | ------- | ------------------- | ------------------------------------------------------------ |
-| @tdengine/rest       | 3.0.0   | 3.0.0               | Supports TDengine 3.0. Not compatible with TDengine 2.x.     |
-| td2.0-rest-connector | 1.0.7   | 2.4.x；2.5.x；2.6.x | Removed default port 6041。                                  |
-| td2.0-rest-connector | 1.0.6   | 2.4.x；2.5.x；2.6.x | Fixed affectRows bug with create, insert, update, and alter. |
-| td2.0-rest-connector | 1.0.5   | 2.4.x；2.5.x；2.6.x | Support cloud token                                          |
-| td2.0-rest-connector | 1.0.3   | 2.4.x；2.5.x；2.6.x | Supports connection management, standard queries, system information, error information, and continuous queries |
+| version | TDengine version | Description                         |
+| ------- | ---------------- | ----------------------------------- |
+| 3.1.1   | 3.3.2.0 or later | Optimized data transfer performance |
+| 3.1.0   | 3.2.0.0 or later | new version, supports websocket     |
