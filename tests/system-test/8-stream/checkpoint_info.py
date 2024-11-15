@@ -84,6 +84,7 @@ class TDTestCase:
 
     def restart_stream(self):
         tdLog.debug("========restart stream========")
+        time.sleep(10)
         for i in range(5):
             tdSql.execute("pause stream s1")
             time.sleep(2)
