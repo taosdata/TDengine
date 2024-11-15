@@ -2,7 +2,7 @@
 # taosws-rs
 ExternalProject_Add(taosws-rs
         GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
-        GIT_TAG main
+        GIT_TAG ver-3.3.4.3
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taosws-rs"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
