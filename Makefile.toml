@@ -563,7 +563,16 @@ args = [
 
 [tasks.test-without-cov]
 command = "cargo"
-args = ["nextest", "run", "--workspace"]
+args = [
+  "nextest",
+  "run",
+  "--workspace",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/_with_taos$/)",
+]
 
 [tasks.pre-commit]
 dependencies = ["fmt", "clippy", "test-without-cov"]
@@ -629,4 +638,4 @@ install_script = """
 mkdir explorer/server/dist/ || true
 """
 command = "cargo"
-args = ["llvm-cov", "nextest", "--workspace", "--html"]
+args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
