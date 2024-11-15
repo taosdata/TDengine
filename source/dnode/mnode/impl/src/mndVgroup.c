@@ -844,7 +844,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups, SArray *
     goto _OVER;
   }
 
-  pArray = mndBuildDnodesArray(pMnode, 0, NULL);
+  pArray = mndBuildDnodesArray(pMnode, 0, dnodeList);
   if (pArray == NULL) goto _OVER;
 
   mInfo("db:%s, total %d dnodes used to create %d vgroups (%d vnodes)", pDb->name, (int32_t)taosArrayGetSize(pArray),

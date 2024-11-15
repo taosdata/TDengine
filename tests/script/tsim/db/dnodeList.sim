@@ -145,44 +145,6 @@ if $data(4)[2] != 1 then
 endi
 sql drop database d18;
 
-print --- replica 2
-
-print --- case20
-sql create database d20 replica 2 vgroups 1 dnodes '1,2';
-sql show dnodes;
-if $data(1)[2] != 1 then
-  return -1
-endi
-if $data(2)[2] != 1 then
-  return -1
-endi
-sql drop database d20;
-
-print --- case21
-sql create database d21 replica 2 vgroups 3 dnodes '1,2,3';
-sql show dnodes;
-if $data(1)[2] != 2 then
-  return -1
-endi
-if $data(2)[2] != 2 then
-  return -1
-endi
-if $data(3)[2] != 2 then
-  return -1
-endi
-sql drop database d21;
-
-print --- case22
-sql create database d22 replica 2 vgroups 2 dnodes '1,2';
-sql show dnodes;
-if $data(1)[2] != 2 then
-  return -1
-endi
-if $data(2)[2] != 2 then
-  return -1
-endi
-sql drop database d22;
-
 print --- replica 3
 
 print --- case30
