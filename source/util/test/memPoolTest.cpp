@@ -1064,9 +1064,6 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
     
     for (int32_t i = 0; i < jobNum; ++i) {
       SMPTestJobCtx* pJobCtx = &mptCtx.jobCtxs[i];
-      if (NULL == pJobCtx->pJob) {
-        continue;
-      }
 
       sleepTimes = 0;
       while (taosRTryLockLatch(&pJobCtx->jobExecLock)) {
@@ -1079,6 +1076,10 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
 
       if (sleepTimes > 100) {
         break;
+      }
+
+      if (NULL == pJobCtx->pJob) {
+        continue;
       }
 
       int64_t jobUsedSize = 0;
