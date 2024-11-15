@@ -945,6 +945,9 @@ int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
 }
 
 int32_t operatorResultCheck(SOperatorInfo* pOperator, SSDataBlock* pRes) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
   CHECK_CONDITION_FAILED(pOperator);
   CHECK_CONDITION_FAILED(pRes);
 

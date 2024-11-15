@@ -278,6 +278,9 @@ _end:
 }
 
 int32_t aggregateResultCheck(SOperatorInfo* pOperator, SSDataBlock* ppRes) {
+  if (tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
   CHECK_CONDITION_FAILED(operatorResultCheck(pOperator, ppRes) == TSDB_CODE_SUCCESS);
   return TSDB_CODE_SUCCESS;
 }
