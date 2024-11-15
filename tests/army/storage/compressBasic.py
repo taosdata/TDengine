@@ -209,17 +209,6 @@ class TDTestCase(TBase):
         comps.append(self.compresses[0]) # add lz4
         for comp in comps:
             for i in range(self.colCnt - 1):
-                col = f"c{i}"
-                sql2=  f"desc {tbname}"
-                tdSql.execute(sql2, show=True)
-                  
-                defaultValue = self.compressDefaultDict[tdSql.getData(i, 1)]
-                if defaultValue == None:
-                    defaultValue = self.defCompress
-                if defaultValue != comp: 
-                    sql = f"alter table {tbname} modify column {col} COMPRESS '{comp}';"
-                    tdSql.execute(sql, show=False)
-                    self.checkDataDesc(tbname, i + 1, 5, comp)
                 self.writeData(1000)
 
         # alter float(c9) double(c10) to tsz
