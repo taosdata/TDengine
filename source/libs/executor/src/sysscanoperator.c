@@ -2606,8 +2606,10 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   } else {
     if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pInfo->skipFilterTable = true;
+      code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0);
+    } else {
+      code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
     }
-    code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0);
   }
   QUERY_CHECK_CODE(code, lino, _error);
 
