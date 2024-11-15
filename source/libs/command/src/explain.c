@@ -2112,6 +2112,7 @@ static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) 
 }
 
 int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
+  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
@@ -2176,6 +2177,7 @@ _exit:
 }
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
+  if (!pDag || !pRsp) return TSDB_CODE_INVALID_PARA;
   int32_t      code = 0;
   SExplainCtx *pCtx = NULL;
 
@@ -2188,6 +2190,7 @@ _return:
 }
 
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs) {
+  if(!pDag || !pCtx) return TSDB_CODE_INVALID_PARA;
   QRY_ERR_RET(qExplainPrepareCtx(pDag, pCtx));
 
   (*pCtx)->reqStartTs = startTs;
@@ -2197,6 +2200,7 @@ int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs)
 }
 
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
+  if(!pCtx || !pRsp) return TSDB_CODE_INVALID_PARA;
   int32_t code = 0;
   pCtx->jobDoneTs = taosGetTimestampUs();
 
