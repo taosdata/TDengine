@@ -1020,7 +1020,7 @@ void mpUpdateSystemAvailableMemorySize() {
 void* mpMgmtThreadFunc(void* param) {
   int32_t timeout = 0;
   int64_t retireSize = 0;
-  SMemPool* pPool = (SMemPool*)gMemPoolHandle;
+  SMemPool* pPool = (SMemPool*)atomic_load_ptr(&gMemPoolHandle);
   
   while (0 == atomic_load_8(&gMPMgmt.modExit)) {
     mpUpdateSystemAvailableMemorySize();
@@ -1045,6 +1045,8 @@ void* mpMgmtThreadFunc(void* param) {
     }
 */    
   }
+
+  taosMemPoolModDestroy();
   
   return NULL;
 }
@@ -1070,7 +1072,9 @@ _return:
 
 void mpModInit(void) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
+  gMPMgmt.modExit = 0;
+
   taosInitRWLatch(&gMPMgmt.poolLock);
   
   gMPMgmt.poolList = taosArrayInit(10, POINTER_BYTES);
@@ -1080,11 +1084,11 @@ void mpModInit(void) {
 
   gMPMgmt.strategy = E_MP_STRATEGY_DIRECT;
 
-  gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
-  if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
-    uError("failed to init sem2, error: 0x%x", gMPMgmt.code);
-    return;
-  }
+  //gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
+  //if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
+  //  uError("failed to init sem2, error: 0x%x", gMPMgmt.code);
+  //  return;
+  //}
 
   gMPMgmt.waitMs = MP_DEFAULT_MEM_CHK_INTERVAL_MS;
 
@@ -1092,6 +1096,13 @@ _return:
 
   gMPMgmt.code = code;
 }
+
+
+void mpFreePool(void* p) {
+  SMemPool* pPool = *(void**)p;
+  taosMemoryFree(pPool);
+}
+
 
 void taosMemPoolPrintStat(void* poolHandle, void* session, char* procName) {
   SMemPool* pPool = (SMemPool*)poolHandle;
@@ -1129,7 +1140,9 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = NULL;
   
-  MP_ERR_JRET(taosThreadOnce(&gMPoolInit, mpModInit));
+  //MP_ERR_JRET(taosThreadOnce(&gMPoolInit, mpModInit));
+  mpModInit();
+  
   if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
     uError("init memory pool failed, code: 0x%x", gMPMgmt.code);
     MP_ERR_JRET(gMPMgmt.code);
@@ -1481,10 +1494,16 @@ void taosMemPoolClose(void* poolHandle) {
 
   taosMemoryFree(pPool->name);
   mpDestroyCacheGroup(&pPool->sessionCache);
+
+  atomic_store_8(&gMPMgmt.modExit, 1);
 }
 
-void taosMemPoolModDestroy(void) {
 
+void taosMemPoolModDestroy(void) {
+  gMemPoolHandle = NULL;
+  
+  taosArrayDestroyEx(gMPMgmt.poolList, mpFreePool);
+  gMPMgmt.poolList = NULL;
 }
 
 
