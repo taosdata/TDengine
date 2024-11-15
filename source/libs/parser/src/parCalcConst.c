@@ -326,6 +326,7 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelec
 
 static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = calcConstList(pSelect->pGroupByList);
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pNode = NULL;
     FOREACH(pNode, pSelect->pGroupByList) {
@@ -338,6 +339,7 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
     }
     NODES_DESTORY_LIST(pSelect->pGroupByList);
   }
+#endif
   return code;
 }
 
