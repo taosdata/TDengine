@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
-#include "geosWrapper.h"
 #include "tRealloc.h"
 #include "tdatablock.h"
 #include "tlog.h"
@@ -3037,36 +3036,7 @@ _exit:
   return code;
 }
 
-int32_t formatGeometry(SColData *pColData, int8_t *buf, int32_t lenght, int32_t buffMaxLen) {
-  int32_t        code = 0;
-  unsigned char *output = NULL;
-  size_t         size = 0;
-  uint8_t       *g = NULL;
-  code = tRealloc(&g, lenght);
-  if (code) {
-    return code;
-  }
-
-  (void)memcpy(g, buf, lenght);
-  code = doGeomFromText(g, &output, &size);
-  tFree(g);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-  if (size > buffMaxLen) {
-    code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-    goto _exit;
-  }
-
-  code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, output, size);
-
-_exit:
-  geosFreeBuffer(output);
-  return code;
-}
-
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen) {
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3076,13 +3046,6 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
-    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-      code = initCtxGeomFromText();
-      if (code != TSDB_CODE_SUCCESS) {
-        uError("init geom from text failed, code:%d", code);
-        return code;
-      }
-    }
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
@@ -3095,8 +3058,16 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = formatGeometry(pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i],
-                                buffMaxLen);
+          int32_t size = 0;
+          char   *out = NULL;
+          code = fg((char *)pBind->buffer + pBind->buffer_length * i, pBind->length[i], buffMaxLen, &out, &size);
+          if (code) {
+            taosMemoryFree(out);
+            goto _exit;
+          }
+
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, out, size);
+          taosMemoryFree(out);
         } else {
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
               pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
@@ -3149,7 +3120,7 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen) {
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3160,13 +3131,6 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
     uint8_t *buf = pBind->buffer;
-    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-      code = initCtxGeomFromText();
-      if (code != TSDB_CODE_SUCCESS) {
-        uError("init geom from text failed, code:%d", code);
-        return code;
-      }
-    }
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
@@ -3184,7 +3148,16 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = formatGeometry(pColData, buf, pBind->length[i], buffMaxLen);
+          int32_t size = 0;
+          char   *out = NULL;
+          code = fg((char *)buf, pBind->length[i], buffMaxLen, &out, &size);
+          if (code) {
+            taosMemoryFree(out);
+            goto _exit;
+          }
+
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, out, size);
+          taosMemoryFree(out);
         } else {
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         }

@@ -321,6 +321,39 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t formatGeometry(char* geoStr, int32_t lenght, int32_t buffMaxLen, char** out, int32_t* size) {
+  int32_t        code = 0;
+  unsigned char* output = NULL;
+  char*          tmp = NULL;
+  code = initCtxGeomFromText();
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("init geom from text failed, code:%d", code);
+    return code;
+  }
+
+  code = doGeomFromText(geoStr, &output, (size_t*)size);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  if (*size > buffMaxLen) {
+    code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+    goto _exit;
+  }
+
+  tmp = taosMemoryCalloc(1, *size);
+  if (NULL == tmp) {
+    code = terrno;
+    goto _exit;
+  }
+  memcpy(tmp, output, *size);
+  *out = tmp;
+
+_exit:
+  geosFreeBuffer(output);
+  return code;
+}
+
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                               STSchema** pTSchema, SBindInfo* pBindInfos) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
@@ -425,8 +458,8 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
       pBind = bind + c;
     }
 
-    code = tColDataAddValueByBind(pCol, pBind,
-                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+    code = tColDataAddValueByBind(
+        pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
     if (code) {
       goto _return;
     }
@@ -477,8 +510,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
     pBind = bind;
   }
 
-  code = tColDataAddValueByBind(pCol, pBind,
-                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+  code = tColDataAddValueByBind(
+      pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -856,8 +889,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       pBind = bind + c;
     }
 
-    code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+    code = tColDataAddValueByBind2(
+        pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
     if (code) {
       goto _return;
     }
@@ -908,8 +941,8 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
     pBind = bind;
   }
 
-  code = tColDataAddValueByBind2(pCol, pBind,
-                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+  code = tColDataAddValueByBind2(
+      pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 

@@ -15,12 +15,13 @@ void do_query(TAOS* taos, const char* sql) {
   taos_free_result(result);
 }
 
-void execute_test(TAOS* taos, const char* tbname, const char* tag2, const char* col2, const char* case_desc) {
+void execute_test(TAOS* taos, const char* tbname1, const char* tbname2, const char* tag2, const char* col2,
+                  const char* case_desc) {
   // prepare stmt
   TAOS_STMT2_OPTION option = {0, true, false, NULL, NULL};
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
   const char*       sql;
-  if (tbname == "tb4") {
+  if (tbname1 == "tb41") {
     sql = "insert into db.? using db.stb2 tags(?, ?) values(?,?)";
   } else {
     sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
@@ -35,17 +36,22 @@ void execute_test(TAOS* taos, const char* tbname, const char* tag2, const char* 
   }
 
   // prepare data
-  int              t1_val = 0;
-  int64_t          ts = 1591060628000;
-  int32_t          length[5] = {sizeof(int), 2, sizeof(int64_t), (int32_t)strlen(tag2), (int32_t)strlen(col2)};
-  TAOS_STMT2_BIND  tags[2] = {{TSDB_DATA_TYPE_INT, &t1_val, &length[0], NULL, 1},
-                              {TSDB_DATA_TYPE_GEOMETRY, (void*)tag2, &length[3], NULL, 1}};
-  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &length[2], NULL, 1},
-                                {TSDB_DATA_TYPE_GEOMETRY, (void*)col2, &length[4], NULL, 1}};
-  TAOS_STMT2_BIND* tagv[1] = {&tags[0]};
-  TAOS_STMT2_BIND* paramv[1] = {&params[0]};
+  int             t1_val = 0;
+  int64_t         ts = 1591060628000;
+  const char*     tbname[2] = {tbname1, tbname2};
+  int32_t         length[5] = {sizeof(int), 2, sizeof(int64_t), (int32_t)strlen(tag2), (int32_t)strlen(col2)};
+  TAOS_STMT2_BIND tags[2][2] = {
+      {{TSDB_DATA_TYPE_INT, &t1_val, &length[0], NULL, 2}, {TSDB_DATA_TYPE_GEOMETRY, (void*)tag2, &length[3], NULL, 2}},
+      {{TSDB_DATA_TYPE_INT, &t1_val, &length[0], NULL, 2},
+       {TSDB_DATA_TYPE_GEOMETRY, (void*)tag2, &length[3], NULL, 2}}};
+  TAOS_STMT2_BIND  params[2][2] = {{{TSDB_DATA_TYPE_TIMESTAMP, &ts, &length[2], NULL, 1},
+                                    {TSDB_DATA_TYPE_GEOMETRY, (void*)col2, &length[4], NULL, 1}},
+                                   {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &length[2], NULL, 1},
+                                    {TSDB_DATA_TYPE_GEOMETRY, (void*)col2, &length[4], NULL, 1}}};
+  TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
+  TAOS_STMT2_BIND* paramv[2] = {&params[0][0], &params[1][0]};
 
-  TAOS_STMT2_BINDV bindv = {1, &tbname, &tagv[0], &paramv[0]};
+  TAOS_STMT2_BINDV bindv = {2, &tbname[0], &tagv[0], &paramv[0]};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   if (code != 0) {
     printf("  failed to bind param. error:%s\n", taos_stmt2_error(stmt));
@@ -64,17 +70,19 @@ void execute_test(TAOS* taos, const char* tbname, const char* tag2, const char* 
 }
 
 void test1(TAOS* taos) {
-  execute_test(taos, "tb1", "POINT(1.0 1.0)", "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)", "[normal]case 1");
+  execute_test(taos, "tb11", "tb12", "POINT(1.0 1.0)", "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)", "[normal]case 1");
 }
 
 void test2(TAOS* taos) {
-  execute_test(taos, "tb2", "hello", "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)", "[wrong tag]case 2");
+  execute_test(taos, "tb21", "tb22", "hello", "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 3.0)", "[wrong tag]case 2");
 }
 
-void test3(TAOS* taos) { execute_test(taos, "tb3", "POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))", "1", "[wrong col]case 3"); }
+void test3(TAOS* taos) {
+  execute_test(taos, "tb31", "tb32", "POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))", "1", "[wrong col]case 3");
+}
 
 void test4(TAOS* taos) {
-  execute_test(taos, "tb4", "POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))", "POINT(1.0 1.0)", "[wrong size]case 4");
+  execute_test(taos, "tb41", "tb42", "POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))", "POINT(1.0 1.0)", "[wrong size]case 4");
 }
 
 int main() {

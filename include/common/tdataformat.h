@@ -57,9 +57,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i)&7)
+#define MOD_8(i)          ((i) & 7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i)&3)
+#define MOD_4(i)          ((i) & 3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -174,6 +174,7 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
+typedef int32_t (*formatGeometryFn)(char *geoStr, int32_t lenght, int32_t buffMaxLen, char **out, int32_t *size);
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -192,7 +193,7 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg);
 int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
@@ -379,7 +380,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
                           SArray *rowArray);
 
 // stmt2 binding
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg);
 
 typedef struct {
   int32_t          columnId;

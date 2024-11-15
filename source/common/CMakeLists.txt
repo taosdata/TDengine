@@ -49,7 +49,6 @@ target_link_libraries(
   PUBLIC os
   PUBLIC util
   INTERFACE api
-  PRIVATE geometry
 )
 
 if(${BUILD_S3})
