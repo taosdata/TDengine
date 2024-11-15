@@ -33,7 +33,7 @@ npm install @tdengine/websocket
 ## 更多示例程序
 
 ```javascript
-{{#include docs/examples/node/connect.js}}
+{{#include docs/examples/node/connect.js:usage}}
 ```
 
 ## 常见问题
