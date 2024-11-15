@@ -437,6 +437,18 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by 1")
         tdSql.checkRows(10)
+    
+    def test_TD_32883(self):
+        sql = "select avg(c1), t9 from stb group by t9,t9, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), t10 from stb group by t10,t10, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), t10 from stb partition by t10,t10, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+
     def run(self):
         tdSql.prepare()
         self.prepare_db()
@@ -470,6 +482,7 @@ class TDTestCase:
         self.test_event_window(nonempty_tb_num)
 
         self.test_TS5567()
+        self.test_TD_32883()
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)

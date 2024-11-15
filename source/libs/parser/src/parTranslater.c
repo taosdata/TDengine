@@ -5531,7 +5531,6 @@ static int32_t translateGroupByList(STranslateContext* pCxt, SSelectStmt* pSelec
   SReplaceGroupByAliasCxt cxt = {
       .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pGroupByList, translateGroupPartitionByImpl, &cxt);
-
   return pCxt->errCode;
 }
 
@@ -5543,7 +5542,6 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
   SReplaceGroupByAliasCxt cxt = {
       .pTranslateCxt = pCxt, .pProjectionList = pSelect->pProjectionList};
   nodesRewriteExprsPostOrder(pSelect->pPartitionByList, translateGroupPartitionByImpl, &cxt);
-
   return pCxt->errCode;
 }
 

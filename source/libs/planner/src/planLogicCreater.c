@@ -838,8 +838,11 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   if (NULL != pSelect->pGroupByList) {
-    pAgg->pGroupKeys = NULL;
-    code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    code = nodesListDeduplicate(&pSelect->pGroupByList);
+    if (TSDB_CODE_SUCCESS == code) {
+      pAgg->pGroupKeys = NULL;
+      code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    }
   }
 
   // rewrite the expression in subsequent clauses

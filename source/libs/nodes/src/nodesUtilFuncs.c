@@ -2948,3 +2948,37 @@ void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNod
     inSize *= 2;
   }
 }
+
+static SNode* nodesListFindNode(SNodeList* pList, SNode* pNode) {
+  SNode* pFound = NULL;
+  FOREACH(pFound, pList) {
+    if (nodesEqualNode(pFound, pNode)) {
+      break;
+    }
+  }
+  return pFound;
+}
+
+int32_t nodesListDeduplicate(SNodeList** ppList) {
+  if (!ppList || LIST_LENGTH(*ppList) == 0) return TSDB_CODE_SUCCESS;
+  SNodeList* pTmp = NULL;
+  int32_t code = nodesMakeList(&pTmp);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, *ppList) {
+      SNode* pFound = nodesListFindNode(pTmp, pNode);
+      if (NULL == pFound) {
+        code = nodesCloneNode(pNode, &pFound);
+        if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTmp, pFound);
+        if (TSDB_CODE_SUCCESS != code) break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(*ppList);
+    *ppList = pTmp;
+  } else {
+    nodesDestroyList(pTmp);
+  }
+  return code;
+}
