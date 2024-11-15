@@ -65,6 +65,14 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef enum {
+  TSDB_OPTION_CONNECTION_CHARSET,        // charset, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
+  TSDB_OPTION_CONNECTION_USER_IP,        // user ip
+  TSDB_OPTION_CONNECTION_USER_APP,       // user app
+  TSDB_MAX_CONNECTION_OPTIONS = 100
+} TSDB_OPTION_CONNECTION;
+
+typedef enum {
   TSDB_OPTION_CONNECT_CHARSET,
   TSDB_OPTION_CONNECT_TIMEZONE,
   TSDB_OPTION_CONNECT_IP,
@@ -166,7 +174,7 @@ typedef struct TAOS_STMT_OPTIONS {
 
 DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
-DLL_EXPORT int        taos_options_connect(TAOS *taos, TSDB_OPTION_CONNECT option, const void *arg, ...);
+DLL_EXPORT int        taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);

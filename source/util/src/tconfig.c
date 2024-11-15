@@ -245,6 +245,17 @@ static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType styp
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0){
+    uError("failed to config timezone, not support");
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
+  if(!taosIsValidateTimezone(value)){
+    uError("invalid timezone:%s", value);
+    TAOS_RETURN(TSDB_CODE_INVALID_TIMEZONE);
+  }
+  TAOS_CHECK_RETURN(osSetTimezone(value));
+
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
   if (strlen(value) == 0) {
     uError("cfg:%s, type:%s src:%s, value:%s, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
@@ -252,7 +263,6 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
-  TAOS_CHECK_RETURN(osSetTimezone(value));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -634,6 +644,10 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "taos_options";
     case CFG_STYPE_ENV_CMD:
       return "env_cmd";
+    case CFG_STYPE_ALTER_CLIENT_CMD:
+      return "alter_client_cmd";
+    case CFG_STYPE_ALTER_SERVER_CMD:
+      return "alter_server_cmd";
     default:
       return "invalid";
   }

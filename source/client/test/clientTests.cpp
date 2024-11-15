@@ -1610,4 +1610,159 @@ TEST(clientCase, timezone_Test) {
   }
 }
 
+time_t time_winter = 1731323281;    // 2024-11-11 19:08:01+0800
+time_t time_summer = 1731323281 - 120 * 24 * 60 * 60;
+
+struct test_times
+{
+  const char *name;
+  time_t  t;
+  const char *timezone;
+} test_tz[] = {
+    {"",                 time_winter, " (UTC, +0000)"},
+    {"America/New_York", time_winter, "America/New_York (EST, -0500)"},  // 2024-11-11 19:08:01+0800
+    {"America/New_York", time_summer, "America/New_York (EDT, -0400)"},
+    {"Asia/Kolkata",     time_winter, "Asia/Kolkata (IST, +0530)"},
+    {"Asia/Shanghai",    time_winter, "Asia/Shanghai (CST, +0800)"},
+    {"Europe/London",    time_winter, "Europe/London (GMT, +0000)"},
+    {"Europe/London",    time_summer, "Europe/London (BST, +0100)"}
+};
+
+void timezone_str_test(const char* tz, time_t t, const char* tzStr) {
+  int code = setenv("TZ", tz, 1);
+  ASSERT(-1 != code);
+  tzset();
+
+  char str1[TD_TIMEZONE_LEN] = {0};
+  ASSERT(taosFormatTimezoneStr(t, tz, NULL, str1) == 0);
+  ASSERT_STREQ(str1, tzStr);
+}
+
+void timezone_rz_str_test(const char* tz, time_t t, const char* tzStr) {
+  timezone_t sp = tzalloc(tz);
+  ASSERT(sp);
+
+  char str1[TD_TIMEZONE_LEN] = {0};
+  ASSERT(taosFormatTimezoneStr(t, tz, sp, str1) == 0);
+  ASSERT_STREQ(str1, tzStr);
+  tzfree(sp);
+}
+
+TEST(clientCase, format_timezone_Test) {
+  for (unsigned int i = 0; i < sizeof (test_tz) / sizeof (test_tz[0]); ++i){
+    timezone_str_test(test_tz[i].name, test_tz[i].t, test_tz[i].timezone);
+    timezone_str_test(test_tz[i].name, test_tz[i].t, test_tz[i].timezone);
+  }
+}
+
+TEST(clientCase, get_tz_Test) {
+  {
+    char tz[TD_TIMEZONE_LEN] = {0};
+    getTimezoneStr(tz);
+    ASSERT_STREQ(tz, "Asia/Shanghai");
+
+//    getTimezoneStr(tz);
+//    ASSERT_STREQ(tz, "Asia/Shanghai");
+//
+//    getTimezoneStr(tz);
+//    ASSERT_STREQ(tz, "n/a");
+  }
+}
+
+struct {
+  const char *	env;
+  time_t	expected;
+} test_mk[] = {
+    {"MST",	832935315},
+    {"",		832910115},
+    {":UTC",	832910115},
+    {"UTC",	832910115},
+    {"UTC0",	832910115}
+};
+
+
+TEST(clientCase, mktime_Test){
+  struct tm tm;
+  time_t t;
+
+  memset (&tm, 0, sizeof (tm));
+  tm.tm_isdst = 0;
+  tm.tm_year  = 96;	/* years since 1900 */
+  tm.tm_mon   = 4;
+  tm.tm_mday  = 24;
+  tm.tm_hour  =  3;
+  tm.tm_min   = 55;
+  tm.tm_sec   = 15;
+
+  for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
+  {
+    setenv ("TZ", test_mk[i].env, 1);
+    t = taosMktime (&tm);
+    ASSERT (t == test_mk[i].expected);
+  }
+}
+
+TEST(clientCase, mktime_rz_Test){
+  struct tm tm;
+  time_t t;
+
+  memset (&tm, 0, sizeof (tm));
+  tm.tm_isdst = 0;
+  tm.tm_year  = 96;	/* years since 1900 */
+  tm.tm_mon   = 4;
+  tm.tm_mday  = 24;
+  tm.tm_hour  =  3;
+  tm.tm_min   = 55;
+  tm.tm_sec   = 15;
+
+  for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
+  {
+    timezone_t tz = tzalloc(test_mk[i].env);
+    ASSERT(tz);
+    t = taosMktimeRz(tz, &tm);
+    ASSERT (t == test_mk[i].expected);
+    tzfree(tz);
+  }
+}
+
+TEST(testCase, localtime_performance_Test) {
+  timezone_t sp = tzalloc("Asia/Shanghai");
+  ASSERT(sp);
+
+  int cnt = 10000000;
+  int times = 10;
+  int64_t time_localtime = 0;
+  int64_t time_localtime_rz = 0;
+//  int cnt = 1000000;
+  for (int i = 0; i < times; ++i) {
+    int64_t t1 = taosGetTimestampNs();
+    for (int j = 0; j < cnt; ++j) {
+      time_t t = time_winter - j;
+      struct tm tm1;
+      ASSERT (taosLocalTime(&t, &tm1, NULL, 0));
+    }
+    int64_t tmp = taosGetTimestampNs() - t1;
+    printf("localtime cost:%" PRId64 " ns, run %" PRId64 " times", tmp, cnt);
+    time_localtime += tmp/cnt;
+
+    timezone;
+    printf("\n");
+
+
+
+    int64_t t2 = taosGetTimestampNs();
+    for (int j = 0; j < cnt; ++j) {
+      time_t t = time_winter - j;
+      struct tm tm1;
+      ASSERT (taosLocalTimeRz(sp, &t, &tm1));
+    }
+    tmp = taosGetTimestampNs() - t2;
+    printf("localtime_rz cost:%" PRId64 " ns, run %" PRId64 " times", tmp, cnt);
+    time_localtime_rz += tmp/cnt;
+    printf("\n\n");
+  }
+  printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns", time_localtime/times, time_localtime_rz/times);
+  tzfree(sp);
+}
+
 #pragma GCC diagnostic pop

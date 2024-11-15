@@ -81,7 +81,7 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow);
 
-int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, int8_t dayligth);
+int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec);
 void    deltaToUtcInitOnce();
 char    getPrecisionUnit(int32_t precision);
 

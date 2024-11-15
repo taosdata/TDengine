@@ -70,6 +70,7 @@ int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 int32_t  clientStop = -1;
+SHashObj* pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 

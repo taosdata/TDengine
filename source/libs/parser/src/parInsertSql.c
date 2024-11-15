@@ -267,7 +267,7 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
     }
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
     *isTs = true;
-    if (taosParseTime(pToken->z, ts, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pToken->z, ts, pToken->n, timePrec) != TSDB_CODE_SUCCESS) {
       if ((pToken->n == 0) ||
           (pToken->type != TK_NK_STRING && pToken->type != TK_NK_HEX && pToken->type != TK_NK_BIN)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);

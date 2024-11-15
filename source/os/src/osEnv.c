@@ -28,7 +28,6 @@ char            tsTimezoneStr[TD_TIMEZONE_LEN] = {0};
 enum TdTimezone tsTimezone = TdZeroZone;
 char            tsLocale[TD_LOCALE_LEN] = {0};
 char            tsCharset[TD_CHARSET_LEN] = {0};
-int8_t          tsDaylight = 0;
 bool            tsEnableCoreFile = 1;
 int64_t         tsPageSizeKB = 0;
 int64_t         tsOpenMax = 0;
@@ -49,14 +48,6 @@ int32_t osDefaultInit() {
 
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  if(code != 0) {
-    return code;
-  }
-  if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
-    if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
-      return code;
-  }
 
   taosGetSystemInfo();
 
@@ -124,7 +115,7 @@ bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reser
 
 bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
-int32_t osSetTimezone(const char *tz) { return taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+int32_t osSetTimezone(const char *tz) { return taosSetGlobalTimezone(tz); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
   (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);

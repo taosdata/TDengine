@@ -242,7 +242,7 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
 static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision) != TSDB_CODE_SUCCESS) {
     value = 0;
     code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }

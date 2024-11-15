@@ -149,11 +149,11 @@ typedef struct {
 } SWhiteListInfo;
 
 typedef struct {
-//  TIMEZONE     *tz;
-  char          charset[TD_LOCALE_LEN];
+  timezone_t    timezone;
+  char          charset[TD_CHARSET_LEN];
   char          app[TSDB_APP_NAME_LEN];
   uint32_t      ip;
-}optionInfo;
+}SOptionInfo;
 
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
@@ -177,6 +177,7 @@ typedef struct STscObj {
   SPassInfo      passInfo;
   SWhiteListInfo whiteListInfo;
   STscNotifyInfo userDroppedInfo;
+  SOptionInfo    optionInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -341,6 +342,7 @@ extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
 extern int64_t  lastClusterId;
+extern SHashObj* pTimezoneMap;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 

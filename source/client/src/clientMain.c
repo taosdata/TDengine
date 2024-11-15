@@ -51,6 +51,103 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   atomic_store_32(&lock, 0);
   return ret;
 }
+
+static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (option != TSDB_MAX_CONNECTION_OPTIONS && (option < TSDB_OPTION_CONNECTION_CHARSET && option > TSDB_OPTION_CONNECTION_USER_APP)){
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  int32_t code = 0;
+  if (option == TSDB_OPTION_CONNECTION_CHARSET) {
+    if (val != NULL) {
+      if (!taosValidateEncodec(val)) {
+        code = terrno;
+        goto END;
+      }
+      tstrncpy(pObj->optionInfo.charset, val, TD_CHARSET_LEN);
+    }else{
+      pObj->optionInfo.charset[0] = 0;
+    }
+  } else if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
+    if (val != NULL){
+      if (strlen(val) == 0){
+        code = TSDB_CODE_INVALID_PARA;
+        goto END;
+      }
+      timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
+      if (tmp && *tmp){
+        pObj->optionInfo.timezone = *tmp;
+        goto END;
+      }
+
+      tscDebug("set timezone to %s", val);
+      timezone_t tz = tzalloc(val);
+      if (!tz) {
+        tscError("%s unknown timezone %s", __func__, val);
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto END;
+      }
+      code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
+      if (code != 0){
+        tzfree(tz);
+        goto END;
+      }
+      pObj->optionInfo.timezone = tz;
+    } else {
+      pObj->optionInfo.timezone = NULL;
+    }
+  } else if (option == TSDB_OPTION_CONNECTION_USER_APP) {
+    if (val != NULL) {
+      tstrncpy(pObj->optionInfo.app, val, TSDB_APP_NAME_LEN);
+    } else {
+      pObj->optionInfo.app[0] = 0;
+    }
+  } else if (option == TSDB_OPTION_CONNECTION_USER_IP) {
+    if (val != NULL) {
+      pObj->optionInfo.ip = inet_addr(val);
+    } else {
+      pObj->optionInfo.ip = 0;
+    }
+  }
+
+END:
+  releaseTscObj(*(int64_t *)taos);
+  return code;
+}
+
+int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...){
+  static int32_t lock_c = 0;
+
+  for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
+    if (i % 1000 == 0) {
+      tscInfo("haven't acquire lock after spin %d times.", i);
+      (void)sched_yield();
+    }
+  }
+
+  if (pTimezoneMap == NULL){
+    pTimezoneMap = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (pTimezoneMap == NULL) {
+      atomic_store_32(&lock_c, 0);
+      return terrno;
+    }
+    taosHashSetFreeFp(pTimezoneMap, (_hash_free_fn_t)tzfree);
+  }
+  int ret = setConnectionOption(taos, option, (const char *)arg);
+  atomic_store_32(&lock_c, 0);
+  return ret;
+}
+
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
   tscDebug("start to cleanup client environment");

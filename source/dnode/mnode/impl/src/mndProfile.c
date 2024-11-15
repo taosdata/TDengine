@@ -232,7 +232,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SConnObj       *pConn = NULL;
   int32_t         code = 0;
   SConnectReq     connReq = {0};
-  char            ip[24] = {0};
+  char            ip[TD_IP_LEN] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
   if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
@@ -244,7 +244,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  taosIp2String(pReq->info.conn.clientIp, ip);
+  tinet_ntoa(ip, pReq->info.conn.clientIp);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT)) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
@@ -896,9 +896,10 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
-    char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
-    varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+    char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    tinet_ntoa(varDataVal(endpoint), pConn->ip);
+    (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
+    varDataLen(endpoint) = strlen(varDataVal(endpoint));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
     if (code != 0) {
@@ -1006,8 +1007,9 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
-    char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    tinet_ntoa(varDataVal(endpoint), pConn->ip);
+    (void)sprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)), ":%d", pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
@@ -1165,9 +1167,9 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       return code;
     }
 
-    char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
-    varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
+    char ip[TD_IP_LEN + VARSTR_HEADER_SIZE] = {0};
+    tinet_ntoa(varDataVal(ip), pApp->ip);
+    varDataLen(ip) = strlen(varDataVal(ip));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
     if (code != 0) {

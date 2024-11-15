@@ -1160,13 +1160,7 @@ struct tzhead {
 # define TZDEFAULT "/etc/localtime" /* default zone */
 #endif
 #ifndef TZDIR
-# define TZDIR "/usr/local/share/timezone" /* TZif directory */
-#endif
-
-// If the error is in a third-party library, place this header file under the third-party library header file.
-// When you want to use this feature, you should find or add the same function in the following section.
-#ifndef ALLOW_FORBID_FUNC
-#define tzset TZSET_FUNC_TAOS_FORBID
+# define TZDIR "/Users/mingmingwanng/source_code/TDengine/debug/build/share/timezone" /* TZif directory */
 #endif
 
 enum TdTimezone {
@@ -1197,9 +1191,13 @@ enum TdTimezone {
   TdEastZone12
 };
 
-int32_t taosGetSystemTimezone(char *outTimezone, enum TdTimezone *tsTimezone);
-int32_t taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight, enum TdTimezone *tsTimezone);
+void getTimezoneStr(char *tz);
 
+
+int32_t taosGetSystemTimezone(char *outTimezone);
+int32_t taosSetGlobalTimezone(const char *tz);
+int32_t taosFormatTimezoneStr(time_t t, const char* tzStr, timezone_t sp, char *outTimezoneStr);
+int32_t taosIsValidateTimezone(const char *tz);
 #ifdef __cplusplus
 }
 #endif

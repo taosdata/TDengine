@@ -635,7 +635,7 @@ if(${TD_LINUX} AND ${BUILD_WITH_S3})
 endif()
 
 execute_process(
-        COMMAND make TZDIR=${SHARE_OUTPUT_PATH}/timezone all posix_only
+        COMMAND make TZDIR=${SHARE_OUTPUT_PATH}/timezone clean all posix_only
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
 )
 

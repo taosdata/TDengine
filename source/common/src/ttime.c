@@ -36,7 +36,7 @@ static int32_t parseTimezone(char* str, int64_t* tzOffset);
 static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) = {
     parseLocaltime, parseLocaltimeDst};
 
-int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec, int8_t day_light) {
+int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
     if (checkTzPresent(timestr, len)) {
@@ -532,7 +532,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
       TAOS_RETURN(terrno);
     }
     (void)memcpy(newColData, varDataVal(inputData), charLen);
-    int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_INVALID_TIMESTAMP);
@@ -549,7 +549,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
       TAOS_RETURN(TSDB_CODE_FAILED);
     }
     newColData[len] = 0;
-    int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       TAOS_RETURN(ret);

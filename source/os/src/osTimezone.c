@@ -740,8 +740,6 @@ char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
-static int isdst_now = 0;
-
 void parseTimeStr(char *p, char to[5]) {
   for (int i = 0; i < 5; ++i) {
     if (strlen(p) > i) {
@@ -756,27 +754,16 @@ void parseTimeStr(char *p, char to[5]) {
   }
 }
 
-int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight,
-                           enum TdTimezone *tsTimezone) {
-  if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
+int32_t taosIsValidateTimezone(const char *tz) {
+  return true;
+}
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  size_t len = strlen(inTimezoneStr);
-  if (len >= TD_TIMEZONE_LEN) {
+int32_t taosSetGlobalTimezone(const char *tz) {
+  if (tz == NULL || tz[0] == 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  char buf[TD_TIMEZONE_LEN] = {0};
-  for (int32_t i = 0; i < len; i++) {
-    if (inTimezoneStr[i] == ' ' || inTimezoneStr[i] == '(') {
-      buf[i] = 0;
-      break;
-    }
-    buf[i] = inTimezoneStr[i];
-  }
+  int32_t code = TSDB_CODE_SUCCESS;
 
 #ifdef WINDOWS
   char winStr[TD_LOCALE_LEN * 2];
@@ -825,44 +812,100 @@ int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, i
   if (outTimezoneStr != inTimezoneStr) {
     tstrncpy(outTimezoneStr, inTimezoneStr, TD_TIMEZONE_LEN);
   }
-  *outDaylight = 0;
-
-#elif defined(_TD_DARWIN_64)
-
-  code = setenv("TZ", buf, 1);
-  if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return terrno;
-  }
-  tzset();
-  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
-  *tsTimezone = tz;
-  tz += isdst_now;
-
-  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
-  *outDaylight = isdst_now;
-
+//  *outDaylight = 0;
 #else
-  code = setenv("TZ", buf, 1);
+  code = setenv("TZ", tz, 1);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
 
   tzset();
-  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
-  *tsTimezone = tz;
-  tz += isdst_now;
-  (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
-  *outDaylight = isdst_now;
 
+  time_t    tx1 = taosGetTimestampSec();
+  return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
 #endif
 
-  return code;
 }
 
-int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
-  int32_t code  = 0;
+int32_t taosFormatTimezoneStr(time_t t, const char* tz, timezone_t sp, char *outTimezoneStr){
+  struct tm tm1;
+  if (sp == NULL) {
+    if (taosLocalTime(&t, &tm1, NULL, 0) == NULL) {
+      uError("failed to get local time");
+      return TSDB_CODE_TIME_ERROR;
+    }
+  } else {
+    if (taosLocalTimeRz(sp, &t, &tm1) == NULL) {
+      uError("failed to get rz time");
+      return TSDB_CODE_TIME_ERROR;
+    }
+  }
+
+  /*
+   * format example:
+   *
+   * Asia/Shanghai (CST, +0800)
+   * Europe/London (BST, +0100)
+   * n/a (UTC, +0000)
+   */
+
+  char str1[TD_TIMEZONE_LEN] = {0};
+  if (strftime(str1, sizeof(str1), "%Z", &tm1) == 0){
+    uError("failed to get timezone name");
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  char str2[TD_TIMEZONE_LEN] = {0};
+  if (strftime(str2, sizeof(str2), "%z", &tm1) == 0){
+    uError("failed to get timezone offset");
+    return TSDB_CODE_TIME_ERROR;
+  }
+  (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s)", tz, str1, str2);
+  return 0;
+}
+
+void getTimezoneStr(char *tz) {
+  do {
+    int n = readlink("/r/localtime", tz, TD_TIMEZONE_LEN - 1);
+    if (n < 0) {
+      uWarn("[tz] failed to readlink /etc/localtime, reason:%s", strerror(errno));
+      break;
+    }
+
+    char *zi = strstr(tz, "zoneinfo");
+    if (zi == NULL) {
+      uWarn("[tz] failed to find zoneinfo in /etc/localtime");
+      break;
+    }
+    zi += sizeof("zoneinfo");
+    memcpy(tz, zi, TD_TIMEZONE_LEN - (zi - tz));
+    goto END;
+  } while (0);
+
+
+  TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
+  if (pFile == NULL) {
+    uWarn("[tz] failed to open /etc/timezone, reason:%s", strerror(errno));
+    goto END;
+  }
+  int len = taosReadFile(pFile, tz, TD_TIMEZONE_LEN - 1);
+  TAOS_UNUSED(taosCloseFile(&pFile));
+  if (len <= 0) {
+    uWarn("[tz] failed to read /etc/timezone, len:%d", len);
+    goto END;
+  }
+  if (tz[len - 1] == '\n') {
+    tz[len - 1] = '\0';
+  }
+
+END:
+  if (tz[0] == '\0') {
+    memcpy(tz, "n/a", sizeof("n/a"));
+  }
+}
+
+int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 #ifdef WINDOWS
   char  value[100];
   char  keyPath[100];
@@ -895,162 +938,11 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone)
     }
   }
   return 0;
-#elif defined(_TD_DARWIN_64)
-  char  buf[4096] = {0};
-  char *tz = NULL;
-  {
-    int n = readlink("/etc/localtime", buf, sizeof(buf));
-    if (n < 0) {
-      return TSDB_CODE_TIME_ERROR;
-    }
-    buf[n] = '\0';
-
-    char *zi = strstr(buf, "zoneinfo");
-    if (!zi) {
-      return TSDB_CODE_TIME_ERROR;
-    }
-    tz = zi + strlen("zoneinfo") + 1;
-
-    code = setenv("TZ", tz, 1);
-    if (-1 == code) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
-    }
-    tzset();
-  }
-
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
-  time_t    tx1 = taosGetTimestampSec();
-  struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
-    return TSDB_CODE_TIME_ERROR;
-  }
-  daylight = tm1.tm_isdst;
-  isdst_now = tm1.tm_isdst;
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
-           -timezone / 3600);
-  return 0;
 #else
-
-  char  buf[4096] = {0};
-  char *tz = NULL;
-  {
-    int n = readlink("/etc/localtime", buf, sizeof(buf)-1);
-    if (n < 0) {
-      if (taosCheckExistFile("/etc/timezone")) {
-        /*
-         * NOTE: do not remove it.
-         * Enforce set the correct daylight saving time(DST) flag according
-         * to current time
-         */
-        time_t    tx1 = taosGetTimestampSec();
-        struct tm tm1;
-        if(taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
-          return TSDB_CODE_TIME_ERROR;
-        }
-        /* load time zone string from /etc/timezone */
-        // FILE *f = fopen("/etc/timezone", "r");
-        errno = 0;
-        TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
-        char      buf[68] = {0};
-        if (pFile != NULL) {
-          int len = taosReadFile(pFile, buf, 64);
-          if (len < 0) {
-            TAOS_UNUSED(taosCloseFile(&pFile));
-            return TSDB_CODE_TIME_ERROR;
-          }
-
-          TAOS_UNUSED(taosCloseFile(&pFile));
-
-          buf[sizeof(buf) - 1] = 0;
-          char *lineEnd = strstr(buf, "\n");
-          if (lineEnd != NULL) {
-            *lineEnd = 0;
-          }
-
-          // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
-          if (strlen(buf) > 0) {
-            code = setenv("TZ", buf, 1);
-            if (-1 == code) {
-              terrno = TAOS_SYSTEM_ERROR(errno);
-              return terrno;
-            }
-          }
-        }
-        // get and set default timezone
-        tzset();
-        /*
-         * get CURRENT time zone.
-         * system current time zone is affected by daylight saving time(DST)
-         *
-         * e.g., the local time zone of London in DST is GMT+01:00,
-         * otherwise is GMT+00:00
-         */
-        int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
-        *tsTimezone = tz;
-        tz += daylight;
-
-        /*
-         * format example:
-         *
-         * Asia/Shanghai   (CST, +0800)
-         * Europe/London   (BST, +0100)
-         */
-        (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-",
-                 abs(tz));
-      } else {
-        return TSDB_CODE_TIME_ERROR;
-      }
-      return  0;
-    }
-    buf[n] = '\0';
-
-    char *zi = strstr(buf, "zoneinfo");
-    if (!zi) {
-      return TSDB_CODE_TIME_ERROR;
-    }
-    tz = zi + strlen("zoneinfo") + 1;
-
-    code = setenv("TZ", tz, 1);
-    if (-1 == code) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
-    }
-    tzset();
-  }
-
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
+  char tz[TD_TIMEZONE_LEN] = {0};
+  getTimezoneStr(tz);
   time_t    tx1 = taosGetTimestampSec();
-  struct tm tm1;
-  if(taosLocalTime(&tx1, &tm1, NULL, 0) == NULL) {
-    return TSDB_CODE_TIME_ERROR;
-  }
-  isdst_now = tm1.tm_isdst;
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
-           -timezone / 3600);
-  return 0;
+  return taosFormatTimezoneStr(tx1, tz, NULL, outTimezoneStr);
 #endif
 }
 

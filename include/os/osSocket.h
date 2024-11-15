@@ -26,7 +26,6 @@
 #define epoll_create EPOLL_CREATE_FUNC_TAOS_FORBID
 #define epoll_ctl    EPOLL_CTL_FUNC_TAOS_FORBID
 #define epoll_wait   EPOLL_WAIT_FUNC_TAOS_FORBID
-#define inet_addr    INET_ADDR_FUNC_TAOS_FORBID
 #define inet_ntoa    INET_NTOA_FUNC_TAOS_FORBID
 #endif
 
@@ -55,10 +54,11 @@
 #define __BIG_ENDIAN    BIG_ENDIAN
 #define __LITTLE_ENDIAN LITTLE_ENDIAN
 #define __PDP_ENDIAN    PDP_ENDIAN
-
+#include <winsock2.h>
 #else
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 
 #if defined(_TD_DARWIN_64)
 #include <osEok.h>
@@ -163,7 +163,6 @@ int32_t     taosBlockSIGPIPE();
 int32_t     taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip);
 int32_t     taosGetFqdn(char *);
 void        tinet_ntoa(char *ipstr, uint32_t ip);
-uint32_t    ip2uint(const char *const ip_addr);
 int32_t     taosIgnSIGPIPE();
 const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 

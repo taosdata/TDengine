@@ -384,7 +384,8 @@ int32_t taosGetFqdn(char *fqdn) {
 }
 
 void tinet_ntoa(char *ipstr, uint32_t ip) {
-  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+  unsigned char *bytes = (unsigned char *) &ip;
+  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
 }
 
 int32_t taosIgnSIGPIPE() {

@@ -539,6 +539,128 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
   return result;
 }
 
+time_t taosMktimeRz(timezone_t state, struct tm *timep) {
+#ifdef WINDOWS
+  #if 0
+  struct tm     tm1 = {0};
+  LARGE_INTEGER t;
+  FILETIME      f;
+  SYSTEMTIME    s;
+  FILETIME      ff;
+  SYSTEMTIME    ss;
+  LARGE_INTEGER offset;
+
+  time_t tt = 0;
+  localtime_s(&tm1, &tt);
+  ss.wYear = tm1.tm_year + 1900;
+  ss.wMonth = tm1.tm_mon + 1;
+  ss.wDay = tm1.tm_mday;
+  ss.wHour = tm1.tm_hour;
+  ss.wMinute = tm1.tm_min;
+  ss.wSecond = tm1.tm_sec;
+  ss.wMilliseconds = 0;
+  SystemTimeToFileTime(&ss, &ff);
+  offset.QuadPart = ff.dwHighDateTime;
+  offset.QuadPart <<= 32;
+  offset.QuadPart |= ff.dwLowDateTime;
+
+  s.wYear = timep->tm_year + 1900;
+  s.wMonth = timep->tm_mon + 1;
+  s.wDay = timep->tm_mday;
+  s.wHour = timep->tm_hour;
+  s.wMinute = timep->tm_min;
+  s.wSecond = timep->tm_sec;
+  s.wMilliseconds = 0;
+  SystemTimeToFileTime(&s, &f);
+  t.QuadPart = f.dwHighDateTime;
+  t.QuadPart <<= 32;
+  t.QuadPart |= f.dwLowDateTime;
+
+  t.QuadPart -= offset.QuadPart;
+  return (time_t)(t.QuadPart / 10000000);
+#else
+  time_t result = mktime(timep);
+  if (result != -1) {
+    return result;
+  }
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t tz = _timezone;
+#endif
+#endif
+  return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
+                       timep->tm_sec, tz);
+#endif
+#else
+  time_t r = mktime_z(state, timep);
+  if (r == (time_t)-1) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+  return r;
+#endif
+}
+
+struct tm *taosLocalTimeRz(timezone_t state, const time_t *timep, struct tm *result) {
+  struct tm *res = NULL;
+  if (timep == NULL || result == NULL) {
+    return NULL;
+  }
+#ifdef WINDOWS
+  if (*timep < -2208988800LL) {
+    if (buf != NULL) {
+      snprintf(buf, bufSize, "NaN");
+    }
+    return NULL;
+  } else if (*timep < 0) {
+    SYSTEMTIME ss, s;
+    FILETIME   ff, f;
+
+    LARGE_INTEGER offset;
+    struct tm     tm1;
+    time_t        tt = 0;
+    if (localtime_s(&tm1, &tt) != 0) {
+      if (buf != NULL) {
+        snprintf(buf, bufSize, "NaN");
+      }
+      return NULL;
+    }
+    ss.wYear = tm1.tm_year + 1900;
+    ss.wMonth = tm1.tm_mon + 1;
+    ss.wDay = tm1.tm_mday;
+    ss.wHour = tm1.tm_hour;
+    ss.wMinute = tm1.tm_min;
+    ss.wSecond = tm1.tm_sec;
+    ss.wMilliseconds = 0;
+    SystemTimeToFileTime(&ss, &ff);
+    offset.QuadPart = ff.dwHighDateTime;
+    offset.QuadPart <<= 32;
+    offset.QuadPart |= ff.dwLowDateTime;
+    offset.QuadPart += *timep * 10000000;
+    f.dwLowDateTime = offset.QuadPart & 0xffffffff;
+    f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
+    FileTimeToSystemTime(&f, &s);
+    result->tm_sec = s.wSecond;
+    result->tm_min = s.wMinute;
+    result->tm_hour = s.wHour;
+    result->tm_mday = s.wDay;
+    result->tm_mon = s.wMonth - 1;
+    result->tm_year = s.wYear - 1900;
+    result->tm_wday = s.wDayOfWeek;
+    result->tm_yday = 0;
+    result->tm_isdst = 0;
+  } else {
+    if (localtime_s(result, timep) != 0) {
+      if (buf != NULL) {
+        snprintf(buf, bufSize, "NaN");
+      }
+      return NULL;
+    }
+  }
+#else
+  return localtime_rz(state, timep, result);
+#endif
+}
+
 static int isLeapYear(time_t year) {
   if (year % 4)
     return 0;
