@@ -13169,7 +13169,7 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
 }
 
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 3;
+  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS; // SHOW_VARIABLES_RESULT_COLS
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
@@ -13180,12 +13180,16 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   strcpy((*pSchema)[0].name, "name");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
+  (*pSchema)[1].bytes = TSDB_CONFIG_PATH_LEN;
   strcpy((*pSchema)[1].name, "value");
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[2].bytes = TSDB_CONFIG_SCOPE_LEN;
   strcpy((*pSchema)[2].name, "scope");
+
+  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[3].bytes = TSDB_CONFIG_INFO_LEN;
+  strcpy((*pSchema)[3].name, "info");
 
   return TSDB_CODE_SUCCESS;
 }

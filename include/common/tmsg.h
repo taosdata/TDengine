@@ -2203,8 +2203,9 @@ int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
-  char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
