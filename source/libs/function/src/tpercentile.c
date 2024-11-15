@@ -23,6 +23,7 @@
 #include "tpercentile.h"
 #include "ttypes.h"
 #include "tlog.h"
+#include "query.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024
 
@@ -130,65 +131,69 @@ int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
   *result = 0.0;
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
+int32_t tBucketIntHash(tMemBucket *pBucket, const void *value, int32_t *index) {
   int64_t v = 0;
   GET_TYPED_DATA(v, int64_t, pBucket->type, value);
 
-  int32_t index = -1;
+  *index = -1;
 
   if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal) {
-    return index;
+    return TSDB_CODE_SUCCESS;
   }
 
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
   if (span < pBucket->numOfSlots) {
     int64_t delta = v - pBucket->range.dMinVal;
-    index = (delta % pBucket->numOfSlots);
+    *index = (delta % pBucket->numOfSlots);
   } else {
     double   slotSpan = ((double)span) / pBucket->numOfSlots;
     uint64_t delta = (uint64_t)(v - pBucket->range.dMinVal);
 
-    index = delta / slotSpan;
-    if (v == pBucket->range.dMaxVal || index == pBucket->numOfSlots) {
-      index -= 1;
+    *index = delta / slotSpan;
+    if (v == pBucket->range.dMaxVal || *index == pBucket->numOfSlots) {
+      *index -= 1;
     }
   }
 
-  ASSERTS(index >= 0 && index < pBucket->numOfSlots, "tBucketIntHash Error, index:%d, numOfSlots:%d",
-          index, pBucket->numOfSlots);
-  return index;
+  if (*index < 0 || *index >= pBucket->numOfSlots) {
+    qError("tBucketIntHash Error, index:%d, numOfSlots:%d", *index, pBucket->numOfSlots);
+    return TSDB_CODE_FUNC_PERCENTILE_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
+int32_t tBucketUintHash(tMemBucket *pBucket, const void *value, int32_t *index) {
   int64_t v = 0;
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
-  int32_t index = -1;
+  *index = -1;
 
   if (v > pBucket->range.u64MaxVal || v < pBucket->range.u64MinVal) {
-    return index;
+    return TSDB_CODE_SUCCESS;
   }
 
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.u64MaxVal - pBucket->range.u64MinVal;
   if (span < pBucket->numOfSlots) {
     int64_t delta = v - pBucket->range.u64MinVal;
-    index = (int32_t)(delta % pBucket->numOfSlots);
+    *index = (int32_t)(delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
-    index = (int32_t)((v - pBucket->range.u64MinVal) / slotSpan);
+    *index = (int32_t)((v - pBucket->range.u64MinVal) / slotSpan);
     if (v == pBucket->range.u64MaxVal) {
-      index -= 1;
+      *index -= 1;
     }
   }
 
-  ASSERT(index >= 0 && index < pBucket->numOfSlots);
-  return index;
+  if (*index < 0 || *index >= pBucket->numOfSlots) {
+    qError("tBucketUintHash Error, index:%d, numOfSlots:%d", *index, pBucket->numOfSlots);
+    return TSDB_CODE_FUNC_PERCENTILE_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
+int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value, int32_t *index) {
   double v = 0;
   if (pBucket->type == TSDB_DATA_TYPE_FLOAT) {
     v = GET_FLOAT_VAL(value);
@@ -196,26 +201,31 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     v = GET_DOUBLE_VAL(value);
   }
 
-  int32_t index = -1;
+  *index = -1;
 
-  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v)) {
-    return index;
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal || isnan(v) || isinf(v)) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // divide a range of [dMinVal, dMaxVal] into 1024 buckets
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
   if (fabs(span) < DBL_EPSILON) {
-    index = 0;
+    *index = 0;
+  } else if (isinf(span)) {
+    *index = -1;
   } else {
     double slotSpan = span / pBucket->numOfSlots;
-    index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
+    *index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
     if (fabs(v - pBucket->range.dMaxVal) < DBL_EPSILON) {
-      index -= 1;
+      *index -= 1;
     }
   }
 
-  ASSERT(index >= 0 && index < pBucket->numOfSlots);
-  return index;
+  if (*index < 0 || *index >= pBucket->numOfSlots) {
+    qError("tBucketDoubleHash Error, index:%d, numOfSlots:%d", *index, pBucket->numOfSlots);
+    return TSDB_CODE_FUNC_PERCENTILE_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static __perc_hash_func_t getHashFunc(int32_t type) {
@@ -365,7 +375,11 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   int32_t bytes = pBucket->bytes;
   for (int32_t i = 0; i < size; ++i) {
     char   *d = (char *)data + i * bytes;
-    int32_t index = (pBucket->hashFunc)(pBucket, d);
+    int32_t index = 0;
+    int32_t code = (pBucket->hashFunc)(pBucket, d, &index);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     if (index < 0) {
       continue;
     }
