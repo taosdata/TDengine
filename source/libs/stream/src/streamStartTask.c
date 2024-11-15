@@ -433,6 +433,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   // send hb msg to mnode before closing all tasks.
   int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
   if (code != TSDB_CODE_SUCCESS) {
+    streamMetaRUnLock(pMeta);
     return code;
   }
 
