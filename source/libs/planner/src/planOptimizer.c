@@ -4258,6 +4258,27 @@ typedef struct SLastRowScanOptSetColDataTypeCxt {
   int32_t    code;
 } SLastRowScanOptSetColDataTypeCxt;
 
+static EDealRes lastRowScanOptGetLastCols(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
+    if (pCxt->doAgg) {
+      pCxt->code = nodesListMakeAppend(&pCxt->pLastCols, pNode);
+      if (TSDB_CODE_SUCCESS != pCxt->code) {
+        return DEAL_RES_ERROR;
+      }
+    } else {
+      SNode* pCol = NULL;
+      FOREACH(pCol, pCxt->pLastCols) {
+        if (nodesEqualNode(pCol, pNode)) {
+          break;
+        }
+      }
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
@@ -4393,7 +4414,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     SNode*         pParamNode = NULL;
     if (FUNCTION_TYPE_LAST == funcType) {
       (void)nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
-      nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
+      nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptGetLastCols, &cxt);
       if (TSDB_CODE_SUCCESS != cxt.code) break;
     }
     FOREACH(pParamNode, pFunc->pParameterList) {
