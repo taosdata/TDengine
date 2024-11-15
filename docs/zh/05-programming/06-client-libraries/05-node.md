@@ -30,12 +30,6 @@ npm install @tdengine/websocket
 {{#include docs/examples/node/connect.js}}
 ```
 
-## 更多示例程序
-
-```javascript
-{{#include docs/examples/node/connect.js:usage}}
-```
-
 ## 常见问题
 
 1. 使用 REST 连接需要启动 taosadapter。

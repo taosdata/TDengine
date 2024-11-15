@@ -1,29 +1,23 @@
-const { options, connect } = require("@tdengine/rest");
+const taos = require('@tdengine/websocket');
 
-function checkError(result) {
-  if (result.getErrCode() !== undefined) {
-    console.log(result.getErrCode(), result.getErrStr());
-    process.exit(1);
-  }
-}
-
-async function test() {
-  options.url = process.env.TDENGINE_CLOUD_URL;
-  options.query = { token: process.env.TDENGINE_CLOUD_TOKEN };
-  let conn = connect(options);
-  let cursor = conn.cursor();
+var url = process.env.TDENGINE_CLOUD_URL;
+var token = process.env.TDENGINE_CLOUD_TOKEN;
+async function createConnect() {
+  let conn = null;
   try {
-    let result = await cursor.query("SELECT ts, current FROM power.meters LIMIT 2");
-    console.log(result.getMeta());
-    // [
-    //   { columnName: 'ts', code: 9, size: 8, typeName: 'timestamp' },
-    //   { columnName: 'current', code: 6, size: 4, typeName: 'float' }
-    // ]
-    console.log(result.getData());
-    // [ [ '2018-10-03T14:38:05Z', 10.3 ], [ '2018-10-03T14:38:15Z', 12.6 ] ]
+    let conf = new taos.WSConfig(url);
+    conf.setToken(token);
+    conn = await taos.sqlConnect(conf);
+    let res = await conn.query('show databases');
+    while (await res.next()) {
+      let row = res.getData();
+      console.log(row[0]);
+    }
   } catch (err) {
-    console.log(err);
+    throw err;
+  } finally {
+    if (conn) {
+      await conn.close();
+    }
   }
 }
-
-test();
