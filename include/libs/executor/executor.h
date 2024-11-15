@@ -58,6 +58,7 @@ typedef struct {
 
   struct SStorageAPI api;
   void*              pWorkerCb;
+  bool               localExec;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

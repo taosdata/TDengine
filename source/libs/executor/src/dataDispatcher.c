@@ -43,6 +43,7 @@ typedef struct SDataDispatchHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
   SDataBlockDescNode* pSchema;
+  SDataSinkNode*      pSinkNode;
   STaosQueue*         pDataBlocks;
   SDataDispatchBuf    nextOutput;
   int32_t             outPutColCounts;
@@ -356,7 +357,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
-  nodesDestroyNode((SNode*)pDispatcher->pSchema);
+  nodesDestroyNode((SNode*)pDispatcher->pSinkNode);
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
@@ -437,12 +438,13 @@ int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
   return numOfCols;
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle) {
   int32_t code;
+  SDataSinkNode* pDataSink = *ppDataSink;
   code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
   if (code) {
     qError("failed to check input data block desc, code:%d", code);
-    return code;
+    goto _return;
   }
 
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
@@ -461,7 +463,8 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode* pDataSin
   dispatcher->pManager = pManager;
   pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
-  pDataSink->pInputDataBlockDesc = NULL;
+  dispatcher->pSinkNode = pDataSink;
+  *ppDataSink = NULL;
   dispatcher->outPutColCounts = getOutputColCounts(dispatcher->pSchema);
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
@@ -488,5 +491,9 @@ _return:
   if (dispatcher) {
     dsDestroyDataSinker(dispatcher);
   }
+
+  nodesDestroyNode((SNode *)*ppDataSink);
+  *ppDataSink = NULL;
+  
   return terrno;
 }

@@ -636,8 +636,18 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       goto _error;
     }
 
+    SDataSinkNode* pSink = NULL;
+    if (readHandle->localExec) {
+      code = nodesCloneNode((SNode *)pSubplan->pDataSink, (SNode **)&pSink);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to nodesCloneNode, srcType:%d, code:%s, %s", nodeType(pSubplan->pDataSink), tstrerror(code), (*pTask)->id.str);
+        taosMemoryFree(pSinkManager);
+        goto _error;
+      }
+    }
+
     // pSinkParam has been freed during create sinker.
-    code = dsCreateDataSinker(pSinkManager, pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
+    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
     if (code) {
       qError("s-task:%s failed to create data sinker, code:%s", (*pTask)->id.str, tstrerror(code));
     }

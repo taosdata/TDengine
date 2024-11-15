@@ -1525,6 +1525,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   }
   
   rHandle.pMsgCb->clientRpc = qwMsg->connInfo.handle;
+  rHandle.localExec = true;
 
   code = qCreateExecTask(&rHandle, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH);
   if (code) {

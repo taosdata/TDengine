@@ -54,9 +54,67 @@ namespace {
 #define MPT_MIN_MEM_POOL_SIZE           (1048576UL)
 #define MPT_MAX_RETIRE_JOB_NUM          10000
 
+enum {
+  MPT_READ = 1,
+  MPT_WRITE,
+};
+
 
 threadlocal void* mptThreadPoolHandle = NULL;
 threadlocal void* mptThreadPoolSession = NULL;
+
+#define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
+
+#define MPT_LOCK(type, _lock)                                                                       \
+  do {                                                                                             \
+    if (MPT_READ == (type)) {                                                                       \
+      if (atomic_load_32((_lock)) < 0) {                                                           \
+        uError("invalid lock value before read lock");                                             \
+        break;                                                                                     \
+      }                                                                                            \
+      taosRLockLatch(_lock);                                                                       \
+      if (atomic_load_32((_lock)) <= 0) {                                                          \
+        uError("invalid lock value after read lock");                                              \
+        break;                                                                                     \
+      }                                                                                            \
+    } else {                                                                                       \
+      if (atomic_load_32((_lock)) < 0) {                                                           \
+        uError("invalid lock value before write lock");                                            \
+        break;                                                                                     \
+      }                                                                                            \
+      taosWLockLatch(_lock);                                                                       \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                 \
+        uError("invalid lock value after write lock");                                             \
+        break;                                                                                     \
+      }                                                                                            \
+    }                                                                                              \
+  } while (0)
+
+#define MPT_UNLOCK(type, _lock)                                                                      \
+  do {                                                                                              \
+    if (MPT_READ == (type)) {                                                                        \
+      if (atomic_load_32((_lock)) <= 0) {                                                           \
+        uError("invalid lock value before read unlock");                                            \
+        break;                                                                                      \
+      }                                                                                             \
+      taosRUnLockLatch(_lock);                                                                      \
+      if (atomic_load_32((_lock)) < 0) {                                                            \
+        uError("invalid lock value after read unlock");                                             \
+        break;                                                                                      \
+      }                                                                                             \
+    } else {                                                                                        \
+      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                  \
+        uError("invalid lock value before write unlock");                                           \
+        break;                                                                                      \
+      }                                                                                             \
+      taosWUnLockLatch(_lock);                                                                      \
+      if (atomic_load_32((_lock)) < 0) {                                                            \
+        uError("invalid lock value after write unlock");                                            \
+        break;                                                                                      \
+      }                                                                                             \
+    }                                                                                               \
+  } while (0)
+
 
 #define MPT_SET_TEID(id, tId, eId)                              \
     do {                                                              \
@@ -103,8 +161,11 @@ typedef struct SMPTJobInfo {
   int8_t              retired;
   int32_t             errCode;
   SMemPoolJob*        memInfo;
-  SHashObj*           pSessions;
   void*               pCtx;
+
+  SRWLatch            lock;
+  int8_t              destroyed;
+  SHashObj*           pSessions;
 } SMPTJobInfo;
 
 
@@ -128,7 +189,7 @@ typedef struct {
 typedef struct {
   uint64_t  taskId;
   SRWLatch  taskExecLock;
-  bool      taskFinished;
+  bool      destoryed;
   
   int64_t poolMaxUsedSize;
   int64_t poolTotalUsedSize;
@@ -290,6 +351,8 @@ void mptDestroyTaskCtx(SMPTestTaskCtx* pTask, void* pSession) {
   }
   taosMemFreeClear(pTask->pMemList);
   taosMemFreeClear(pTask->npMemList);
+
+  pTask->destoryed = true;
 }
 
 
@@ -383,6 +446,8 @@ void mptInitTask(int32_t idx, int32_t eId, SMPTestJobCtx* pJob) {
 
   pJob->taskCtxs[idx].npMemList = (SMPTestMemInfo*)taosMemoryCalloc(MPT_MAX_MEM_ACT_TIMES, sizeof(*pJob->taskCtxs[idx].npMemList));
   ASSERT_TRUE(NULL != pJob->taskCtxs[idx].npMemList);
+
+  pJob->taskCtxs[idx].destoryed = false;
   
   uDebug("JOB:0x%x TASK:0x%x idx:%d initialized", pJob->jobId, pJob->taskCtxs[idx].taskId, idx);
 }
@@ -401,6 +466,37 @@ void mptInitJob(int32_t idx) {
   uDebug("JOB:0x%x idx:%d initialized, taskNum:%d", pJobCtx->jobId, idx, pJobCtx->taskNum);
 }
 
+void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, SMPTestJobCtx* pJobCtx, void* session) {
+  SMPTJobInfo *pJobInfo = pJobCtx->pJob;
+  char id[sizeof(tId) + sizeof(eId) + 1] = {0};
+  MPT_SET_TEID(id, tId, eId);
+  int32_t remainSessions = 0;
+
+  (void)taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
+
+  taosMemPoolDestroySession(gMemPoolHandle, session, &remainSessions);
+
+  if (0 == remainSessions) {
+    MPT_LOCK(MPT_WRITE, &pJobInfo->lock);
+    if (0 == taosHashGetSize(pJobInfo->pSessions)) {
+      atomic_store_8(&pJobInfo->destroyed, 1);
+
+      uDebug("JOB:0x%x idx:%d destroyed, code:0x%x", pJobCtx->jobId, pJobCtx->jobIdx, pJobInfo->errCode);
+
+      mptDestroyJobInfo(pJobInfo);
+      MPT_UNLOCK(MPT_WRITE, &pJobInfo->lock);
+
+      pJobCtx->pJob = NULL;
+      
+      (void)taosHashRemove(mptCtx.pJobs, &qId, sizeof(qId));
+      uInfo("the whole query job removed");
+    } else {
+      MPT_UNLOCK(MPT_WRITE, &pJobInfo->lock);
+    }
+  }
+}
+
+
 int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
   if (taosWTryLockLatch(&pJobCtx->jobExecLock)) {
     return -1;
@@ -408,22 +504,25 @@ int32_t mptDestroyJob(SMPTestJobCtx* pJobCtx, bool reset) {
 
   uint64_t jobId = pJobCtx->jobId;
   for (int32_t i = 0; i < pJobCtx->taskNum; ++i) {
-    SMPStatDetail* pStat = NULL;
-    int64_t allocSize = 0;
-    taosMemPoolGetSessionStat(pJobCtx->pSessions[i], &pStat, &allocSize, NULL);
-    int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
+    if (!pJobCtx->taskCtxs[i].destoryed) {
+      SMPStatDetail* pStat = NULL;
+      int64_t allocSize = 0;
+      taosMemPoolGetSessionStat(pJobCtx->pSessions[i], &pStat, &allocSize, NULL);
+      int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
 
-    assert(allocSize == usedSize);
-    assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[i].stat, sizeof(*pStat)));
-    
-    mptDestroyTaskCtx(&pJobCtx->taskCtxs[i], pJobCtx->pSessions[i]);
-    taosMemPoolDestroySession(gMemPoolHandle, pJobCtx->pSessions[i], NULL);
+      assert(allocSize == usedSize);
+      assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[i].stat, sizeof(*pStat)));
+
+      mptDestroySession(pJobCtx->jobId, pJobCtx->taskCtxs[i].taskId, 0, i, pJobCtx, pJobCtx->pSessions[i]);
+      pJobCtx->pSessions[i] = NULL;
+      
+      mptDestroyTaskCtx(&pJobCtx->taskCtxs[i], pJobCtx->pSessions[i]);
+    }
   }
 
-  uDebug("JOB:0x%x idx:%d destroyed, code:0x%x", pJobCtx->jobId, pJobCtx->jobIdx, pJobCtx->pJob->errCode);
 
-  mptDestroyJobInfo(pJobCtx->pJob);
-  (void)taosHashRemove(mptCtx.pJobs, &pJobCtx->jobId, sizeof(pJobCtx->jobId));
+  //mptDestroyJobInfo(pJobCtx->pJob);
+  //(void)taosHashRemove(mptCtx.pJobs, &pJobCtx->jobId, sizeof(pJobCtx->jobId));
 
   if (reset) {
     int32_t jobIdx = pJobCtx->jobIdx;
@@ -945,21 +1044,26 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
   
   for (int32_t i = 0; i < jobNum; ++i) {
     SMPTestJobCtx* pJobCtx = &mptCtx.jobCtxs[i];
+    if (NULL == pJobCtx->pJob) {
+      continue;
+    }
 
     while (taosRTryLockLatch(&pJobCtx->jobExecLock)) {
     }
 
     int64_t jobUsedSize = 0;
     for (int32_t m = 0; m < pJobCtx->taskNum; ++m) {
-      SMPStatDetail* pStat = NULL;
-      int64_t allocSize = 0;
-      taosMemPoolGetSessionStat(pJobCtx->pSessions[m], &pStat, &allocSize, NULL);
-      int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
-      
-      assert(allocSize == usedSize);
-      assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
+      if (!pJobCtx->taskCtxs[m].destoryed) {
+        SMPStatDetail* pStat = NULL;
+        int64_t allocSize = 0;
+        taosMemPoolGetSessionStat(pJobCtx->pSessions[m], &pStat, &allocSize, NULL);
+        int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
+        
+        assert(allocSize == usedSize);
+        assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
 
-      jobUsedSize += allocSize;
+        jobUsedSize += allocSize;
+      }
     }
     
     assert(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
