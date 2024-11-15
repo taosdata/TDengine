@@ -9,7 +9,9 @@ async function createConnect() {
     conf.setToken(token);
     conf.setDb('test');
     conn = await taos.sqlConnect(conf);
-    await conn.exec('insert into t1 using meters tags (1) values(now, 1)');
+    await conn.exec(
+      "insert into cloud using meters tags (1, 'new york') values (now, 1.1, 1, 1.1)"
+    );
   } catch (err) {
     throw err;
   } finally {
