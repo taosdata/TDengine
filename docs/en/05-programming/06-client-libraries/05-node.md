@@ -26,7 +26,7 @@ npm install @tdengine/websocket
 {{#include docs/examples/node/connect.js}}
 ```
 
-### Usage examples
+## Usage examples
 
 ```javascript
 {{#include docs/examples/node/insert.js}}
