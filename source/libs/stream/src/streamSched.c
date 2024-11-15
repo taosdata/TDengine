@@ -109,7 +109,7 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   if ((code = tEncodeStreamTaskRunReq(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
-    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", taskId, vgId, tstrerror(code));
+    stError("s-task:0x%x vgId:%d encode run task msg failed, code:%s", taskId, vgId, tstrerror(code));
     return code;
   }
   tEncoderClear(&encoder);
