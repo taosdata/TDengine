@@ -217,6 +217,7 @@ class TDTestCase(TBase):
                 if defaultValue == None:
                     defaultValue = self.defCompress
                 if defaultValue != comp: 
+                    sql = f"alter table {tbname} modify column {col} COMPRESS '{comp}';"
                     tdSql.execute(sql, show=False)
                     self.checkDataDesc(tbname, i + 1, 5, comp)
                 self.writeData(1000)
