@@ -620,6 +620,15 @@ enum {
 
 enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
+/**
+ * RB: return before
+ * RA: return after
+ * NR: not return, skip and go on following code
+ */
+#define TSDB_BYPASS_RB_RPC_SEND_SUBMIT 0x01u
+#define TSDB_BYPASS_RA_RPC_RECV_SUBMIT 0x02u
+#define TSDB_BYPASS_RB_TSDB_COMMIT     0x08u
+
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
 #define QNODE_HANDLE   -1
