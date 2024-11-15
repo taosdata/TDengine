@@ -351,6 +351,11 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     pActiveInfo->activeId = checkpointId;
     pActiveInfo->transId = transId;
 
+    if (pTask->chkInfo.startTs == 0) {
+      pTask->chkInfo.startTs = taosGetTimestampMs();
+      pTask->execInfo.checkpoint += 1;
+    }
+
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s handle checkpoint-trigger block failed, code:%s", id, tstrerror(code));
@@ -407,11 +412,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
-    if (pTask->chkInfo.startTs == 0) {
-      pTask->chkInfo.startTs = taosGetTimestampMs();
-      pTask->execInfo.checkpoint += 1;
-    }
-
     // todo: handle this
     // update the child Id for downstream tasks
     code = streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
@@ -1149,16 +1149,16 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
 
     tEncodeSize(tEncodeRetrieveChkptTriggerReq, &req, tlen, ret);
     if (ret < 0) {
-      stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+      stError("encode retrieve checkpoint-trigger msg failed, code:%s", tstrerror(code));
     }
 
     buf = rpcMallocCont(tlen + sizeof(SMsgHead));
     if (buf == NULL) {
-      stError("vgId:%d failed to create msg to retrieve trigger msg for task:%s exec, code:out of memory", vgId, pId);
+      stError("vgId:%d failed to create retrieve checkpoint-trigger msg for task:%s exec, code:out of memory", vgId, pId);
       continue;
     }
 
-    ((SRetrieveChkptTriggerReq*)buf)->head.vgId = htonl(vgId);
+    ((SRetrieveChkptTriggerReq*)buf)->head.vgId = htonl(pUpstreamTask->nodeId);
     void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
     tEncoderInit(&encoder, abuf, tlen);

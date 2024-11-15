@@ -1003,7 +1003,7 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
 
   int32_t code = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId, &pTask);
   if (pTask == NULL || (code != 0)) {
-    tqError("vgId:%d process retrieve checkpoint trigger, checkpointId:%" PRId64
+    tqError("vgId:%d process retrieve checkpoint-trigger, checkpointId:%" PRId64
             " from s-task:0x%x, failed to acquire task:0x%x, it may have been dropped already",
             pMeta->vgId, req.checkpointId, (int32_t)req.downstreamTaskId, req.upstreamTaskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -1098,8 +1098,8 @@ int32_t tqStreamTaskProcessRetrieveTriggerRsp(SStreamMeta* pMeta, SRpcMsg* pMsg)
   }
 
   tqDebug(
-      "s-task:%s recv re-send checkpoint-trigger msg from through retrieve/rsp channel, upstream:0x%x, "
-      "checkpointId:%" PRId64 ", transId:%d",
+      "s-task:%s recv re-send checkpoint-trigger msg through retrieve/rsp channel, upstream:0x%x, checkpointId:%" PRId64
+      ", transId:%d",
       pTask->id.idStr, rsp.upstreamTaskId, rsp.checkpointId, rsp.transId);
 
   code = streamTaskProcessCheckpointTriggerRsp(pTask, &rsp);
