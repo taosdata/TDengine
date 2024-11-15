@@ -28,11 +28,15 @@ pub struct TmqMetrics {
     #[serde(default)]
     pub total_success_blocks: AtomicU64,
     #[serde(default)]
+    pub total_success_messages: AtomicU64,
+    #[serde(default)]
     pub messages: AtomicU64,
     #[serde(default)]
     pub messages_of_meta: AtomicU64,
     #[serde(default)]
     pub messages_of_data: AtomicU64,
+    #[serde(default)]
+    pub success_messages: AtomicU64,
     #[serde(default)]
     pub write_raw_fails: AtomicU64,
     #[serde(default)]
@@ -67,9 +71,11 @@ impl Default for TmqMetrics {
             total_messages_of_data: AtomicU64::new(0),
             total_write_raw_fails: AtomicU64::new(0),
             total_success_blocks: AtomicU64::new(0),
+            total_success_messages: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
+            success_messages: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
             total_consume_cost_ms: AtomicU64::new(0),
@@ -110,6 +116,12 @@ impl TmqMetrics {
     pub fn add_write_raw_fails(&self, n: u64) {
         self.total_write_raw_fails.fetch_add(n, SeqCst);
         self.write_raw_fails.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_success_messages(&self, n: u64) {
+        self.total_success_messages.fetch_add(n, SeqCst);
+        self.success_messages.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -172,6 +184,7 @@ impl TaskMetrics for TmqMetrics {
         self.messages.store(0, SeqCst);
         self.messages_of_meta.store(0, SeqCst);
         self.messages_of_data.store(0, SeqCst);
+        self.success_messages.store(0, SeqCst);
         self.write_raw_fails.store(0, SeqCst);
         self.success_blocks.store(0, SeqCst);
     }
