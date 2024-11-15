@@ -1083,6 +1083,7 @@ typedef struct {
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
+  char    dnodeListStr[TSDB_DNODE_LIST_LEN];
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);

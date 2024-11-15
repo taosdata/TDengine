@@ -1138,6 +1138,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 }
 
@@ -1173,6 +1174,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = -1;
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
+  pOptions->dnodeListStr[0] = 0;
   return (SNode*)pOptions;
 }
 
@@ -1287,6 +1289,15 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
+    case DB_OPTION_DNODES:
+      if (((SToken*)pVal)->n >= TSDB_DNODE_LIST_LEN) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "the dnode list is too long (should less than %d)",
+                 TSDB_DNODE_LIST_LEN);
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      } else {
+        COPY_STRING_FORM_STR_TOKEN(pDbOptions->dnodeListStr, (SToken*)pVal);
+      }
+      break;
     default:
       break;
   }

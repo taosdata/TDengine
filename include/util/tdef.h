@@ -370,6 +370,7 @@ typedef enum ELogicConditionType {
 #define TSDB_CACHE_MODEL_LAST_ROW       1
 #define TSDB_CACHE_MODEL_LAST_VALUE     2
 #define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DNODE_LIST_LEN             256
 #define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
