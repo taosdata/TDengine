@@ -29,28 +29,22 @@ int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigItem *item);
 
 int32_t mndInitConfig(SMnode *pMnode) {
   int32_t   code = 0;
-  SSdbTable table = {
-      .sdbType = SDB_CFG,
-      .keyType = SDB_KEY_INT32,
-      .encodeFp = (SdbEncodeFp)mnCfgActionEncode,
-      .decodeFp = (SdbDecodeFp)mndCfgActionDecode,
-      .insertFp = (SdbInsertFp)mndCfgActionInsert,
-      .updateFp = (SdbUpdateFp)mndCfgActionUpdate,
-      .deleteFp = (SdbDeleteFp)mndCfgActionDelete,
-  };
-
-  if (pMnode->deploy) {
-    mndInitWriteCfg(pMnode);
-  } else {
-    mndInitReadCfg(pMnode);
-  }
+  SSdbTable table = {.sdbType = SDB_CFG,
+                     .keyType = SDB_KEY_BINARY,
+                     .encodeFp = (SdbEncodeFp)mnCfgActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndCfgActionDecode,
+                     .insertFp = (SdbInsertFp)mndCfgActionInsert,
+                     .updateFp = (SdbUpdateFp)mndCfgActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndCfgActionDelete,
+                     .deployFp = (SdbDeployFp)mndCfgActionDeploy,
+                     .prepareFp = (SdbPrepareFp)mndCfgActionPrepare};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-SSdbRaw *mnCfgActionEncode(SConfigItem *pCfg) {
+SSdbRaw *mnCfgActionEncode(SConfigItem *pItem) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -60,26 +54,25 @@ SSdbRaw *mnCfgActionEncode(SConfigItem *pCfg) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
-  int32_t      dataPos = 0;
-  SConfigItem *item = NULL;
-  SDB_SET_INT32(pRaw, dataPos, strlen(item->name), _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, item->name, strlen(item->name), _OVER)
-  SDB_SET_INT32(pRaw, dataPos, item->dtype, _OVER)
-  switch (item->dtype) {
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, strlen(pItem->name), _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pItem->name, strlen(pItem->name), _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pItem->dtype, _OVER)
+  switch (pItem->dtype) {
     case CFG_DTYPE_NONE:
       break;
     case CFG_DTYPE_BOOL:
-      SDB_SET_BOOL(pRaw, dataPos, item->bval, _OVER)
+      SDB_SET_BOOL(pRaw, dataPos, pItem->bval, _OVER)
       break;
     case CFG_DTYPE_INT32:
-      SDB_SET_INT32(pRaw, dataPos, item->i32, _OVER);
+      SDB_SET_INT32(pRaw, dataPos, pItem->i32, _OVER);
       break;
     case CFG_DTYPE_INT64:
-      SDB_SET_INT64(pRaw, dataPos, item->i64, _OVER);
+      SDB_SET_INT64(pRaw, dataPos, pItem->i64, _OVER);
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      (void)sprintf(buf, "%f", item->fval);
+      (void)sprintf(buf, "%f", pItem->fval);
       SDB_SET_INT32(pRaw, dataPos, strlen(buf), _OVER)
       SDB_SET_BINARY(pRaw, dataPos, buf, strlen(buf), _OVER)
       break;
@@ -88,8 +81,8 @@ SSdbRaw *mnCfgActionEncode(SConfigItem *pCfg) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      SDB_SET_INT32(pRaw, dataPos, strlen(item->str), _OVER)
-      SDB_SET_BINARY(pRaw, dataPos, item->str, strlen(item->str), _OVER)
+      SDB_SET_INT32(pRaw, dataPos, strlen(pItem->str), _OVER)
+      SDB_SET_BINARY(pRaw, dataPos, pItem->str, strlen(pItem->str), _OVER)
       break;
   }
 
@@ -101,7 +94,7 @@ _OVER:
     sdbFreeRaw(pRaw);
     return NULL;
   }
-  mTrace("cfg encode to raw:%p, row:%p", pRaw, pCfg);
+  mTrace("cfg encode to raw:%p, row:%p", pRaw, pItem);
   return pRaw;
 }
 
@@ -121,7 +114,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  pRow = sdbAllocRow(sizeof(SSdbRaw));
+  pRow = sdbAllocRow(sizeof(SConfigItem));
   if (pRow == NULL) goto _OVER;
 
   item = sdbGetRowObj(pRow);
@@ -183,6 +176,10 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigItem *pOld, SConfigItem *pN
   mTrace("cfg:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
 }
+
+static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
+
+static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitConfig(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;

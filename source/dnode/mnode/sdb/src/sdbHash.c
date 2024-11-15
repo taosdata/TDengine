@@ -76,6 +76,8 @@ const char *sdbTableName(ESdbType type) {
       return "arb_group";
     case SDB_ANODE:
       return "anode";
+    case SDB_CFG:
+      return "config";
     default:
       return "undefine";
   }
@@ -444,7 +446,7 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
 
 void sdbCancelFetch(SSdb *pSdb, void *pIter) {
   if (pIter == NULL) return;
-  SSdbRow  *pRow = *(SSdbRow **)pIter;
+  SSdbRow *pRow = *(SSdbRow **)pIter;
   mTrace("cancel fetch row:%p", pRow);
   SHashObj *hash = sdbGetHash(pSdb, pRow->type);
   if (hash == NULL) return;
@@ -532,12 +534,12 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
 }
 
 bool countValid(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  int32_t* pInt = p1;
+  int32_t *pInt = p1;
   (*pInt) += 1;
   return true;
 }
 
-int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type) {
+int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type) {
   int32_t num = 0;
   sdbTraverse(pSdb, type, countValid, &num, 0, 0);
   return num;

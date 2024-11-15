@@ -48,6 +48,26 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   return 0;
 }
 
+static int32_t sdbPrepareData(SSdb *pSdb) {
+  int32_t code = 0;
+  mInfo("start to prepare sdb");
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbDeployFp fp = pSdb->prepareFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to prepare sdb:%s", sdbTableName(i));
+    code = (*fp)(pSdb->pMnode);
+    if (code != 0) {
+      mError("failed to prepare sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return -1;
+    }
+  }
+
+  mInfo("sdb prepare success");
+  return 0;
+}
+
 static void sdbResetData(SSdb *pSdb) {
   mInfo("start to reset sdb");
 
@@ -638,6 +658,15 @@ int32_t sdbDeploy(SSdb *pSdb) {
     TAOS_RETURN(code);
   }
 
+  return 0;
+}
+
+int32_t sdbPrepare(SSdb *pSdb) {
+  int32_t code = 0;
+  code = sdbPrepareData(pSdb);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
   return 0;
 }
 

@@ -45,10 +45,6 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return code;
 }
 
-static void mmBuildConfigForDeploy(SMnodeMgmt *pMgmt) {
-  persistGlobalConfig(getGlobalCfg(tsCfg), pMgmt->path, tsmmConfigVersion);
-}
-
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
@@ -124,7 +120,6 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     dInfo("mnode start to deploy");
     pMgmt->pData->dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
-    mmBuildConfigForDeploy(pMgmt);
   } else {
     dInfo("mnode start to open");
     mmBuildOptionForOpen(pMgmt, &option);

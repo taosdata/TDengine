@@ -604,7 +604,6 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
 
 static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-wal", mndInitWal, mndCloseWal));
-  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster));
@@ -639,7 +638,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
-
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, mndCleanupArbGroup));
   return 0;
 }
 
@@ -795,6 +794,12 @@ int32_t mndStart(SMnode *pMnode) {
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
       mError("failed to deploy sdb while start mnode");
+      return -1;
+    }
+    mndSetRestored(pMnode, true);
+  } else {
+    if (sdbPrepare(pMnode->pSdb) != 0) {
+      mError("failed to prepare sdb while start mnode");
       return -1;
     }
     mndSetRestored(pMnode, true);

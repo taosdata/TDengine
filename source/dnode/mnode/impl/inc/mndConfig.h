@@ -21,12 +21,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-int32_t        mndInitConfig(SMnode *pMnode);
+int32_t mndInitConfig(SMnode *pMnode);
+
 SSdbRaw       *mnCfgActionEncode(SConfigItem *pCfg);
 SSdbRow       *mndCfgActionDecode(SSdbRaw *pRaw);
 static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigItem *item);
 static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigItem *item);
 static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigItem *oldItem, SConfigItem *newItem);
+static int32_t mndCfgActionDeploy(SMnode *pMnode);
+static int32_t mndCfgActionPrepare(SMnode *pMnode);
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 #ifdef __cplusplus

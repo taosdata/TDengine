@@ -115,6 +115,7 @@ typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
+typedef int32_t (*SdbPrepareFp)(SMnode *pMnode);
 typedef int32_t (*SdbValidateFp)(SMnode *pMnode, void *pTrans, SSdbRaw *pRaw);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
@@ -164,8 +165,8 @@ typedef enum {
   SDB_GRANT = 26,  // grant log
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
-  SDB_MAX = 29,
-  SDB_CFG = 30
+  SDB_CFG = 29,
+  SDB_MAX = 30
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -205,6 +206,7 @@ typedef struct SSdb {
   SdbUpdateFp    updateFps[SDB_MAX];
   SdbDeleteFp    deleteFps[SDB_MAX];
   SdbDeployFp    deployFps[SDB_MAX];
+  SdbPrepareFp   prepareFps[SDB_MAX];
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
   SdbValidateFp  validateFps[SDB_MAX];
@@ -221,6 +223,7 @@ typedef struct {
   ESdbType      sdbType;
   EKeyType      keyType;
   SdbDeployFp   deployFp;
+  SdbPrepareFp  prepareFp;
   SdbEncodeFp   encodeFp;
   SdbDecodeFp   decodeFp;
   SdbInsertFp   insertFp;
@@ -267,6 +270,14 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbDeploy(SSdb *pSdb);
+
+/**
+ * @brief prepare the initial rows of sdb.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbPrepare(SSdb *pSdb);
 
 /**
  * @brief Load sdb from file.
