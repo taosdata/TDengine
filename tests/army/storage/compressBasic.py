@@ -35,6 +35,25 @@ class TDTestCase(TBase):
     # compress
     compresses = ["lz4","zlib","zstd","disabled","xz"]
 
+    compressDefaultDict = {};
+    compressDefaultDict["BOOL"] = "zstd"
+    compressDefaultDict["TINYINT"] = "zlib"
+    compressDefaultDict["SMALLINT"] = "zlib"
+    compressDefaultDict["INT"] = "lz4"
+    compressDefaultDict["BIGINT"] = "lz4"
+    compressDefaultDict["FLOAT"] = "lz4"
+    compressDefaultDict["DOUBLE"] = "lz4"
+    compressDefaultDict["VARCHAR"] = "zstd"
+    compressDefaultDict["TIMESTAMP"] = "lz4"
+    compressDefaultDict["NCHAR"] = "zstd"
+    compressDefaultDict["TINYINT UNSIGNED"] = "zlib"
+    compressDefaultDict["SMALLINT UNSIGNED"] = "zlib"
+    compressDefaultDict["INT UNSIGNED"] = "lz4"
+    compressDefaultDict["BIGINT UNSIGNED"] = "lz4"
+    compressDefaultDict["NCHAR"] = "zstd"
+    compressDefaultDict["BLOB"] = "lz4"
+    compressDefaultDict["VARBINARY"] = "zstd"
+
     # level
     levels = ["high","medium","low"]
 
@@ -137,24 +156,6 @@ class TDTestCase(TBase):
         defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
                        "simple8b","simple8b","delta-d","delta-d","bit-packing",
                        "disabled","disabled","disabled","disabled"]        
-        compressDefaultDict = {};
-        compressDefaultDict["BOOL"] = "zstd"
-        compressDefaultDict["TINYINT"] = "zlib"
-        compressDefaultDict["SMALLINT"] = "zlib"
-        compressDefaultDict["INT"] = "lz4"
-        compressDefaultDict["BIGINT"] = "lz4"
-        compressDefaultDict["FLOAT"] = "lz4"
-        compressDefaultDict["DOUBLE"] = "lz4"
-        compressDefaultDict["VARCHAR"] = "zstd"
-        compressDefaultDict["TIMESTAMP"] = "lz4"
-        compressDefaultDict["NCHAR"] = "zstd"
-        compressDefaultDict["TINYINT UNSIGNED"] = "zlib"
-        compressDefaultDict["SMALLINT UNSIGNED"] = "zlib"
-        compressDefaultDict["INT UNSIGNED"] = "lz4"
-        compressDefaultDict["BIGINT UNSIGNED"] = "lz4"
-        compressDefaultDict["NCHAR"] = "zstd"
-        compressDefaultDict["BLOB"] = "lz4"
-        compressDefaultDict["VARBINARY"] = "zstd"
         
         count = tdSql.getRows()
         for i in range(count):
@@ -164,7 +165,7 @@ class TDTestCase(TBase):
             # check
             tdLog.info(f"check default encode {tdSql.getData(i, 1)}")
             #tdLog.info(f"check default encode compressDefaultDict[tdSql.getData(i, 2)]")
-            defaultValue = compressDefaultDict[tdSql.getData(i, 1)]
+            defaultValue = self.compressDefaultDict[tdSql.getData(i, 1)]
             if defaultValue == None:
                 defaultValue = self.defCompress
             tdLog.info(f"check default compress {tdSql.getData(i, 1)} {defaultValue}")
@@ -209,9 +210,15 @@ class TDTestCase(TBase):
         for comp in comps:
             for i in range(self.colCnt - 1):
                 col = f"c{i}"
-                sql = f"alter table {tbname} modify column {col} COMPRESS '{comp}';"
-                #tdSql.execute(sql, show=False)
-                #self.checkDataDesc(tbname, i + 1, 5, comp)
+                sql2=  f"desc {tbname}"
+                tdSql.execute(sql2, show=True)
+                  
+                defaultValue = self.compressDefaultDict[tdSql.getData(i, 1)]
+                if defaultValue == None:
+                    defaultValue = self.defCompress
+                if defaultValue != comp: 
+                    tdSql.execute(sql, show=False)
+                    self.checkDataDesc(tbname, i + 1, 5, comp)
                 self.writeData(1000)
 
         # alter float(c9) double(c10) to tsz
