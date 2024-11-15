@@ -666,9 +666,26 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   SDnodeObj *pDnode = pObj;
   SArray    *pArray = p1;
   int32_t    exceptDnodeId = *(int32_t *)p2;
+  SArray    *dnodeList = p3;
 
   if (exceptDnodeId == pDnode->id) {
     return true;
+  }
+
+  if (dnodeList != NULL) {
+    int32_t dnodeListSize = taosArrayGetSize(dnodeList);
+    if (dnodeListSize > 0) {
+      bool inDnodeList = false;
+      for (int32_t index = 0; index < dnodeListSize; ++index) {
+        int32_t dnodeId = *(int32_t *)taosArrayGet(dnodeList, index);
+        if (pDnode->id == dnodeId) {
+          inDnodeList = true;
+        }
+      }
+      if (!inDnodeList) {
+        return true;
+      }
+    }
   }
 
   int64_t curMs = taosGetTimestampMs();
@@ -690,7 +707,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   return true;
 }
 
-SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
+SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId, SArray *dnodeList) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
 
@@ -701,7 +718,7 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
   }
 
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
-  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, NULL);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, dnodeList);
 
   mDebug("build %d dnodes array", (int32_t)taosArrayGetSize(pArray));
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
@@ -797,7 +814,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
 }
 
 int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
   if (pArray == NULL) return -1;
 
   pVgroup->vgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
@@ -816,7 +833,7 @@ int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   return 0;
 }
 
-int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups, SArray *dnodeList) {
   int32_t code = -1;
   SArray *pArray = NULL;
   SVgObj *pVgroups = NULL;
@@ -827,7 +844,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     goto _OVER;
   }
 
-  pArray = mndBuildDnodesArray(pMnode, 0);
+  pArray = mndBuildDnodesArray(pMnode, 0, NULL);
   if (pArray == NULL) goto _OVER;
 
   mInfo("db:%s, total %d dnodes used to create %d vgroups (%d vnodes)", pDb->name, (int32_t)taosArrayGetSize(pArray),
@@ -1800,7 +1817,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 
 int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t delDnodeId, bool force, bool unsafe) {
   int32_t code = 0;
-  SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId);
+  SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId, NULL);
   if (pArray == NULL) return -1;
 
   void *pIter = NULL;
@@ -2678,7 +2695,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   int32_t  code = -1;
   STrans  *pTrans = NULL;
   SDbObj   dbObj = {0};
-  SArray  *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray  *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
 
   int32_t numOfTopics = 0;
   if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
@@ -2997,7 +3014,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pDnode);
   }
 
-  pArray = mndBuildDnodesArray(pMnode, 0);
+  pArray = mndBuildDnodesArray(pMnode, 0, NULL);
   if (pArray == NULL) goto _OVER;
 
   if (taosArrayGetSize(pArray) < 2) {

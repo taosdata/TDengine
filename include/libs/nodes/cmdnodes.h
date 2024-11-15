@@ -64,6 +64,7 @@ typedef struct SDatabaseOptions {
   int32_t     cacheLastSize;
   int8_t      compressionLevel;
   int32_t     daysPerFile;
+  char        dnodeListStr[TSDB_DNODE_LIST_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;

@@ -581,7 +581,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -649,7 +649,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   SVgObj *pVgroups = NULL;
-  if (mndAllocVgroup(pMnode, &dbObj, &pVgroups) != 0) {
+  if (mndAllocVgroup(pMnode, &dbObj, &pVgroups, dnodeList) != 0) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
@@ -706,12 +706,30 @@ static void mndBuildAuditDetailInt64(char* detail, char* tmp, char* format, int6
   }
 }
 
+#ifndef TD_ENTERPRISE
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList) {
+  if (dnodeListStr[0] != 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  } else {
+    return 0;
+  }
+}
+#endif
+
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
+  SArray      *dnodeList = NULL;
+
+  dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
+  if (dnodeList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -765,7 +783,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCreateDb(pMnode, pReq, &createReq, pUser);
+  code = mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList);
+  if (code != 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  code = mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   
   SName name = {0};
@@ -781,6 +805,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSCreateDbReq(&createReq);
+  taosArrayDestroy(dnodeList);
 
   return code;
 }
@@ -914,7 +939,11 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0, NULL);
+  if (pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
 
   while (1) {
     SVgObj *pVgroup = NULL;

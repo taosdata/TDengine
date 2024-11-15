@@ -4484,6 +4484,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->hashSuffix = pStmt->pOptions->tableSuffix;
   pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
   pReq->ignoreExist = pStmt->ignoreExists;
+  tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
