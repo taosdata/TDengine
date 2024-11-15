@@ -3,16 +3,20 @@ sidebar_label: Node.js
 title: 使用 Node.js 连接器建立连接
 description: 使用 Node.js 连接器建立和 TDengine Cloud 的连接
 ---
+
 <!-- exclude -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
+
 ## 安装连接器
 
 ```bash
-npm install @tdengine/rest
+npm install @tdengine/websocket
 ```
+
 ## 配置
 
 在您的终端里面执行下面的命令设置 TDengine Cloud 令牌为环境变量：
@@ -44,12 +48,13 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </TabItem>
 </Tabs>
 
-
 <!-- exclude -->
+
 :::note IMPORTANT
 替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL 。
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Node.js“。
 :::
+
 <!-- exclude-end -->
 
 ## Connect

@@ -3,15 +3,18 @@ sidebar_label: Node.js
 title: Connect with Node.js
 description: This document describes how to connect to TDengine Cloud using the Node.js client library.
 ---
+
 <!-- exclude -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
+
 ## Install Client Library
 
 ```bash
-npm install @tdengine/rest
+npm install @tdengine/websocket
 ```
 
 ## Config
@@ -46,11 +49,13 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </Tabs>
 
 <!-- exclude -->
+
 :::note IMPORTANT
-Replace  &lt;token&gt; and &lt;url&gt; with cloud token and URL.
+Replace &lt;token&gt; and &lt;url&gt; with cloud token and URL.
 To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on left menu, then select "Node.js".
 
 :::
+
 <!-- exclude-end -->
 
 ## Connect
