@@ -68,7 +68,7 @@ class TDTestCase:
         checkFiles(r'/mnt/data1/*/*',1)
         checkFiles(r'/mnt/data2/*/*',0)
         
-        tdSql.execute('create database nws vgroups 20 buffer 3000 stt_trigger 1 wal_level 1 wal_retention_period 0')
+        tdSql.execute('create database nws vgroups 20 stt_trigger 1 wal_level 1 wal_retention_period 0')
 
         checkFiles(r'/mnt/data1/vnode/*/wal',5)
         checkFiles(r'/mnt/data2/vnode/*/wal',5)
