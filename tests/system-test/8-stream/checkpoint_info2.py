@@ -33,17 +33,21 @@ class TDTestCase:
                 info_path = os.path.join(root, f'checkpoint{checkpointid}', 'info')
                 if os.path.exists(info_path):
                     if task_id in info_path:
+                        tdLog.info(f"info file found in {info_path}")
                         return info_path
                     else:
                         continue
                 else:
+                    tdLog.info(f"info file not found in {info_path}")
                     return None
+            else:
+                tdLog.info(f"no checkpoint{checkpointid} in {dirpath}")
     def get_dnode_info(self):
         '''
         get a dict from vnode to dnode
         '''
         self.vnode_dict = {}
-        sql = 'select dnode_id, vgroup_id from information_schema.ins_vnodes'
+        sql = 'select dnode_id, vgroup_id from information_schema.ins_vnodes where status = "leader"'
         result = tdSql.getResult(sql)
         for (dnode,vnode) in  result:
             self.vnode_dict[vnode] = dnode
@@ -68,15 +72,18 @@ class TDTestCase:
         while(True):
             if(self.check_vnodestate()):
                 break
+        self.get_dnode_info()
         sql = 'select task_id, node_id, checkpoint_id, checkpoint_ver from information_schema.ins_stream_tasks where `level` = "source" or `level` = "agg" and node_type == "vnode"'
         for task_id, vnode, checkpoint_id, checkpoint_ver in tdSql.getResult(sql):
             dirpath = f"{cluster.dnodes[self.vnode_dict[vnode]-1].dataDir}/vnode/vnode{vnode}/"
             info_path = self.find_checkpoint_info_file(dirpath, checkpoint_id, task_id)
             if info_path is None:
+                tdLog.info(f"info path: {dirpath} is null")
                 return False
             with open(info_path, 'r') as f:
                 info_id, info_ver = f.read().split()
                 if int(info_id) != int(checkpoint_id) or int(info_ver) != int(checkpoint_ver):
+                    tdLog.info(f"infoId: {info_id}, checkpointId: {checkpoint_id}, infoVer: {info_ver}, checkpointVer: {checkpoint_ver}")
                     return False
         return True
 
