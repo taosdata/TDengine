@@ -26,12 +26,6 @@ npm install @tdengine/websocket
 {{#include docs/examples/node/connect.js}}
 ```
 
-## Usage examples
-
-```javascript
-{{#include docs/examples/node/insert.js:usage}}
-```
-
 ## Frequently Asked Questions
 
 1. Using REST connections requires starting taosadapter.
