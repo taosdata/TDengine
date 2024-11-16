@@ -436,6 +436,11 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   cloudGrantStatus.connectors = grantStatusReq.connectors;
 #else
   grantStatus = grantStatusReq;  // assign directly
+  if (grantCheck(TSDB_GRANT_TIME) == TSDB_CODE_SUCCESS) {
+    atomic_val_compare_exchange_8(&tsGrant, 0, 1);
+  } else {
+    atomic_store_8(&tsGrant, 0);
+  }
 #endif
 
   // step 3: respond with grant msg
@@ -696,17 +701,22 @@ static void mndProcessGrantStatusCheck() {
   }
 #endif
 
+  bool minHbInterval = false;
   if (grantCheck(TSDB_GRANT_TIME) == TSDB_CODE_SUCCESS) {
-    atomic_store_8(&tsGrant, 1);
-  } else {
-    atomic_store_8(&tsGrant, 0);
+    if (0 == atomic_val_compare_exchange_8(&tsGrant, 0, 1)) {
+      minHbInterval = true;
+    }
+  } else if (0 != atomic_load_8(&tsGrant)) {
+    minHbInterval = true;
   }
 
   if (atomic_val_compare_exchange_8(&grantHbLock, 2, 0) == 2) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+    minHbInterval = true;
   } else {
     atomic_store_8(&grantHbLock, 0);
   }
+
+  if (minHbInterval) tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
 }
 
 static int32_t dnodeInfoCmprFn(const void *p1, const void *p2) {
