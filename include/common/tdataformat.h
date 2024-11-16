@@ -155,7 +155,7 @@ int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
-int32_t parseGeotoTagData(const char *g, SArray *pTagVals, SSchema *pTagSchema, unsigned char *output);
+int32_t parseGeotoTagData(const char *g, SArray *pTagVals, SSchema *pTagSchema);
 
 // SColData ================================
 typedef struct {

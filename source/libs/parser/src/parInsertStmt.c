@@ -189,19 +189,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         goto end;
       }
     } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-      char* tmp = taosMemoryCalloc(1, colLen);
-      if (!tmp) {
-        code = terrno;
-        goto end;
-      }
-      memcpy(tmp, bind[c].buffer, colLen);
-      unsigned char* out = NULL;
-      code = parseGeotoTagData(tmp, pTagArray, pTagSchema, out);
-      taosMemoryFree(tmp);
-      if (code != TSDB_CODE_SUCCESS) {
-        geosFreeBuffer(out);
-        goto end;
-      }
+      code = parseGeotoTagData(bind[c].buffer, pTagArray, pTagSchema);
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
@@ -590,19 +578,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         goto end;
       }
     } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-      char* tmp = taosMemoryCalloc(1, colLen);
-      if (!tmp) {
-        code = terrno;
-        goto end;
-      }
-      memcpy(tmp, bind[c].buffer, colLen);
-      unsigned char* out = NULL;
-      code = parseGeotoTagData(tmp, pTagArray, pTagSchema, out);
-      taosMemoryFree(tmp);
-      if (code != TSDB_CODE_SUCCESS) {
-        geosFreeBuffer(out);
-        goto end;
-      }
+      code = parseGeotoTagData(bind[c].buffer, pTagArray, pTagSchema);
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);

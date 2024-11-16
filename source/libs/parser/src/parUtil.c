@@ -519,13 +519,14 @@ end:
   return retCode;
 }
 
-int32_t parseGeotoTagData(const char* g, SArray* pTagVals, SSchema* pTagSchema, unsigned char* output) {
-  int32_t code = 0;
-  size_t  size = 0;
-  STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+int32_t parseGeotoTagData(const char* g, SArray* pTagVals, SSchema* pTagSchema) {
+  int32_t        code = 0;
+  size_t         size = 0;
+  unsigned char* output = NULL;
+  STagVal        val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
   code = initCtxGeomFromText();
   if (code != TSDB_CODE_SUCCESS) {
-    goto end;
+    return code;
   }
   code = doGeomFromText(g, &output, &size);
   if (code != TSDB_CODE_SUCCESS) {
@@ -541,6 +542,7 @@ int32_t parseGeotoTagData(const char* g, SArray* pTagVals, SSchema* pTagSchema, 
 
   if (NULL == taosArrayPush(pTagVals, &val)) {
     code = terrno;
+    geosFreeBuffer(output);
     goto end;
   }
 
