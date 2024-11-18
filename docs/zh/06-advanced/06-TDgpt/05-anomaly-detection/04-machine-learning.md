@@ -1,6 +1,6 @@
 ---
-title: "检测算法"
-sidebar_label: "检测算法"
+title: "机器学习算法"
+sidebar_label: "机器学习算法"
 ---
 
 ### 基于自编码器的检测方法
