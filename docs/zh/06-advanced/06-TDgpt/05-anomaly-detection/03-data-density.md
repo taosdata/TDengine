@@ -1,6 +1,6 @@
 ---
-title: "数据密度方法"
-sidebar_label: "数据密度方法"
+title: "数据密度算法"
+sidebar_label: "数据密度算法"
 ---
 
 ### 基于数据密度的检测方法
