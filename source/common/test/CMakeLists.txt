@@ -39,12 +39,25 @@ add_test(
     NAME dataformatTest
     COMMAND dataformatTest
 )
-# tmsg test
-add_executable(tmsgTest "")
-target_sources(tmsgTest 
+
+if (${TD_LINUX})
+    # tmsg test
+    add_executable(tmsgTest "")
+    target_sources(tmsgTest 
         PRIVATE
         "tmsgTest.cpp"
         "../src/tmsg.c"
-)
-target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
-target_link_libraries(tmsgTest PUBLIC os util common gtest gtest_main)
+    )
+    target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
+    target_link_libraries(tmsgTest PUBLIC os util common gtest gtest_main)
+    add_test(
+        NAME tmsgTest
+        COMMAND tmsgTest
+    )
+
+    # config file for msg type table
+    SET(MSG_TBL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/msgTypeTable.ini)
+    add_custom_command(TARGET tmsgTest POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSG_TBL_FILE} $<TARGET_FILE_DIR:tmsgTest>
+    )
+endif ()
