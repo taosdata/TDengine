@@ -89,5 +89,5 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 
 
 ## 内置预测算法
-- arima
-- holtwinters
+- [arima](./02-arima.md)
+- [holtwinters](./03-holtwinters.md)
