@@ -374,6 +374,14 @@ _err:
 
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
+  if (pNode->type == QUERY_NODE_GROUPING_SET) {
+    SNode* pn = NULL;
+    FOREACH(pn, pList) {
+      if (nodesEqualNode(pn, pNode)) {
+        return pList;
+      }
+    }
+  }
   pCxt->errCode = nodesListAppend(pList, pNode);
   return pList;
 _err:
