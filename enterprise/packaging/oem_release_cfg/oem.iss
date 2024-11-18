@@ -2,7 +2,7 @@
 #define MyAppPublisher "taosdata"
 #define MyAppURL "http://www.taosdata.com/"
 #define MyAppBeforeInstallTxt "..\..\..\community\packaging\tools\windows_before_install.txt"
-;#define MyAppIco "favicon.ico"
+#define MyAppIco "oemdefine.ico"
 ;#define MyAppInstallDir "C:\TDengine"
 #define MyAppOutputDir "./"
 #define MyAppSourceDir "C:\TDengine"
@@ -13,7 +13,7 @@
 #define MyAppExamplesName "\examples\*"
 #define MyAppIncludeName "\include\*"
 #define MyAppExeName "\*.exe"
-#define MyAppTaosExeName "..\..\..\community\packaging\tools\taos.bat"
+#define MyAppTaosExeName "\client.bat"
 #define MyAppTaosdemoExeName "\taosBenchmark.exe"
 #define MyAppDLLName "\driver\*.dll"
 ;#define MyAppVersion "3.0"
@@ -47,7 +47,7 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 ;Source: {#MyAppSourceDir}{#MyAppAllFile}; DestDir: "{code:GetCustomPath}"; Flags: igNoreversion recursesubdirs createallsubdirs 
-Source: {#MyAppTaosExeName}; DestDir: "{code:GetCustomPath}\include"; Flags: igNoreversion;
+Source: client.bat; DestDir: "{code:GetCustomPath}\include"; Flags: igNoreversion;
 ;Source: taosdemo.png; DestDir: "{code:GetCustomPath}\include"; Flags: igNoreversion;
 ;Source: taosShell.png; DestDir: "{code:GetCustomPath}\include"; Flags: igNoreversion;
 Source: {#MyAppIco}; DestDir: "{code:GetCustomPath}\include"; Flags: igNoreversion;
@@ -145,11 +145,11 @@ Name: {code:GetCustomPath}\include; Type: filesandordirs
 Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm:AdditionalIcons}"; Flags: checkablealone
 
 [Icons]
-Name:"{group}\Taos Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
+Name:"{group}\{#CusPrompt} Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "{#CusPrompt}.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
 Name:"{group}\Open {#CusName} Directory"; Filename: "{code:GetCustomPath}\" 
-Name:"{group}\Taosdemo"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taosdemo.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
+Name:"{group}\{#CusPrompt}Benchmark"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "{#CusPrompt}Benchmark.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
 Name: "{group}\{cm:UninstallProgram,{#CusName}}"; Filename: "{uninstallexe}" ; IconFilename: "{#MyAppIco}" 
-Name:"{commondesktop}\Taos Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{code:GetCustomPath}" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
+Name:"{commondesktop}\{#CusPrompt} Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "{#CusPrompt}.exe" ; Tasks: desktopicon; WorkingDir: "{code:GetCustomPath}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 
 
 [Messages]
