@@ -5,6 +5,7 @@ sidebar_label: "安装部署"
 
 ### 环境准备
 使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 可以运行在 Linux/Windows/MacOS 等平台上，同时需要 3.10 或以上版本的 Python 环境支持。
+> 部署 Anode 需要 TDengine Enterprise 3.3.4.3 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
 
 ### 安装及卸载
 不同操作系统上安装及部署 Anode 有一些差异，主要是卸载操作、安装路径、服务启停等方面。本文以 Linux 系统为例，说明安装部署的流程。
@@ -48,7 +49,7 @@ Anode 的服务需要使用 uWSGI 驱动驱动运行，因此 Anode 和 uWSGI �
 ```ini
 [uwsgi]
 
-# Anode HTTP service ip:port
+# Anode RESTful service ip:port
 http = 127.0.0.1:6050
 
 # base directory for Anode python files， do NOT modified this
@@ -95,6 +96,7 @@ Anode 运行配置主要是以下：
 
 
 ### Anode 基本操作
+对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 链接到 TDengine 运行实例。 
 #### 创建 Anode
 ```sql 
 CREATE ANODE {node_url}

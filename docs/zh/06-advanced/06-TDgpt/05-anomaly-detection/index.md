@@ -65,9 +65,5 @@ Query OK, 1 row(s) in set (0.028946s)
 
 
 ### 内置异常检测算法
-- iqr
-- ksigma
-- grubbs
-- lof
-- shesd
-- tac
+分析平台内置了6个异常检查模型，分为3个类别，分别是[基于统计学的算法](./02-statistics-approach.md)、[基于数据密度的算法](./03-data-density.md)、以及[基于机器学习的算法](./04-machine-learning.md)。在不指定异常检测使用的方法的情况下，默认调用 IQR 进行异常检测。
+

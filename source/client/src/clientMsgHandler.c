@@ -541,6 +541,10 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD3_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD4_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
   int32_t numOfCfg = taosArrayGetSize(pVars);
   code = blockDataEnsureCapacity(pBlock, numOfCfg);
   TSDB_CHECK_CODE(code, line, END);
@@ -568,6 +572,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, scope, false);
+    TSDB_CHECK_CODE(code, line, END);
+
+    char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(info, pInfo->info, TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
+    code = colDataSetVal(pColInfo, i, info, false);
     TSDB_CHECK_CODE(code, line, END);
   }
 
@@ -825,7 +836,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  return code;  
+  return code;
 }
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
