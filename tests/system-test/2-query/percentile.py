@@ -172,6 +172,12 @@ class TDTestCase:
         tdSql.query(f'select percentile(col1 * 1e+200, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.stbname}_0')
         tdSql.checkRows(1);
 
+        tdSql.execute(f'delete from {self.stbname}_0')
+        tdSql.execute(f'insert into {self.stbname}_0 values(1731654437000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.7E+308, false, "taosdata", "涛思数据")')
+        tdSql.execute(f'insert into {self.stbname}_0 values(1731654438000, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1.7E+308, false, "taosdata", "涛思数据")')
+
+        tdSql.error(f'select percentile(col10, 50) from {self.stbname}_0')
+
         tdSql.error(f'select percentile(col1) from {self.stbname}_0')
         tdSql.error(f'select percentile(col1, -1) from {self.stbname}_0')
         tdSql.error(f'select percentile(col1, 101) from {self.stbname}_0')
@@ -179,7 +185,6 @@ class TDTestCase:
         tdSql.error(f'select percentile(1, col1) from {self.stbname}_0')
         tdSql.error(f'select percentile(col1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 101) from {self.stbname}_0')
 
-        tdSql.execute(f'drop database {self.dbname}')
     def run(self):
         self.function_check_ntb()
         self.function_check_ctb()
