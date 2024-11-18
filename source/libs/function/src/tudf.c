@@ -62,8 +62,13 @@ static void    udfUdfdStopAsyncCb(uv_async_t *async);
 static void    udfWatchUdfd(void *args);
 
 void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
+  TAOS_UDF_CHECK_PTR_RVOID(process);
   fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
+  if(pData == NULL) {
+    fnError("udfd process data is NULL");
+    return;
+  }
   if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
     fnInfo("udfd process exit due to SIGINT or dnode-mgmt called stop");
   } else {
@@ -77,6 +82,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) 
 
 static int32_t udfSpawnUdfd(SUdfdData *pData) {
   fnInfo("start to init udfd");
+  TAOS_UDF_CHECK_PTR_RCODE(pData);
 
   int32_t              err = 0;
   uv_process_options_t options = {0};
@@ -267,17 +273,20 @@ _OVER:
 }
 
 static void udfUdfdCloseWalkCb(uv_handle_t *handle, void *arg) {
+  TAOS_UDF_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
     uv_close(handle, NULL);
   }
 }
 
 static void udfUdfdStopAsyncCb(uv_async_t *async) {
+  TAOS_UDF_CHECK_PTR_RVOID(async);
   SUdfdData *pData = async->data;
   uv_stop(&pData->loop);
 }
 
 static void udfWatchUdfd(void *args) {
+  TAOS_UDF_CHECK_PTR_RVOID(args);
   SUdfdData *pData = args;
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
   TAOS_UV_CHECK_ERRNO(uv_async_init(&pData->loop, &pData->stopAsync, udfUdfdStopAsyncCb));
@@ -873,6 +882,7 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
 }
 
 void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta) {
+  TAOS_UDF_CHECK_PTR_RVOID(data, meta);
   if (IS_VAR_DATA_TYPE(meta->type)) {
     taosMemoryFree(data->varLenCol.varOffsets);
     data->varLenCol.varOffsets = NULL;
@@ -886,9 +896,13 @@ void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta) {
   }
 }
 
-void freeUdfColumn(SUdfColumn *col) { freeUdfColumnData(&col->colData, &col->colMeta); }
+void freeUdfColumn(SUdfColumn *col) {
+  TAOS_UDF_CHECK_PTR_RVOID(col);
+  freeUdfColumnData(&col->colData, &col->colMeta);
+}
 
 void freeUdfDataDataBlock(SUdfDataBlock *block) {
+  TAOS_UDF_CHECK_PTR_RVOID(block);
   for (int32_t i = 0; i < block->numOfCols; ++i) {
     freeUdfColumn(block->udfCols[i]);
     taosMemoryFree(block->udfCols[i]);
@@ -899,11 +913,17 @@ void freeUdfDataDataBlock(SUdfDataBlock *block) {
 }
 
 void freeUdfInterBuf(SUdfInterBuf *buf) {
+  TAOS_UDF_CHECK_PTR_RVOID(buf);
   taosMemoryFree(buf->buf);
   buf->buf = NULL;
 }
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock) {
+  TAOS_UDF_CHECK_PTR_RCODE(block, udfBlock);
+  int32_t code = blockDataCheck(block);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   udfBlock->numOfRows = block->info.rows;
   udfBlock->numOfCols = taosArrayGetSize(block->pDataBlock);
   udfBlock->udfCols = taosMemoryCalloc(taosArrayGetSize(block->pDataBlock), sizeof(SUdfColumn *));
@@ -973,6 +993,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 }
 
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfCol, block);
   int32_t         code = 0, lino = 0;
   SUdfColumnMeta *meta = &udfCol->colMeta;
 
@@ -998,6 +1019,8 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   }
   block->info.rows = udfCol->colData.numOfRows;
 
+  code = blockDataCheck(block);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 _exit:
   if (code != 0) {
     fnError("failed to convert udf column to data block, code:%d, line:%d", code, lino);
@@ -1006,6 +1029,7 @@ _exit:
 }
 
 int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SSDataBlock *output) {
+  TAOS_UDF_CHECK_PTR_RCODE(input, output);
   int32_t code = 0, lino = 0;
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1053,6 +1077,7 @@ _exit:
 }
 
 int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
+  TAOS_UDF_CHECK_PTR_RCODE(input, output);
   if (taosArrayGetSize(input->pDataBlock) != 1) {
     fnError("scalar function only support one column");
     return 0;
@@ -1131,6 +1156,7 @@ int32_t compareUdfcFuncSub(const void *elem1, const void *elem2) {
 }
 
 int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfName, pHandle);
   int32_t code = 0, line = 0;
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
@@ -1189,6 +1215,7 @@ _exit:
 }
 
 void releaseUdfFuncHandle(char *udfName, UdfcFuncHandle handle) {
+  TAOS_UDF_CHECK_PTR_RVOID(udfName);
   uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
   tstrncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
@@ -1291,6 +1318,7 @@ int32_t cleanUpUdfs() {
 }
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  TAOS_UDF_CHECK_PTR_RCODE(udfName, input, output);
   UdfcFuncHandle handle = NULL;
   int32_t        code = acquireUdfFuncHandle(udfName, &handle);
   if (code != 0) {
@@ -1320,6 +1348,10 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
 }
 
 bool udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv) {
+  if (pFunc == NULL || pEnv == NULL) {
+    fnError("udfAggGetEnv: invalid input lint: %d", __LINE__);
+    return false;
+  }
   if (fmIsScalarFunc(pFunc->funcId)) {
     return false;
   }
@@ -1328,6 +1360,7 @@ bool udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv) {
 }
 
 int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo) {
+  TAOS_UDF_CHECK_PTR_RCODE(pCtx, pResultCellInfo);
   if (pResultCellInfo->initialized) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1369,6 +1402,7 @@ int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pRes
 }
 
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
+  TAOS_UDF_CHECK_PTR_RCODE(pCtx);
   int32_t        udfCode = 0;
   UdfcFuncHandle handle = 0;
   if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
@@ -1440,6 +1474,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 }
 
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
+  TAOS_UDF_CHECK_PTR_RCODE(pCtx, pBlock);
   int32_t        udfCode = 0;
   UdfcFuncHandle handle = 0;
   if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
@@ -1534,7 +1569,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
       }
 
       // TODO: the call buffer is setup and freed by udf invocation
-      taosMemoryFree(uvTask->rspBuf.base);
+      taosMemoryFreeClear(uvTask->rspBuf.base);
     } else {
       code = uvTask->errCode;
       if (code != 0) {
@@ -1759,7 +1794,7 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
   }
   if (uv_sem_init(&uvTask->taskSem, 0) != 0) {
     if (uvTaskType == UV_TASK_REQ_RSP) {
-      taosMemoryFree(uvTask->reqBuf.base);
+      taosMemoryFreeClear(uvTask->reqBuf.base);
     }
     fnError("udfc create uv task, init semaphore failed.");
     return TSDB_CODE_UDF_UV_EXEC_FAILURE;

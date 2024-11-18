@@ -19,7 +19,7 @@ SQWorkerMgmt gQwMgmt = {
 };
 
 void qwStopAllTasks(SQWorker *mgmt) {
-  uint64_t qId, tId, sId;
+  uint64_t qId, cId, tId, sId;
   int32_t  eId;
   int64_t  rId = 0;
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -28,7 +28,7 @@ void qwStopAllTasks(SQWorker *mgmt) {
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
-    QW_GET_QTID(key, qId, tId, eId);
+    QW_GET_QTID(key, qId, cId, tId, eId);
 
     QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -288,7 +288,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
 
     // TODO GET EXECUTOR API TO GET MORE INFO
 
-    QW_GET_QTID(key, status.queryId, status.taskId, status.execId);
+    QW_GET_QTID(key, status.queryId, status.clientId, status.taskId, status.execId);
     status.status = taskStatus->status;
     status.refId = taskStatus->refId;
 
@@ -1473,8 +1473,8 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
-                                 SQWMsg *qwMsg, SArray *explainRes) {
+int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int64_t rId,
+                                 int32_t eId, SQWMsg *qwMsg, SArray *explainRes) {
   SQWorker      *mgmt = (SQWorker *)pMgmt;
   int32_t        code = 0;
   SQWTaskCtx    *ctx = NULL;
@@ -1538,8 +1538,8 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
-                                 void **pRsp, SArray *explainRes) {
+int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int64_t rId,
+                                 int32_t eId, void **pRsp, SArray *explainRes) {
   SQWorker   *mgmt = (SQWorker *)pMgmt;
   int32_t     code = 0;
   int32_t     dataLen = 0;

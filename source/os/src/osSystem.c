@@ -107,26 +107,6 @@ void* taosLoadDll(const char* filename) {
 #endif
 }
 
-void* taosLoadSym(void* handle, char* name) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  void* sym = dlsym(handle, name);
-  char* error = NULL;
-
-  if ((error = dlerror()) != NULL) {
-    // printf("load sym:%s failed, error:%s", name, dlerror());
-    return NULL;
-  }
-
-  // printf("sym %s loaded", name);
-
-  return sym;
-#endif
-}
-
 void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
   return;

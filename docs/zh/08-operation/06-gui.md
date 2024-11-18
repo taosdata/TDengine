@@ -165,6 +165,10 @@ toc_max_heading_level: 4
 第一步 填写添加新主题需要的信息，点击“创建”按钮；
 ![topic-03-addTopicWizard.jpeg](./pic/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
 
+如上图，您可以选择是否 “同步 meta”。如果同步 meta 信息，则可以订阅到 meta 信息，比如增加或者删除超级表。
+
+您需要根据使用场景来选择是否开启，如果您引用 taos 连接器编写业务代码订阅 topic，则不能开启“同步 meta”，只能订阅数据；如果您创建 topic 在 explorer 配置同步任务使用，则可以开启“同步 meta”。
+
 第二步 页面出现以下记录，则证明创建成功。
 ![topic-05-addTopicSucc1.jpeg](./pic/topic-05-addTopicSucc1.jpeg "查看已创建的流计算")
 

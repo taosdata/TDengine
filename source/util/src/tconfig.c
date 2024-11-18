@@ -25,7 +25,7 @@
 #include "tunit.h"
 #include "tutil.h"
 
-#define CFG_NAME_PRINT_LEN 24
+#define CFG_NAME_PRINT_LEN 32
 #define CFG_SRC_PRINT_LEN  12
 
 struct SConfig {
@@ -881,11 +881,26 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
       case CFG_DTYPE_NONE:
+        if (strcasecmp(pItem->name, "dataDir") == 0) {
+          size_t sz = taosArrayGetSize(pItem->array);
+          if (sz > 1) {
+            for (size_t j = 0; j < sz; ++j) {
+              SDiskCfg *pCfg = taosArrayGet(pItem->array, j);
+              if (dump) {
+                (void)printf("%s %s %s l:%d p:%d d:%"PRIi8"\n", src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+              } else {
+                uInfo("%s %s %s l:%d p:%d d:%"PRIi8, src, name, pCfg->dir, pCfg->level, pCfg->primary, pCfg->disable);
+              }
+            }
+            break;
+          }
+        }
         if (dump) {
           (void)printf("%s %s %s\n", src, name, pItem->str);
         } else {
           uInfo("%s %s %s", src, name, pItem->str);
         }
+
         break;
     }
   }
