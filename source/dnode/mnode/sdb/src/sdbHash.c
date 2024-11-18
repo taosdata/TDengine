@@ -261,6 +261,9 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 }
 
 int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
+  if (pRaw->type == SDB_CFG) {
+    mTrace("sdb write cfg");
+  }
   SHashObj *hash = sdbGetHash(pSdb, pRaw->type);
   if (hash == NULL) return terrno;
 

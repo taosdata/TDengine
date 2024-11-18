@@ -410,7 +410,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
     code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
-      mError("failed to read sdb file:%s since %s", file, terrstr());
+      mError("failed to exec sdbWrite while read sdb file:%s since %s", file, terrstr());
       goto _OVER;
     }
   }

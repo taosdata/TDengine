@@ -23,11 +23,11 @@ extern "C" {
 #endif
 int32_t mndInitConfig(SMnode *pMnode);
 
-SSdbRaw       *mnCfgActionEncode(SConfigItem *pCfg);
+SSdbRaw       *mnCfgActionEncode(SConfigObj *pCfg);
 SSdbRow       *mndCfgActionDecode(SSdbRaw *pRaw);
-static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigItem *item);
-static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigItem *item);
-static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigItem *oldItem, SConfigItem *newItem);
+static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigObj *obj);
+static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *oldItem, SConfigObj *newObj);
 static int32_t mndCfgActionDeploy(SMnode *pMnode);
 static int32_t mndCfgActionPrepare(SMnode *pMnode);
 

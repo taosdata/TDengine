@@ -316,6 +316,27 @@ typedef struct {
   TdThreadMutex mutex;
 } SArbGroup;
 
+typedef struct {
+  char         name[CFG_NAME_MAX_LEN];
+  ECfgDataType dtype;
+  union {
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char*   str;
+  };
+  union {
+    int64_t imin;
+    float   fmin;
+  };
+  union {
+    int64_t imax;
+    float   fmax;
+  };
+} SConfigObj;
+
+SConfigObj* mndInitConfigObj(SConfigItem* pItem);
 
 typedef struct {
   int32_t maxUsers;

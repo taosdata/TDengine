@@ -404,46 +404,6 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   TAOS_RETURN(code);
 }
 
-int32_t cfgUpdateItem(SConfigItem *pItem, SConfigItem *newItem) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pItem == NULL || newItem == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  switch (pItem->dtype) {
-    case CFG_DTYPE_BOOL: {
-      pItem->bval = newItem->bval;
-      break;
-    }
-    case CFG_DTYPE_INT32: {
-      pItem->i32 = newItem->i32;
-      break;
-    }
-    case CFG_DTYPE_INT64: {
-      pItem->i64 = newItem->i64;
-      break;
-    }
-    case CFG_DTYPE_FLOAT:
-    case CFG_DTYPE_DOUBLE: {
-      pItem->fval = newItem->fval;
-      break;
-    }
-    case CFG_DTYPE_DIR:
-    case CFG_DTYPE_TIMEZONE:
-    case CFG_DTYPE_CHARSET:
-    case CFG_DTYPE_LOCALE:
-    case CFG_DTYPE_NONE:
-    case CFG_DTYPE_STRING: {
-      pItem->str = newItem->str;
-      break;
-    }
-    default:
-      code = TSDB_CODE_INVALID_CFG;
-      break;
-  }
-
-  TAOS_RETURN(code);
-}
 
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   if (pCfg == NULL) return NULL;
