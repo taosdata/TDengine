@@ -29,9 +29,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
 
 logging.info(f"log file:{logname}")
 
-# logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-#                     level=logging.INFO,filename=logname) 
-
 
 class Customer:
     def __init__(self, name, email, prompt, grantValue):
@@ -88,7 +85,8 @@ def print_param():
     logging.info(f"release_dir: {install_info.release_dir}")
     logging.info(f"packagServerName: {install_info.packagServerName}")
     logging.info(f"packagClientName: {install_info.packagClientName}")
-    
+    logging.info(f"Only Client : {only_client}")
+
 def set_package_name():
     logging.info("set_package_name...")
     global install_info
@@ -142,7 +140,7 @@ def industry_options():
     return options
     
 def parse_arguments():
-    global tdCustomer, td_version, install_info, test_process, script_dir, upload, check_commit, industry_name
+    global tdCustomer, td_version, install_info, test_process, script_dir, upload, check_commit, industry_name, only_client
     
     parser = argparse.ArgumentParser(description='Release TDengine on Windows')
     parser.add_argument('-D', '--directory', type=str, help='set packaging script directory (default: D:\\workspace)', default="D:\\workspace")
@@ -157,7 +155,8 @@ def parse_arguments():
     parser.add_argument('-I', '--industry-name', type=str, help='Set industry name', default="Power")
     parser.add_argument('-u', '--upload', action="store_false", help='upload package to nas server', default=False)
     parser.add_argument('-c', '--check_commit', action="store_false", help='check commit id', default=False)
-        
+    parser.add_argument('-t', '--only_client', action="store_true", help='only genreate windows client', default=False)
+
     version_pattern=re.compile('^[0-9]+\\.([0-9]+\\.){1,3}[0-9]+$')
     args = parser.parse_args()
     if args.number == "":
@@ -188,6 +187,7 @@ def parse_arguments():
     upload = args.upload
     check_commit = args.check_commit
     industry_name = args.industry_name
+    only_client = args.only_client
 
 def git_pull(repo_dir, source_branch, target):
     logging.info(f"pull code for {repo_dir}...")    
@@ -980,10 +980,11 @@ if __name__ == "__main__":
         process_add_enterprice_extent()    
         process_package_client()
     
-    if td_version.verType != "community":
-        copy_taosx_files()
-        if tdCustomer.Name != "TDengine":
-            process_OEM_rename_process()
+    if only_client is False:
+        if td_version.verType != "community":
+            copy_taosx_files()
+            if tdCustomer.Name != "TDengine":
+                process_OEM_rename_process()
         process_package_server()    
         
     
