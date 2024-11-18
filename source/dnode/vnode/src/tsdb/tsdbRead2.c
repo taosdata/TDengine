@@ -1134,7 +1134,12 @@ static int32_t getCurrentBlockInfo(SDataBlockIter* pBlockIter, SFileDataBlockInf
   *pInfo = NULL;
 
   size_t num = TARRAY_SIZE(pBlockIter->blockList);
-  TSDB_CHECK_CONDITION(num != 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  if (num == 0) {
+    // Some callers would attempt to call this function. Filter out certain normal cases and return directly to avoid
+    // generating excessive unnecessary error logs.
+    TSDB_CHECK_CONDITION(num == pBlockIter->numOfBlocks, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   *pInfo = taosArrayGet(pBlockIter->blockList, pBlockIter->index);
   TSDB_CHECK_NULL(*pInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -5530,12 +5535,10 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     // update the SQueryTableDataCond to create inner reader
     int32_t order = pCond->order;
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.ekey = window.skey - 1;
-      pCond->twindows.skey = INT64_MIN;
+      pCond->twindows = pCond->extTwindows[0];
       pCond->order = TSDB_ORDER_DESC;
     } else {
-      pCond->twindows.skey = window.ekey + 1;
-      pCond->twindows.ekey = INT64_MAX;
+      pCond->twindows = pCond->extTwindows[1];
       pCond->order = TSDB_ORDER_ASC;
     }
 
@@ -5544,11 +5547,9 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     TSDB_CHECK_CODE(code, lino, _end);
 
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.skey = window.ekey + 1;
-      pCond->twindows.ekey = INT64_MAX;
+      pCond->twindows = pCond->extTwindows[1];
     } else {
-      pCond->twindows.skey = INT64_MIN;
-      pCond->twindows.ekey = window.ekey - 1;
+      pCond->twindows = pCond->extTwindows[0];
     }
     pCond->order = order;
 
