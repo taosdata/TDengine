@@ -92,7 +92,12 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
-  return syncNodeSendMsgById(destId, pSyncNode, pMsg);
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destId, pSyncNode, pMsg));
+
+  int64_t tsMs = taosGetTimestampMs();
+  syncIndexMgrSetSentTime(pSyncNode->pMatchIndex, destId, tsMs);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
