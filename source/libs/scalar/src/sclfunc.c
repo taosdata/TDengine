@@ -529,6 +529,9 @@ _return:
 }
 
 uint8_t getCharLen(const unsigned char *str) {
+  if (NULL == str) {
+    return 0;
+  }
   if (strcasecmp(tsCharset, "UTF-8") != 0) {
     return 1;
   }
@@ -546,6 +549,10 @@ uint8_t getCharLen(const unsigned char *str) {
 }
 
 static int32_t tcharlength(char *input, int32_t type, VarDataLenT *len) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(len, code, lino, _return, TSDB_CODE_INVALID_PARA)
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     // calculate the number of characters in the string considering the multi-byte character
     char *str = varDataVal(input);
@@ -553,19 +560,30 @@ static int32_t tcharlength(char *input, int32_t type, VarDataLenT *len) {
     VarDataLenT pos = 0;
     while(pos < varDataLen(input)) {
       strLen++;
-      pos += getCharLen((unsigned char *)(str + pos));
+      int32_t tmplen = getCharLen((unsigned char *)(str + pos));
+      if (tmplen == 0) {
+        SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+      }
+      pos += tmplen;
     }
     *len = strLen;
-    return TSDB_CODE_SUCCESS;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     *len = varDataLen(input);
   } else {  // NCHAR
     *len = varDataLen(input) / TSDB_NCHAR_SIZE;
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void tltrimspace(char *input, char *output, int32_t type, int32_t charLen) {
+  if (NULL == input || NULL == output) {
+    qError("tltrimspace get NULL, input : %s, output: %s", input, output);
+    return;
+  }
   int32_t numOfSpaces = 0;
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     for (int32_t i = 0; i < charLen; ++i) {
@@ -596,6 +614,10 @@ static void tltrimspace(char *input, char *output, int32_t type, int32_t charLen
 }
 
 static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLen) {
+  if (NULL == input || NULL == output) {
+    qError("tlrtrimspace get NULL, input : %s, output: %s", input, output);
+    return;
+  }
   int32_t numOfLeftSpaces = 0;
   int32_t numOfRightSpaces = 0;
   if (type == TSDB_DATA_TYPE_VARCHAR) {
@@ -647,6 +669,10 @@ static bool isCharStart(char c) {
 }
 
 static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
+  if (NULL == orgStr || NULL == remStr) {
+    qError("trimHelper get NULL, orgStr : %s, remStr: %s", orgStr, remStr);
+    return -1;
+  }
   if (trimLeft) {
     int32_t pos = 0;
     for (int32_t i = 0; i < orgLen; i += remLen) {
@@ -681,6 +707,11 @@ static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t re
 }
 
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(outputLen, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *output = taosMemoryCalloc(inputLen * TSDB_NCHAR_SIZE, 1);
   if (NULL == *output) {
     return terrno;
@@ -690,10 +721,19 @@ static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, 
     taosMemoryFreeClear(*output);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, int32_t *outputLen) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(outputLen, code, lino, _return, TSDB_CODE_INVALID_PARA)
   *output = taosMemoryCalloc(inputLen, 1);
   if (NULL == *output) {
     return terrno;
@@ -703,7 +743,11 @@ static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, 
     taosMemoryFreeClear(*output);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t convBetweenNcharAndVarchar(char *input, char **output, int32_t inputLen, int32_t *outputLen, int32_t wantType) {
@@ -713,7 +757,14 @@ static int32_t convBetweenNcharAndVarchar(char *input, char **output, int32_t in
     return convNcharToVarchar(input, output, inputLen, outputLen);
   }
 }
+
 static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputType, int32_t remType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(remInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t orgLen = varDataLen(input);
   char   *orgStr = varDataVal(input);
   int32_t remLen = varDataLen(remInput);
@@ -742,13 +793,26 @@ static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputTy
     taosMemoryFreeClear(remStr);
   }
 
+  if (pos == -1) {
+    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  }
+
   int32_t resLen = orgLen - pos;
   (void)memcpy(varDataVal(output), orgStr + pos, resLen);
   varDataSetLen(output, resLen);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void trtrimspace(char *input, char *output, int32_t type, int32_t charLen) {
+  if (NULL == input || NULL == output) {
+    qError("trtrimspace get NULL, input : %s, output: %s", input, output);
+    return;
+  }
+
   int32_t numOfSpaces = 0;
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     for (int32_t i = charLen - 1; i >= 0; --i) {
@@ -778,6 +842,12 @@ static void trtrimspace(char *input, char *output, int32_t type, int32_t charLen
 }
 
 static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputType, int32_t remType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(remInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t orgLen = varDataLen(input);
   char   *orgStr = varDataVal(input);
   int32_t remLen = varDataLen(remInput);
@@ -806,12 +876,26 @@ static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputTy
     taosMemoryFreeClear(remStr);
   }
 
+  if (pos == -1) {
+    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  }
+
   (void)memcpy(varDataVal(output), orgStr, pos);
   varDataSetLen(output, pos);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputType, int32_t remType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(remInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t orgLen = varDataLen(input);
   char   *orgStr = varDataVal(input);
   int32_t remLen = varDataLen(remInput);
@@ -844,16 +928,33 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
     taosMemoryFreeClear(remStr);
   }
 
+  if (leftPos == -1 || rightPos == -1) {
+    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  }
+
   if (leftPos >= rightPos) {
     varDataSetLen(output, 0);
     return TSDB_CODE_SUCCESS;
   }
   (void)memcpy(varDataVal(output), orgStr + leftPos, rightPos - leftPos);
   varDataSetLen(output, rightPos - leftPos);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _len_fn lenFn) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(lenFn, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   int32_t type = GET_PARAM_TYPE(pInput);
 
   SColumnInfoData *pInputData = pInput->columnData;
@@ -872,10 +973,20 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, VarDataLenT *dataLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SCL_CHECK_NULL(input, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(output, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(dataLen, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -894,35 +1005,25 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getNumOfNullEntries(SColumnInfoData *pColumnInfoData, int32_t numOfRows) {
-  int32_t numOfNulls = 0;
-  if (!pColumnInfoData->hasNull) {
-    return numOfNulls;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  for (int i = 0; i < numOfRows; ++i) {
-    if (pColumnInfoData->varmeta.offset[i] == -1) {
-      numOfNulls++;
-    }
-  }
-  return numOfNulls;
+  return code;
 }
 
 int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData  *pOutputData = pOutput->columnData;
   char            **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
   char             *outputBuf = NULL;
-
-  if (NULL == pInputData) {
-    SCL_ERR_JRET(terrno);
-  }
-  if (NULL == input) {
-    SCL_ERR_JRET(terrno);
-  }
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInputData, code, lino, _return, terrno)
+  SCL_CHECK_NULL(input, code, lino, _return, terrno)
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
@@ -983,18 +1084,23 @@ _return:
   taosMemoryFreeClear(outputBuf);
   taosMemoryFreeClear(pInputData);
 
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   SCL_RET(code);
 }
 
 int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData  *pOutputData = pOutput->columnData;
   char             *outputBuf = NULL;
 
-  if (NULL == pInputData) {
-    SCL_ERR_JRET(terrno);
-  }
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInputData, code, lino, _return, terrno)
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
@@ -1069,10 +1175,21 @@ _return:
   taosMemoryFreeClear(outputBuf);
   taosMemoryFreeClear(pInputData);
 
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _conv_fn convFn) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pInput->columnData, code, lino, _return, terrno)
+
   int32_t type = GET_PARAM_TYPE(pInput);
 
   SColumnInfoData *pInputData = pInput->columnData;
@@ -1104,7 +1221,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
       }
     }
     varDataSetLen(output, len);
-    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFreeClear(outputBuf);
       SCL_ERR_RET(code);
@@ -1115,15 +1232,30 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   pOutput->numOfRows = pInput->numOfRows;
   taosMemoryFreeClear(outputBuf);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _trim_space_fn trimSpaceFn, _trim_fn trimFn) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData[2];
-  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  SColumnInfoData *pOutputData;
   int32_t          outputLen;
   int32_t          numOfRows;
+  int32_t          lino = 0;
+  char            *outputBuf = NULL;
+
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  for (int i = 0; i < inputNum; ++i) {
+    SCL_CHECK_NULL(pInput[i].columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  }
+
+  pOutputData = pOutput[0].columnData;
   pInputData[0] = pInput[0].columnData;
   if (inputNum == 3) {
     pInputData[1] = pInput[1].columnData;
@@ -1133,10 +1265,8 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     outputLen = pInputData[0]->info.bytes;
     numOfRows = pInput[0].numOfRows;
   }
-  char *outputBuf = taosMemoryCalloc(outputLen, 1);
-  if (outputBuf == NULL) {
-    SCL_ERR_RET(terrno);
-  }
+  outputBuf = taosMemoryCalloc(outputLen, 1);
+  SCL_CHECK_NULL(outputBuf, code, lino, _return, terrno)
 
   char   *output = outputBuf;
 
@@ -1177,10 +1307,18 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   pOutput->numOfRows = numOfRows;
 _return:
   taosMemoryFreeClear(outputBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, int32_t charNums, bool isNchar) {
+  if (NULL == orgStr || NULL == delimStr) {
+    qError("findPosBytes get NULL, orgStr : %s, delimStr: %s", orgStr, delimStr);
+    return 0;
+  }
+
   int32_t charCount = 0;
   if (charNums > 0) {
     for (int32_t pos = 0; pos < orgLen; pos++) {
@@ -1231,20 +1369,24 @@ static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_
 }
 
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SColumnInfoData *pInputData[3];
   SColumnInfoData *pOutputData = pOutput->columnData;
+  char            *outputBuf = NULL;
+
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
 
   for (int32_t i = 0; i < inputNum; ++i) {
+    SCL_CHECK_NULL(pInput[i].columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
     pInputData[i] = pInput[i].columnData;
   }
 
   int32_t outputLen = pInputData[0]->info.bytes;
-  char *outputBuf = taosMemoryMalloc(outputLen);
-  if (outputBuf == NULL) {
-    qError("substr function memory allocation failure. size: %d", outputLen);
-    return terrno;
-  }
+  outputBuf = taosMemoryMalloc(outputLen);
+  SCL_CHECK_NULL(outputBuf, code, lino, _return, terrno)
 
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
@@ -1325,7 +1467,9 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   pOutput->numOfRows = numOfRows;
 _return:
   taosMemoryFreeClear(outputBuf);
-
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -1379,13 +1523,13 @@ static void getAsciiChar(int32_t num, char **output) {
     INT1TOCHAR(*output, num);
   }
 }
+
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t outputLen = inputNum * 4 + 2;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
-  if (outputBuf == NULL) {
-    SCL_ERR_RET(terrno);
-  }
+  SCL_CHECK_NULL(outputBuf, code, lino, _return, terrno)
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
@@ -1406,21 +1550,19 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       } else if (TSDB_DATA_TYPE_NCHAR == GET_PARAM_TYPE(&pInput[j])) {
         char   *convBuf = taosMemoryMalloc(GET_PARAM_BYTES(&pInput[j]));
         if (convBuf == NULL) {
-          SCL_ERR_RET(terrno);
+          SCL_ERR_JRET(terrno);
         }
         int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colDataGetData(pInput[j].columnData, colIdx)), varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf);
         if (len < 0) {
           taosMemoryFreeClear(convBuf);
-          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
-          goto _return;
+          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
         }
         convBuf[len] = 0;
         num = taosStr2Int32(convBuf, NULL, 10);
         getAsciiChar(num, &output);
         taosMemoryFreeClear(convBuf);
       } else {
-        code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-        goto _return;
+        SCL_ERR_JRET(TSDB_CODE_FUNC_FUNTION_PARA_TYPE);
       }
     }
     varDataSetLen(outputBuf, output - varDataVal(outputBuf));
@@ -1661,6 +1803,9 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
         totalLen += toLen;
       } else {
         int32_t charLen = GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : getCharLen(orgStr + pos);
+        if (charLen == 0) {
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+        }
         (void)memcpy(output, orgStr + pos, charLen);
         output += charLen;
         totalLen += charLen;
