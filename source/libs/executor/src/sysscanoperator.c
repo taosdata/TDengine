@@ -1989,6 +1989,12 @@ static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static SSDataBlock* sysTableScanUserFileSets(SOperatorInfo* pOperator) {
+  // TODO
+  ASSERT(0);
+  return NULL;
+}
+
 static int32_t getSysTableDbNameColId(const char* pTable) {
   // if (0 == strcmp(TSDB_INS_TABLE_INDEXES, pTable)) {
   //   return 1;
@@ -2086,6 +2092,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
                IS_SYS_DBNAME(dbName)) {
       pBlock = sysTableScanUserSTables(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanUserFileSets(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }

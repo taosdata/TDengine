@@ -142,6 +142,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ENCRYPTIONS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_TSMAS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, len) == 0) {
+    type = TSDB_MGMT_TABLE_FILESETS;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
