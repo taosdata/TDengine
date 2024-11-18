@@ -439,13 +439,16 @@ class TDTestCase:
         tdSql.checkRows(10)
     
     def test_TD_32883(self):
-        sql = "select avg(c1), t9 from stb group by t9,t9, tbname"
+        sql = "select avg(c1), t9 from db.stb group by t9,t9, tbname"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
-        sql = "select avg(c1), t10 from stb group by t10,t10, tbname"
+        sql = "select avg(c1), t10 from db.stb group by t10,t10, tbname"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
-        sql = "select avg(c1), t10 from stb partition by t10,t10, tbname"
+        sql = "select avg(c1), t10 from db.stb partition by t10,t10, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), concat(t9,t10) from db.stb group by concat(t9,t10), concat(t9,t10),tbname"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
 

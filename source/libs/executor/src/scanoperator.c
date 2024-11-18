@@ -3043,7 +3043,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
 
     if (code) {
-      blockDataFreeRes((SSDataBlock*)pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
