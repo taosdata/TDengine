@@ -319,11 +319,6 @@ typedef struct SSTaskBasicInfo {
   SInterval interval;
 } SSTaskBasicInfo;
 
-typedef struct SStreamRetrieveReq SStreamRetrieveReq;
-typedef struct SStreamDispatchReq SStreamDispatchReq;
-typedef struct STokenBucket       STokenBucket;
-typedef struct SMetaHbInfo        SMetaHbInfo;
-
 typedef struct SDispatchMsgInfo {
   SStreamDispatchReq* pData;  // current dispatch data
 
@@ -626,11 +621,11 @@ typedef struct STaskStatusEntry {
   STaskCkptInfo checkpointInfo;
 } STaskStatusEntry;
 
-typedef struct SNodeUpdateInfo {
-  int32_t nodeId;
-  SEpSet  prevEp;
-  SEpSet  newEp;
-} SNodeUpdateInfo;
+//typedef struct SNodeUpdateInfo {
+//  int32_t nodeId;
+//  SEpSet  prevEp;
+//  SEpSet  newEp;
+//} SNodeUpdateInfo;
 
 typedef struct SStreamTaskState {
   ETaskStatus state;
