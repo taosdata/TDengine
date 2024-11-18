@@ -30,11 +30,12 @@ In this article, it specifically refers to the level within the secondary compre
 
 | Data Type |   Optional Encoding Algorithm      |  Default Encoding Algorithm  | Optional Compression Algorithm|Default Compression Algorithm| Default Compression Level|
 | :-----------:|:----------:|:-------:|:-------:|:----------:|:----:|
-|  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
+|  int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
+|  tinyint/untinyint/smallint/usmallint | simple8b| simple8b | lz4/zlib/zstd/xz| zlib| medium|
 |   bigint/ubigint/timestamp   |  simple8b/delta-i    | delta-i |lz4/zlib/zstd/xz | lz4| medium|
 |float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|lz4| medium|
-|binary/nchar| disabled| disabled|lz4/zlib/zstd/xz| lz4| medium|
-|bool| bit-packing| bit-packing| lz4/zlib/zstd/xz| lz4| medium|
+|binary/nchar| disabled| disabled|lz4/zlib/zstd/xz| lz4| zstd|
+|bool| bit-packing| bit-packing| lz4/zlib/zstd/xz| lz4| zstd|
 
 ## SQL
 
