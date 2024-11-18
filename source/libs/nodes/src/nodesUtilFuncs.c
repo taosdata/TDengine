@@ -2960,7 +2960,16 @@ static SNode* nodesListFindNode(SNodeList* pList, SNode* pNode) {
 }
 
 int32_t nodesListDeduplicate(SNodeList** ppList) {
-  if (!ppList || LIST_LENGTH(*ppList) == 0) return TSDB_CODE_SUCCESS;
+  if (!ppList || LIST_LENGTH(*ppList) <= 1) return TSDB_CODE_SUCCESS;
+  if (LIST_LENGTH(*ppList) == 2) {
+    SNode* pNode1 = nodesListGetNode(*ppList, 0);
+    SNode* pNode2 = nodesListGetNode(*ppList, 1);
+    if (nodesEqualNode(pNode1, pNode2)) {
+      SListCell* pCell = nodesListGetCell(*ppList, 1);
+      (void)nodesListErase(*ppList, pCell);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
   SNodeList* pTmp = NULL;
   int32_t code = nodesMakeList(&pTmp);
   if (TSDB_CODE_SUCCESS == code) {
