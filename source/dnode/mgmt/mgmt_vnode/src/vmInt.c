@@ -578,15 +578,12 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 }
 
 void vmRemoveFromCreatingHash(SVnodeMgmt *pMgmt, int32_t vgId) {
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
   SVnodeObj *pOld = NULL;
+
+  (void)taosThreadRwlockWrlock(&pMgmt->lock);
   int32_t    r = taosHashGetDup(pMgmt->creatingHash, &vgId, sizeof(int32_t), (void *)&pOld);
   if (r != 0) {
     dError("vgId:%d, failed to get vnode from creating Hash", vgId);
-  }
-  if (pOld) {
-    dTrace("vgId:%d, free vnode pOld:%p", vgId, &pOld);
-    vmFreeVnodeObj(&pOld);
   }
   dTrace("vgId:%d, remove from creating Hash", vgId);
   r = taosHashRemove(pMgmt->creatingHash, &vgId, sizeof(int32_t));
@@ -594,6 +591,11 @@ void vmRemoveFromCreatingHash(SVnodeMgmt *pMgmt, int32_t vgId) {
     dError("vgId:%d, failed to remove vnode from hash", vgId);
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
+
+  if (pOld) {
+    dTrace("vgId:%d, free vnode pOld:%p", vgId, &pOld);
+    vmFreeVnodeObj(&pOld);
+  }
 
 _OVER:
   if (r != 0) {
