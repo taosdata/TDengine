@@ -1545,6 +1545,34 @@ int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob) {
   return code;
 }
 
+int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock) {
+  if (NULL == poolHandle) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  if (readLock) {
+    MP_LOCK(MP_READ, &pPool->cfgLock);
+  } else {
+    MP_LOCK(MP_WRITE, &pPool->cfgLock);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void taosMemPoolUnLockPool(void* poolHandle, bool readLock) {
+  if (NULL == poolHandle) {
+    return;
+  }
+
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  if (readLock) {
+    MP_UNLOCK(MP_READ, &pPool->cfgLock);
+  } else {
+    MP_UNLOCK(MP_WRITE, &pPool->cfgLock);
+  }
+}
+
 void taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd) {
   if (NULL == poolHandle) {
     *usedSize = 0;
@@ -1554,7 +1582,6 @@ void taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* need
   
   SMemPool* pPool = (SMemPool*)poolHandle;
 
-  taosWLockLatch(&pPool->cfgLock);
   *needEnd = true;
   *usedSize = atomic_load_64(&pPool->allocMemSize);
 }
@@ -1565,7 +1592,7 @@ void taosMemPoolGetUsedSizeEnd(void* poolHandle) {
     return;
   }
   
-  taosWUnLockLatch(&pPool->cfgLock);
+  MP_UNLOCK(MP_WRITE, &pPool->cfgLock);
 }
 
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize) {

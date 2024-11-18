@@ -24,7 +24,7 @@ int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint
   void* res = NULL;
   int64_t nSize = *size;
   
-  taosRLockLatch(&pPool->cfgLock);
+  MP_LOCK(MP_READ, &pPool->cfgLock);
 
   MP_ERR_JRET(mpChkQuotaOverflow(pPool, pSession, *size));
   
@@ -46,7 +46,7 @@ int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t* size, uint
 
 _return:
 
-  taosRUnLockLatch(&pPool->cfgLock);
+  MP_UNLOCK(MP_READ, &pPool->cfgLock);
   
   *ppRes = res;
   *size = nSize;
@@ -64,7 +64,7 @@ void mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* ori
     *origSize = oSize;
   }
   
-  taosRLockLatch(&pPool->cfgLock); // tmp test
+  MP_LOCK(MP_READ, &pPool->cfgLock); // tmp test
 
   taosMemFree(ptr);
 
@@ -75,14 +75,14 @@ void mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* ori
   
   (void)atomic_sub_fetch_64(&pPool->allocMemSize, oSize);
 
-  taosRUnLockLatch(&pPool->cfgLock);
+  MP_UNLOCK(MP_READ, &pPool->cfgLock);
 }
 
 int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t* size, int64_t* origSize) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t nSize = *size;
 
-  taosRLockLatch(&pPool->cfgLock);
+  MP_LOCK(MP_READ, &pPool->cfgLock);
 
   MP_ERR_JRET(mpChkQuotaOverflow(pPool, pSession, *size - *origSize));
   
@@ -96,7 +96,7 @@ int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int6
 
 _return:
 
-  taosRUnLockLatch(&pPool->cfgLock);
+  MP_UNLOCK(MP_READ, &pPool->cfgLock);
 
   if (code) {
     mpDirectFree(pPool, pSession, *pPtr, origSize);

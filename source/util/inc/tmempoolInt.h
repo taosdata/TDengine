@@ -371,6 +371,9 @@ enum {
     (_chunkNum)++;                                                            \
   } while (0)
 
+#define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
+
+
 #define MP_LOCK(type, _lock)                                                                                \
   do {                                                                                                       \
     if (MP_READ == (type)) {                                                                                \

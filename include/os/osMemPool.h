@@ -128,6 +128,8 @@ void    taosMemPoolDestroySession(void* poolHandle, void* session, int32_t* rema
 int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob);
 void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
+int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock);
+void    taosMemPoolUnLockPool(void* poolHandle, bool readLock);
 void    taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd);
 void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
