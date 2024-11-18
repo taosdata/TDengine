@@ -15,7 +15,6 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
-#include "geosWrapper.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
@@ -517,37 +516,6 @@ end:
   }
   cJSON_Delete(root);
   return retCode;
-}
-
-int32_t parseGeotoTagData(const char* g, SArray* pTagVals, SSchema* pTagSchema) {
-  int32_t        code = 0;
-  size_t         size = 0;
-  unsigned char* output = NULL;
-  STagVal        val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-  code = initCtxGeomFromText();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  code = doGeomFromText(g, &output, &size);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto end;
-  }
-  if (size > pTagSchema->bytes) {
-    code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-    goto end;
-  }
-
-  val.pData = (uint8_t*)output;
-  val.nData = (uint32_t)size;
-
-  if (NULL == taosArrayPush(pTagVals, &val)) {
-    code = terrno;
-    geosFreeBuffer(output);
-    goto end;
-  }
-
-end:
-  return code;
 }
 
 static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pOper, SName* pName) {

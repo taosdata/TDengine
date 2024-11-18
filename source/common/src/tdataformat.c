@@ -3058,20 +3058,11 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          int32_t size = 0;
-          char   *out = NULL;
-          code = fg((char *)pBind->buffer + pBind->buffer_length * i, pBind->length[i], buffMaxLen, &out, &size);
-          if (code) {
-            taosMemoryFree(out);
-            goto _exit;
-          }
-
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, out, size);
-          taosMemoryFree(out);
-        } else {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
-              pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
+          code = fg((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
+          if (code) goto _exit;
         }
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
+            pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
       }
     }
   } else {  // fixed-length data type
@@ -3148,19 +3139,10 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          int32_t size = 0;
-          char   *out = NULL;
-          code = fg((char *)buf, pBind->length[i], buffMaxLen, &out, &size);
-          if (code) {
-            taosMemoryFree(out);
-            goto _exit;
-          }
-
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, out, size);
-          taosMemoryFree(out);
-        } else {
-          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
+          code = fg(buf, pBind->length[i]);
+          if (code) goto _exit;
         }
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         buf += pBind->length[i];
       }
     }

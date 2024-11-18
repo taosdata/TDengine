@@ -102,6 +102,21 @@ pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 }
 */
 
+int32_t formatGeometry(char* geoWKB, size_t nGeom) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char*   outputWKT = NULL;
+
+  if (TSDB_CODE_SUCCESS != (code = initCtxAsText()) ||
+      TSDB_CODE_SUCCESS != (code = doAsText(geoWKB, nGeom, &outputWKT))) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+_exit:
+  geosFreeBuffer(outputWKT);
+  return code;
+}
+
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SArray*             pVgDataBlocks = NULL;
@@ -188,12 +203,15 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-      code = parseGeotoTagData(bind[c].buffer, pTagArray, pTagSchema);
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
+          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          code = formatGeometry(bind[c].buffer, colLen);
+          if (code != TSDB_CODE_SUCCESS) goto end;
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -253,9 +271,6 @@ end:
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFreeClear(p->pData);
     }
-    if (p->type == TSDB_DATA_TYPE_GEOMETRY) {
-      geosFreeBuffer(p->pData);
-    }
   }
   taosArrayDestroy(pTagArray);
   taosArrayDestroy(tagName);
@@ -307,39 +322,6 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   dst->num = src->num;
 
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t formatGeometry(char* geoStr, int32_t lenght, int32_t buffMaxLen, char** out, int32_t* size) {
-  int32_t        code = 0;
-  unsigned char* output = NULL;
-  char*          tmp = NULL;
-  code = initCtxGeomFromText();
-  if (code != TSDB_CODE_SUCCESS) {
-    uError("init geom from text failed, code:%d", code);
-    return code;
-  }
-
-  code = doGeomFromText(geoStr, &output, (size_t*)size);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-  if (*size > buffMaxLen) {
-    code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-    goto _exit;
-  }
-
-  tmp = taosMemoryCalloc(1, *size);
-  if (NULL == tmp) {
-    code = terrno;
-    goto _exit;
-  }
-  memcpy(tmp, output, *size);
-  *out = tmp;
-
-_exit:
-  geosFreeBuffer(output);
-  return code;
 }
 
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
@@ -577,12 +559,15 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    } else if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-      code = parseGeotoTagData(bind[c].buffer, pTagArray, pTagSchema);
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
+          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          code = formatGeometry(bind[c].buffer, colLen);
+          if (code != TSDB_CODE_SUCCESS) goto end;
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -641,9 +626,6 @@ end:
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFreeClear(p->pData);
-    }
-    if (p->type == TSDB_DATA_TYPE_GEOMETRY) {
-      geosFreeBuffer(p->pData);
     }
   }
   taosArrayDestroy(pTagArray);

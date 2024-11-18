@@ -155,7 +155,6 @@ int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
-int32_t parseGeotoTagData(const char *g, SArray *pTagVals, SSchema *pTagSchema);
 
 // SColData ================================
 typedef struct {
@@ -174,7 +173,7 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
-typedef int32_t (*formatGeometryFn)(char *geoStr, int32_t lenght, int32_t buffMaxLen, char **out, int32_t *size);
+typedef int32_t (*formatGeometryFn)(char *geoWKB, size_t nGeom);
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
