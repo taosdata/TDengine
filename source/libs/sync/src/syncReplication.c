@@ -88,15 +88,20 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
-  int32_t nRef = atomic_fetch_add_32(&pSyncNode->sendCount, 1);
-  if (nRef <= 0) {
-    sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+  int32_t nRef = 0;
+  if (pSyncNode != NULL) {
+    nRef = atomic_fetch_add_32(&pSyncNode->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
   }
 
   SSyncLogReplMgr* mgr = syncNodeGetLogReplMgr(pSyncNode, (SRaftId*)destRaftId);
-  nRef = atomic_fetch_add_32(&mgr->sendCount, 1);
-  if (nRef <= 0) {
-    sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+  if (mgr != NULL) {
+    nRef = atomic_fetch_add_32(&mgr->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
