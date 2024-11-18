@@ -1021,10 +1021,12 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
 _return:
 
-  if (pJob) {
-    SCH_TASK_ELOG("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
-  } else {
-    qError("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
+  if(code != TSDB_CODE_RPC_BYPASS_SEND) {
+    if (pJob) {
+      SCH_TASK_ELOG("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
+    } else {
+      qError("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
+      }
   }
 
   if (pMsgSendInfo) {

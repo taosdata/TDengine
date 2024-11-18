@@ -190,6 +190,11 @@ int32_t rpcSendRequest(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t
   return transSendRequest(pInit, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+  if ((tsBypassFlag & TSDB_BYPASS_RB_RPC_SEND_SUBMIT) && (pMsg->msgType == TDMT_VND_SUBMIT)) {
+    transFreeMsg(pMsg->pCont);
+    pMsg->pCont = NULL;
+    return TSDB_CODE_RPC_BYPASS_SEND;
+  }
   if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
     return transSendRequest(pInit, pEpSet, pMsg, pCtx);
   } else {

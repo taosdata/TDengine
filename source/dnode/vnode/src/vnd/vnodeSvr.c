@@ -362,6 +362,10 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
+    return TSDB_CODE_MSG_PREPROCESSED;
+  }
+
   SDecoder *pCoder = &(SDecoder){0};
 
   if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
@@ -1786,6 +1790,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
                                      SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   terrno = 0;
+
+  if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
+    return TSDB_CODE_MSG_PREPROCESSED;
+  }
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
