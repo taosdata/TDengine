@@ -1791,10 +1791,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
   int32_t code = 0;
   terrno = 0;
 
-  if (tsBypassFlag & TSDB_BYPASS_RA_RPC_RECV_SUBMIT) {
-    return TSDB_CODE_MSG_PREPROCESSED;
-  }
-
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
   SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
   SArray      *newTbUids = NULL;

@@ -1021,12 +1021,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
 _return:
 
-  if(code != TSDB_CODE_RPC_BYPASS_SEND) {
-    if (pJob) {
-      SCH_TASK_ELOG("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
-    } else {
-      qError("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
-      }
+  if (pJob) {
+    SCH_TASK_ELOG("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
+  } else {
+    qError("fail to send msg, type:%d, %s, error:%s", msgType, TMSG_INFO(msgType), tstrerror(code));
   }
 
   if (pMsgSendInfo) {
@@ -1347,30 +1345,19 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-#if 1
-  SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-  code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
-  msg = NULL;
-  SCH_ERR_JRET(code);
-
-  if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
-    SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
-  }
-#else
-  if (TDMT_VND_SUBMIT != msgType) {
+  if ((tsBypassFlag & TSDB_BYPASS_RB_RPC_SEND_SUBMIT) && (TDMT_VND_SUBMIT == msgType)) {
+    taosMemoryFree(msg);
+    SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+  } else {
     SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-    code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
+    code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
     msg = NULL;
     SCH_ERR_JRET(code);
 
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
       SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
     }
-  } else {
-    taosMemoryFree(msg);
-    SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
   }
-#endif
 
   return TSDB_CODE_SUCCESS;
 
