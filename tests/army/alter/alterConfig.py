@@ -100,6 +100,47 @@ class TDTestCase(TBase):
         tdSql.query('show dnodes')
         tdSql.checkData(0, 3, "64")
 
+    def alterBypassFlag(self):
+        """Add test case for altering bypassFlag(TD-32907)
+        """
+        tdSql.execute(f"drop database if exists db;")
+        tdSql.execute(f"create database db;")
+        tdSql.execute("use db;")
+        tdSql.execute("alter local 'bypassFlag 1';")
+        tdSql.execute("create table stb0(ts timestamp, c0 int) tags(t0 int);")
+        tdSql.execute("create table ctb0 using stb0 tags(0);")
+        tdSql.execute("insert into ctb0 values(now, 1);")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(0)
+        tdSql.execute("alter local 'bypassFlag 0';")
+        tdSql.execute("alter all dnodes 'bypassFlag 2';")
+        tdSql.execute("insert into ctb0 values(now, 2);")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(0)
+        tdSql.execute("alter all dnodes 'bypassFlag 4';")
+        tdSql.execute("insert into ctb0 values(now, 4);")
+        tdSql.execute("insert into ctb1 using stb0 tags(1) values(now, 10);")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(0)
+        tdSql.query("show db.tables;")
+        tdSql.checkRows(2)
+        tdSql.execute("alter all dnodes 'bypassFlag 8';")
+        tdSql.execute("insert into ctb0 values(now, 8);")
+        tdSql.execute("insert into ctb1 values(now, 18);")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(2)
+        tdSql.execute("flush database db;")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(0)
+        tdSql.execute("alter all dnodes 'bypassFlag 0';")
+        tdSql.execute("insert into ctb0 values(now, 80);")
+        tdSql.execute("insert into ctb1 values(now, 180);")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(2)
+        tdSql.execute("flush database db;")
+        tdSql.query("select * from stb0;")
+        tdSql.checkRows(2)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -110,6 +151,8 @@ class TDTestCase(TBase):
         self.alterTtlConfig()
         # TS-5390
         self.alterCachemodel()
+        # TD-32907
+        self.alterBypassFlag()
 
         tdLog.success(f"{__file__} successfully executed")
 
