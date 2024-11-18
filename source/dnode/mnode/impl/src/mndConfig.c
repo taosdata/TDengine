@@ -121,7 +121,9 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
   if (item == NULL) goto _OVER;
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, item->name, len, _OVER)
+  char *buf = taosMemoryMalloc(len + 1);
+  SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER)
+  item->name = buf;
   SDB_GET_INT32(pRaw, dataPos, (int32_t *)&item->dtype, _OVER)
   switch (item->dtype) {
     case CFG_DTYPE_NONE:
@@ -150,6 +152,7 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, item->str, len, _OVER)
       break;
   }
+  terrno = TSDB_CODE_SUCCESS;
 
 _OVER:
   if (terrno != 0) {
@@ -179,7 +182,7 @@ static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigItem *pOld, SConfigItem *pN
 
 static int32_t mndCfgActionDeploy(SMnode *pMnode) { return mndInitWriteCfg(pMnode); }
 
-static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitConfig(pMnode); }
+static int32_t mndCfgActionPrepare(SMnode *pMnode) { return mndInitReadCfg(pMnode); }
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
