@@ -1,5 +1,5 @@
 ---
-sidebar_label: 写入
+sidebar_label: 写入数据
 title: SQL 写入数据
 description: 使用 TDengine SQL 写入数据的开发指南
 ---
@@ -38,15 +38,17 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 详细的 SQL INSERT 语法规则参考 [TDengine SQL 的数据写入](https://docs.taosdata.com/cloud/taos-sql/insert)。
 
 ## 连接器样例
+下面以智能电表为例，展示如何使用各语言连接器在名为 power 的数据库中，创建一个名为 meters 的超级表（STABLE），其表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
 :::note IMPORTANT
-在执行下面样例代码的之前，您必须首先建立和 TDengine Cloud 的连接，请参考 [连接 云服务](../../programming/connect/).
+1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
+2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../../programming/connect/)。
 
 :::
 <Tabs>
 <TabItem value="python" label="Python">
 
-这个例子中，我们使用 `execute` 方法来执行 SQL 和得到被影响的行。参数 `conn` 是类`taosrest.TaosRestConnection` 的一个实例，请参考[连接培训](../../programming/connect/python#connect).
+这个例子中，我们使用 `execute` 方法来执行 SQL 和得到插入的行数。参数 `conn` 是类`taosrest.TaosRestConnection` 的一个实例，请参考[建立连接-Python](../../programming/connect/python#connect).
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:insert}}
