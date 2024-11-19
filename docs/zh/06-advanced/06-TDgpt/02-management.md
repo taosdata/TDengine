@@ -21,7 +21,7 @@ sudo ./install.sh
 为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
 
 ### 启停服务
-在 Linux 系统中，安装 Anode 以后会自动创建 `taosadnoded` 服务。可以使用 `systemd` 来管理 Anode 服务，使用如下命令启动/停止/检查 Anode。
+在 Linux 系统中，安装 Anode 以后会自动创建 `taosanoded` 服务。可以使用 `systemd` 来管理 Anode 服务，使用如下命令启动/停止/检查 Anode。
 
 ```bash
 systemctl start  taosanoded
@@ -96,7 +96,7 @@ Anode 运行配置主要是以下：
 
 
 ### Anode 基本操作
-对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 链接到 TDengine 运行实例。 
+对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 连接到 TDengine 运行实例。 
 #### 创建 Anode
 ```sql 
 CREATE ANODE {node_url}
@@ -117,7 +117,7 @@ SHOW ANODES FULL;
 
 #### 刷新集群中的分析算法缓存
 ```SQL
-UPDATE ANODE {node_id}
+UPDATE ANODE {anode_id}
 UPDATE ALL ANODES
 ```
 
