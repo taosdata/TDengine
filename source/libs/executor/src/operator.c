@@ -952,21 +952,24 @@ int32_t operatorResultCheck(SOperatorInfo* pOperator, SSDataBlock* pRes) {
   CHECK_CONDITION_FAILED(pRes);
   CHECK_CONDITION_FAILED(pRes->pDataBlock);
 
-  int32_t colCount = 0;
-  for (int i = 0; i < pRes->pDataBlock->size; ++i) {
-    SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pRes->pDataBlock, i);
-    if (!pCol->info.noData) {
-      ++colCount;
-    }
-  }
+  // int32_t colCount = 0;
+  // for (int i = 0; i < pRes->pDataBlock->size; ++i) {
+  //   SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pRes->pDataBlock, i);
+  //   if (!pCol->info.noData) {
+  //     ++colCount;
+  //   }
+  // }
+  //CHECK_CONDITION_FAILED(pOperator->exprSupp.numOfExprs == colCount);
 
-  CHECK_CONDITION_FAILED(pOperator->exprSupp.numOfExprs == colCount);
   CHECK_CONDITION_FAILED(pOperator->resultDataBlockId == pRes->info.id.blockId);
 
   for(int i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SExprInfo info = pOperator->exprSupp.pExprInfo[i];
     int32_t slotId = info.base.resSchema.slotId;
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pRes->pDataBlock, slotId);
+    if(pCol->info.noData) {
+      continue;
+    }
     CHECK_CONDITION_FAILED(pCol);
 
     CHECK_CONDITION_FAILED(info.base.resSchema.slotId == pCol->info.colId);

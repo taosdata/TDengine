@@ -4213,7 +4213,7 @@ typedef struct SLastRowScanOptSetColDataTypeCxt {
   int32_t    code;
 } SLastRowScanOptSetColDataTypeCxt;
 
-static EDealRes lastRowScanOptGetLastCols(SNode* pNode, void* pContext) {
+static EDealRes lastRowScanOptGetColAndSetDataType(SNode* pNode, void* pContext, bool setType) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
     if (pCxt->doAgg) {
@@ -4221,10 +4221,12 @@ static EDealRes lastRowScanOptGetLastCols(SNode* pNode, void* pContext) {
       if (TSDB_CODE_SUCCESS != pCxt->code) {
         return DEAL_RES_ERROR;
       }
+      if (setType) getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
     } else {
       SNode* pCol = NULL;
       FOREACH(pCol, pCxt->pLastCols) {
         if (nodesEqualNode(pCol, pNode)) {
+          if (setType) getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
           break;
         }
       }
@@ -4234,27 +4236,12 @@ static EDealRes lastRowScanOptGetLastCols(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes lastRowScanOptGetLastCols(SNode* pNode, void* pContext) {
+  return lastRowScanOptGetColAndSetDataType(pNode, pContext, false);
+}
+
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
-    if (pCxt->doAgg) {
-      pCxt->code = nodesListMakeAppend(&pCxt->pLastCols, pNode);
-      if (TSDB_CODE_SUCCESS != pCxt->code) {
-        return DEAL_RES_ERROR;
-      }
-      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
-    } else {
-      SNode* pCol = NULL;
-      FOREACH(pCol, pCxt->pLastCols) {
-        if (nodesEqualNode(pCol, pNode)) {
-          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
-          break;
-        }
-      }
-    }
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  return DEAL_RES_CONTINUE;
+  return lastRowScanOptGetColAndSetDataType(pNode, pContext, true);
 }
 
 static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase, int32_t pkBytes) {

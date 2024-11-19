@@ -153,13 +153,6 @@ static bool caseWhenNodeEqual(const SCaseWhenNode* a, const SCaseWhenNode* b) {
   return true;
 }
 
-static bool nodesEqualGroupingSetNode(const SGroupingSetNode* a, const SGroupingSetNode* b) {
-  COMPARE_SCALAR_FIELD(type);
-  COMPARE_SCALAR_FIELD(groupingSetType);
-  COMPARE_NODE_LIST_FIELD(pParameterList);
-  return true;
-}
-
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -188,11 +181,10 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return whenThenNodeEqual((const SWhenThenNode*)a, (const SWhenThenNode*)b);
     case QUERY_NODE_CASE_WHEN:
       return caseWhenNodeEqual((const SCaseWhenNode*)a, (const SCaseWhenNode*)b);
-    case QUERY_NODE_GROUPING_SET:
-      return nodesEqualGroupingSetNode((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
+    case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
       return false;
