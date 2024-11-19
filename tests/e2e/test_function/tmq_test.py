@@ -644,23 +644,18 @@ def test_sanity_tmq_td29505_01(input_data):
             time.sleep(5)
 
     # 获取消费进度
-    response = http.request("GET", f"{env_data['taos_explorer_root_endpoint']}{TAOSX_BASE_URL}/tasks/{task_info["id"]}/vgroup_progress")
-    assert (
-        response.status_code == 200
-    ), f"get task vgroup progress should always return 200, which is: {response.status_code}"
+    response = http.request("GET", f"{env_data['taos_explorer_root_endpoint']}{TAOSX_BASE_URL}/tasks/{task_info['id']}/vgroup_progress")
+    assert (response.status_code == 200), f"get task vgroup progress should always return 200, which is: {response.status_code}"
     vgroup_progress = response.json()
     vgroup_progress = vgroup_progress["data"]
     tmq_test_logger.info(vgroup_progress)
 
     # 查询数据库并验证结果是否一致
-    result = TaosAdapter.run_sql(
-        ENV.taosd_source_host,
-        f"show subscriptions;",
-    )
+    result = TaosAdapter.run_sql(ENV.taosd_source_host, "show subscriptions;")
     # 过滤出当前消费组的消费进度
     db_vgroup_progress = [item for item in result["data"] if item[0] == source_db_name and item[1] == group_id and item[6].startswith("wal")]
     # 转换为 json array
-    db_vgroup_progress = [{"topic": item[0], "vgroup": item[2], "offset": int(item[6].removeprefix('wal:').split('/')[0]), "latest": int(item[6].removeprefix('wal:').split('/')[1])} for item in db_vgroup_progress]
+    db_vgroup_progress = [{"topic": item[0], "vgroup": item[2], "offset": int(item[6].removeprefix("wal:").split("/")[0]), "latest": int(item[6].removeprefix("wal:").split("/")[1])} for item in db_vgroup_progress]
     tmq_test_logger.info(db_vgroup_progress)
 
     # 验证是否一致
