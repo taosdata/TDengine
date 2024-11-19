@@ -1,5 +1,7 @@
 using System;
-using TDengineWS.Impl;
+using System.Text;
+using TDengine.Driver;
+using TDengine.Driver.Client;
 
 namespace Cloud.Examples
 {
@@ -7,28 +9,29 @@ namespace Cloud.Examples
     {
         static void Main(string[] args)
         {
-            string dsn = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_DSN");
-            Connect(dsn);
-        }
-
-        public static void Connect(string dsn)
-        {
-            // get connect
-            IntPtr conn = LibTaosWS.WSConnectWithDSN(dsn);
-            if (conn == IntPtr.Zero)
-            {
-                throw new Exception($"get connection failed,reason:{LibTaosWS.WSErrorStr(conn)},code:{LibTaosWS.WSErrorNo(conn)}");
-            }
-            else
-            {
-                Console.WriteLine("Establish connect success.");
-            }
-
-            // do something ...
-
-            // close connect
-            LibTaosWS.WSClose(conn);
-
+          // Connect to TDengine server using WebSocket
+          var builder = new ConnectionStringBuilder("protocol=WebSocket;host=<cloud_endpoint>;port=443;useSSL=true;token=<cloud_token>;");
+          try
+          {
+             // Open connection with using block, it will close the connection automatically
+             using (var client = DbDriver.Open(builder))
+             {
+               Console.WriteLine("Connected to " + builder.ToString() + " successfully.");
+             }
+          }
+          catch (TDengineError e)
+          {
+             // handle TDengine error
+             Console.WriteLine("Failed to connect to " + builder.ToString() + "; ErrCode:" + e.Code +
+                                              "; ErrMessage: " + e.Error);
+             throw;
+          }
+          catch (Exception e)
+          {
+             // handle other exceptions
+             Console.WriteLine("Failed to connect to " + builder.ToString() + "; Err:" + e.Message);
+             throw;
+          }
         }
     }
 }

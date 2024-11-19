@@ -24,8 +24,8 @@ vim example.csproj
 增加下面的 ItemGroup 和 Task 配置到您的工程文件中。
 
 ```XML
-<ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.1.*" GeneratePathProperty="true" />
   </ItemGroup>
   <Target Name="copyDLLDependency" BeforeTargets="BeforeBuild">
     <ItemGroup>
@@ -39,42 +39,6 @@ vim example.csproj
 dotnet add package TDengine.Connector
 ```
 
-## Config
-
-在您的终端里面执行下面的命令设置 TDengine Cloud 令牌为环境变量：
-
-<Tabs defaultValue="bash">
-<TabItem value="bash" label="Bash">
-
-```bash
-export TDENGINE_CLOUD_DSN="<DSN>"
-```
-
-</TabItem>
-<TabItem value="cmd" label="CMD">
-
-```bash
-set TDENGINE_CLOUD_DSN=<DSN>
-```
-
-</TabItem>
-<TabItem value="powershell" label="Powershell">
-
-```powershell
-$env:TDENGINE_CLOUD_DSN='<DSN>'
-```
-
-</TabItem>
-</Tabs>
-
-<!-- exclude -->
-:::note IMPORTANT
-替换 \<DSN> 为 真实的值，格式应该是 `https(<cloud_endpoint>)/?token=<token>`。
-
-获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。
-:::
-<!-- exclude-end -->
-
 ## 建立连接
 
 ``` XML
@@ -84,7 +48,12 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 ```C#
 {{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
 ```
+:::note IMPORTANT
+替换代码中的 `<cloud_endpoint>` 和 `<token>`， 这两个值可以从 TDengine Cloud 中的实例 `DSN` 获取。
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 \<https://docs.taosdata.com/cloud/programming/insert/> and \<https://docs.taosdata.com/cloud/programming/query/>.
+`DSN` 的格式为 `https(<cloud_endpoint>)/?token=<token>`，获取真实 `DSN` 请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。
+:::
+<!-- exclude-end -->
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 [写入](https://docs.taosdata.com/cloud/programming/insert/) 和 [查询](https://docs.taosdata.com/cloud/programming/query/)。
 
-想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
+想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/)。
