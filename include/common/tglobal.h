@@ -77,6 +77,7 @@ extern int32_t tsReadTimeout;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
+extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;

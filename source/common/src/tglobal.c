@@ -61,6 +61,7 @@ int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
 int32_t tsNumOfCommitThreads = 2;
+int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;
@@ -688,6 +689,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
 
+  tsNumOfCompactThreads = tsNumOfCommitThreads;
+  tsNumOfCompactThreads = TRANGE(tsNumOfCompactThreads, 2, 4);
+
   tsNumOfSupportVnodes = tsNumOfCores * 2 + 5;
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
 
@@ -732,6 +736,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxCompactConcurrency", tsNumOfCompactThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -918,6 +923,14 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     tsNumOfCommitThreads = numOfCores / 2;
     tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
     pItem->i32 = tsNumOfCommitThreads;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(pCfg, "maxCompactConcurrency");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsNumOfCompactThreads = numOfCores / 2;
+    tsNumOfCompactThreads = TRANGE(tsNumOfCompactThreads, 2, 4);
+    pItem->i32 = tsNumOfCompactThreads;
     pItem->stype = stype;
   }
 
@@ -1405,6 +1418,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfCommitThreads");
   tsNumOfCommitThreads = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxCompactConcurrency");
+  tsNumOfCompactThreads = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
   tsRetentionSpeedLimitMB = pItem->i32;
