@@ -1613,7 +1613,7 @@ int32_t tSerializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cver));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->forceReadConfig));
   if (pReq->forceReadConfig) {
-    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pReq->array));
+    TAOS_CHECK_EXIT(tSerializeSConfigHash(&encoder, pReq->hash));
   }
   tEndEncode(&encoder);
 _exit:
@@ -1635,8 +1635,8 @@ int32_t tDeserializeSConfigReq(void *buf, int32_t bufLen, SConfigReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cver));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->forceReadConfig));
   if (pReq->forceReadConfig) {
-    pReq->array = taosArrayInit(128, sizeof(SConfigItem));
-    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pReq->array));
+    pReq->hash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    TAOS_CHECK_EXIT(tDeserializeSConfigHash(&decoder, pReq->hash));
   }
   tEndDecode(&decoder);
 _exit:
@@ -1656,7 +1656,7 @@ int32_t tSerializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->isVersionVerified));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cver));
   if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
-    TAOS_CHECK_EXIT(tSerializeSConfigArray(&encoder, pRsp->array));
+    TAOS_CHECK_EXIT(tSerializeSConfigHash(&encoder, pRsp->hash));
   }
   tEndEncode(&encoder);
 _exit:
@@ -1680,8 +1680,8 @@ int32_t tDeserializeSConfigRsp(void *buf, int32_t bufLen, SConfigRsp *pRsp) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->isVersionVerified));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->cver));
   if ((!pRsp->isConifgVerified) || (!pRsp->isVersionVerified)) {
-    pRsp->array = taosArrayInit(128, sizeof(SConfigItem));
-    TAOS_CHECK_EXIT(tDeserializeSConfigArray(&decoder, pRsp->array));
+    pRsp->hash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    TAOS_CHECK_EXIT(tDeserializeSConfigHash(&decoder, pRsp->hash));
   }
 _exit:
   tEndDecode(&decoder);
@@ -1689,7 +1689,7 @@ _exit:
   return code;
 }
 
-void tFreeSConfigRsp(SConfigRsp *pRsp) { taosArrayDestroy(pRsp->array); }
+void tFreeSConfigRsp(SConfigRsp *pRsp) { taosHashCleanup(pRsp->hash); }
 
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
   int32_t  code = 0, lino = 0;

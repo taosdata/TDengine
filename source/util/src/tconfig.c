@@ -30,8 +30,8 @@
 
 struct SConfig {
   ECfgSrcType   stype;
-  SArray       *localArray;
-  SArray       *globalArray;
+  SHashObj     *localHash;
+  SHashObj     *globalHash;
   TdThreadMutex lock;
 };
 
@@ -48,14 +48,12 @@ int32_t cfgInit(SConfig **ppCfg) {
   if (pCfg == NULL) {
     TAOS_RETURN(terrno);
   }
-
-  pCfg->localArray = taosArrayInit(64, sizeof(SConfigItem));
-  if (pCfg->localArray == NULL) {
-    taosMemoryFree(pCfg);
+  pCfg->localHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pCfg->localHash == NULL) {
     TAOS_RETURN(terrno);
   }
-  pCfg->globalArray = taosArrayInit(64, sizeof(SConfigItem));
-  if (pCfg->globalArray == NULL) {
+  pCfg->globalHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pCfg->globalHash == NULL) {
     taosMemoryFree(pCfg);
     TAOS_RETURN(terrno);
   }
@@ -110,39 +108,36 @@ void cfgCleanup(SConfig *pCfg) {
   if (pCfg == NULL) {
     return;
   }
-
-  int32_t size = taosArrayGetSize(pCfg->localArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
-    cfgItemFreeVal(pItem);
-    taosMemoryFreeClear(pItem->name);
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pCfg->localHash, pIter);
+    if (pIter == NULL) break;
+    SConfigItem *item = *(SConfigItem **)pIter;
+    cfgItemFreeVal(item);
+    taosMemoryFree(item->name);
+  }
+  while (1) {
+    pIter = taosHashIterate(pCfg->globalHash, pIter);
+    if (pIter == NULL) break;
+    SConfigItem *item = *(SConfigItem **)pIter;
+    cfgItemFreeVal(item);
+    taosMemoryFree(item->name);
   }
 
-  size = taosArrayGetSize(pCfg->globalArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->globalArray, i);
-    cfgItemFreeVal(pItem);
-    taosMemoryFreeClear(pItem->name);
-  }
-
-  taosArrayDestroy(pCfg->localArray);
-  taosArrayDestroy(pCfg->globalArray);
+  taosHashCleanup(pCfg->localHash);
+  taosHashCleanup(pCfg->globalHash);
   (void)taosThreadMutexDestroy(&pCfg->lock);
   taosMemoryFree(pCfg);
 }
 
-int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->localArray) + taosArrayGetSize(pCfg->globalArray); }
-int32_t cfgGetLocalSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->localArray); }
-int32_t cfgGetGlobalSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->globalArray); }
-
 static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
   cfgItemFreeVal(pItem);
-  if (!(pItem->str == NULL)) {
+  if (!(pItem->val == NULL)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  pItem->str = taosStrdup(conf);
-  if (pItem->str == NULL) {
+  *(char **)pItem->val = taosStrdup(conf);
+  if (pItem->val == NULL) {
     TAOS_RETURN(terrno);
   }
 
@@ -156,10 +151,8 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     uError("failed to expand dir:%s since %s", inputDir, tstrerror(code));
     TAOS_RETURN(code);
   }
-
-  taosMemoryFreeClear(pItem->str);
-  pItem->str = taosStrdup(fullDir);
-  if (pItem->str == NULL) {
+  *(char **)pItem->val = taosStrdup(fullDir);
+  if (pItem->val == NULL) {
     TAOS_RETURN(terrno);
   }
 
@@ -175,7 +168,7 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
     tmp = true;
   }
 
-  pItem->bval = tmp;
+  *(bool *)pItem->val = tmp;
   pItem->stype = stype;
   return 0;
 }
@@ -189,7 +182,7 @@ static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType st
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->i32 = ival;
+  *(int32_t *)pItem = ival;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -203,7 +196,7 @@ static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType st
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->i64 = ival;
+  *(int64_t *)pItem = ival;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -217,7 +210,7 @@ static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType st
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
-  pItem->fval = dval;
+  *(float *)pItem->val = dval;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -230,8 +223,7 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
     TAOS_RETURN(terrno);
   }
 
-  taosMemoryFreeClear(pItem->str);
-  pItem->str = tmp;
+  *(char **)pItem->val = tmp;
   pItem->stype = stype;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -293,7 +285,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   }
 
   SDiskCfg cfg = {0};
-  tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
+  tstrncpy(cfg.dir, pItem->val, sizeof(cfg.dir));
   cfg.level = level ? atoi(level) : 0;
   cfg.primary = primary ? atoi(primary) : 1;
   cfg.disable = disable ? atoi(disable) : 0;
@@ -404,37 +396,26 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   TAOS_RETURN(code);
 }
 
-
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   if (pCfg == NULL) return NULL;
-  int32_t size = taosArrayGetSize(pCfg->localArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
-      return pItem;
-    }
+  SConfigItem *item = NULL;
+  item = taosHashGet(pCfg->globalHash, pName, strlen(pName));
+  if (item == NULL) {
+    item = taosHashGet(pCfg->localHash, pName, strlen(pName));
   }
-  size = taosArrayGetSize(pCfg->globalArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->globalArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
-      return pItem;
-    }
-  }
-
-  return NULL;
+  return item;
 }
 
 void cfgLock(SConfig *pCfg) {
   if (pCfg == NULL) {
     return;
   }
-
   (void)taosThreadMutexLock(&pCfg->lock);
 }
 
 void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
+// TODO(beryl):read this function.
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
   ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
 
@@ -526,33 +507,27 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
 }
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
-  SArray *array = pCfg->globalArray;
-  if (pItem->category == CFG_CATEGORY_LOCAL) array = pCfg->localArray;
+  SHashObj *hash = pCfg->globalHash;
+  if (pItem->category == CFG_CATEGORY_LOCAL) hash = pCfg->localHash;
 
   pItem->stype = CFG_STYPE_DEFAULT;
-  pItem->name = taosStrdup(name);
+  tstrncpy(pItem->name, taosStrdup(name), CFG_NAME_MAX_LEN);
+
   if (pItem->name == NULL) {
     TAOS_RETURN(terrno);
   }
 
-  int32_t size = taosArrayGetSize(array);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *existItem = taosArrayGet(array, i);
-    if (existItem != NULL && strcmp(existItem->name, pItem->name) == 0) {
-      taosMemoryFree(pItem->name);
-      TAOS_RETURN(TSDB_CODE_INVALID_CFG);
-    }
+  int32_t      keysize = strlen(name) + 1;
+  SConfigItem *item = taosHashGet(hash, name, keysize);
+  if (item != NULL) {
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   (void)strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
 
-  if (taosArrayPush(array, pItem) == NULL) {
-    if (pItem->dtype == CFG_DTYPE_STRING) {
-      taosMemoryFree(pItem->str);
-    }
-
+  if (taosHashPut(hash, name, keysize, pItem, sizeof(pItem)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pItem->name);
     TAOS_RETURN(terrno);
   }
@@ -560,20 +535,20 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope, int8_t category) {
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool *defaultVal, int8_t scope, int8_t dynScope, int8_t category) {
   SConfigItem item = {
-      .dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope, .dynScope = dynScope, .category = category};
+      .dtype = CFG_DTYPE_BOOL, .val = defaultVal, .scope = scope, .dynScope = dynScope, .category = category};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope,
                     int8_t dynScope, int8_t category) {
-  if (defaultVal < minval || defaultVal > maxval) {
+  if (*defaultVal < minval || *defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT32,
-                      .i32 = defaultVal,
+                      .val = defaultVal,
                       .imin = minval,
                       .imax = maxval,
                       .scope = scope,
@@ -582,14 +557,30 @@ int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+int32_t cfgAddInt8(SConfig *pCfg, const char *name, int8_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+                   int8_t dynScope, int8_t category) {
+  if (*defaultVal < minval || *defaultVal > maxval) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  SConfigItem item = {.dtype = CFG_DTYPE_INT32,
+                      .val = defaultVal,
+                      .imin = minval,
+                      .imax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope,
+                      .category = category};
+  return cfgAddItem(pCfg, &item, name);
+}
+
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope,
                     int8_t dynScope, int8_t category) {
-  if (defaultVal < minval || defaultVal > maxval) {
+  if (*defaultVal < minval || *defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT64,
-                      .i64 = defaultVal,
+                      .val = defaultVal,
                       .imin = minval,
                       .imax = maxval,
                       .scope = scope,
@@ -598,14 +589,14 @@ int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float *defaultVal, float minval, float maxval, int8_t scope,
                     int8_t dynScope, int8_t category) {
-  if (defaultVal < minval || defaultVal > maxval) {
+  if (*defaultVal < minval || *defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_FLOAT,
-                      .fval = defaultVal,
+                      .val = defaultVal,
                       .fmin = minval,
                       .fmax = maxval,
                       .scope = scope,
@@ -614,11 +605,28 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float min
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+int32_t cfgAddDouble(SConfig *pCfg, const char *name, double *defaultVal, float minval, float maxval, int8_t scope,
+                     int8_t dynScope, int8_t category) {
+  if (*defaultVal < minval || *defaultVal > maxval) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  SConfigItem item = {.dtype = CFG_DTYPE_FLOAT,
+                      .val = defaultVal,
+                      .fmin = minval,
+                      .fmax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope,
+                      .category = category};
+  return cfgAddItem(pCfg, &item, name);
+}
+
+int32_t cfgAddString(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,
                      int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope, .category = category};
-  item.str = taosStrdup(defaultVal);
-  if (item.str == NULL) {
+  item.val = defaultVal;
+  *(char **)item.val = taosStrdup(defaultVal);
+  if (item.val == NULL) {
     TAOS_RETURN(terrno);
   }
   return cfgAddItem(pCfg, &item, name);
@@ -708,17 +716,17 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   int32_t len = 0;
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
-      len = tsnprintf(buf, bufSize, "%u", pItem->bval);
+      len = tsnprintf(buf, bufSize, "%u", *(bool *)pItem->val);
       break;
     case CFG_DTYPE_INT32:
-      len = tsnprintf(buf, bufSize, "%d", pItem->i32);
+      len = tsnprintf(buf, bufSize, "%d", *(int32_t *)pItem->val);
       break;
     case CFG_DTYPE_INT64:
-      len = tsnprintf(buf, bufSize, "%" PRId64, pItem->i64);
+      len = tsnprintf(buf, bufSize, "%" PRId64, *(int32_t *)pItem->val);
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      len = tsnprintf(buf, bufSize, "%f", pItem->fval);
+      len = tsnprintf(buf, bufSize, "%f", *(float *)pItem->val);
       break;
     case CFG_DTYPE_STRING:
     case CFG_DTYPE_DIR:
@@ -726,7 +734,7 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
     case CFG_DTYPE_NONE:
-      len = tsnprintf(buf, bufSize, "%s", pItem->str);
+      len = tsnprintf(buf, bufSize, "%s", *(char **)pItem->val);
       break;
   }
 
@@ -768,12 +776,15 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void cfgDumpCfgArrayS3(SArray *array, bool tsc, bool dump) {
-  char    src[CFG_SRC_PRINT_LEN + 1] = {0};
-  char    name[CFG_NAME_PRINT_LEN + 1] = {0};
-  int32_t size = taosArrayGetSize(array);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(array, i);
+void cfgDumpCfgArrayS3(SHashObj *hash, bool tsc, bool dump) {
+  char  src[CFG_SRC_PRINT_LEN + 1] = {0};
+  char  name[CFG_NAME_PRINT_LEN + 1] = {0};
+  void *pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(hash, pIter);
+    if (pIter == NULL) break;
+    SConfigItem *pItem = *(SConfigItem **)pIter;
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     if (dump && strncmp(pItem->name, "s3", 2) != 0) continue;
@@ -844,8 +855,8 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
     uInfo("                     s3 config");
     uInfo("=================================================================");
   }
-  cfgDumpCfgArrayS3(pCfg->localArray, tsc, dump);
-  cfgDumpCfgArrayS3(pCfg->globalArray, tsc, dump);
+  cfgDumpCfgArrayS3(pCfg->localHash, tsc, dump);
+  cfgDumpCfgArrayS3(pCfg->globalHash, tsc, dump);
   if (dump) {
     (void)printf("=================================================================\n");
   } else {
@@ -867,9 +878,14 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
 
-  int32_t size = taosArrayGetSize(pCfg->localArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
+  void *pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(pCfg->globalHash, pIter);
+    if (pIter == NULL) pIter = taosHashIterate(pCfg->localHash, pIter);
+    if (pIter == NULL) break;
+    SConfigItem *pItem = *(SConfigItem **)pIter;
+    if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
@@ -1504,41 +1520,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
   TAOS_RETURN(TSDB_CODE_NOT_FOUND);
 }
 
-struct SConfigIter {
-  int32_t  index;
-  SConfig *pConf;
-};
-
-int32_t cfgCreateIter(SConfig *pConf, SConfigIter **ppIter) {
-  SConfigIter *pIter = taosMemoryCalloc(1, sizeof(SConfigIter));
-  if (pIter == NULL) {
-    TAOS_RETURN(terrno);
-  }
-
-  pIter->pConf = pConf;
-
-  *ppIter = pIter;
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-
-SConfigItem *cfgNextIter(SConfigIter *pIter) {
-  if (pIter->index < cfgGetGlobalSize(pIter->pConf)) {
-    return taosArrayGet(pIter->pConf->localArray, pIter->index++);
-  } else if (pIter->index < cfgGetGlobalSize(pIter->pConf) + cfgGetLocalSize(pIter->pConf)) {
-    return taosArrayGet(pIter->pConf->globalArray, pIter->index++ - cfgGetGlobalSize(pIter->pConf));
-  }
-  return NULL;
-}
-
-void cfgDestroyIter(SConfigIter *pIter) {
-  if (pIter == NULL) {
-    return;
-  }
-
-  taosMemoryFree(pIter);
-}
-
-SArray *getLocalCfg(SConfig *pCfg) { return pCfg->localArray; }
-SArray *getGlobalCfg(SConfig *pCfg) { return pCfg->globalArray; }
-void    setLocalCfg(SConfig *pCfg, SArray *pArray) { pCfg->localArray = pArray; };
-void    setGlobalCfg(SConfig *pCfg, SArray *pArray) { pCfg->globalArray = pArray; };
+SHashObj *getLocalCfg(SConfig *pCfg) { return pCfg->localHash; }
+SHashObj *getGlobalCfg(SConfig *pCfg) { return pCfg->globalHash; }
+void      setLocalCfg(SConfig *pCfg, SHashObj *hash) { pCfg->localHash = hash; };
+void      setGlobalCfg(SConfig *pCfg, SHashObj *hash) { pCfg->globalHash = hash; };

@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmisce.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tjson.h"
+#include "tmisce.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -263,18 +263,20 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
   int32_t      numOfRows = 0;
   int32_t      col = startCol;
   SConfigItem* pItem = NULL;
-  SConfigIter* pIter = NULL;
 
   int8_t locked = 0;
-
-  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
-
-  TAOS_CHECK_GOTO(cfgCreateIter(pConf, &pIter), NULL, _exit);
 
   cfgLock(pConf);
   locked = 1;
 
-  while ((pItem = cfgNextIter(pIter)) != NULL) {
+  void* pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(getGlobalCfg(tsCfg), pIter);
+    if (pIter == NULL) pIter = taosHashIterate(getGlobalCfg(tsCfg), pIter);
+    if (pIter == NULL) break;
+    SConfigItem* pItem = *(SConfigItem**)pIter;
+
     col = startCol;
 
     // GRANT_CFG_SKIP;
@@ -318,6 +320,5 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
   pBlock->info.rows = numOfRows;
 _exit:
   if (locked) cfgUnLock(pConf);
-  cfgDestroyIter(pIter);
   TAOS_RETURN(code);
 }

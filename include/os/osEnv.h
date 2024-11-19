@@ -36,14 +36,14 @@ extern int64_t         tsStreamMax;
 extern float           tsNumOfCores;
 extern int64_t         tsTotalMemoryKB;
 extern char           *tsProcPath;
-extern char            tsSIMDEnable;
+extern bool            tsSIMDEnable;
 extern char            tsSSE42Supported;
 extern char            tsAVXSupported;
 extern char            tsAVX2Supported;
 extern char            tsFMASupported;
-extern char 	       tsAVX512Supported;
-extern char            tsAVX512Enable;
-extern char            tsTagFilterCache;
+extern bool            tsAVX512Supported;
+extern bool            tsAVX512Enable;
+extern bool            tsTagFilterCache;
 
 extern char configDir[];
 extern char tsDataDir[];
@@ -56,7 +56,7 @@ extern SDiskSpace tsTempSpace;
 
 int32_t osDefaultInit();
 int32_t osUpdate();
-void osCleanup();
+void    osCleanup();
 
 bool osLogSpaceAvailable();
 bool osDataSpaceAvailable();
@@ -67,8 +67,8 @@ bool osDataSpaceSufficient();
 bool osTempSpaceSufficient();
 
 int32_t osSetTimezone(const char *timezone);
-void osSetSystemLocale(const char *inLocale, const char *inCharSet);
-void osSetProcPath(int32_t argc, char **argv);
+void    osSetSystemLocale(const char *inLocale, const char *inCharSet);
+void    osSetProcPath(int32_t argc, char **argv);
 
 #ifdef __cplusplus
 }

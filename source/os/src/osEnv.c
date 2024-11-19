@@ -37,12 +37,12 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsAVX512Enable = 0;
+bool tsAVX512Enable = 0;
 char tsSSE42Supported = 0;
 char tsAVXSupported = 0;
 char tsAVX2Supported = 0;
 char tsFMASupported = 0;
-char tsAVX512Supported = 0;
+bool tsAVX512Supported = 0;
 
 int32_t osDefaultInit() {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -50,10 +50,10 @@ int32_t osDefaultInit() {
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
   code = taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  if(code != 0) {
+  if (code != 0) {
     return code;
   }
-  if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
+  if (strlen(tsTimezoneStr) > 0) {  // ignore empty timezone
     if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
       return code;
   }
@@ -89,7 +89,7 @@ int32_t osDefaultInit() {
   }
   tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
   tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
-  if (strlen(tsTempDir) == 0){
+  if (strlen(tsTempDir) == 0) {
     tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
   }
 

@@ -1807,9 +1807,9 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
-  int32_t forceReadConfig;
-  int32_t cver;
-  SArray* array;
+  int32_t   forceReadConfig;
+  int32_t   cver;
+  SHashObj* hash;
 } SConfigReq;
 
 int32_t tSerializeSConfigReq(void* buf, int32_t bufLen, SConfigReq* pReq);
@@ -1894,11 +1894,11 @@ int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 void    tFreeSStatusRsp(SStatusRsp* pRsp);
 
 typedef struct {
-  int32_t forceReadConfig;
-  int32_t isConifgVerified;
-  int32_t isVersionVerified;
-  int32_t cver;
-  SArray* array;
+  int32_t   forceReadConfig;
+  int32_t   isConifgVerified;
+  int32_t   isVersionVerified;
+  int32_t   cver;
+  SHashObj* hash;
 } SConfigRsp;
 
 int32_t tSerializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);

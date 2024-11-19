@@ -137,14 +137,14 @@ extern int8_t   tsEncryptionKeyStat;
 extern int8_t   tsGrant;
 
 // monitor
-extern bool     tsEnableMonitor;
-extern int32_t  tsMonitorInterval;
-extern char     tsMonitorFqdn[];
-extern uint16_t tsMonitorPort;
-extern int32_t  tsMonitorMaxLogs;
-extern bool     tsMonitorComp;
-extern bool     tsMonitorLogProtocol;
-extern bool     tsMonitorForceV2;
+extern bool    tsEnableMonitor;
+extern int32_t tsMonitorInterval;
+extern char    tsMonitorFqdn[];
+extern int32_t tsMonitorPort;
+extern int32_t tsMonitorMaxLogs;
+extern bool    tsMonitorComp;
+extern bool    tsMonitorLogProtocol;
+extern bool    tsMonitorForceV2;
 
 // audit
 extern bool    tsEnableAudit;
@@ -153,15 +153,15 @@ extern bool    tsEnableAuditDelete;
 extern int32_t tsAuditInterval;
 
 // telem
-extern bool     tsEnableTelem;
-extern int32_t  tsTelemInterval;
-extern char     tsTelemServer[];
-extern uint16_t tsTelemPort;
-extern bool     tsEnableCrashReport;
-extern char    *tsTelemUri;
-extern char    *tsClientCrashReportUri;
-extern char    *tsSvrCrashReportUri;
-extern int8_t   tsSafetyCheckLevel;
+extern bool    tsEnableTelem;
+extern int32_t tsTelemInterval;
+extern char    tsTelemServer[];
+extern int32_t tsTelemPort;
+extern bool    tsEnableCrashReport;
+extern char   *tsTelemUri;
+extern char   *tsClientCrashReportUri;
+extern char   *tsSvrCrashReportUri;
+extern int8_t  tsSafetyCheckLevel;
 enum {
   TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
   TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
@@ -296,15 +296,16 @@ void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t  taosGranted(int8_t type);
 int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
-int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version);
+int32_t persistGlobalConfig(SHashObj *hash, const char *path, int32_t version);
 int32_t persistLocalConfig(const char *path);
-int32_t localConfigSerialize(SArray *array, char **serialized);
-int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
-int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
+int32_t localConfigSerialize(SHashObj *hash, char **serialized);
+int32_t tSerializeSConfigHash(SEncoder *pEncoder, SHashObj *hash);
+int32_t tDeserializeSConfigHash(SDecoder *pDecoder, SHashObj *hash);
 int32_t setAllConfigs(SConfig *pCfg);
-void    printConfigNotMatch(SArray *array);
+void    printConfigNotMatch(SHashObj *hash);
 
-int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
+int32_t compareSConfigItemArrays(SHashObj *mHash, SHashObj *dHash, SHashObj *diffHash);
+
 #ifdef __cplusplus
 }
 #endif

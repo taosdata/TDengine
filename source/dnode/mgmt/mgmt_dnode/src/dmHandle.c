@@ -307,12 +307,12 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
           persistGlobalConfig(getGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
         } else {
           // log the difference configurations
-          printConfigNotMatch(configRsp.array);
+          printConfigNotMatch(configRsp.hash);
           goto _exit;
         }
       }
       if (!configRsp.isVersionVerified) {
-        persistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
+        persistGlobalConfig(configRsp.hash, pMgmt->path, configRsp.cver);
       }
     }
     setAllConfigs(tsCfg);
@@ -330,7 +330,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
 
   req.cver = tsdmConfigVersion;
   req.forceReadConfig = tsForceReadConfig;
-  req.array = getGlobalCfg(tsCfg);
+  req.hash = getGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
   int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);

@@ -17,7 +17,7 @@
 #ifndef _TD_CONFIG_H_
 #define _TD_CONFIG_H_
 
-#include "tarray.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,12 +79,13 @@ typedef enum {
 } ECfgDynType;
 
 typedef struct SConfigItem {
+  char         name[CFG_NAME_MAX_LEN];
   ECfgSrcType  stype;
   ECfgDataType dtype;
   int8_t       scope;
   int8_t       dynScope;
   int8_t       category;
-  char        *name;
+  void        *val;
   union {
     bool    bval;
     float   fval;
@@ -92,6 +93,7 @@ typedef struct SConfigItem {
     int64_t i64;
     char   *str;
   };
+
   union {
     int64_t imin;
     float   fmin;
@@ -108,8 +110,7 @@ typedef struct {
   const char *value;
 } SConfigPair;
 
-typedef struct SConfig     SConfig;
-typedef struct SConfigIter SConfigIter;
+typedef struct SConfig SConfig;
 
 int32_t      cfgInit(SConfig **ppCfg);
 int32_t      cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
@@ -120,18 +121,17 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
 
-int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
-SConfigItem *cfgNextIter(SConfigIter *pIter);
-void         cfgDestroyIter(SConfigIter *pIter);
-void         cfgLock(SConfig *pCfg);
-void         cfgUnLock(SConfig *pCfg);
+void cfgLock(SConfig *pCfg);
+void cfgUnLock(SConfig *pCfg);
 
 // clang-format off
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddInt8(SConfig *pCfg, const char *name, int8_t *defaultVal, int64_t minval, int64_t maxval, int8_t scope,int8_t dynScope, int8_t category);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float *defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddDouble(SConfig *pCfg, const char *name, double *defaultVal, float minval, float maxval, int8_t scope,int8_t dynScope, int8_t category);
+int32_t cfgAddString(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
@@ -147,12 +147,12 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);
 
-int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl);
-SArray *getLocalCfg(SConfig *pCfg);
-SArray *getGlobalCfg(SConfig *pCfg);
+int32_t   cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl);
+SHashObj *getLocalCfg(SConfig *pCfg);
+SHashObj *getGlobalCfg(SConfig *pCfg);
 
-void setLocalCfg(SConfig *pCfg, SArray *pArray);
-void setGlobalCfg(SConfig *pCfg, SArray *pArray);
+void setLocalCfg(SConfig *pCfg, SHashObj *hash);
+void setGlobalCfg(SConfig *pCfg, SHashObj *hash);
 #ifdef __cplusplus
 }
 #endif

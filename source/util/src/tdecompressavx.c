@@ -16,9 +16,9 @@
 #include "tcompression.h"
 
 #ifdef __AVX2__
-char tsSIMDEnable = 1;
+bool tsSIMDEnable = 1;
 #else
-char tsSIMDEnable = 0;
+bool tsSIMDEnable = 0;
 #endif
 
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type) {

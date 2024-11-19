@@ -191,31 +191,31 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   int32_t    code = -1;
 
   tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
-  SArray    *diffArray = taosArrayInit(16, sizeof(SConfigItem));
+  SHashObj  *diffHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   SConfigRsp configRsp = {0};
   configRsp.forceReadConfig = configReq.forceReadConfig;
   configRsp.cver = tsmmConfigVersion;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(getGlobalCfg(tsCfg), configReq.array, diffArray)) {
-      configRsp.array = diffArray;
+    if (compareSConfigItemArrays(getGlobalCfg(tsCfg), configReq.hash, diffHash)) {
+      configRsp.hash = diffHash;
     } else {
       configRsp.isConifgVerified = 1;
-      taosArrayDestroy(diffArray);
+      taosHashCleanup(diffHash);
     }
   } else {
-    configRsp.array = getGlobalCfg(tsCfg);
+    configRsp.hash = getGlobalCfg(tsCfg);
     if (configReq.cver == tsmmConfigVersion) {
       configRsp.isVersionVerified = 1;
     } else {
-      configRsp.array = getGlobalCfg(tsCfg);
+      configRsp.hash = getGlobalCfg(tsCfg);
     }
   }
 
   int32_t contLen = tSerializeSConfigRsp(NULL, 0, &configRsp);
   void   *pHead = rpcMallocCont(contLen);
   contLen = tSerializeSConfigRsp(pHead, contLen, &configRsp);
-  taosArrayDestroy(diffArray);
+  taosHashCleanup(diffHash);
   if (contLen < 0) {
     code = contLen;
     goto _OVER;
@@ -244,10 +244,11 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   if ((code = mndSetCreateConfigCommitLogs(pTrans, &obj)) != 0) {
     mError("failed to init mnd config version, since %s", terrstr());
   }
-  sz = taosArrayGetSize(getGlobalCfg(tsCfg));
-
-  for (int i = 0; i < sz; ++i) {
-    SConfigItem *item = taosArrayGet(getGlobalCfg(tsCfg), i);
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(getGlobalCfg(tsCfg), pIter);
+    if (pIter == NULL) break;
+    SConfigItem *item = *(SConfigItem **)pIter;
     SConfigObj  *obj = mndInitConfigObj(item);
     if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, terrstr());
@@ -279,9 +280,11 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
     sdbRelease(pMnode->pSdb, obj);
   }
 
-  sz = taosArrayGetSize(getGlobalCfg(tsCfg));
-  for (int i = 0; i < sz; ++i) {
-    SConfigItem *item = taosArrayGet(getGlobalCfg(tsCfg), i);
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(getGlobalCfg(tsCfg), pIter);
+    if (pIter == NULL) break;
+    SConfigItem *item = *(SConfigItem **)pIter;
     SConfigObj  *newObj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
     if (newObj == NULL) {
       mInfo("failed to acquire mnd config:%s, since %s", item->name, terrstr());
