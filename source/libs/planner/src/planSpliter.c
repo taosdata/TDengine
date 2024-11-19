@@ -428,7 +428,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   if (NULL == pWStart) {
     return code;
   }
-  strcpy(pWStart->functionName, "_wstart");
+  tstrncpy(pWStart->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
@@ -460,7 +460,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   if (NULL == pWEnd) {
     return code;
   }
-  strcpy(pWEnd->functionName, "_wend");
+  tstrncpy(pWEnd->functionName, "_wend", TSDB_FUNC_NAME_LEN);
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
@@ -1137,8 +1137,8 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
             if (!nodesEqualNode(pParam, (SNode*)pCol)) continue;
 
             // use the colName of group_key func to make sure finding the right slot id for merge keys.
-            strcpy(pCol->colName, pFunc->node.aliasName);
-            strcpy(pCol->node.aliasName, pFunc->node.aliasName);
+            tstrncpy(pCol->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+            tstrncpy(pCol->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
             memset(pCol->tableAlias, 0, TSDB_TABLE_NAME_LEN);
             break;
           }
@@ -1267,15 +1267,15 @@ static int32_t stbSplCreateColumnNode(SExprNode* pExpr, SNode** ppNode) {
     return code;
   }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
-    strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
-    strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
-    strcpy(pCol->colName, ((SColumnNode*)pExpr)->colName);
+    tstrncpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->colName, ((SColumnNode*)pExpr)->colName, TSDB_COL_NAME_LEN);
   } else {
-    strcpy(pCol->colName, pExpr->aliasName);
+    tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
-  strcpy(pCol->node.aliasName, pExpr->aliasName);
-  strcpy(pCol->node.userAlias, pExpr->userAlias);
+  tstrncpy(pCol->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN);
   pCol->node.resType = pExpr->resType;
   *ppNode = (SNode*)pCol;
   return code;
