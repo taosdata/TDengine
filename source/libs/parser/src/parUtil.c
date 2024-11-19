@@ -250,7 +250,7 @@ int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFor
 
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   if (pBuf->buf) {
-    strncpy(pBuf->buf, msg, pBuf->len);
+    tstrncpy(pBuf->buf, msg, pBuf->len);
   }
 
   return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -277,7 +277,7 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   }
 
   char buf[64] = {0};  // only extract part of sql string
-  strncpy(buf, sourceStr, tListLen(buf) - 1);
+  tstrncpy(buf, sourceStr, tListLen(buf));
 
   if (additionalInfo != NULL) {
     snprintf(pBuf->buf, pBuf->len, msgFormat2, buf, additionalInfo);
@@ -454,7 +454,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       continue;
     }
     STagVal val = {0};
-    //    strcpy(val.colName, colName);
+    //    TSDB_DB_FNAME_LENme, colName);
     val.pKey = jsonKey;
     retCode = taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                           CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
@@ -603,10 +603,10 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
   char* p = strchr(pStart, '*');
   char  buf[10] = {0};
   if (NULL == p) {
-    strcpy(buf, pStart);
+    tstrncpy(buf, pStart, 10);
     *pNext = NULL;
   } else {
-    strncpy(buf, pStart, p - pStart);
+    tstrncpy(buf, pStart, p - pStart + 1);
     *pNext = ++p;
   }
   return taosStr2Int32(buf, NULL, 10);
@@ -615,10 +615,10 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
 static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
   char* p = strchr(pStart, '*');
   if (NULL == p) {
-    strcpy(pStr, pStart);
+    tstrncpy(pStr, pStart, strlen(pStart) + 1);
     *pNext = NULL;
   } else {
-    strncpy(pStr, pStart, p - pStart);
+    tstrncpy(pStr, pStart, p - pStart + 1);
     *pNext = ++p;
   }
   if (*pStart == '`' && *(pStart + 1) == '`') {
@@ -652,7 +652,7 @@ static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_TABLE_FNAME_LEN] = {0};
-      strncpy(fullName, pKey, len);
+      tstrncpy(fullName, pKey, len);
       SName   name = {0};
       int32_t code = tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
       if (TSDB_CODE_SUCCESS == code) {
@@ -683,7 +683,7 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_DB_FNAME_LEN] = {0};
-      strncpy(fullName, pKey, len);
+      tstrncpy(fullName, pKey, len);
       if (NULL == taosArrayPush(*pDbs, fullName)) {
         taosHashCancelIterate(pDbsHash, p);
         taosArrayDestroy(*pDbs);
@@ -707,7 +707,7 @@ static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
     SParseTablesMetaReq* p = taosHashIterate(pDbsHash, NULL);
     while (NULL != p) {
       STablesReq req = {0};
-      strcpy(req.dbFName, p->dbFName);
+      tstrncpy(req.dbFName, p->dbFName, TSDB_DB_FNAME_LEN);
       int32_t code = buildTableReq(p->pTables, &req.pTables);
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(*pDbs, &req)) {
@@ -737,7 +737,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   key[USER_AUTH_KEY_MAX_LEN] = {0};
-      strncpy(key, pKey, len);
+      tstrncpy(key, pKey, len);
       SUserAuthInfo userAuth = {0};
       stringToUserAuth(key, len, &userAuth);
       if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
@@ -763,7 +763,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
       size_t len = 0;
       char*  pFunc = taosHashGetKey(p, &len);
       char   func[TSDB_FUNC_NAME_LEN] = {0};
-      strncpy(func, pFunc, len);
+      tstrncpy(func, pFunc, len);
       if (NULL == taosArrayPush(*pUdf, func)) {
         taosHashCancelIterate(pUdfHash, p);
         taosArrayDestroy(*pUdf);
