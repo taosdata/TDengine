@@ -1,15 +1,24 @@
 # command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
+
+# Use env scripts to get the latest version from git tags to make it available for any platform.
+env_scripts = ['''
+  #!@duckscript
+  ver = get_env VER_NUMBER
+  if is_empty ${ver}
+    out = exec git describe --tags --abbrev=0
+    ver = trim ${out.stdout}
+    ver = replace ${ver} "ver-" ""
+    echo "* last published version: ${ver}"
+    set_env "VER_NUMBER" "${ver}"
+  end
+  ''']
+
 [config]
 load_cargo_aliases = false
 skip_core_tasks = true
 default_to_workspace = false
 
 [env]
-VER_NUMBER = { script = [
-  "git tag |grep ver-|sed s/ver-//|sort -V|tail -n1",
-], condition = { env_not_set = [
-  "VER_NUMBER",
-] } }
 UPX_DIR = "./target/deploy/upx/"
 BUILD_PROFILE = { value = "release", condition = { env_not_set = [
   "BUILD_PROFILE",
@@ -200,7 +209,7 @@ if [ "$push" = "1" ]; then
   docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
 fi
 """
-dependencies = ["plugins"]
+dependencies = ["plugins", "install-toml-cli"]
 
 [tasks.docker-push]
 script = """
@@ -631,6 +640,8 @@ cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
 install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rustup_component_name = "llvm-tools-preview", test_arg = "--version" }
 [tasks.install-nextest]
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
+[tasks.install-toml-cli]
+install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
 
 [tasks.assert-explorer-dist]
 script_runner = "@duckscript"

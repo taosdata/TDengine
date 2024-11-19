@@ -2195,8 +2195,10 @@ impl TargetOpts {
         }
         if let Some(value) = fails_to {
             let value = Path::new(&value);
-            let file = std::fs::File::create(value)?;
-
+            let file = std::fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(value)?;
             opts.fails_to
                 .replace(Arc::new(tokio::sync::Mutex::new(file)));
         }
