@@ -273,6 +273,10 @@ int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) { return qwAddTask
 void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx) { taosHashRelease(mgmt->ctxHash, ctx); }
 
 void qwFreeTaskHandle(SQWTaskCtx *ctx) {
+  if (ctx->dynamicTask) {
+    return;
+  }
+
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (otaskHandle && otaskHandle == atomic_val_compare_exchange_ptr(&ctx->taskHandle, otaskHandle, NULL)) {
@@ -285,6 +289,10 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
 }
 
 void qwFreeSinkHandle(SQWTaskCtx *ctx) {
+  if (ctx->dynamicTask) {
+    return;
+  }
+  
   // Note: free/kill may in RC
   void* osinkHandle = atomic_load_ptr(&ctx->sinkHandle);
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
@@ -580,6 +588,8 @@ void qwCloseRef(void) {
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
     taosCloseRef(gQwMgmt.qwRef);  // ignore error
     gQwMgmt.qwRef = -1;
+    
+    taosHashCleanup(gQueryMgmt.pJobInfo);
   }
   taosWUnLockLatch(&gQwMgmt.lock);
 }

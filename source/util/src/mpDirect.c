@@ -91,7 +91,7 @@ int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int6
     nSize = taosMemSize(*pPtr);
     mpUpdateAllocSize(pPool, pSession, nSize - *origSize, nSize - *size + *origSize);
   } else {
-    MP_ERR_RET(terrno);
+    MP_ERR_JRET(terrno);
   }
 
 _return:

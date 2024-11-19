@@ -1486,6 +1486,10 @@ _return:
 }
 
 void taosMemPoolClose(void* poolHandle) {
+  if (NULL == poolHandle) {
+    return;
+  }
+  
   SMemPool* pPool = (SMemPool*)poolHandle;
 
   mpCheckStatDetail(pPool, NULL, "PoolClose");
@@ -1496,6 +1500,8 @@ void taosMemPoolClose(void* poolHandle) {
   mpDestroyCacheGroup(&pPool->sessionCache);
 
   atomic_store_8(&gMPMgmt.modExit, 1);
+
+  (void)taosThreadJoin(gMPMgmt.poolMgmtThread, NULL);
 }
 
 
@@ -1550,14 +1556,15 @@ int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  int32_t code = 0;
   SMemPool* pPool = (SMemPool*)poolHandle;
   if (readLock) {
-    MP_LOCK(MP_READ, &pPool->cfgLock);
+    MP_TRY_LOCK(MP_READ, &pPool->cfgLock, code);
   } else {
-    MP_LOCK(MP_WRITE, &pPool->cfgLock);
+    MP_TRY_LOCK(MP_WRITE, &pPool->cfgLock, code);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void taosMemPoolUnLockPool(void* poolHandle, bool readLock) {

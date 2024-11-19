@@ -373,6 +373,23 @@ enum {
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
+#define MP_TRY_LOCK(type, _lock, _res)                                                                                \
+  do {                                                                                                       \
+    if (MP_READ == (type)) {                                                                                \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try read lock");                          \
+      uDebug("MP TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      (_res) = taosRTryLockLatch(_lock);                                                                                 \
+      uDebug("MP TRY RLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
+      ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) > 0, "invalid lock value after try read lock");                            \
+    } else {                                                                                                 \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try write lock");                         \
+      uDebug("MP TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      (_res) = taosWTryLockLatch(_lock);                                                                                 \
+      uDebug("MP TRY WLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
+      ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after try write lock"); \
+    }                                                                                                        \
+  } while (0)
+
 
 #define MP_LOCK(type, _lock)                                                                                \
   do {                                                                                                       \

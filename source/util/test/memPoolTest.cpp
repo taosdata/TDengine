@@ -38,7 +38,7 @@
 #include "tvariant.h"
 #include "stub.h"
 #include "../inc/tmempoolInt.h"
-
+#include "tglobal.h"
 
 namespace {
 
@@ -64,35 +64,33 @@ enum {
 
 
 static int32_t MPT_TRY_LOCK(int32_t type, SRWLatch *_lock) {
-  int32_t code = 0;
+  int32_t code = -1;
   
-  do {
-    if (MPT_READ == (type)) {                                                              
-      if (atomic_load_32((_lock)) < 0) {                  
-        uError("invalid lock value before try read lock");                          
-        break;                                                               
-      }                                                                      
-      uDebug("MPT TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
-      code = taosRTryLockLatch(_lock);                                                               
-      uDebug("MPT TRY RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
-      if (atomic_load_32((_lock)) <= 0) {                                               
-        uError("invalid lock value after try read lock");                           
-        break;                                                                               
-      }                                                                                        
-    } else {                                                                                   
-      if (atomic_load_32((_lock)) < 0) {                                                      
-        uError("invalid lock value before try write lock");                                 
-        break;                                                                                
-      }                                                                                           
-      uDebug("MPT TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
-      code = taosWTryLockLatch(_lock);                                                                   
-      uDebug("MPT TRY WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
-      if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                        
-        uError("invalid lock value after try write lock");                          
-        break;                                                                     
-      }                                                                           
-    }                                                                          
-  } while (0);
+  if (MPT_READ == (type)) {                                                              
+    if (atomic_load_32((_lock)) < 0) {                  
+      uError("invalid lock value before try read lock");                          
+      return -1;                                                               
+    }                                                                      
+    uDebug("MPT TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
+    code = taosRTryLockLatch(_lock);                                                               
+    uDebug("MPT TRY RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);
+    if (atomic_load_32((_lock)) <= 0) {                                               
+      uError("invalid lock value after try read lock");                           
+      return -1;                                                                               
+    }                                                                                        
+  } else {                                                                                   
+    if (atomic_load_32((_lock)) < 0) {                                                      
+      uError("invalid lock value before try write lock");                                 
+      return -1;                                                               
+    }                                                                                           
+    uDebug("MPT TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
+    code = taosWTryLockLatch(_lock);                                                                   
+    uDebug("MPT TRY WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); 
+    if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                        
+      uError("invalid lock value after try write lock");                          
+      return -1;                                                               
+    }                                                                           
+  }                                                                          
 
   return code;
 }
@@ -159,7 +157,6 @@ static int32_t MPT_TRY_LOCK(int32_t type, SRWLatch *_lock) {
 
 threadlocal void* mptThreadPoolHandle = NULL;
 threadlocal void* mptThreadPoolSession = NULL;
-int32_t tsSingleQueryMaxMemorySize = 0; //MB
 
 
 #define MPT_SET_TEID(id, tId, eId)                              \
@@ -1125,7 +1122,6 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
       }
 
       if (sleepTimes > 100) {
-        MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
         break;
       }
 
@@ -1334,7 +1330,10 @@ void mptRunCase(SMPTestParam* param, int32_t times) {
   mptDestroyJobs();
 
   taosMemPoolClose(gMemPoolHandle);
-  gMemPoolHandle = NULL;
+
+  while (gMemPoolHandle) {
+    taosMsleep(10);
+  }
 
   MPT_PRINTF("\t case end the %dth running\n", times);
 }
