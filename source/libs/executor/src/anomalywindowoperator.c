@@ -171,6 +171,10 @@ _error:
 }
 
 static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  CHECK_CONDITION_FAILED(pOperator != NULL);
+  CHECK_CONDITION_FAILED(ppRes != NULL);
+  CHECK_CONDITION_FAILED(pOperator->info != NULL);
+  CHECK_CONDITION_FAILED(pOperator->pTaskInfo != NULL);
   int32_t                     code = TSDB_CODE_SUCCESS;
   int32_t                     lino = 0;
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
@@ -181,6 +185,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   int64_t                     st = taosGetTimestampUs();
   int32_t                     numOfBlocks = taosArrayGetSize(pSupp->blocks);
 
+  CHECK_CONDITION_FAILED(pRes != NULL);
   blockDataCleanup(pRes);
 
   while (1) {

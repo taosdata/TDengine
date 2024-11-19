@@ -202,6 +202,14 @@ void *         getOperatorParam(int32_t opType, SOperatorParam* param, int32_t i
 void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId);
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId);
 
+#define CHECK_CONDITION_FAILED(c)                                              \
+  do {                                                                         \
+    if (!(c)) {                                                                \
+      qError("function:%s condition failed, Line:%d", __FUNCTION__, __LINE__); \
+      return TSDB_CODE_APP_ERROR;                                              \
+    }                                                                          \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

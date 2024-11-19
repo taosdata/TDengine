@@ -255,6 +255,7 @@ static int32_t doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock,
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SqlFunctionCtx* pCtx = pExprSup->pCtx;
+  CHECK_CONDITION_FAILED(pExprSup->numOfExprs <= 0 || pCtx != NULL);
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
