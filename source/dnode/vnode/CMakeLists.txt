@@ -177,8 +177,8 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
     PUBLIC tqCommon
-    PUBLIC profiler
-    PUBLIC unwind
+    PUBLIC -Wl,--no-as-needed profiler -Wl,--as-needed
+    PUBLIC -Wl,--no-as-needed unwind -Wl,--as-needed
 )
 
 if(TD_GRANT)

@@ -160,9 +160,9 @@ static void dmSetSignalHandle() {
   if (taosSetSignal(SIGUSR1, dmSetDebugFlag) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
-  if (taosSetSignal(SIGUSR2, dmSetAssert) != 0) {
-    dWarn("failed to set signal SIGUSR1");
-  }
+  // if (taosSetSignal(SIGUSR2, dmSetAssert) != 0) {
+  //   dWarn("failed to set signal SIGUSR1");
+  // }
   if (taosSetSignal(SIGTERM, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
@@ -525,9 +525,9 @@ int mainWindows(int argc, char **argv) {
   tsDndStart = taosGetTimestampMs();
   tsDndStartOsUptime = taosGetOsUptime();
 
-  ProfilerStart("taosd.prof");
+  //ProfilerStart("taosd.prof");
   code = dmRun();
-  ProfilerStop();
+  //ProfilerStop();
   dInfo("shutting down the service");
 
   dmCleanup();
