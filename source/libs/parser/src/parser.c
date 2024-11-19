@@ -154,6 +154,9 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
 }
 
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+  if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
+    return TSDB_CODE_APP_ERROR;
+  }
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
     taosMemoryFreeClear(pVal->datum.p);
   }
@@ -441,6 +444,9 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
 }
 
 static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
+  if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
+    return TSDB_CODE_APP_ERROR;
+  }
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
     taosMemoryFreeClear(pVal->datum.p);
   }
