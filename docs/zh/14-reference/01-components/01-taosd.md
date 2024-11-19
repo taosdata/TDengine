@@ -294,6 +294,7 @@ charset 的有效值是 UTF-8。
 |checkpointBackupDir |          |内部参数，用于恢复 snode 数据|
 |enableAuditDelete   |          |内部参数，用于测试审计功能|
 |slowLogThresholdTest|          |内部参数，用于测试慢日志|
+|bypassFlag          |3.3.4.5 后|内部参数，用于短路测试，默认值 0|
 
 ### 压缩参数
 |参数名称|支持版本|参数含义|
