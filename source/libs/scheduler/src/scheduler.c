@@ -172,7 +172,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SSchJob *pJob = NULL;
   (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
-    qTrace("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 
