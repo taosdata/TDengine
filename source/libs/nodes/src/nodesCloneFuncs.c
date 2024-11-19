@@ -387,6 +387,7 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
   CLONE_NODE_FIELD(pOffset);
   CLONE_NODE_FIELD(pSliding);
   CLONE_NODE_FIELD(pFill);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -615,6 +616,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);

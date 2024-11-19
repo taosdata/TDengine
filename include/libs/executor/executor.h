@@ -195,6 +195,7 @@ int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList);
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
+void        applyTimeWindowLimit(const STimeWindow* limit, STimeWindow* w, int32_t order, bool firstWindow);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
 

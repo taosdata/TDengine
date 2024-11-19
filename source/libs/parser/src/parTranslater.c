@@ -1985,8 +1985,11 @@ static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal
 }
 
 static EDealRes translateTimeOffsetValue(STranslateContext* pCxt, SValueNode* pVal) {
-  if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                          pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
+  if (strncmp(pVal->literal, AUTO_TIME_OFFSET_LITERAL, strlen(AUTO_TIME_OFFSET_LITERAL)) == 0) {
+    pVal->datum.i = AUTO_TIME_OFFSET_VALUE;
+    pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
+  } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
+                                 pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -5777,6 +5780,27 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
 
 static const int64_t tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
 
+static int64_t calcAutoTimeOffsetValue(SIntervalWindowNode* pInterval) {
+  uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
+  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+  SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+  SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+  TSKEY       skey = pInterval->timeRange.skey;
+
+  if (skey == 0) {
+    return 0;
+  }
+
+  SInterval   interval = {.interval = pInter->datum.i,
+                          .sliding = (pSliding != NULL) ? pSliding->datum.i : pInter->datum.i,
+                          .intervalUnit = pInter->unit,
+                          .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
+                          .offset = 0,
+                          .precision = precision,
+                          .timeRange = (STimeWindow){0}};
+  return skey - taosTimeTruncate(skey, &interval);
+}
+
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
@@ -5791,7 +5815,9 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   if (NULL != pInterval->pOffset) {
     SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
-    if (pOffset->datum.i <= 0) {
+    if (pOffset->datum.i == AUTO_TIME_OFFSET_VALUE) {
+      pOffset->datum.i = calcAutoTimeOffsetValue(pInterval);
+    } else if (pOffset->datum.i < 0) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
     }
     if (pInter->unit == 'n' && pOffset->unit == 'y') {
@@ -5857,7 +5883,15 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
 static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
-  int32_t              code = checkIntervalWindow(pCxt, pInterval);
+  int32_t              code = TSDB_CODE_SUCCESS;
+  pInterval->timeRange = pSelect->timeRange;
+  if (pInterval->timeRange.skey == INT64_MIN) {
+    pInterval->timeRange.skey = 0;
+  }
+  if (pInterval->timeRange.ekey == INT64_MAX) {
+    pInterval->timeRange.ekey = 0;
+  }
+  code = checkIntervalWindow(pCxt, pInterval);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFill(pCxt, pSelect, pInterval);
   }

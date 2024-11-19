@@ -809,6 +809,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
       }
 
+      start = news;
       if (news <= ts) {
         int64_t prev = news;
         int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
@@ -828,7 +829,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           }
         }
 
-        return prev;
+        start = prev;
       }
     } else {
       int64_t delta = ts - pInterval->interval;

@@ -2289,6 +2289,7 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
       .slidingUnit = pTableScanNode->slidingUnit,
       .offset = pTableScanNode->offset,
       .precision = pTableScanNode->scan.node.pOutputDataBlockDesc->precision,
+      .timeRange = (STimeWindow){0},
   };
 
   return interval;
@@ -2481,6 +2482,16 @@ void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t orde
   int64_t slidingEnd =
       taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  applyTimeWindowLimit(&pInterval->timeRange, tw, order, false);
+}
+
+void applyTimeWindowLimit(const STimeWindow* limit, STimeWindow* w, int32_t order,  bool firstWindow) {
+  if ((firstWindow || order == TSDB_ORDER_ASC) && limit->ekey >= w->skey && limit->ekey < w->ekey) {
+    w->ekey = limit->ekey;
+  }
+  if ((firstWindow || order == TSDB_ORDER_DESC) && limit->skey > w->skey && limit->skey <= w->ekey) {
+    w->skey = limit->skey;
+  }
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {

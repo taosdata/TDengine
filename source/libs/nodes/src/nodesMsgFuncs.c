@@ -3250,7 +3250,7 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS };
+enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS, PHY_INTERVAL_CODE_TIME_RANGE };
 
 static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -3278,6 +3278,9 @@ static int32_t physiIntervalNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_INLINE_ATTRS, physiIntervalNodeInlineToMsg, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
   }
 
   return code;
@@ -3316,6 +3319,8 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INTERVAL_CODE_INLINE_ATTRS:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiIntervalNodeInline, pNode);
         break;
+      case PHY_INTERVAL_CODE_TIME_RANGE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->timeRange);
       default:
         break;
     }

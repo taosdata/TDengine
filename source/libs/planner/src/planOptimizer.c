@@ -2909,7 +2909,8 @@ static bool smaIndexOptEqualInterval(SScanLogicNode* pScan, SWindowLogicNode* pW
                           .offsetUnit = TIME_UNIT_MILLISECOND,
                           .sliding = pIndex->sliding,
                           .slidingUnit = pIndex->slidingUnit,
-                          .precision = pScan->node.precision};
+                          .precision = pScan->node.precision,
+                          .timeRange = (STimeWindow){0}};
     return (pScan->scanRange.skey == taosTimeTruncate(pScan->scanRange.skey, &interval)) &&
            (pScan->scanRange.ekey + 1 == taosTimeTruncate(pScan->scanRange.ekey + 1, &interval));
   }
@@ -6926,7 +6927,7 @@ static void tsmaOptInitIntervalFromTsma(SInterval* pInterval, const STableTSMAIn
 static const STSMAOptUsefulTsma* tsmaOptFindUsefulTsma(const SArray* pUsefulTsmas, int32_t startIdx,
                                                        int64_t startAlignInterval, int64_t endAlignInterval,
                                                        int8_t precision) {
-  SInterval tsmaInterval;
+  SInterval tsmaInterval = {0};
   for (int32_t i = startIdx; i < pUsefulTsmas->size; ++i) {
     const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pUsefulTsmas, i);
     tsmaOptInitIntervalFromTsma(&tsmaInterval, pUsefulTsma->pTsma, precision);

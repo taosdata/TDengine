@@ -36,6 +36,9 @@ extern "C" {
 #define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
 #define C0_PSEUDO_COLUMN_NAME    "_c0"
 
+#define AUTO_TIME_OFFSET_LITERAL "auto"
+#define AUTO_TIME_OFFSET_VALUE   -1
+
 #define IS_NOW_STR(s, n)                                                       \
   ((*(s) == 'n' || *(s) == 'N') && (*((s) + 1) == 'o' || *((s) + 1) == 'O') && \
    (*((s) + 2) == 'w' || *((s) + 2) == 'W') && (n == 3 || (n == 5 && *((s) + 3) == '(' && *((s) + 4) == ')')))

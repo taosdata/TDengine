@@ -759,6 +759,7 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   uint64_t    tableGroupId = pBlock->info.id.groupId;
   bool        ascScan = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC);
   TSKEY       ts = getStartTsKey(&pBlock->info.window, tsCols);
+  SInterval*  pInterval = &pInfo->interval;
   SResultRow* pResult = NULL;
 
   if (tableGroupId != pInfo->curGroupId) {
@@ -773,7 +774,9 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   }
 
   STimeWindow win =
-      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, pInfo->binfo.inputTsOrder);
+      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, pInterval, pInfo->binfo.inputTsOrder);
+  STimeWindow nextWin = win;
+  applyTimeWindowLimit(&pInterval->timeRange, &win, pInfo->binfo.inputTsOrder, pResultRowInfo->cur.pageId == -1);
   if (filterWindowWithLimit(pInfo, &win, tableGroupId, pTaskInfo)) return false;
 
   int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
@@ -814,11 +817,10 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   doCloseWindow(pResultRowInfo, pInfo, pResult);
 
-  STimeWindow nextWin = win;
   while (1) {
     int32_t prevEndPos = forwardRows - 1 + startPos;
-    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos,
-                                      pInfo->binfo.inputTsOrder);
+    startPos =
+        getNextQualifiedWindow(pInterval, &nextWin, &pBlock->info, tsCols, prevEndPos, pInfo->binfo.inputTsOrder);
     if (startPos < 0 || filterWindowWithLimit(pInfo, &nextWin, tableGroupId, pTaskInfo)) {
       break;
     }
@@ -1400,7 +1402,8 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
                         .intervalUnit = pPhyNode->intervalUnit,
                         .slidingUnit = pPhyNode->slidingUnit,
                         .offset = pPhyNode->offset,
-                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pPhyNode->timeRange};
 
   STimeWindowAggSupp as = {
       .waterMark = pPhyNode->window.watermark,
@@ -2121,7 +2124,8 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
                         .intervalUnit = pNode->intervalUnit,
                         .slidingUnit = pNode->slidingUnit,
                         .offset = pNode->offset,
-                        .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pNode->timeRange};
 
   SIntervalAggOperatorInfo* iaInfo = miaInfo->intervalAggOperatorInfo;
   SExprSupp*                pSup = &pOperator->exprSupp;
@@ -2461,7 +2465,8 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
                         .intervalUnit = pIntervalPhyNode->intervalUnit,
                         .slidingUnit = pIntervalPhyNode->slidingUnit,
                         .offset = pIntervalPhyNode->offset,
-                        .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+                        .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+                        .timeRange = pIntervalPhyNode->timeRange};
 
   pMergeIntervalInfo->groupIntervals = tdListNew(sizeof(SGroupTimeWindow));
 

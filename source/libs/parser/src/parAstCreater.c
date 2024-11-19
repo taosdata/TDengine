@@ -828,6 +828,27 @@ _err:
   return NULL;
 }
 
+SNode* createAutoTimeOffsetValueNode(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
+  CHECK_MAKE_NODE(val);
+  val->literal = taosStrndup(AUTO_TIME_OFFSET_LITERAL, strlen(AUTO_TIME_OFFSET_LITERAL));
+  if (!val->literal) {
+    nodesDestroyNode((SNode*)val);
+    pCxt->errCode = terrno;
+    return NULL;
+  }
+  val->flag |= VALUE_FLAG_IS_TIME_OFFSET;
+  val->translate = false;
+  val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  return (SNode*)val;
+_err:
+  return NULL;
+}
+
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pCxt->pQueryCxt->db) {

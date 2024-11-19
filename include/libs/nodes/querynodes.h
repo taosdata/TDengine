@@ -331,6 +331,7 @@ typedef struct SIntervalWindowNode {
   SNode*    pOffset;    // SValueNode
   SNode*    pSliding;   // SValueNode
   SNode*    pFill;
+  STimeWindow timeRange; // timestamp limitation for output
 } SIntervalWindowNode;
 
 typedef struct SEventWindowNode {

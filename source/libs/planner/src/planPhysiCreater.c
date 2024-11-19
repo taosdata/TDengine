@@ -2243,6 +2243,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->sliding = pWindowLogicNode->sliding;
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
+  pInterval->timeRange = pWindowLogicNode->timeRange;
 
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {

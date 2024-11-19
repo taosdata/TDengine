@@ -990,6 +990,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_APPEND_SLIMIT(pIntNode->window.node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT,
+                        pIntNode->timeRange.skey == 0 ? INT64_MIN : pIntNode->timeRange.skey,
+                        pIntNode->timeRange.ekey == 0 ? INT64_MAX : pIntNode->timeRange.ekey);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
         uint8_t precision = qExplainGetIntervalPrecision(pIntNode);
         int64_t time1 = -1;
         int64_t time2 = -1;

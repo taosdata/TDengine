@@ -128,6 +128,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral);
 SNode*     createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
+SNode*     createAutoTimeOffsetValueNode(SAstCreateContext* pCxt);
 SNode*     createDefaultDatabaseCondValue(SAstCreateContext* pCxt);
 SNode*     createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias);

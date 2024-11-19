@@ -1513,6 +1513,9 @@ twindow_clause_opt(A) ::=
   interval_sliding_duration_literal(C) NK_RP
   sliding_opt(D) fill_opt(E).                                                     { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), D, E); }
 twindow_clause_opt(A) ::=
+  INTERVAL NK_LP interval_sliding_duration_literal(B) NK_COMMA
+  AUTO NK_RP sliding_opt(C) fill_opt(D).                                          { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), createAutoTimeOffsetValueNode(pCxt), C, D); }
+twindow_clause_opt(A) ::=
   EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
 twindow_clause_opt(A) ::=
   COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                         { A = createCountWindowNode(pCxt, &B, &B); }

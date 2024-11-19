@@ -1238,14 +1238,15 @@ typedef struct {
 } STsBufInfo;
 
 typedef struct {
-  int32_t tz;  // query client timezone
-  char    intervalUnit;
-  char    slidingUnit;
-  char    offsetUnit;
-  int8_t  precision;
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
+  int32_t     tz;  // query client timezone
+  char        intervalUnit;
+  char        slidingUnit;
+  char        offsetUnit;
+  int8_t      precision;
+  int64_t     interval;
+  int64_t     sliding;
+  int64_t     offset;
+  STimeWindow timeRange;
 } SInterval;
 
 typedef struct STbVerInfo {
