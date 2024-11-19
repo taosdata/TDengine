@@ -632,10 +632,13 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rust
 [tasks.install-nextest]
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
 
-[tasks.test]
-dependencies = ["install-llvm-cov", "install-nextest"]
-install_script = """
-mkdir explorer/server/dist/ || true
+[tasks.assert-explorer-dist]
+script_runner = "@duckscript"
+script = """
+mkdir explorer/dist/ || true
 """
+
+[tasks.test]
+dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
