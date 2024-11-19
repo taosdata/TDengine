@@ -6,6 +6,7 @@ import semver
 import allure
 import pytest
 import taosws
+import json
 from dateutil import parser
 
 from testng_taosx.constant import *
@@ -14,6 +15,7 @@ from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.env import ENV
+from testng_taosx.requests_wrapper import http
 
 tmq_test_logger = logging.getLogger(__name__)
 task_type = TaskType.TMQ
@@ -577,3 +579,91 @@ def test_case_performance_scenario2():
     """
 
     env_data = Util.get_env_data()
+
+@pytest.mark.sanity
+@allure.link("https://jira.taosdata.com:18080/browse/TD-29505")
+def test_sanity_tmq_td29505_01(input_data):
+    """
+    用例概述：验证“tmq 数据任务的 vgroup 消费进度可以正确展示（与 taosc 中查询结果一致）”
+    用例步骤：
+    1.在 DB 中创建超级表 tmq_data 并写入测试数据
+    2.创建一个名为 test_tmq_001 的 topic，订阅超级表 tmq_data
+    3.以 test_tmq_001 为数据源创建 tmq 数据任务
+    4.等待任务完成
+
+    验证点：
+    1.接口 vgroup_progress 的返回结果中包含 test_tmq_001 的消费进度
+    2.消费进度与 taosc 中查询结果一致
+    """
+    tmq_test_logger.info("start test_sanity_tmq_td29505_01...")
+    env_data, case_data = input_data
+
+    # 随机生成数据库名
+    source_db_name = Util.get_long_name(10)
+    # 修改测试数据
+    data = Util.read_jsonfile(f"{taosBenchmark_json_dir}/basic.json")
+    data["databases"][0]["dbinfo"]["name"] = source_db_name
+    Util.write_jsonfile(f"{taosBenchmark_json_dir}/basic-1.json", data)
+
+    # 随机生成消费组 ID
+    group_id = Util.get_long_name(10)
+
+    # 设置任务参数
+    case_data["source"]["name"] = source_db_name
+    case_data["from"]["fromhost"] = f'{case_data["from"]["fromhost"]}{source_db_name}'
+    case_data["from"]["group.id"] = group_id
+
+    # 初始化任务
+    task = Task(env_data, case_data)
+
+    # 写入测试数据
+    os.system(f"taosBenchmark -f {taosBenchmark_json_dir}/basic-1.json")
+
+    # 删除源库中的 topic
+    TaosAdapter.run_sql(
+        ENV.taosd_source_host,
+        f"drop topic if exists {source_db_name}",
+        ignore_result=True,
+    )
+
+    # 创建目标库
+    TaosAdapter.create_db(
+        env_data["taosadapter_host"], case_data["to"]["target_dbname"]
+    )
+
+    # 创建任务
+    payload = Util.get_task_payload(case_data, env_data)
+    task_info = task.create_task(payload)
+
+    # 等待 30s 或任务结束
+    for _ in range(6): 
+        task_status = task.get_task_status(task_info["id"])
+        if task_status["status"] == "completed":
+            break
+        else:
+            time.sleep(5)
+
+    # 获取消费进度
+    response = http.request("GET", f"{env_data['taos_explorer_root_endpoint']}{TAOSX_BASE_URL}/tasks/{task_info["id"]}/vgroup_progress")
+    assert (
+        response.status_code == 200
+    ), f"get task vgroup progress should always return 200, which is: {response.status_code}"
+    vgroup_progress = response.json()
+    vgroup_progress = vgroup_progress["data"]
+    tmq_test_logger.info(vgroup_progress)
+
+    # 查询数据库并验证结果是否一致
+    result = TaosAdapter.run_sql(
+        ENV.taosd_source_host,
+        f"show subscriptions;",
+    )
+    # 过滤出当前消费组的消费进度
+    db_vgroup_progress = [item for item in result["data"] if item[0] == source_db_name and item[1] == group_id and item[6].startswith("wal")]
+    # 转换为 json array
+    db_vgroup_progress = [{"topic": item[0], "vgroup": item[2], "offset": int(item[6].removeprefix('wal:').split('/')[0]), "latest": int(item[6].removeprefix('wal:').split('/')[1])} for item in db_vgroup_progress]
+    tmq_test_logger.info(db_vgroup_progress)
+
+    # 验证是否一致
+    assert set(json.dumps(item, sort_keys=True) for item in vgroup_progress) == set(json.dumps(item, sort_keys=True) for item in db_vgroup_progress), tmq_test_logger.info(
+        "TD-29505: vgroup process should be same as taosc"
+    )
