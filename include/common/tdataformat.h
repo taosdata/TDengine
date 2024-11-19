@@ -173,7 +173,8 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
-typedef int32_t (*formatGeometryFn)(char *geoWKB, size_t nGeom);
+typedef int32_t (*checkWKBGeometryFn)(const unsigned char *geoWKB, size_t nGeom);
+typedef int32_t (*initGeosFn)();
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -192,7 +193,8 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg);
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos);
 int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
@@ -379,7 +381,8 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
                           SArray *rowArray);
 
 // stmt2 binding
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos);
 
 typedef struct {
   int32_t          columnId;

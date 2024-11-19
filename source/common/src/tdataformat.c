@@ -3036,7 +3036,8 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg) {
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3046,6 +3047,12 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = igeos();
+      if (code) {
+        return code;
+      }
+    }
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         if (pColData->cflag & COL_IS_KEY) {
@@ -3058,7 +3065,7 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = fg((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
+          code = cgeos((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
           if (code) goto _exit;
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
@@ -3111,7 +3118,8 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, formatGeometryFn fg) {
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -3121,6 +3129,13 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
   }
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
+    if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = igeos();
+      if (code) {
+        return code;
+      }
+    }
+
     uint8_t *buf = pBind->buffer;
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
@@ -3139,7 +3154,7 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
         return TSDB_CODE_PAR_VALUE_TOO_LONG;
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = fg(buf, pBind->length[i]);
+          code = cgeos(buf, pBind->length[i]);
           if (code) goto _exit;
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);

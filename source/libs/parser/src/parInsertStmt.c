@@ -102,21 +102,6 @@ pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 }
 */
 
-int32_t formatGeometry(char* geoWKB, size_t nGeom) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  char*   outputWKT = NULL;
-
-  if (TSDB_CODE_SUCCESS != (code = initCtxAsText()) ||
-      TSDB_CODE_SUCCESS != (code = doAsText(geoWKB, nGeom, &outputWKT))) {
-    code = TSDB_CODE_INVALID_PARA;
-    goto _exit;
-  }
-
-_exit:
-  geosFreeBuffer(outputWKT);
-  return code;
-}
-
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SArray*             pVgDataBlocks = NULL;
@@ -209,8 +194,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = formatGeometry(bind[c].buffer, colLen);
-          if (code != TSDB_CODE_SUCCESS) goto end;
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
         }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -428,8 +415,9 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
       pBind = bind + c;
     }
 
-    code = tColDataAddValueByBind(
-        pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
+    code = tColDataAddValueByBind(pCol, pBind,
+                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                  initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -480,8 +468,9 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
     pBind = bind;
   }
 
-  code = tColDataAddValueByBind(
-      pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
+  code = tColDataAddValueByBind(pCol, pBind,
+                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -565,8 +554,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-          code = formatGeometry(bind[c].buffer, colLen);
-          if (code != TSDB_CODE_SUCCESS) goto end;
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
         }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -847,8 +838,9 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       pBind = bind + c;
     }
 
-    code = tColDataAddValueByBind2(
-        pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
+    code = tColDataAddValueByBind2(pCol, pBind,
+                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                   initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -899,8 +891,9 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
     pBind = bind;
   }
 
-  code = tColDataAddValueByBind2(
-      pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1, formatGeometry);
+  code = tColDataAddValueByBind2(pCol, pBind,
+                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                 initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 

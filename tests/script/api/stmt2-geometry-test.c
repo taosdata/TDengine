@@ -32,8 +32,7 @@ void execute_test(TAOS* taos, const char* tbname1, const char* tbname2, int8_t* 
     sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
   }
   int code = taos_stmt2_prepare(stmt, sql, 0);
-  printf("\n%s\n  insert into db.? using db.stb tags(?, ?) values(?,?)\n  bind_tag : %s, bind_col : %s\n", case_desc,
-         tag2, col2);
+  printf("\n%s\n  insert into db.? using db.stb tags(?, ?) values(?,?)\n", case_desc);
   if (code != 0) {
     printf("  failed to execute taos_stmt2_prepare. error:%s\n", taos_stmt2_error(stmt));
     taos_stmt2_close(stmt);
