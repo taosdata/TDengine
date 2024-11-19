@@ -109,21 +109,27 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
   (void)snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
 }
 
+static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i, char* buf, int32_t bufLen) {
+  if (formatTime) {
+    char pBuf[TD_TIME_STR_LEN] = {0};
+    if (tsMs > 0) {
+      if (taosFormatUtcTime(pBuf, TD_TIME_STR_LEN, tsMs, TSDB_TIME_PRECISION_MILLI) != 0) {
+        pBuf[0] = '\0';
+      }
+    }
+    (*len) += tsnprintf(buf + (*len), bufLen - (*len), "%d:%s", i, pBuf);
+  } else {
+    (*len) += tsnprintf(buf + (*len), bufLen - (*len), "%d:%" PRId64, i, tsMs);
+  }
+}
+
 // for leader
 static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen, bool formatTime) {
   int32_t len = 0;
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    if (formatTime) {
-      char pBuf[TD_TIME_STR_LEN] = {0};
-      if (tsMs > 0) {
-        taosFormatUtcTime(pBuf, TD_TIME_STR_LEN, tsMs, TSDB_TIME_PRECISION_MILLI);
-      }
-      len += tsnprintf(buf + len, bufLen - len, "%d:%s", i, pBuf);
-    } else {
-      len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
-    }
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
@@ -136,15 +142,7 @@ static void syncSentHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bu
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetSentTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    if (formatTime) {
-      char pBuf[TD_TIME_STR_LEN] = {0};
-      if (tsMs > 0) {
-        taosFormatUtcTime(pBuf, TD_TIME_STR_LEN, tsMs, TSDB_TIME_PRECISION_MILLI);
-      }
-      len += tsnprintf(buf + len, bufLen - len, "%d:%s", i, pBuf);
-    } else {
-      len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
-    }
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
@@ -158,15 +156,7 @@ static void syncHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
-    if (formatTime) {
-      char pBuf[TD_TIME_STR_LEN] = {0};
-      if (tsMs > 0) {
-        taosFormatUtcTime(pBuf, TD_TIME_STR_LEN, tsMs, TSDB_TIME_PRECISION_MILLI);
-      }
-      len += tsnprintf(buf + len, bufLen - len, "%d:%s", i, pBuf);
-    } else {
-      len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64, i, tsMs);
-    }
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
