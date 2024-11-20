@@ -22,23 +22,15 @@ You can create the topic in Topics of TDengine Cloud. In the Create Topic dialog
 
 The default selection in the Add New Topic dialog is database type. After select a database in the selection, you can click Confirm button to create a topic to a database.
 
-![Create a new topic](./topic/add-topic-db.webp)
-
 ### To Super Table
 
 In the opened Add New Topic dialog, you can click STable type and select a specified super table from the selections. Then click Confirm button to create a topic to a super table.
-
-![Create a new topic to stable](./topic/add-topic-stable.webp)
 
 ### With Subquery
 
 In the opened Add New Topic dialog, you can click Subquery type to show all subquery form items. The first item is Table Type and the default selection is STable. After you select or input a super table name, the following will show you all fields from the super table. You can check or uncheck each field for the sub query and also you can set the result set or condition set for each field. If you want to preview the SQL based on your chooses, click SQL Preiview to open a SQL dialog to view.
 
-![Create a new topic with subquery for stable](./topic/add-topic-sub-stable.webp)
-
 You can select another Table Table Table and then select a table from the selections or input an existed table name. You can get all fields of the selected table. You can check or uncheck each field for the sub query and also you can set the result set or condition set for each field. If you want to preview the SQL based on your chooses, click SQL Preiview to open a SQL dialog to view.
-
-![Create a new topic with subquery for table](./topic/add-topic-sub-table.webp)
 
 ## Share Topic
 
@@ -48,23 +40,13 @@ In each row of the topic list in the Topics page, you can click Share Topic acti
 
 In the default tab Users of the Share Topic page, you can click **Add Users** button to add more users who are active in the current organization. In the opened Add New Users dialog, you can select the new users who you want to share the topic with. Then you can set the expired time for the sharing to these users.
 
-![Share topic](./share/share-topic-users.webp)
-
-![Share topic users](./share/share-topic-adduser.webp)
-
 ### User Groups
 
 You can click User Groups tab to switch to the User Groups page of the Share Topic. Then you can click **Add User Groups** button to add more user groups which are active in the current organization. In the opened Add New User Groups dialog, you can select the new user groups which you want to share the topic with. Then you can set the expired time for the sharing to these user groups.
 
-![Share topic user groups](./share/share-topic-usergroup.webp)
-
-![Share topic add user groups](./share/share-topic-addusergroup.webp)
-
 ## Consume Shared Topic
 
 The shared user can get all topics which the creator shared with him, when he goes to the Topic page of Data Subscription. The user can click **Sample Code** icon of each topic **Action** area to the **Sample Code** page. Then he can follow the steps of the sample code how to consume the shared topic from TDengine instance.
-
-![Share topic example](./example/share-topic-example.webp)
 
 ### Data Schema and API
 
