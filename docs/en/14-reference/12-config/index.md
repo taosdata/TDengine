@@ -773,7 +773,7 @@ lossyColumns     float|double
    02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
 ```
 
-### ifAdtFse 
+### ifAdtFse
 
 | Attribute     | Description                         |
 | -------- | -------------------------------- |
@@ -898,4 +898,4 @@ lossyColumns     float|double
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
 | 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
-| 56  |     keepTimeOffset     | Yes                    | Yes(discarded since 3.2.0.0) |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes(discarded since 3.2.0.0) | see "KEEP_TIME_OFFSET"  |
