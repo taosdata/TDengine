@@ -17,7 +17,7 @@ exe:
 	#gcc $(CFLAGS) ./stopquery.c  -o $(ROOT)stopquery $(LFLAGS)
 	#gcc $(CFLAGS) ./dbTableRoute.c  -o $(ROOT)dbTableRoute $(LFLAGS)
 	#gcc $(CFLAGS) ./insertSameTs.c  -o $(ROOT)insertSameTs $(LFLAGS)
-	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
+	#gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
 	#gcc $(CFLAGS) ./whiteListTest.c  -o $(ROOT)whiteListTest $(LFLAGS)
 	#gcc $(CFLAGS) ./insert_stb.c  -o $(ROOT)insert_stb $(LFLAGS)
 	gcc $(CFLAGS) ./tmqViewTest.c  -o $(ROOT)tmqViewTest $(LFLAGS)
@@ -27,7 +27,7 @@ exe:
 	# gcc $(CFLAGS) ./stmt2-example.c  -o $(ROOT)stmt2-example $(LFLAGS)
 	# gcc $(CFLAGS) ./stmt2-get-fields.c  -o $(ROOT)stmt2-get-fields $(LFLAGS)
 	# gcc $(CFLAGS) ./stmt2-nohole.c  -o $(ROOT)stmt2-nohole $(LFLAGS)
-	gcc $(CFLAGS) ./stmt-crash.c  -o $(ROOT)stmt-crash $(LFLAGS)
+	#gcc $(CFLAGS) ./stmt-crash.c  -o $(ROOT)stmt-crash $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare

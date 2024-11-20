@@ -1352,28 +1352,29 @@ static void *hbThreadFunc(void *param) {
       }
 
       int32_t reqNum = taosArrayGetSize(pReq->reqs);
-      for (int32_t i = 0; i < reqNum; i++) {
-        SClientHbReq *hbReq = taosArrayGet(pReq->reqs, i);
-  int32_t kvNum = taosHashGetSize(hbReq->info);
-  void *pIter = taosHashIterate(hbReq->info, NULL);
-  while (pIter != NULL) {
-    SKv *kv = pIter;
-
-   if(kv->key == HEARTBEAT_KEY_USER_AUTHINFO) {
-      int32_t           userNum = kv->valueLen / sizeof(SUserAuthVersion);
-    SUserAuthVersion *userAuths = (SUserAuthVersion *)pKv->value;
-    for (int32_t i = 0; i < userNum; ++i) {
-      SUserAuthVersion *pUserAuth = userAuths + i;
-    }
-   }
-
-#endif
-
-
-
-    TAOS_CHECK_RETURN(tEncodeSKv(pEncoder, kv));
-    pIter = taosHashIterate(pReq->info, pIter);
-  }
+      for (int32_t k = 0; k < reqNum; k++) {
+        SClientHbReq *hbReq = taosArrayGet(pReq->reqs, k);
+        int32_t       kvNum = taosHashGetSize(hbReq->info);
+        void         *pIter = NULL;
+        bool          userAuth = 0;
+        while ((pIter = taosHashIterate(hbReq->info, NULL))) {
+          SKv *kv = pIter;
+          if (kv->key == HEARTBEAT_KEY_USER_AUTHINFO) {
+            int32_t           userNum = kv->valueLen / sizeof(SUserAuthVersion);
+            SUserAuthVersion *userAuths = (SUserAuthVersion *)kv->value;
+            for (int32_t j = 0; j < userNum; ++j) {
+              SUserAuthVersion *pUserAuth = userAuths + j;
+              fprintf(stderr,
+                      "####: %s:%d [req:%d-%d][user:%d-%d] hb got user auth info, user:%s, authVer:%d, "
+                      "tscRid:%" PRIi64 "\n",
+                      __func__, __LINE__, reqNum, k, userNum, j, pUserAuth->user, pUserAuth->version,
+                      hbReq->connKey.tscRid);
+            }
+            if (++userAuth > 1) {
+              assert(0);
+            }
+          }
+        }
       }
 
       if (tSerializeSClientHbBatchReq(buf, tlen, pReq) == -1) {
