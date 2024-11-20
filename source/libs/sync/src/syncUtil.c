@@ -152,8 +152,9 @@ static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLe
   for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
     SSyncLogReplMgr* pMgr = pSyncNode->logReplMgrs[i];
     if (pMgr == NULL) break;
-    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 ", %" PRId64 ", %" PRId64 "]", i, pMgr->restored,
+    len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 ", %" PRId64 ", %" PRId64 "] ", i, pMgr->restored,
                      pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
+    len += tsnprintf(buf + len, bufLen - len, "%d", pMgr->sendCount);
     if (i + 1 < pSyncNode->replicaNum) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
@@ -234,14 +235,15 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
         ", elect-times:%d, as-leader-times:%d, as-assigned-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
         "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
         ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
-        ", buffer:%s, repl-mgrs:%s, members:%s, hb:%s, hb-reply:%s, arb-token:%s",
+        ", buffer:%s, repl-mgrs:%s, members:%s, hb:%s, hb-reply:%s, arb-token:%s, msg[sent:%d, recv:%d, slow-recev:%d]",
         pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, pNode->assignedCommitIndex,
         appliedIndex, logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex,
         snapshot.lastApplyTerm, pNode->electNum, pNode->becomeLeaderNum, pNode->becomeAssignedLeaderNum,
         pNode->configChangeNum, pNode->hbSlowNum, pNode->hbrSlowNum, aqItems, pNode->snapshottingIndex,
         pNode->replicaNum, pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish,
         syncNodeDynamicQuorum(pNode), pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, bufferStatesStr,
-        replMgrStatesStr, cfgStr, hbTimeStr, hbrTimeStr, pNode->arbToken);
+        replMgrStatesStr, cfgStr, hbTimeStr, hbrTimeStr, pNode->arbToken, pNode->sendCount, pNode->recvCount,
+        pNode->slowCount);
   }
 }
 
