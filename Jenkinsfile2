@@ -5,7 +5,7 @@ node {
 }
 file_zh_changed = ''
 file_en_changed = ''
-file_no_doc_changed = ''
+file_no_doc_changed = '1'
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
