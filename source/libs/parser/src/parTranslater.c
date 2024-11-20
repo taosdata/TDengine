@@ -364,7 +364,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_TABLES_STMT,
+    .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
