@@ -92,10 +92,11 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
+  SRaftId destIdTmp = *destId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destId, pSyncNode, pMsg));
 
   int64_t tsMs = taosGetTimestampMs();
-  syncIndexMgrSetSentTime(pSyncNode->pMatchIndex, destId, tsMs);
+  syncIndexMgrSetSentTime(pSyncNode->pMatchIndex, &destIdTmp, tsMs);
 
   return TSDB_CODE_SUCCESS;
 }
