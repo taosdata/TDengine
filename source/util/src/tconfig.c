@@ -151,10 +151,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     uError("failed to expand dir:%s since %s", inputDir, tstrerror(code));
     TAOS_RETURN(code);
   }
-  *(char **)pItem->val = taosStrdup(fullDir);
-  if (pItem->val == NULL) {
-    TAOS_RETURN(terrno);
-  }
+  pItem->val = taosStrdup(fullDir);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -399,9 +396,10 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   if (pCfg == NULL) return NULL;
   SConfigItem *item = NULL;
-  item = taosHashGet(pCfg->globalHash, pName, strlen(pName));
+  int32_t      keysize = strlen(pName) + 1;
+  item = taosHashGet(pCfg->globalHash, pName, keysize);
   if (item == NULL) {
-    item = taosHashGet(pCfg->localHash, pName, strlen(pName));
+    item = taosHashGet(pCfg->localHash, pName, keysize);
   }
   return item;
 }
@@ -527,7 +525,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   (void)strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
 
-  if (taosHashPut(hash, name, keysize, pItem, sizeof(pItem)) != TSDB_CODE_SUCCESS) {
+  if (taosHashPut(hash, name, keysize, pItem, sizeof(*pItem)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pItem->name);
     TAOS_RETURN(terrno);
   }
