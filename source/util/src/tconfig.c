@@ -132,13 +132,8 @@ void cfgCleanup(SConfig *pCfg) {
 }
 
 static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
-  cfgItemFreeVal(pItem);
-  if (!(pItem->val == NULL)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  *(char **)pItem->val = taosStrdup(conf);
-  if (pItem->val == NULL) {
+  pItem->str = taosStrdup(conf);
+  if (pItem->str == NULL) {
     TAOS_RETURN(terrno);
   }
 
@@ -152,7 +147,8 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     uError("failed to expand dir:%s since %s", inputDir, tstrerror(code));
     TAOS_RETURN(code);
   }
-  pItem->val = taosStrdup(fullDir);
+  *(char **)pItem->val = taosStrdup(fullDir);
+  pItem->str = taosStrdup(fullDir);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -551,7 +547,7 @@ int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t *defaultVal, int64_
   }
   SConfigItem *item = taosMemoryCalloc(1, sizeof(SConfigItem));
   item->dtype = CFG_DTYPE_INT32;
-  // item->val = defaultVal;
+  item->val = defaultVal;
   item->i32 = *defaultVal;
   item->imin = minval;
   item->imax = maxval;
@@ -645,9 +641,9 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, char *defaultVal, int8_t s
   return cfgAddItem(pCfg, item, name);
 }
 
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
-                  int8_t category) {
+int32_t cfgAddDir(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope, int8_t category) {
   SConfigItem *item = taosMemoryCalloc(1, sizeof(SConfigItem));
+  item->val = defaultVal;
   item->dtype = CFG_DTYPE_DIR;
   item->scope = scope;
   item->dynScope = dynScope;
@@ -656,9 +652,10 @@ int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_
   return cfgAddItem(pCfg, item, name);
 }
 
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,
                      int8_t category) {
   SConfigItem *item = taosMemoryCalloc(1, sizeof(SConfigItem));
+  item->val = defaultVal;
   item->dtype = CFG_DTYPE_LOCALE;
   item->scope = scope;
   item->dynScope = dynScope;
@@ -667,9 +664,10 @@ int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, in
   return cfgAddItem(pCfg, item, name);
 }
 
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,
                       int8_t category) {
   SConfigItem *item = taosMemoryCalloc(1, sizeof(SConfigItem));
+  item->val = defaultVal;
   item->dtype = CFG_DTYPE_CHARSET;
   item->scope = scope;
   item->dynScope = dynScope;
@@ -678,9 +676,10 @@ int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, i
   return cfgAddItem(pCfg, item, name);
 }
 
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,
                        int8_t category) {
   SConfigItem *item = taosMemoryCalloc(1, sizeof(SConfigItem));
+  item->val = defaultVal;
   item->dtype = CFG_DTYPE_TIMEZONE;
   item->scope = scope;
   item->dynScope = dynScope;
@@ -907,13 +906,19 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
 
-  void *pIter = NULL;
-
+  void *pGIter = NULL;
+  void *pLIter = NULL;
+  pGIter = taosHashIterate(pCfg->globalHash, NULL);
+  pLIter = taosHashIterate(pCfg->localHash, NULL);
   while (1) {
-    pIter = taosHashIterate(pCfg->globalHash, pIter);
-    if (pIter == NULL) pIter = taosHashIterate(pCfg->localHash, pIter);
-    if (pIter == NULL) break;
-    SConfigItem *pItem = *(SConfigItem **)pIter;
+    if (pGIter == NULL) {
+      pLIter = taosHashIterate(pCfg->localHash, pLIter);
+    } else {
+      pGIter = taosHashIterate(pCfg->globalHash, pGIter);
+    }
+
+    if (pGIter == NULL && pLIter == NULL) break;
+    SConfigItem *pItem = pGIter == NULL ? *(SConfigItem **)pLIter : *(SConfigItem **)pGIter;
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;

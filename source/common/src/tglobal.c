@@ -40,6 +40,8 @@ SConfig *tsCfg = NULL;
 // cluster
 char          tsFirst[TSDB_EP_LEN] = {0};
 char          tsSecond[TSDB_EP_LEN] = {0};
+char          defaultFqdn[TSDB_FQDN_LEN] = {0};
+int32_t       defaultServerPort = 6030;
 char          tsLocalFqdn[TSDB_FQDN_LEN] = {0};
 char          tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 char          tsVersionName[16] = "community";
@@ -198,7 +200,6 @@ int32_t tsSlowLogThreshold = 10;                   // seconds
 int32_t tsSlowLogThresholdTest = INT32_MAX;        // seconds
 char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";  // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
-char   *tsSlowLogScopeString = "query";
 int32_t tsSlowLogMaxLen = 4096;
 int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
@@ -530,25 +531,22 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 }
 
 int32_t taosAddClientLogCfg(SConfig *pCfg) {
-  // TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
-  // SConfigItem *item = cfgGetItem(pCfg, "configDir");
-  // TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
-  // TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
-  // item = cfgGetItem(pCfg, "scriptDir");
-  // item = cfgGetItem(pCfg, "logDir");
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "configDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "logDir", tsLogDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   // todo(beryl) add minimalLogDirGB
-  // TAOS_CHECK_RETURN(
-  //     cfgAddFloat(pCfg, "minimalLogDirGB", &tsLogSpace.reserved, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT,
-  //     CFG_CATEGORY_LOCAL));
+  // TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "minimalLogDirGB", &tsLogSpace.reserved, 0.001f, 10000000, CFG_SCOPE_BOTH,
+  //                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfLogLines", &tsNumOfLogLines, 1000, 2000000000, CFG_SCOPE_BOTH,
                                 CFG_DYN_ENT_BOTH, CFG_CATEGORY_LOCAL));
   SConfigItem *item = cfgGetItem(pCfg, "numOfLogLines");
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "asyncLog", &tsAsyncLog, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   // TODO(beryl) add logKeepDays
-  // TAOS_CHECK_RETURN(
-  //     cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH, CFG_CATEGORY_LOCAL));
-  // TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "logKeepDays", &tsLogKeepDays, -365000, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH,
+                                CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "debugFlag", &dDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "simDebugFlag", &simDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
@@ -605,14 +603,12 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
 }
 
 static int32_t taosAddClientCfg(SConfig *pCfg) {
-  char    defaultFqdn[TSDB_FQDN_LEN] = {0};
-  int32_t defaultServerPort = 6030;
   if (taosGetFqdn(defaultFqdn) != 0) {
     (void)strcpy(defaultFqdn, "localhost");
   }
 
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "firstEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "secondEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "firstEp", tsFirst, CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "secondEp", tsSecond, CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "serverPort", &defaultServerPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL));
@@ -845,7 +841,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogThresholdTest", &tsSlowLogThresholdTest, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogThreshold", &tsSlowLogThreshold, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "slowLogMaxLen", &tsSlowLogMaxLen, 1, 16384, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "slowLogScope", tsSlowLogScopeString, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "slowLogExceptDb", tsSlowLogExceptDb, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
@@ -1096,9 +1091,9 @@ static int32_t taosSetClientLogCfg(SConfig *pCfg) {
   tstrncpy(tsLogDir, pItem->str, PATH_MAX);
   TAOS_CHECK_RETURN(taosExpandDir(tsLogDir, tsLogDir, PATH_MAX));
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalLogDirGB");
-  tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-
+  // TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalLogDirGB");
+  // tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
+  tsLogSpace.reserved = (int64_t)((1.0f) * 1024 * 1024 * 1024);
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfLogLines");
   tsNumOfLogLines = pItem->i32;
 
@@ -1267,8 +1262,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsTempDir, pItem->str, PATH_MAX);
   TAOS_CHECK_RETURN(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX));
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalTmpDirGB");
-  tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
+  // TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalTmpDirGB");
+  // tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
+  tsTempSpace.reserved = (int64_t)((1.0f) * 1024 * 1024 * 1024);
   if (taosMulMkDir(tsTempDir) != 0) {
     int32_t code = TAOS_SYSTEM_ERROR(errno);
     uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
@@ -1436,8 +1432,8 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
 static int32_t taosSetServerCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalDataDirGB");
-  tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
+  // TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalDataDirGB");
+  tsDataSpace.reserved = (int64_t)((1.0f) * 1024 * 1024 * 1024);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "supportVnodes");
   tsNumOfSupportVnodes = pItem->i32;
@@ -1532,10 +1528,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogMaxLen");
   tsSlowLogMaxLen = pItem->i32;
 
-  int32_t scope = 0;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogScope");
-  TAOS_CHECK_RETURN(taosSetSlowLogScope(pItem->str, &scope));
-  tsSlowLogScope = scope;
+  // TODO:beryl
+  // int32_t scope = 0;
+  // TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogScope");
+  // TAOS_CHECK_RETURN(taosSetSlowLogScope(pItem->str, &scope));
+  // tsSlowLogScope = scope;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitor");
   tsEnableMonitor = pItem->bval;

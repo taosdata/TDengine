@@ -132,10 +132,10 @@ int32_t cfgAddInt8(SConfig *pCfg, const char *name, int8_t *defaultVal, int64_t 
 int32_t cfgAddFloat(SConfig *pCfg, const char *name, float *defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddDouble(SConfig *pCfg, const char *name, double *defaultVal, float minval, float maxval, int8_t scope,int8_t dynScope, int8_t category);
 int32_t cfgAddString(SConfig *pCfg, const char *name, char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddDir(SConfig *pCfg, const char *name,  char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddLocale(SConfig *pCfg, const char *name,  char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddCharset(SConfig *pCfg, const char *name,  char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name,  char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 // clang-format on
 
 const char *cfgStypeStr(ECfgSrcType type);

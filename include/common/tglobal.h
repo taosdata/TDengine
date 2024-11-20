@@ -47,6 +47,8 @@ extern SConfig *tsCfg;
 // cluster
 extern char          tsFirst[];
 extern char          tsSecond[];
+extern char          defaultFqdn[TSDB_FQDN_LEN];
+extern int32_t       defaultServerPort;
 extern char          tsLocalFqdn[];
 extern char          tsLocalEp[];
 extern char          tsVersionName[];
