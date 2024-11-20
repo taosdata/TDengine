@@ -313,7 +313,21 @@ class TDTestCase:
         order_by_list = 'ts,c1,c2,c3,c4,c5,c6,c7,c8,c9,t1,t2,t3,t4,t5,t6'
 
         self.prepare_and_query_and_compare(sqls, order_by_list, compare_what=COMPARE_LEN)
+    
+    def test_tsdb_read(self):
+        tdSql.execute('delete from t0')
+        tdSql.execute('flush database test')
+        for i in range(0, 4096):
+            tdSql.execute(f"insert into test.t0 values({1537146000000 + i}, 1,1,1,1,1,1,1,'a','1')")
+        tdSql.execute("flush database test")
 
+        tdSql.execute(f"insert into t0 values({1537146000000 + 4095}, 1,1,1,1,1,1,1,'a','1')")
+        for i in range(4095, 4096*2 + 100):
+            tdSql.execute(f"insert into test.t0 values({1537146000000 + i}, 1,1,1,1,1,1,1,'a','1')")
+        tdSql.execute("flush database test")
+        time.sleep(5)
+        tdSql.query('select first(ts), last(ts) from t0', queryTimes=1)
+        tdSql.checkRows(1)
 
     def run(self):
         self.prepareTestEnv()
@@ -323,6 +337,8 @@ class TDTestCase:
         self.test_sort_for_partition_res()
         self.test_sort_for_partition_interval()
         self.test_sort_for_partition_no_agg_limit()
+        self.test_tsdb_read()
+
 
     def stop(self):
         tdSql.close()
