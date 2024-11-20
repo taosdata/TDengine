@@ -122,6 +122,10 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   tb_uid_t   suid = pSubmitTbData->suid;
   tb_uid_t   uid = pSubmitTbData->uid;
 
+  if (tsBypassFlag & TSDB_BYPASS_RB_TSDB_WRITE_MEM) {
+    goto _err;
+  }
+
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
   if (code) {

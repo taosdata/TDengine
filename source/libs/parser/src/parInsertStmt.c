@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "geosWrapper.h"
 #include "os.h"
 #include "parInsertUtil.h"
 #include "parInt.h"
@@ -192,6 +193,12 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -409,7 +416,8 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     }
 
     code = tColDataAddValueByBind(pCol, pBind,
-                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                  initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -461,7 +469,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   }
 
   code = tColDataAddValueByBind(pCol, pBind,
-                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -544,6 +553,12 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
+            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+            goto end;
+          }
+        }
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -824,7 +839,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     }
 
     code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                   initCtxAsText, checkWKB);
     if (code) {
       goto _return;
     }
@@ -876,7 +892,8 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   code = tColDataAddValueByBind2(pCol, pBind,
-                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
+                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                 initCtxAsText, checkWKB);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 

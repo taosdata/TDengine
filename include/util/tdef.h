@@ -195,9 +195,9 @@ static const EOperatorType OPERATOR_ARRAY[] = {
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
   OP_TYPE_REM,
-  
+
   OP_TYPE_MINUS,
-  
+
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
@@ -213,7 +213,7 @@ static const EOperatorType OPERATOR_ARRAY[] = {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
-  
+
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,
@@ -222,7 +222,7 @@ static const EOperatorType OPERATOR_ARRAY[] = {
   OP_TYPE_IS_NOT_TRUE,
   OP_TYPE_IS_NOT_FALSE,
   OP_TYPE_IS_NOT_UNKNOWN,
-  //OP_TYPE_COMPARE_MAX_VALUE, 
+  //OP_TYPE_COMPARE_MAX_VALUE,
 
   OP_TYPE_JSON_GET_VALUE,
   OP_TYPE_JSON_CONTAINS,
@@ -620,6 +620,16 @@ enum {
 
 enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
+/**
+ * RB: return before
+ * RA: return after
+ * NR: not return, skip and go on following steps
+ */
+#define TSDB_BYPASS_RB_RPC_SEND_SUBMIT 0x01u
+#define TSDB_BYPASS_RA_RPC_RECV_SUBMIT 0x02u
+#define TSDB_BYPASS_RB_TSDB_WRITE_MEM  0x04u
+#define TSDB_BYPASS_RB_TSDB_COMMIT     0x08u
+
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
 #define QNODE_HANDLE   -1
@@ -631,6 +641,8 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define TSDB_CONFIG_VALUE_LEN  64
 #define TSDB_CONFIG_SCOPE_LEN  8
 #define TSDB_CONFIG_NUMBER     16
+#define TSDB_CONFIG_PATH_LEN   4096
+#define TSDB_CONFIG_INFO_LEN   64
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18
