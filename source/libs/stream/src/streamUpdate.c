@@ -445,7 +445,10 @@ int32_t updateInfoSerialize(SEncoder* pEncoder, const SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (!pInfo) {
-    tEncodeI32(pEncoder, -1);
+    if (tEncodeI32(pEncoder, -1) < 0) {
+      code = TSDB_CODE_FAILED;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
