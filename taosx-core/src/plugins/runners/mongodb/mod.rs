@@ -193,8 +193,8 @@ pub async fn mongodb_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(MONGODB_ID),

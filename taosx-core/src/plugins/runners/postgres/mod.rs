@@ -184,8 +184,8 @@ pub async fn postgres_to_taos(
     config.ipc_port = Some(port.get());
 
     // create ipc handler
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(POSTGRES_ID),

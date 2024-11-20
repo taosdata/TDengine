@@ -173,8 +173,8 @@ pub async fn opc_to_taos(
         OpcType::OPCDA => Some("opc_da"),
         OpcType::FAKE => None,
     };
-    let mut ipc_handler = build_ipc(
-        &config.report.remote,
+    let (mut ipc_handler, _) = build_ipc(
+        Some(&config.report.remote),
         None,
         &to,
         connector,
