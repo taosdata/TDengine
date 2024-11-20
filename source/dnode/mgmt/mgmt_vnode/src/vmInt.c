@@ -172,7 +172,9 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   }
 
   (void)taosThreadRwlockWrlock(&pMgmt->lock);
+
   SVnodeObj *pOld = NULL;
+
   int32_t    r = taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (r != 0) {
     dError("vgId:%d, failed to get vnode from hash", pVnode->vgId);
@@ -187,15 +189,15 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   if (r != 0) {
     dError("vgId:%d, failed to get vnode from closedHash", pVnode->vgId);
   }
-  if (pOld) {
+  if (pOld != NULL) {
     vmFreeVnodeObj(&pOld);
+    dInfo("vgId:%d, remove from closedHash", pVnode->vgId);
+    r = taosHashRemove(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t));
+    if (r != 0) {
+      dError("vgId:%d, failed to remove vnode from hash", pVnode->vgId);
+    }
   }
 
-  dInfo("vgId:%d, remove from closedHash", pVnode->vgId);
-  r = taosHashRemove(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t));
-  if (r != 0) {
-    dError("vgId:%d, failed to remove vnode from hash", pVnode->vgId);
-  }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
   return code;
