@@ -292,6 +292,8 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
     } else {
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, queryNum));
     }
+  } else {
+    assert(0);
   }
 
   int32_t kvNum = taosHashGetSize(pReq->info);

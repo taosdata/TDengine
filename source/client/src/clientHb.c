@@ -88,6 +88,8 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
       if (!pTscObj) {
         continue;
+      } else {
+        printf("@@@@@: hb to update user auth, user:%s, tscRid:%" PRIi64 "\n", pTscObj->user, pTscObj->id);
       }
 
       if (!pRsp) {
@@ -750,7 +752,7 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
 static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClientHbReq *req) {
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (!pTscObj) {
-    tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
+    fprintf(stderr, "####: %s:%d tscObj rid %" PRIx64 " not exist\n", __func__, __LINE__, connKey->tscRid);
     return terrno;
   }
 
@@ -766,6 +768,8 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
       // both key and user exist, update version
       if (strncmp(pUserAuth->user, pTscObj->user, TSDB_USER_LEN) == 0) {
         pUserAuth->version = htonl(-1);  // force get userAuthInfo
+        fprintf(stderr, "####: %s:%d hb got user auth info, valueLen:%d, user:%s, authVer:%d, tscRid:%" PRIi64 "\n",
+                __func__, __LINE__, kv.valueLen, pTscObj->user, pTscObj->authVer, connKey->tscRid);
         goto _return;
       }
     }
@@ -777,6 +781,8 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
       (qUserAuth + userNum)->version = htonl(-1);  // force get userAuthInfo
       pKv->value = qUserAuth;
       pKv->valueLen += sizeof(SUserAuthVersion);
+      fprintf(stderr, "####: %s:%d hb got user auth info, valueLen:%d, user:%s, authVer:%d, tscRid:%" PRIi64 "\n",
+              __func__, __LINE__, kv.valueLen, pTscObj->user, pTscObj->authVer, connKey->tscRid);
     } else {
       code = terrno;
     }
@@ -794,8 +800,8 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
   kv.valueLen = sizeof(SUserAuthVersion);
   kv.value = user;
 
-  tscDebug("hb got user auth info, valueLen:%d, user:%s, authVer:%d, tscRid:%" PRIi64, kv.valueLen, user->user,
-           pTscObj->authVer, connKey->tscRid);
+  fprintf(stderr, "####: %s:%d hb got user auth info, valueLen:%d, user:%s, authVer:%d, tscRid:%" PRIi64 "\n", __func__,
+          __LINE__, kv.valueLen, user->user, pTscObj->authVer, connKey->tscRid);
 
   if (!req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
@@ -835,8 +841,12 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
     return TSDB_CODE_SUCCESS;
   }
 
+  fprintf(stderr, "%s:%d ====================\n", __func__, __LINE__);
+
   for (int32_t i = 0; i < userNum; ++i) {
     SUserAuthVersion *user = &users[i];
+    fprintf(stderr, "%s:%d hb got %d expired users, user[%d]=%s, ver:%d\n", __func__, __LINE__, userNum, i, user->user,
+            user->version);
     user->version = htonl(user->version);
   }
 
@@ -846,7 +856,7 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
       .value = users,
   };
 
-  tscDebug("hb got %d expired users, valueLen:%d", userNum, kv.valueLen);
+  fprintf(stderr, "%s:%d hb got %d expired users, valueLen:%d\n", __func__, __LINE__, userNum, kv.valueLen);
 
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
@@ -1339,6 +1349,31 @@ static void *hbThreadFunc(void *param) {
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         break;
+      }
+
+      int32_t reqNum = taosArrayGetSize(pReq->reqs);
+      for (int32_t i = 0; i < reqNum; i++) {
+        SClientHbReq *hbReq = taosArrayGet(pReq->reqs, i);
+  int32_t kvNum = taosHashGetSize(hbReq->info);
+  void *pIter = taosHashIterate(hbReq->info, NULL);
+  while (pIter != NULL) {
+    SKv *kv = pIter;
+
+   if(kv->key == HEARTBEAT_KEY_USER_AUTHINFO) {
+      int32_t           userNum = kv->valueLen / sizeof(SUserAuthVersion);
+    SUserAuthVersion *userAuths = (SUserAuthVersion *)pKv->value;
+    for (int32_t i = 0; i < userNum; ++i) {
+      SUserAuthVersion *pUserAuth = userAuths + i;
+    }
+   }
+
+#endif
+
+
+
+    TAOS_CHECK_RETURN(tEncodeSKv(pEncoder, kv));
+    pIter = taosHashIterate(pReq->info, pIter);
+  }
       }
 
       if (tSerializeSClientHbBatchReq(buf, tlen, pReq) == -1) {

@@ -23,6 +23,38 @@
 static int  running = 1;
 const char* topic_name = "topicname";
 
+#define nDup 3
+
+static void queryDB(TAOS *taos, char *command) {
+  int       i;
+  TAOS_RES *pSql = NULL;
+  int32_t   code = -1;
+
+  for (i = 0; i < nDup; ++i) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    if (0 == code) {
+      break;
+    }
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "failed to run: %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+    taos_close(taos);
+    exit(EXIT_FAILURE);
+  } else {
+    fprintf(stderr, "success to run: %s\n", command);
+  }
+
+  taos_free_result(pSql);
+}
+
 static int32_t msg_process(TAOS_RES* msg) {
   char    buf[1024];
   int32_t rows = 0;
@@ -52,7 +84,19 @@ static int32_t msg_process(TAOS_RES* msg) {
 }
 
 static int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    return -1;
+  }
+  queryDB(taos, "create user user1 pass 'taosdata'");
+  queryDB(taos, "alter user user1 sysInfo 1");
+  queryDB(taos, "alter user user1 createdb 1");
+  queryDB(taos, "create user user2 pass 'taosdata'");
+  queryDB(taos, "alter user user2 sysInfo 1");
+  queryDB(taos, "alter user user2 createdb 1");
+  taos_close(taos);
+
+  TAOS* pConn = taos_connect("localhost", "user1", "taosdata", NULL, 0);
   if (pConn == NULL) {
     return -1;
   }
@@ -73,7 +117,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database tmqdb precision 'ns' WAL_RETENTION_PERIOD 3600");
+  pRes = taos_query(pConn, "create database if not exists tmqdb precision 'ns' WAL_RETENTION_PERIOD 3600");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
     goto END;
@@ -169,11 +213,10 @@ END:
 int32_t create_topic() {
   printf("create topic\n");
   TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS*     pConn = taos_connect("localhost", "user1", "taosdata", NULL, 0);
   if (pConn == NULL) {
     return -1;
   }
-
   pRes = taos_query(pConn, "use tmqdb");
   if (taos_errno(pRes) != 0) {
     printf("error in use tmqdb, reason:%s\n", taos_errstr(pRes));
@@ -221,7 +264,7 @@ tmq_t* build_consumer() {
     tmq_conf_destroy(conf);
     return NULL;
   }
-  code = tmq_conf_set(conf, "td.connect.user", "root");
+  code = tmq_conf_set(conf, "td.connect.user", "user1");
   if (TMQ_CONF_OK != code) {
     tmq_conf_destroy(conf);
     return NULL;
@@ -298,8 +341,25 @@ void consume_repeatly(tmq_t* tmq) {
   basic_consume_loop(tmq);
 }
 
+void __taos_notify_cb(void *param, void *ext, int type) {
+  switch (type) {
+    case TAOS_NOTIFY_PASSVER: {
+      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL",
+             *(int *)ext);
+      break;
+    }
+    case TAOS_NOTIFY_USER_DROPPED: {
+      printf("%s:%d type:%d user:%s dropped\n", __func__, __LINE__, type, param ? (char *)param : "NULL");
+      break;
+    }
+    default:
+      printf("%s:%d unknown notify type:%d\n", __func__, __LINE__, type);
+      break;
+  }
+}
+
 int main(int argc, char* argv[]) {
-  int32_t code;
+  int32_t code = 0;
 
   if (init_env() < 0) {
     return -1;
@@ -315,11 +375,58 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
+  TAOS *taosu = tmq_get_connect(tmq);
+
+  TAOS *taosu2 = taos_connect("localhost", "user2", "taosdata", NULL, 0);
+  if(taosu2 == NULL) {
+    fprintf(stderr, "failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    return -1;
+  }
+
+  code = taos_set_notify_cb(taosu, __taos_notify_cb, "user1", TAOS_NOTIFY_USER_DROPPED);
+  if (code != 0) {
+    fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, "user1",
+            code);
+    return -1;
+  } else {
+    fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, "user1");
+  }
+
+  code = taos_set_notify_cb(taosu2, __taos_notify_cb, "user2", TAOS_NOTIFY_USER_DROPPED);
+  if (code != 0) {
+    fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, "user2",
+            code);
+    return -1;
+  } else {
+    fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, "user2");
+  }
+
+  TAOS *rootUser = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if(rootUser == NULL) {
+    fprintf(stderr, "failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    return -1;
+  }
+
+  for (int32_t i = 1; i < 86400; ++i) {
+    sleep(1);
+    printf("sleep %ds\n", i);
+  }
+
+  // queryDB(rootUser, "drop user user1");
+  // queryDB(rootUser, "drop user user2");
+
+
   tmq_list_t* topic_list = build_topic_list();
   if (NULL == topic_list) {
     return -1;
   }
 
+  for (int32_t i = 1; i < 6; ++i) {
+    sleep(1);
+    printf("sleep %ds\n", i);
+  }
+
+#if 0
   if ((code = tmq_subscribe(tmq, topic_list))) {
     fprintf(stderr, "Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
   }
@@ -329,13 +436,16 @@ int main(int argc, char* argv[]) {
   basic_consume_loop(tmq);
 
   consume_repeatly(tmq);
-
+#endif
+  tmq_list_destroy(topic_list);
   code = tmq_consumer_close(tmq);
   if (code) {
     fprintf(stderr, "Failed to close consumer: %s\n", tmq_err2str(code));
   } else {
     fprintf(stderr, "Consumer closed\n");
   }
+  taos_close(rootUser);
+  taos_close(taosu2);
 
   return 0;
 }

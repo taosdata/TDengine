@@ -3159,6 +3159,8 @@ static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_USER);
 }
 
+static int32_t nValidateUser = 0;
+
 int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                 int32_t *pRspLen, int64_t ipWhiteListVer) {
   int32_t           code = 0;
@@ -3172,6 +3174,8 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
+
+  mInfo("\n\n##### batch %d nValidateUser, nUser=%d", ++nValidateUser, numOfUses);
   for (int32_t i = 0; i < numOfUses; ++i) {
     SUserObj *pUser = NULL;
     code = mndAcquireUser(pMnode, pUsers[i].user, &pUser);
@@ -3181,15 +3185,20 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
         (void)memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
         TSDB_CHECK_NULL(taosArrayPush(batchRsp.pArray, &rsp), code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
       }
-      mError("user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
+      mError("##### NONONO user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
       code = 0;
       continue;
+    } else {
+      mInfo("##### EEEEEE user:%s, success to  auth user", pUsers[i].user);
     }
 
     pUsers[i].version = ntohl(pUsers[i].version);
     if (pUser->authVersion <= pUsers[i].version && ipWhiteListVer == pMnode->ipWhiteVer) {
+      mInfo("##### user:%s, mnd version:%d <= req version:%d, skip and no response", pUsers[i].user, pUser->authVersion, pUsers[i].version);
       mndReleaseUser(pMnode, pUser);
       continue;
+    } else {
+      mInfo("##### user:%s, mnd version:%d > req version:%d, set the response", pUsers[i].user, pUser->authVersion, pUsers[i].version);
     }
 
     SGetUserAuthRsp rsp = {0};
