@@ -40,6 +40,7 @@ ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 |---|---|---|---|
 |direction|异常检测方向类型('pos' / 'neg' / 'both')|否|"both"|
 |max_anoms|异常值比例 $0 < K \le 49.9$|否|0.05|
+|period|一个周期包含的数据点|否|0|
 
 
 ```SQL
