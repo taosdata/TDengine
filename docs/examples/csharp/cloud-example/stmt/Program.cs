@@ -12,8 +12,8 @@ namespace Cloud.Examples
             var numOfSubTable = 10;
             var numOfRow = 10;
             var random = new Random();
-            var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
-            var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+            var cloudEndPoint = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
+            var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
             var connectionString = $"protocol=WebSocket;host={cloudEndPoint};port=443;useSSL=true;token={cloudToken};";
             // Connect to TDengine server using WebSocket
             var builder = new ConnectionStringBuilder(connectionString);

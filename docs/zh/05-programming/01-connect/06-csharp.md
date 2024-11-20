@@ -46,24 +46,24 @@ dotnet add package TDengine.Connector
 <TabItem value="bash" label="Bash">
 
 ```bash
-export CLOUD_ENDPOINT="<cloud_endpoint>"
-export CLOUD_TOKEN="<cloud_token>"
+export TDENGINE_CLOUD_ENDPOINT="<cloud_endpoint>"
+export TDENGINE_CLOUD_TOKEN="<cloud_token>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```shell
-set CLOUD_ENDPOINT=<cloud_endpoint>
-set CLOUD_TOKEN=<cloud_token>
+set TDENGINE_CLOUD_ENDPOINT=<cloud_endpoint>
+set TDENGINE_CLOUD_TOKEN=<cloud_token>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:CLOUD_ENDPOINT='<cloud_endpoint>'
-$env:CLOUD_TOKEN='<cloud_token>'
+$env:TDENGINE_CLOUD_ENDPOINT='<cloud_endpoint>'
+$env:TDENGINE_CLOUD_TOKEN='<cloud_token>'
 ```
 
 </TabItem>
@@ -72,7 +72,7 @@ $env:CLOUD_TOKEN='<cloud_token>'
 <!-- exclude -->
 
 :::note IMPORTANT
-替换 `<CLOUD_ENDPOINT>` 和 `<CLOUD_TOKEN>` 为 TDengine Cloud 的网关地址和令牌。
+替换 `<cloud_endpoint>` 和 `<cloud_token>` 为 TDengine Cloud 的网关地址和令牌。
 获取 TDengine Cloud 的网关地址和令牌，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。
 :::
 
