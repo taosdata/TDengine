@@ -2440,9 +2440,9 @@ dependencies = [
 
 [[package]]
 name = "flume"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55ac459de2512911e4b674ce33cf20befaba382d05b62b008afc1c8b57cbf181"
+checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -3933,6 +3933,18 @@ name = "md5"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
+name = "mdsn"
+version = "0.2.25"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "itertools 0.13.0",
+ "lazy_static",
+ "regex",
+ "thiserror",
+ "urlencoding",
+]
 
 [[package]]
 name = "mdsn"
@@ -7015,16 +7027,44 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "shadow-rs 0.33.0",
+ "taos-optin 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "taos-ws 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "tracing",
+]
+
+[[package]]
+name = "taos"
+version = "0.12.4"
 source = "git+https://github.com/taosdata/taos-connector-rust.git#0023056555ca2e003b555700d8597808263f7e7f"
 dependencies = [
  "async-trait",
  "bytes",
  "futures",
  "shadow-rs 0.33.0",
- "taos-optin",
- "taos-query",
- "taos-ws",
+ "taos-optin 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
+ "taos-ws 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "tracing",
+]
+
+[[package]]
+name = "taos-error"
+version = "0.12.4"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "anyhow",
+ "derive_more 1.0.0",
+ "mdsn 0.2.25 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "rustc_version",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -7034,7 +7074,7 @@ source = "git+https://github.com/taosdata/taos-connector-rust.git#0023056555ca2e
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
- "mdsn",
+ "mdsn 0.2.25 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "rustc_version",
  "serde",
  "thiserror",
@@ -7079,7 +7119,7 @@ dependencies = [
  "sha1",
  "shadow-rs 0.33.0",
  "sqlx",
- "taos",
+ "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "taoslog",
  "thiserror",
  "tokio-stream",
@@ -7095,11 +7135,44 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "taos-macros"
+version = "0.2.16"
 source = "git+https://github.com/taosdata/taos-connector-rust.git#0023056555ca2e003b555700d8597808263f7e7f"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "taos-optin"
+version = "0.12.4"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "derive_more 1.0.0",
+ "dlopen2",
+ "flume",
+ "fun_time",
+ "itertools 0.13.0",
+ "lazy_static",
+ "num_enum 0.7.3",
+ "once_cell",
+ "serde_json",
+ "taos-macros 0.2.16 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "tracing",
 ]
 
 [[package]]
@@ -7119,9 +7192,49 @@ dependencies = [
  "num_enum 0.7.3",
  "once_cell",
  "serde_json",
- "taos-macros",
- "taos-query",
+ "taos-macros 0.2.16 (git+https://github.com/taosdata/taos-connector-rust.git)",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "tracing",
+]
+
+[[package]]
+name = "taos-query"
+version = "0.12.4"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bitflags 2.6.0",
+ "bitvec",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "deadpool",
+ "derive_builder",
+ "derive_more 1.0.0",
+ "either",
+ "faststr",
+ "futures",
+ "itertools 0.13.0",
+ "lazy_static",
+ "mdsn 0.2.25 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "nom",
+ "num_enum 0.7.3",
+ "once_cell",
+ "paste",
+ "prettytable",
+ "rayon",
+ "rust_decimal",
+ "rustc_version",
+ "rustversion",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "taos-error 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -7144,7 +7257,7 @@ dependencies = [
  "futures",
  "itertools 0.13.0",
  "lazy_static",
- "mdsn",
+ "mdsn 0.2.25 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "nom",
  "num_enum 0.7.3",
  "once_cell",
@@ -7157,11 +7270,37 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
- "taos-error",
+ "taos-error 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "thiserror",
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "taos-ws"
+version = "0.12.4"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1#532bae192b268cd1a7db5825a408987d389e346f"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "dashmap 6.1.0",
+ "flume",
+ "futures",
+ "itertools 0.13.0",
+ "once_cell",
+ "scc",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_with",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
 ]
 
 [[package]]
@@ -7183,7 +7322,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_with",
- "taos-query",
+ "taos-query 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git)",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
@@ -7292,7 +7431,7 @@ dependencies = [
  "sqlx",
  "strum",
  "sysinfo 0.32.0",
- "taos",
+ "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
  "taoslog",
  "taosx-core",
  "taosx-ipc",
@@ -7453,7 +7592,7 @@ dependencies = [
  "sqlx",
  "sqlx-postgres",
  "sysinfo 0.32.0",
- "taos",
+ "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
  "taoslog",
  "taosx-ipc",
  "tempfile",
@@ -7494,7 +7633,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shadow-rs 0.35.0",
- "taos",
+ "taos 0.12.4 (git+https://github.com/taosdata/taos-connector-rust.git?rev=532bae1)",
  "taosx-metrics",
  "thiserror",
  "tokio",
