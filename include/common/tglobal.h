@@ -77,7 +77,6 @@ extern int32_t tsReadTimeout;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
-extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
@@ -92,6 +91,9 @@ extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
+
+extern const char *tsAlterCompactTaskKeywords;
+extern int32_t     tsNumOfCompactThreads;
 
 // sync raft
 extern int32_t tsElectInterval;

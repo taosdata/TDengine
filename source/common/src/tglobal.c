@@ -61,7 +61,6 @@ int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;
@@ -77,6 +76,9 @@ int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsMaxStreamBackendCache = 128;  // M
 int32_t tsPQSortMemThreshold = 16;      // M
 int32_t tsRetentionSpeedLimitMB = 0;    // unlimited
+
+const char *tsAlterCompactTaskKeywords = "max_compact_tasks";
+int32_t     tsNumOfCompactThreads = 2;
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
