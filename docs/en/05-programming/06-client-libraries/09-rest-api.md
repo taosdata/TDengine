@@ -25,7 +25,7 @@ The following example lists all databases on the `TDengine Cloud URL` host. If y
 ```bash
 curl -L \
   -d "select name, ntables, status from information_schema.ins_databases;" \
-  <TDengine Cloud URL>/rest/sql?token=<TDengine Cloud Token>
+  <TDengine Cloud URL>/rest/sql\?token=<TDengine Cloud Token>
 ```
 
 The following return value results indicate that the verification passed.
@@ -69,23 +69,23 @@ The following return value results indicate that the verification passed.
 ## HTTP request URL format
 
 ```text
-https://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_TOKEN
+https://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD_TOKEN>
 ```
 
 Parameter Description:
 
 - TDENGINE_CLOUD_URL: TDengine cloud service's address.
 - db_name: Optional parameter specifies the default database name for the executed SQL command.
-- token: used to access TDengine cloud service.
+- TDENGINE_CLOUD_TOKEN: used to access TDengine cloud service.
 
-For example, `https://gw-aws.cloud.tdengine.com:80/rest/sql/test?token=xxxxxxxxx` is a URL to `gw-aws.cloud.tdengine:80` and sets the default database name to `test`.
+For example, `https://gw.us-central-1.gcp.cloud.tdengine.com/rest/sql/test?token=xxxxxxxxx` is a URL to `gw.us-central-1.gcp.cloud.tdengine.com` and sets the default database name to `test`.
 
 The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `db_name.tb_name`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will respond with an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
 
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
 ```bash
-curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_TOKEN
+curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD_TOKEN>
 ```
 
 ## HTTP Return Format
@@ -225,13 +225,82 @@ Description:
 
 ## Usage examples
 
-- query all records from table d1001 of the database demo
+The following example shows how to use REST to connect to a database called power, create a super table called meters (STABLE) , insert and query the data. The Meters table structure contains the time stamp, current, voltage, phase, and other columns, as well as the group ID and position as labels.
+
+:::note IMPORTANT
+Before executing the following sample code, you must create a database named power in the [TDengine Cloud - Explorer](https://cloud.tdengine.com/explorer) page first.
+:::
+
+- Set url and token
+  ```bash
+  export TDENGINE_CLOUD_URL="<url>"
+  export TDENGINE_CLOUD_TOKEN="<token>"
+  ```
+
+- Create stable named meters
+  ```bash
+  curl -L -d \
+  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)" \
+  $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
+  ```
+    Response body:
+  ```bash
+  {
+    "code": 0,
+    "column_meta": [
+      [
+        "affected_rows",
+        "INT",
+        4
+      ]
+    ],
+    "data": [
+      [
+        0
+      ]
+    ],
+    "rows": 1
+  }
+  ```
+
+
+- Inert data into meters
+  ```bash
+  curl -L -d \
+  "INSERT INTO power.d1001 USING power.meters TAGS('California.SanFrancisco', 2) VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000)" \
+  $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
+  ```
+  Response body:
+  ```bash
+  {
+  "code": 0,
+  "column_meta": [
+    [
+      "affected_rows",
+      "INT",
+      4
+    ]
+  ],
+  "data": [
+    [
+      2
+    ]
+  ],
+  "rows": 1
+}
+  ```
+
+
+
+
+
+- query all records from table d1001 of the database power
 
   ```bash
-  export TDENGINE_CLOUD_URL=https://gw-aws.cloud.tdengine.com:80
-  export TDENGINE_CLOUD_TOKEN=<actual token string>
+  export TDENGINE_CLOUD_URL=<url>
+  export TDENGINE_CLOUD_TOKEN=<token>
 
-  curl -L -d "select * from demo.d1001" $TDENGINE_CLOUD_URL/rest/sql?token=$TDENGINE_CLOUD_TOKEN
+  curl -L -d "select * from power.d1001" $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
 
   Response body:
@@ -276,32 +345,5 @@ Description:
           ]
       ],
       "rows": 2
-  }
-  ```
-
-- Create database demo:
-
-  ```bash
-  curl -L -d "create database demo" $TDENGINE_CLOUD_URL/rest/sql?token=$TDENGINE_CLOUD_TOKEN
-  ```
-
-  Response body:
-
-  ```json
-  {
-      "code": 0,
-      "column_meta": [
-          [
-              "affected_rows",
-              "INT",
-              4
-          ]
-      ],
-      "data": [
-          [
-              0
-          ]
-      ],
-      "rows": 1
   }
   ```

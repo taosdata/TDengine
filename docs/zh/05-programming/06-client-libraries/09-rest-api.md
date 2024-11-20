@@ -25,7 +25,7 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 ```bash
 curl -L \
   -d "select name, ntables, status from information_schema.ins_databases;" \
-  <TDengine Cloud URL>/rest/sql?token=<TDengine Cloud Token>
+  <TDengine Cloud URL>/rest/sql\?token=<TDengine Cloud Token>
 ```
 
 返回值结果如下表示验证通过：
@@ -69,23 +69,23 @@ curl -L \
 ## HTTP 请求格式
 
 ```text
-https://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_TOKEN
+https://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD_TOKEN>
 ```
 
 参数说明：
 
 - TDENGINE_CLOUD_URL: TDengine Cloud 的地址。
 - db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
-- token: 用来访问 TDengine Cloud 。
+- TDENGINE_CLOUD_TOKEN: 用来访问 TDengine Cloud 。
 
-例如：`https://gw.cloud.taosdata.com/rest/sql/test?token=xxxxxxxxx` 是指向地址为 `gw-aws.cloud.tdengine:80` 的 URL，并将默认使用的数据库库名设置为 `test`。
+例如：`https://gw.cloud.taosdata.com/rest/sql/test?token=xxxxxxxxx` 是指向地址为 `gw.cloud.taosdata.com` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
 HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 db_name.tb_name。如果表名不带数据库前缀，又没有在 URL 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
 
 使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
-curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_TOKEN
+curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD_TOKEN>
 ```
 
 ## HTTP 返回格式
@@ -225,12 +225,74 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_
 
 ## 使用示例
 
-- 在 demo 库里查询表 d1001 的所有记录：
+下面以智能电表为例，展示如何使用 REST 连接在名为 power 的数据库中，创建一个名为 meters 的超级表（STABLE），插入并查询数据。meters 表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
+:::note IMPORTANT
+在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
+:::
+
+- 配置 URL 和 Token
   ```bash
-  export TDENGINE_CLOUD_URL=https://gw.cloud.taosdata.com
-  export TDENGINE_CLOUD_TOKEN=<actual token string>
-  curl -L -d "select * from demo.d1001" $TDENGINE_CLOUD_URL/rest/sql?token=$TDENGINE_CLOUD_TOKEN
+  export TDENGINE_CLOUD_URL="<url>"
+  export TDENGINE_CLOUD_TOKEN="<token>"
+  ```
+
+- 创建 meters 超级表
+  ```bash
+  curl -L -d \
+  "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)" \
+  $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
+  ```
+    返回值
+  ```bash
+  {
+    "code": 0,
+    "column_meta": [
+      [
+        "affected_rows",
+        "INT",
+        4
+      ]
+    ],
+    "data": [
+      [
+        0
+      ]
+    ],
+    "rows": 1
+  }
+  ```
+
+
+- 向 meters 中插入数据
+  ```bash
+  curl -L -d \
+  "INSERT INTO power.d1001 USING power.meters TAGS('California.SanFrancisco', 2) VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000)" \
+  $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
+  ```
+  返回值
+  ```bash
+  {
+  "code": 0,
+  "column_meta": [
+    [
+      "affected_rows",
+      "INT",
+      4
+    ]
+  ],
+  "data": [
+    [
+      2
+    ]
+  ],
+  "rows": 1
+  }
+  ```
+
+- 在 power 库里查询表 d1001 的所有记录：
+  ```bash
+  curl -L -d "select * from power.d1001" $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
 
   返回值：
@@ -275,32 +337,5 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_
           ]
       ],
       "rows": 2
-  }
-  ```
-
-- 创建库 demo：
-
-  ```bash
-  curl -L -d "create database demo" $TDENGINE_CLOUD_URL/rest/sql?token=$TDENGINE_CLOUD_TOKEN
-  ```
-
-  返回值：
-
-  ```json
-  {
-      "code": 0,
-      "column_meta": [
-          [
-              "affected_rows",
-              "INT",
-              4
-          ]
-      ],
-      "data": [
-          [
-              0
-          ]
-      ],
-      "rows": 1
   }
   ```
