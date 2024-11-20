@@ -50,7 +50,7 @@ Anode 的服务需要使用 uWSGI 驱动驱动运行，因此 Anode 和 uWSGI �
 [uwsgi]
 
 # Anode RESTful service ip:port
-http = 127.0.0.1:6050
+http = 127.0.0.1:6090
 
 # base directory for Anode python files， do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
@@ -101,7 +101,7 @@ Anode 运行配置主要是以下：
 ```sql 
 CREATE ANODE {node_url}
 ```
-node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`create anode 'http://localhost:6050'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
