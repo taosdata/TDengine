@@ -1474,8 +1474,17 @@ _return:
 }
 
 int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  for (int32_t i = 0; i < inputNum; ++i) {
+    SCL_CHECK_NULL(pInput[i].columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  }
+
   int32_t bufLen = TMAX(MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
   char* pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
@@ -1500,7 +1509,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input));
     varDataSetLen(output, len);
-    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFreeClear(pOutputBuf);
       SCL_ERR_RET(code);
@@ -1509,10 +1518,17 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
   }
   pOutput->numOfRows = pInput->numOfRows;
   taosMemoryFreeClear(pOutputBuf);
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void getAsciiChar(int32_t num, char **output) {
+  if (NULL == output) {
+    return;
+  }
   if (num & 0xFF000000L) {
     INT4TOCHAR(*output, num);
   } else if (num & 0xFF0000L) {
@@ -1572,14 +1588,24 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
 _return:
   taosMemoryFreeClear(outputBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int32_t          type = GET_PARAM_TYPE(pInput);
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
+  SCL_CHECK_NULL(pInput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  SCL_CHECK_NULL(pOutput->columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  for (int32_t i = 0; i < inputNum; ++i) {
+    SCL_CHECK_NULL(pInput[i].columnData, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  }
 
   uint8_t *out = (uint8_t *)pOutputData->pData;
 
@@ -1603,10 +1629,18 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, bool isNchar) {
+  if (NULL == orgStr || NULL == delimStr) {
+    qError("findPosChars get NULL, orgStr : %s, delimStr: %s", orgStr, delimStr);
+    return 0;
+  }
   int32_t charCount = 0;
   for (int32_t pos = 0; pos < orgLen; pos += isNchar ? TSDB_NCHAR_SIZE : 1) {
     if (isNchar || isCharStart(orgStr[pos])) {
