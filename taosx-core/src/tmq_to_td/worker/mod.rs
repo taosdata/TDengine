@@ -227,7 +227,7 @@ impl WriteStrategy {
 
     #[inline]
     pub fn require_blocks(&self) -> bool {
-        !self.is_default() && !self.without_json_meta()
+        matches!(self, WriteStrategy::Raw)
     }
 
     #[inline]
@@ -1112,6 +1112,13 @@ impl Worker {
             let code = *err.code().deref();
             if message.meta.is_none() && message.data.is_none() {
                 tracing::error!("Write raw into target error: {err:#}");
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
+                    tracing::debug!(
+                        error = format!("{err:#}"),
+                        "retry write raw with code {code}"
+                    );
+                });
                 return Err(err).context("Write raw meta into target error");
             }
             if let Some(meta) = &message.meta {

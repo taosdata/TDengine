@@ -1196,7 +1196,7 @@ async fn sync_concurrently(
     tracing::info!("Start consuming");
     let mut per_message_instant = std::time::Instant::now();
 
-    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
     let poll_interval = if options.max_polling_timeout < DEFAULT_POLL_INTERVAL {
         options.max_polling_timeout
     } else {
@@ -1260,7 +1260,9 @@ async fn sync_concurrently(
             if elapsed.as_millis() as u64 >= options.commit_interval_ms {
                 clean_cache!();
                 if let Some(offset) = last_offset.take() {
-                    consumer.commit(offset).await?;
+                    if let Err(err) = consumer.commit(offset).await {
+                        tracing::warn!(?err, "Commit error: {err}");
+                    };
                 }
             }
 
@@ -1282,7 +1284,9 @@ async fn sync_concurrently(
     if chunk_len > 0 {
         clean_cache!();
         if let Some(last_offset) = last_offset {
-            consumer.commit(last_offset).await?;
+            if let Err(err) = consumer.commit(last_offset).await {
+                tracing::warn!(?err, "Commit error: {err}");
+            };
         }
     }
     update_progress(&consumer, metrics).await;
