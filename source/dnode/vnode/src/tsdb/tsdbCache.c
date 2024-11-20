@@ -493,26 +493,6 @@ int tsdbCacheFlushDirty(const void *key, size_t klen, void *value, void *ud) {
   return 0;
 }
 
-static int32_t tsdbCacheQueryReseek(void *pQHandle) {
-  int32_t           code = 0;
-  SCacheRowsReader *pReader = pQHandle;
-
-  code = taosThreadMutexTryLock(&pReader->readerMutex);
-  if (code == 0) {
-    // pause current reader's state if not paused, save ts & version for resuming
-    // just wait for the big all tables' snapshot untaking for now
-
-    code = TSDB_CODE_VND_QUERY_BUSY;
-    (void)taosThreadMutexUnlock(&pReader->readerMutex);
-
-    return code;
-  } else if (code == EBUSY) {
-    return TSDB_CODE_VND_QUERY_BUSY;
-  } else {
-    return -1;
-  }
-}
-
 static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
   bool deleted = false;
   while (*iSkyline > 0) {
@@ -545,71 +525,73 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
 }
 
 // Get next non-deleted row from imem
-static int32_t tsdbImemGetNextRow(SMemTable *imem, TABLEID tid, STbDataIter *pTbIter, TSDBROW **ppRow, SArray *pSkyline,
-                                  int64_t iSkyline) {
+static TSDBROW *tsdbImemGetNextRow(STbDataIter *pTbIter, SArray *pSkyline, int64_t *piSkyline) {
   int32_t code = 0;
-  int32_t lino = 0;
-  STsdb  *pTsdb = imem->pTsdb;
 
-  // tsdbTbDataIterOpen(pIMem, NULL, 1, pTbIter);
-  TSDBROW *pMemRow = tsdbTbDataIterGet(pTbIter);
-  if (pMemRow) {
-    // if non deleted, return the found row.
-    TSDBKEY rowKey = TSDBROW_KEY(pMemRow);
-    bool    deleted = tsdbKeyDeleted(&rowKey, pSkyline, &iSkyline);
+  if (tsdbTbDataIterNext(pTbIter)) {
+    TSDBROW *pMemRow = tsdbTbDataIterGet(pTbIter);
+    TSDBKEY  rowKey = TSDBROW_KEY(pMemRow);
+    bool     deleted = tsdbKeyDeleted(&rowKey, pSkyline, piSkyline);
     if (!deleted) {
-      *ppRow = pMemRow;
-      TAOS_RETURN(code);
+      return pMemRow;
     }
-  } else {
-    TAOS_RETURN(code);
   }
 
-  // continue to find the non-deleted first row from imem
-  TAOS_CHECK_GOTO(tsdbImemGetNextRow(imem, tid, pTbIter, ppRow, pSkyline, iSkyline), &lino, _exit);
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
-  } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
-  }
-
-  TAOS_RETURN(code);
+  return NULL;
 }
 
 // Get first non-deleted row from imem
-static int32_t tsdbImemGetFirstRow(SMemTable *imem, STbData *pIMem, TABLEID tid, STbDataIter *pTbIter, TSDBROW **ppRow,
-                                   SArray *pSkyline, int64_t iSkyline) {
+static TSDBROW *tsdbImemGetFirstRow(SMemTable *imem, STbData *pIMem, TABLEID tid, STbDataIter *pTbIter,
+                                    SArray *pSkyline, int64_t *piSkyline) {
   int32_t code = 0;
-  int32_t lino = 0;
-  STsdb  *pTsdb = imem->pTsdb;
 
   tsdbTbDataIterOpen(pIMem, NULL, 1, pTbIter);
   TSDBROW *pMemRow = tsdbTbDataIterGet(pTbIter);
   if (pMemRow) {
     // if non deleted, return the found row.
     TSDBKEY rowKey = TSDBROW_KEY(pMemRow);
-    bool    deleted = tsdbKeyDeleted(&rowKey, pSkyline, &iSkyline);
+    bool    deleted = tsdbKeyDeleted(&rowKey, pSkyline, piSkyline);
     if (!deleted) {
-      *ppRow = pMemRow;
-      TAOS_RETURN(code);
+      return pMemRow;
     }
   } else {
-    TAOS_RETURN(code);
+    return NULL;
   }
 
   // continue to find the non-deleted first row from imem, using get next row
-  TAOS_CHECK_GOTO(tsdbImemGetNextRow(imem, tid, pTbIter, ppRow, pSkyline, iSkyline), &lino, _exit);
+  return tsdbImemGetNextRow(pTbIter, pSkyline, piSkyline);
+}
 
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
-  } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+void tsdbCacheInvalidateSchema(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
+  SRocksCache *pRCache = &pTsdb->rCache;
+  if (!pRCache->pTSchema || sver <= pTsdb->rCache.sver) return;
+
+  if (suid > 0 && suid == pRCache->suid) {
+    pRCache->sver = -1;
+    pRCache->suid = -1;
+  }
+  if (suid == 0 && uid == pRCache->uid) {
+    pRCache->sver = -1;
+    pRCache->uid = -1;
+  }
+}
+
+static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
+  SRocksCache *pRCache = &pTsdb->rCache;
+  if (pRCache->pTSchema && sver == pRCache->sver) {
+    if (suid > 0 && suid == pRCache->suid) {
+      return 0;
+    }
+    if (suid == 0 && uid == pRCache->uid) {
+      return 0;
+    }
   }
 
-  TAOS_RETURN(code);
+  pRCache->suid = suid;
+  pRCache->uid = uid;
+  pRCache->sver = sver;
+  tDestroyTSchema(pRCache->pTSchema);
+  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pRCache->pTSchema);
 }
 
 static int32_t tsdbLoadFromImem(SMemTable *imem, TABLEID tid, SArray *ctxArray) {
@@ -620,8 +602,12 @@ static int32_t tsdbLoadFromImem(SMemTable *imem, TABLEID tid, SArray *ctxArray) 
   SArray     *pTombData = NULL;
   SArray     *pSkyline = NULL;
   int64_t     iSkyline = 0;
-  STbDataIter iter = {0};
+  STbDataIter tbIter = {0};
   TSDBROW    *pMemRow = NULL;
+  STSchema   *pTSchema = NULL;
+  SSHashObj  *iColHash = NULL;
+  int32_t     sver;
+  int32_t     nCol;
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, tid.suid, tid.uid);
 
@@ -635,16 +621,99 @@ static int32_t tsdbLoadFromImem(SMemTable *imem, TABLEID tid, SArray *ctxArray) 
     iSkyline = taosArrayGetSize(pSkyline) - 1;
   }
 
-  TAOS_CHECK_GOTO(tsdbImemGetFirstRow(imem, pIMem, tid, &iter, &pMemRow, pSkyline, iSkyline), &lino, _exit);
+  pMemRow = tsdbImemGetFirstRow(imem, pIMem, tid, &tbIter, pSkyline, &iSkyline);
+  if (!pMemRow) {
+    goto _exit;
+  }
 
   // iter first row to last_row/last col values to ctxArray, and mark last null col ids
+  sver = TSDBROW_SVERSION(pMemRow);
+  TAOS_CHECK_GOTO(tsdbUpdateSkm(pTsdb, tid.suid, tid.uid, sver), &lino, _exit);
+  pTSchema = pTsdb->rCache.pTSchema;
+  nCol = pTSchema->numOfCols;
+
+  STsdbRowKey tsdbRowKey = {0};
+  tsdbRowGetKey(pMemRow, &tsdbRowKey);
+
+  STSDBRowIter iter = {0};
+  TAOS_CHECK_GOTO(tsdbRowIterOpen(&iter, pMemRow, pTSchema), &lino, _exit);
+
+  int32_t iCol = 0;
+  for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal && iCol < nCol; pColVal = tsdbRowIterNext(&iter), iCol++) {
+    SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST_ROW, .tsdbRowKey = tsdbRowKey, .colVal = *pColVal};
+    if (!taosArrayPush(ctxArray, &updateCtx)) {
+      tsdbRowClose(&iter);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+
+    if (COL_VAL_IS_VALUE(pColVal)) {
+      updateCtx.lflag = LFLAG_LAST;
+      if (!taosArrayPush(ctxArray, &updateCtx)) {
+        tsdbRowClose(&iter);
+        TAOS_CHECK_GOTO(terrno, &lino, _exit);
+      }
+    } else {
+      if (!iColHash) {
+        iColHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+        if (iColHash == NULL) {
+          tsdbRowClose(&iter);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        }
+      }
+
+      if (tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0)) {
+        tsdbRowClose(&iter);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      }
+    }
+  }
+  tsdbRowClose(&iter);
+
   // continue to get next row to fill null last col values
+  pMemRow = tsdbImemGetNextRow(&tbIter, pSkyline, &iSkyline);
+  while (pMemRow) {
+    if (tSimpleHashGetSize(iColHash) == 0) {
+      break;
+    }
+
+    STsdbRowKey tsdbRowKey = {0};
+    tsdbRowGetKey(pMemRow, &tsdbRowKey);
+
+    void   *pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(iColHash, pIte, &iter)) != NULL) {
+      int32_t iCol = ((int32_t *)pIte)[0];
+      SColVal colVal = COL_VAL_NONE(0, 0);
+      tsdbRowGetColVal(pMemRow, pTSchema, iCol, &colVal);
+
+      if (COL_VAL_IS_VALUE(&colVal)) {
+        SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST, .tsdbRowKey = tsdbRowKey, .colVal = colVal};
+        if (!taosArrayPush(ctxArray, &updateCtx)) {
+          TAOS_CHECK_GOTO(terrno, &lino, _exit);
+        }
+        code = tSimpleHashIterateRemove(iColHash, &iCol, sizeof(iCol), &pIte, &iter);
+        if (code != TSDB_CODE_SUCCESS) {
+          tsdbTrace("vgId:%d, %s tSimpleHashIterateRemove failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                    __LINE__, tstrerror(code));
+        }
+      }
+    }
+
+    pMemRow = tsdbImemGetNextRow(&tbIter, pSkyline, &iSkyline);
+  }
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
-  } else {
-    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+  }
+
+  // destroy any allocated resource
+  tSimpleHashCleanup(iColHash);
+  if (pMemDelData) {
+    taosArrayDestroy(pMemDelData);
+  }
+  if (pSkyline) {
+    taosArrayDestroy(pSkyline);
   }
 
   TAOS_RETURN(code);
@@ -685,13 +754,9 @@ static int32_t tsdbCacheUpdateFromIMem(STsdb *pTsdb) {
     TABLEID tid = ((TABLEID *)TARRAY_DATA(aUid))[i];
 
     TAOS_CHECK_GOTO(tsdbLoadFromImem(imem, tid, ctxArray), &lino, _exit);
-  }
-
-  // 3, update cols into lru
-  for (int32_t i = 0; i < TARRAY_SIZE(aUid); ++i) {
-    TABLEID tid = ((TABLEID *)TARRAY_DATA(aUid))[i];
 
     TAOS_CHECK_GOTO(tsdbCacheUpdate(pTsdb, tid.suid, tid.uid, ctxArray), &lino, _exit);
+    taosArrayClear(ctxArray);
   }
 
 _exit:
@@ -714,11 +779,13 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
   // flush dirty data of lru into rocks with
   // 4, and update when writing if !updateCacheBatch
 
-  code = tsdbCacheUpdateFromIMem(pTsdb);
-  if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+  if (tsUpdateCacheBatch) {
+    code = tsdbCacheUpdateFromIMem(pTsdb);
+    if (code) {
+      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
 
-    TAOS_RETURN(code);
+      TAOS_RETURN(code);
+    }
   }
 
   char                 *err = NULL;
@@ -1525,38 +1592,6 @@ _exit:
   }
 
   TAOS_RETURN(code);
-}
-
-void tsdbCacheInvalidateSchema(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
-  SRocksCache *pRCache = &pTsdb->rCache;
-  if (!pRCache->pTSchema || sver <= pTsdb->rCache.sver) return;
-
-  if (suid > 0 && suid == pRCache->suid) {
-    pRCache->sver = -1;
-    pRCache->suid = -1;
-  }
-  if (suid == 0 && uid == pRCache->uid) {
-    pRCache->sver = -1;
-    pRCache->uid = -1;
-  }
-}
-
-static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver) {
-  SRocksCache *pRCache = &pTsdb->rCache;
-  if (pRCache->pTSchema && sver == pRCache->sver) {
-    if (suid > 0 && suid == pRCache->suid) {
-      return 0;
-    }
-    if (suid == 0 && uid == pRCache->uid) {
-      return 0;
-    }
-  }
-
-  pRCache->suid = suid;
-  pRCache->uid = uid;
-  pRCache->sver = sver;
-  tDestroyTSchema(pRCache->pTSchema);
-  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pRCache->pTSchema);
 }
 
 int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,

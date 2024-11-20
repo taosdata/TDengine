@@ -154,7 +154,7 @@ extern bool     tsEnableCrashReport;
 extern char    *tsTelemUri;
 extern char    *tsClientCrashReportUri;
 extern char    *tsSvrCrashReportUri;
-extern int8_t  tsSafetyCheckLevel;
+extern int8_t   tsSafetyCheckLevel;
 enum {
   TSDB_SAFETY_CHECK_LEVELL_NEVER = 0,
   TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
@@ -258,7 +258,7 @@ extern int32_t tsS3MigrateIntervalSec;
 extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
-
+extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int     tsStreamAggCnt;
