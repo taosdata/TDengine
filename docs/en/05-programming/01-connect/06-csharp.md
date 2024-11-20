@@ -39,6 +39,40 @@ Add following ItemGroup and Task to your project file.
 dotnet add package TDengine.Connector
 ```
 
+## Config
+
+Run this command in your terminal to save TDengine cloud endpoint and token as variable:
+
+<Tabs defaultValue="bash">
+<TabItem value="bash" label="Bash">
+
+```bash
+export CLOUD_ENDPOINT="<cloud_endpoint>"
+export CLOUD_TOKEN="<cloud_token>"
+```
+
+</TabItem>
+<TabItem value="cmd" label="CMD">
+
+```bash
+set CLOUD_ENDPOINT=<cloud_endpoint>
+set CLOUD_TOKEN=<cloud_token>
+```
+
+</TabItem>
+<TabItem value="powershell" label="Powershell">
+
+```powershell
+$env:CLOUD_ENDPOINT='<cloud_endpoint>'
+$env:CLOUD_TOKEN='<cloud_token>'
+```
+<!-- exclude -->
+:::note IMPORTANT
+Replace &lt;cloud_endpoint&gt; and &lt;cloud_token&gt; from the real TDengine cloud DSN like `taos://cloud_endpoint:6041?token=cloud_token`. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
+
+:::
+<!-- exclude-end -->
+
 ## Connect
 
 ``` XML
@@ -48,12 +82,6 @@ dotnet add package TDengine.Connector
 ```C#
 {{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
 ```
-<!-- exclude -->
-:::note IMPORTANT
-Replace `<cloud_endpoint>` and `<cloud_token>` from the real TDengine cloud DSN like `taos://cloud_endpoint:6041?token=cloud_token`. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
-
-:::
-<!-- exclude-end -->
 
 The client connection is then established. For how to write data and query data, please refer to [Insert](https://docs.tdengine.com/cloud/programming/insert/) and [Query](https://docs.tdengine.com/cloud/programming/query/).
 

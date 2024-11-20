@@ -9,8 +9,11 @@ namespace Cloud.Examples
     {
         static void Main(string[] args)
         {
-          // Connect to TDengine server using WebSocket
-          var builder = new ConnectionStringBuilder("protocol=WebSocket;host=<cloud_endpoint>;port=443;useSSL=true;token=<cloud_token>;");
+           var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
+           var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+           var connectionString = $"protocol=WebSocket;host={cloudEndPoint};port=443;useSSL=true;token={cloudToken};";
+           // Connect to TDengine server using WebSocket
+           var builder = new ConnectionStringBuilder(connectionString);
           try
           {
              // Open connection with using block, it will close the connection automatically

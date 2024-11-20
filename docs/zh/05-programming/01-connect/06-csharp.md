@@ -38,6 +38,43 @@ vim example.csproj
 ```bash
 dotnet add package TDengine.Connector
 ```
+## 配置
+
+在您的终端里面执行下面的命令设置 TDengine Cloud 的网关地址和令牌为环境变量。
+
+<Tabs defaultValue="bash">
+<TabItem value="bash" label="Bash">
+
+```bash
+export CLOUD_ENDPOINT="<cloud_endpoint>"
+export CLOUD_TOKEN="<cloud_token>"
+```
+
+</TabItem>
+<TabItem value="cmd" label="CMD">
+
+```shell
+set CLOUD_ENDPOINT=<cloud_endpoint>
+set CLOUD_TOKEN=<cloud_token>
+```
+
+</TabItem>
+<TabItem value="powershell" label="Powershell">
+
+```powershell
+$env:CLOUD_ENDPOINT='<cloud_endpoint>'
+$env:CLOUD_TOKEN='<cloud_token>'
+```
+
+</TabItem>
+</Tabs>
+
+<!-- exclude -->
+
+:::note IMPORTANT
+替换 `<CLOUD_ENDPOINT>` 和 `<CLOUD_TOKEN>` 为 TDengine Cloud 的网关地址和令牌。
+获取 TDengine Cloud 的网关地址和令牌，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。
+:::
 
 ## 建立连接
 
@@ -48,12 +85,7 @@ dotnet add package TDengine.Connector
 ```C#
 {{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
 ```
-:::note IMPORTANT
-替换代码中的 `<cloud_endpoint>` 和 `<token>`， 这两个值可以从 TDengine Cloud 中的实例 `DSN` 获取。
 
-`DSN` 的格式为 `https(<cloud_endpoint>)/?token=<token>`，获取真实 `DSN` 请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。
-:::
-<!-- exclude-end -->
 客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 [写入](https://docs.taosdata.com/cloud/programming/insert/) 和 [查询](https://docs.taosdata.com/cloud/programming/query/)。
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/)。
