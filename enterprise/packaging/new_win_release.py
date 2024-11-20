@@ -128,17 +128,27 @@ def set_release_path():
 
 def industry_options():
     TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
-    if industry_name == "Power" and td_version.verType == "industry":
-        options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-            "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
-            "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
-            "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
-            "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
-            "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
-            "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
-            "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+    if td_version.verType == "industry":
+        if industry_name == "Power":
+            options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
+                "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
+                "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
+                "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
+                "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+        elif industry_name == "Powerfull":
+            option =  (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=true -DTD_FUNC_AUDIT=true -DTD_FUNC_CSV=true -DTD_FUNC_VIEW=true "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_OBJECT_STORAGE=true "
+                "-DTD_FUNC_ACTIVE_ACTIVE=true -DTD_FUNC_DUAL_REPLICA_HA=true -DTD_FUNC_DB_ENCRYPTION=true "
+                "-DTD_DATAIN_OPC_DA=true -DTD_DATAIN_OPC_UA=true -DTD_DATAIN_PI=true -DTD_DATAIN_KAFKA=true "
+                "-DTD_DATAIN_INFLUXDB=true -DTD_DATAIN_MQTT=true -DTD_DATAIN_AVEVAHISTORIAN=true "
+                "-DTD_DATAIN_OPENTSDB=true -DTD_DATAIN_TDENGINE_2_6=true -DTD_DATAIN_TDENGINE_3_0=true "
+                "-DTD_DATAIN_MYSQL=true -DTD_DATAIN_POSTGRES=true -DTD_DATAIN_ORACLE=true -DTD_DATAIN_MONGODB=true")
+                
     return options
-    
 def parse_arguments():
     global tdCustomer, td_version, install_info, test_process, script_dir, upload, check_commit, industry_name, only_client
     
@@ -155,7 +165,7 @@ def parse_arguments():
     parser.add_argument('-I', '--industry-name', type=str, help='Set industry name', default="Power")
     parser.add_argument('-u', '--upload', action="store_false", help='upload package to nas server', default=False)
     parser.add_argument('-c', '--check_commit', action="store_false", help='check commit id', default=False)
-    parser.add_argument('-t', '--only_client', action="store_true", help='only genreate windows client', default=False)
+    parser.add_argument('-oc', '--only_client', action="store_true", help='only genreate windows client', default=False)
 
     version_pattern=re.compile('^[0-9]+\\.([0-9]+\\.){1,3}[0-9]+$')
     args = parser.parse_args()
