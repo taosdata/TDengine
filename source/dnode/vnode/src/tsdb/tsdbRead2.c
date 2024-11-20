@@ -4812,7 +4812,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
   pBlockData = &pReader->status.fileBlockData;
   asc = ASCENDING_TRAVERSE(pReader->info.order);
   pVerRange = &pReader->info.verRange;
-  ASCENDING_TRAVERSE(pReader->info.order) ? 1 : -1;
+  step = ASCENDING_TRAVERSE(pReader->info.order) ? 1 : -1;
 
   *state = CHECK_FILEBLOCK_QUIT;
   code = loadNeighborIfOverlap(pFBlock, pScanInfo, pReader, &loadNeighbor);
@@ -6169,7 +6169,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
         TSDB_CHECK_CODE(code, lino, _end);
       }
 
-      goto _end;
+      return code;
     }
   }
 
