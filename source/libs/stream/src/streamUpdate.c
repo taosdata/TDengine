@@ -445,6 +445,7 @@ int32_t updateInfoSerialize(SEncoder* pEncoder, const SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (!pInfo) {
+    tEncodeI32(pEncoder, -1);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -550,6 +551,10 @@ int32_t updateInfoDeserialize(SDecoder* pDeCoder, SUpdateInfo* pInfo) {
   
   int32_t size = 0;
   if (tDecodeI32(pDeCoder, &size) < 0) return -1;
+
+  if (size < 0) {
+    return -1;
+  }
   pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
   QUERY_CHECK_NULL(pInfo->pTsBuckets, code, lino, _error, terrno);
 

@@ -3410,6 +3410,8 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* 
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
+
   *pLen = len;
 
 _end:
@@ -3475,21 +3477,19 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
-  if (pInfo->pUpdateInfo != NULL) {
-    void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-    if (!pUpInfo) {
-      lino = __LINE__;
-      goto _end;
-    }
-    code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
-    if (code == TSDB_CODE_SUCCESS) {
-      pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
-      pInfo->pUpdateInfo = pUpInfo;
-    } else {
-      taosMemoryFree(pUpInfo);
-      lino = __LINE__;
-      goto _end;
-    }
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+  if (!pUpInfo) {
+    lino = __LINE__;
+    goto _end;
+  }
+  code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
+  if (code == TSDB_CODE_SUCCESS) {
+    pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
+    pInfo->pUpdateInfo = pUpInfo;
+  } else {
+    taosMemoryFree(pUpInfo);
+    lino = __LINE__;
+    goto _end;
   }
 
   if (tDecodeIsEnd(pDeCoder)) {
@@ -3509,6 +3509,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     lino = __LINE__;
     goto _end;
   }
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
 
 _end:
   if (pDeCoder != NULL) {
