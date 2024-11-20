@@ -110,28 +110,26 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 
   int32_t j = 0;
   int32_t numOfVgroups = taosArrayGetSize(vgroupIds);
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
+  if (numOfVgroups > 0) {
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
-    if (numOfVgroups > 0) {
-      int32_t iVgroup = 0;
-      for (; iVgroup < numOfVgroups; iVgroup++) {
-        int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, iVgroup);
-        if (vgId == pVgroup->vgId) {
-          break;
-        }
-      }
-      if (iVgroup == numOfVgroups) {
+      if (pVgroup == NULL) {
+        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
+      } else if (pVgroup->dbUid != pDb->uid) {
+        mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);
         sdbRelease(pSdb, pVgroup);
-        continue;
+        TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       }
     }
 
-    if (pVgroup->dbUid == pDb->uid) {
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
       if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw)) != 0) {
-        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(code);
       }
@@ -139,18 +137,40 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       for (int32_t i = 0; i < pVgroup->replica; i++) {
         SVnodeGid *gid = &pVgroup->vnodeGid[i];
         if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
-          sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
         }
         j++;
       }
+      sdbRelease(pSdb, pVgroup);
     }
+  } else {
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
 
-    sdbRelease(pSdb, pVgroup);
+      if (pVgroup->dbUid == pDb->uid) {
+        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+
+        for (int32_t i = 0; i < pVgroup->replica; i++) {
+          SVnodeGid *gid = &pVgroup->vnodeGid[i];
+          if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            TAOS_RETURN(code);
+          }
+          j++;
+        }
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
   }
-
-  // tFreeCompactObj(&compact);
 
   TAOS_RETURN(code);
 }
