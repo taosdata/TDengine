@@ -193,7 +193,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_DROPPING,             "Object is dropping")
 // mnode-dnode-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      "Dnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          "Dnode does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist or not in db")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_LEADER,         "Cannot drop mnode which is leader")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         "Out of dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_CFG,      "Cluster cfg inconsistent")
