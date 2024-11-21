@@ -4,7 +4,7 @@ go 1.20
 
 replace github.com/go-ole/go-ole => github.com/go-ole/go-ole v1.3.1-0.20231030194427-12e70eba63a1
 
-replace github.com/konimarti/opc => github.com/taosdata/opc v0.0.0-20241108093602-6c32e7673d33
+replace github.com/konimarti/opc => github.com/taosdata/opc v0.0.0-20241121111727-bdf55be2cd2d
 
 replace github.com/gopcua/opcua => github.com/taosdata/opcua v0.0.0-20240618072856-863889ec3946
 
