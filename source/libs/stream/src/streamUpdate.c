@@ -449,6 +449,7 @@ int32_t updateInfoSerialize(SEncoder* pEncoder, const SUpdateInfo* pInfo) {
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+    uDebug("%s line:%d. it did not have updateinfo", __func__, __LINE__);
     return TSDB_CODE_SUCCESS;
   }
 

@@ -3486,10 +3486,11 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
     pInfo->pUpdateInfo = pUpInfo;
+    qDebug("%s line:%d. stream scan updateinfo deserialize success", __func__, __LINE__);
   } else {
     taosMemoryFree(pUpInfo);
-    lino = __LINE__;
-    goto _end;
+    code = TSDB_CODE_SUCCESS;
+    qDebug("%s line:%d. stream scan did not have updateinfo", __func__, __LINE__);
   }
 
   if (tDecodeIsEnd(pDeCoder)) {
