@@ -359,6 +359,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
+        QUERY_CHECK_CONDITION((slotId < pBlock->pDataBlock->size), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
