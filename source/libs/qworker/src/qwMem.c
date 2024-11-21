@@ -78,11 +78,12 @@ int32_t qwInitJobHash(void) {
 void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
   char id[sizeof(tId) + sizeof(eId) + 1] = {0};
   QW_SET_TEID(id, tId, eId);
-  int32_t remainSessions = atomic_sub_fetch_32(&pJobInfo->memInfo->remainSession, 1);
 
   (void)taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
 
   taosMemPoolDestroySession(gMemPoolHandle, session);
+
+  int32_t remainSessions = atomic_sub_fetch_32(&pJobInfo->memInfo->remainSession, 1);
 
   if (0 == remainSessions) {
     QW_LOCK(QW_WRITE, &pJobInfo->lock);
