@@ -301,8 +301,13 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId)
 
   if (rows < 0) {
     char pMsg[1024] = {0};
-    tjsonGetStringValue(pJson, "msg", pMsg);
-    qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    code = tjsonGetStringValue(pJson, "msg", pMsg);
+    if (code) {
+      qError("%s failed to get error msg from rsp, unknown error", pId);
+    } else {
+      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    }
+
     return TSDB_CODE_ANA_WN_DATA;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;

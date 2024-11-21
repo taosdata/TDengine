@@ -210,8 +210,12 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
     char pMsg[1024] = {0};
-    tjsonGetStringValue(pJson, "msg", pMsg);
-    qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    code = tjsonGetStringValue(pJson, "msg", pMsg);
+    if (code != 0) {
+      qError("%s failed to get msg from rsp, unknown error", pId);
+    } else {
+      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    }
 
     tjsonDelete(pJson);
     return TSDB_CODE_ANA_WN_DATA;
