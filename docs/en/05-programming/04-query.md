@@ -233,7 +233,7 @@ Get column meta from the result:
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:meta:nrc}}
 ```
 
-Get all rows and print each row:
+Get first 5 rows and print each row:
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:iter}}

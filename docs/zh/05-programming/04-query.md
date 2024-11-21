@@ -230,7 +230,7 @@ Query OK, 6 rows in database (0.005515s)
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:meta:nrc}}
 ```
 
-获取所以的行数据并打印每一行数据：
+获取前5行数据并输出每一行数据：
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:iter}}

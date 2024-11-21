@@ -60,19 +60,21 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note IMPORTANT
-Replace  &lt;DSN&gt; with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Rust".
+Replace  &lt;DSN&gt; with value of the TDengine Cloud instance you wish to access, which should be in the format `wss://<cloud_endpoint>?token=<token>`. 
+
+To obtain the real dsn value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Rust".
 
 :::
 <!-- exclude-end -->
 
 ## Connect
 
-Copy following code to `main.rs`.
+Copy following code to `main.rs`.Then you can execute `cargo run` to test the connection. 
 
 ```rust title="main.rs"
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
 ```
 
-Then you can execute `cargo run` to test the connection. For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Tools](https://docs.tdengine.com/cloud/tools/).
+For how to write data and query data, please refer to [Insert](https://docs.tdengine.com/cloud/programming/insert/) and [Query](https://docs.tdengine.com/cloud/programming/query/).
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connect/rest-api/).
