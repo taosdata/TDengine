@@ -138,11 +138,10 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
 
   pEnd = strstr(pStart, ANAL_ALGO_SPLIT);
   if (optMaxLen > 0) {
-    int32_t copyLen = 0;
     if (pEnd > pStart) {
-      copyLen = (int32_t)(pEnd - pStart);
-      copyLen = MIN(copyLen + 1, TSDB_ANALYTIC_ALGO_OPTION_LEN);
-      tstrncpy(buf, pStart, copyLen);
+      int32_t len = (int32_t)(pEnd - pStart);
+      len = MIN(len + 1, TSDB_ANALYTIC_ALGO_OPTION_LEN);
+      tstrncpy(buf, pStart, len);
     } else {
       int32_t len = MIN(tListLen(buf), strlen(pStart) + 1);
       tstrncpy(buf, pStart, len);
@@ -155,7 +154,7 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
       pRight += 1;
     }
 
-    strtrim(pRight);
+    int32_t unused = strtrim(pRight);
 
     int32_t vLen = MIN(optMaxLen, strlen(pRight) + 1);
     tstrncpy(optValue, pRight, vLen);
