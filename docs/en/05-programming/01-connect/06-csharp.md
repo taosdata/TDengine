@@ -66,6 +66,10 @@ set TDENGINE_CLOUD_TOKEN=<cloud_token>
 $env:TDENGINE_CLOUD_ENDPOINT='<cloud_endpoint>'
 $env:TDENGINE_CLOUD_TOKEN='<cloud_token>'
 ```
+
+</TabItem>
+</Tab>
+
 <!-- exclude -->
 :::note IMPORTANT
 Replace &lt;cloud_endpoint&gt; and &lt;cloud_token&gt; from the real TDengine cloud DSN like `https://cloud_endpoint?token=cloud_token`. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
