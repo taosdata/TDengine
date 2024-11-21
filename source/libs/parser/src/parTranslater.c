@@ -3311,11 +3311,11 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     resultType = gDisplyTypes[type2][type1];
   }
-  
+
   if (resultType == -1) {
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-  
+
   if (commonType->type == newType->type) {
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
@@ -3328,9 +3328,9 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
-  
+
   commonType->type = resultType;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13127,7 +13127,7 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
 }
 
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 3;
+  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS; // SHOW_VARIABLES_RESULT_COLS
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
@@ -13138,12 +13138,16 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   strcpy((*pSchema)[0].name, "name");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
+  (*pSchema)[1].bytes = TSDB_CONFIG_PATH_LEN;
   strcpy((*pSchema)[1].name, "value");
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[2].bytes = TSDB_CONFIG_SCOPE_LEN;
   strcpy((*pSchema)[2].name, "scope");
+
+  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[3].bytes = TSDB_CONFIG_INFO_LEN;
+  strcpy((*pSchema)[3].name, "info");
 
   return TSDB_CODE_SUCCESS;
 }

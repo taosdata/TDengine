@@ -324,7 +324,11 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
           SMetaEntry me = {0};
           tDecoderInit(&dc, value, valueSize);
           if (metaDecodeEntry(&dc, &me) == 0) {
-            if (metaHandleEntry(pNewMeta, &me) != 0) {
+            if (me.type == TSDB_CHILD_TABLE &&
+                tdbTbGet(pMeta->pUidIdx, &me.ctbEntry.suid, sizeof(me.ctbEntry.suid), NULL, NULL) != 0) {
+              metaError("vgId:%d failed to get super table uid:%" PRId64 " for child table uid:%" PRId64,
+                        TD_VID(pVnode), me.ctbEntry.suid, uid);
+            } else if (metaHandleEntry(pNewMeta, &me) != 0) {
               metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
             }
           }
