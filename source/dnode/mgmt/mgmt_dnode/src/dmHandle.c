@@ -304,7 +304,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
       if (configRsp.forceReadConfig) {
         if (configRsp.isConifgVerified) {
-          persistGlobalConfig(getGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+          persistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
@@ -330,7 +330,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
 
   req.cver = tsdmConfigVersion;
   req.forceReadConfig = tsForceReadConfig;
-  req.array = getGlobalCfg(tsCfg);
+  req.array = taosGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
   int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);
@@ -446,9 +446,9 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
-  SConfig *pCfg = taosGetCfg();
-
-  code = cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
+  SConfig     *pCfg = taosGetCfg();
+  SConfigItem *pItem = NULL;
+  code = cfgGetAndSetItem(pCfg, pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
   if (code != 0) {
     if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
       code = 0;
@@ -456,8 +456,17 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return code;
     }
   }
+  TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+  if (cfgReq.version > 0) {
+    tsdmConfigVersion = cfgReq.version;
+  }
+  if (pItem->category == CFG_CATEGORY_GLOBAL) {
+    persistGlobalConfig(taosGetGlobalCfg(pCfg), pMgmt->path, tsdmConfigVersion);
+  } else {
+    persistLocalConfig(pMgmt->path);
+  }
 
-  return taosCfgDynamicOptions(pCfg, cfgReq.config, true);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

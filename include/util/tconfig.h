@@ -118,6 +118,8 @@ void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
+int32_t      cfgGetAndSetItem(SConfig *pCfg, SConfigItem *pItem, const char *name, const char *value, ECfgSrcType stype,
+                              bool lock);
 int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
 
 int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
@@ -148,11 +150,11 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl);
-SArray *getLocalCfg(SConfig *pCfg);
-SArray *getGlobalCfg(SConfig *pCfg);
+SArray *taosGetLocalCfg(SConfig *pCfg);
+SArray *taosGetGlobalCfg(SConfig *pCfg);
 
-void setLocalCfg(SConfig *pCfg, SArray *pArray);
-void setGlobalCfg(SConfig *pCfg, SArray *pArray);
+void taosSetLocalCfg(SConfig *pCfg, SArray *pArray);
+void taosSetGlobalCfg(SConfig *pCfg, SArray *pArray);
 #ifdef __cplusplus
 }
 #endif

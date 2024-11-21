@@ -3243,6 +3243,7 @@ int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->version));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->config));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->value));
   tEndEncode(&encoder);
@@ -3264,6 +3265,7 @@ int32_t tDeserializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->version));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->config));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->value));
   tEndDecode(&decoder);

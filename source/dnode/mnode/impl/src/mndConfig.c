@@ -214,18 +214,18 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   configRsp.cver = tsmmConfigVersion;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(getGlobalCfg(tsCfg), configReq.array, diffArray)) {
+    if (compareSConfigItemArrays(taosGetGlobalCfg(tsCfg), configReq.array, diffArray)) {
       configRsp.array = diffArray;
     } else {
       configRsp.isConifgVerified = 1;
       taosArrayDestroy(diffArray);
     }
   } else {
-    configRsp.array = getGlobalCfg(tsCfg);
+    configRsp.array = taosGetGlobalCfg(tsCfg);
     if (configReq.cver == tsmmConfigVersion) {
       configRsp.isVersionVerified = 1;
     } else {
-      configRsp.array = getGlobalCfg(tsCfg);
+      configRsp.array = taosGetGlobalCfg(tsCfg);
     }
   }
 
@@ -261,10 +261,10 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   if ((code = mndSetCreateConfigCommitLogs(pTrans, &obj)) != 0) {
     mError("failed to init mnd config version, since %s", terrstr());
   }
-  sz = taosArrayGetSize(getGlobalCfg(tsCfg));
+  sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
 
   for (int i = 0; i < sz; ++i) {
-    SConfigItem *item = taosArrayGet(getGlobalCfg(tsCfg), i);
+    SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
     SConfigObj  *obj = mndInitConfigObj(item);
     if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
       mError("failed to init mnd config:%s, since %s", item->name, terrstr());
@@ -296,9 +296,9 @@ int32_t mndInitReadCfg(SMnode *pMnode) {
     sdbRelease(pMnode->pSdb, obj);
   }
 
-  sz = taosArrayGetSize(getGlobalCfg(tsCfg));
+  sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
   for (int i = 0; i < sz; ++i) {
-    SConfigItem *item = taosArrayGet(getGlobalCfg(tsCfg), i);
+    SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
     SConfigObj  *newObj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
     if (newObj == NULL) {
       mInfo("failed to acquire mnd config:%s, since %s", item->name, terrstr());
@@ -481,7 +481,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true), &lino, _err_out);
   }
-  mndConfigUpdateTrans(pMnode, cfgReq.config, cfgReq.value);
+  // update config in sdb
+  TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, cfgReq.config, cfgReq.value), &lino, _err_out);
   {  // audit
     char obj[50] = {0};
     (void)sprintf(obj, "%d", cfgReq.dnodeId);
@@ -491,6 +492,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
+  dcfgReq.version = tsmmConfigVersion;
   code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
 
   // dont care suss or succ;

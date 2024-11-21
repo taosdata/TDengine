@@ -1969,10 +1969,10 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
   char    filename[CONFIG_FILE_LEN] = {0};
   SArray *array = NULL;
   if (isGlobal) {
-    array = getGlobalCfg(tsCfg);
+    array = taosGetGlobalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP);
   } else {
-    array = getLocalCfg(tsCfg);
+    array = taosGetLocalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP);
   }
 
@@ -2802,7 +2802,7 @@ int32_t persistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
   char *serialized = NULL;
-  code = localConfigSerialize(getLocalCfg(tsCfg), &serialized);
+  code = localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(code));
     TAOS_RETURN(code);
