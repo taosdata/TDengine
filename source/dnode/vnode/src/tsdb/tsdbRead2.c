@@ -836,6 +836,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   pList = &pReader->status.uidList;
 
   int32_t i = 0;
+  int32_t j = 0;
   while (i < TARRAY2_SIZE(pBlkArray)) {
     pBrinBlk = &pBlkArray->data[i];
     if (pBrinBlk->maxTbid.suid < pReader->info.suid) {
@@ -851,7 +852,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
         (pBrinBlk->minTbid.suid <= pReader->info.suid) && (pBrinBlk->maxTbid.suid >= pReader->info.suid), code, lino,
         _end, TSDB_CODE_INTERNAL_ERROR);
 
-    if (pBrinBlk->maxTbid.suid == pReader->info.suid && pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
+    if (pBrinBlk->maxTbid.suid == pReader->info.suid && pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
       i += 1;
       continue;
     }
@@ -864,6 +865,14 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
     TSDB_CHECK_NULL(p1, code, lino, _end, terrno);
 
     i += 1;
+    if (pBrinBlk->maxTbid.suid == pReader->info.suid) {
+      while (j < numOfTables && pList->tableUidList[j] < pBrinBlk->maxTbid.uid) {
+        j++;
+      }
+      if (j >= numOfTables) {
+        break;
+      }
+    }
   }
 
   et2 = taosGetTimestampUs();
