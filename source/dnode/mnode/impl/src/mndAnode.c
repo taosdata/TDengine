@@ -309,7 +309,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.updateTime = anodeObj.createdTime;
   anodeObj.version = 0;
   anodeObj.urlLen = pCreate->urlLen;
-  if (anodeObj.urlLen > TSDB_ANAL_ANODE_URL_LEN) {
+  if (anodeObj.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
     code = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
     goto _OVER;
   }
@@ -584,7 +584,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANAL_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
   int32_t    code = 0;
 
@@ -642,7 +642,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANAL_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
   int32_t    code = 0;
 
   while (numOfRows < rows) {
@@ -693,7 +693,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
   int32_t code = 0;
   int32_t protocol = 0;
   double  tmp = 0;
-  char    buf[TSDB_ANAL_ALGO_NAME_LEN + 1] = {0};
+  char    buf[TSDB_ANALYTIC_ALGO_NAME_LEN + 1] = {0};
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -753,10 +753,10 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 }
 
 static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
-  char anodeUrl[TSDB_ANAL_ANODE_URL_LEN + 1] = {0};
-  snprintf(anodeUrl, TSDB_ANAL_ANODE_URL_LEN, "%s/%s", url, "list");
+  char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeAlgoList(pJson, pObj);
@@ -769,10 +769,10 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLe
   int32_t code = 0;
   int32_t protocol = 0;
   double  tmp = 0;
-  char    anodeUrl[TSDB_ANAL_ANODE_URL_LEN + 1] = {0};
-  snprintf(anodeUrl, TSDB_ANAL_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
+  char    anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
   if (pJson == NULL) return terrno;
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
@@ -808,7 +808,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   SAnodeObj           *pObj = NULL;
   SAnalyticsUrl             url;
   int32_t              nameLen;
-  char                 name[TSDB_ANAL_ALGO_KEY_LEN];
+  char                 name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SRetrieveAnalAlgoReq req = {0};
   SRetrieveAnalAlgoRsp rsp = {0};
 
@@ -847,13 +847,13 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
                 goto _OVER;
               }
             }
-            url.url = taosMemoryMalloc(TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1);
+            url.url = taosMemoryMalloc(TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN + 1);
             if (url.url == NULL) {
               sdbRelease(pSdb, pAnode);
               goto _OVER;
             }
 
-            url.urlLen = 1 + tsnprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
+            url.urlLen = 1 + tsnprintf(url.url, TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
                                       taosAnalAlgoUrlStr(url.type));
             if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalyticsUrl)) != 0) {
               taosMemoryFree(url.url);
