@@ -13,14 +13,10 @@ import csv
 from datetime import datetime
 
 # crash_gen warn group
-# group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/7e409a8e-4390-4043-80d0-4e0dd2cbae7d'
+# group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
 
-notification_robot_url = (
-    "https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9"
-)
-alert_robot_url = (
-    "https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3"
-)
+# # disk fill warn group
+# group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/14cc4cf2-0b84-4ca2-8577-a46f7530559d'
 
 def get_msg(text):
     return {
@@ -76,48 +72,35 @@ def get_insert_stream_msg(text):
         }
     }
     
-def send_msg(url, result, result_detail, test_scope, owner, hostname, start_time, end_time, community_commit_id, enterprise_commit_id, log_dir, others):
-#def send_msg(url: str, data: dict):
-    text = f'''
-Result: {result}\n\n
-
-Details
-Owner: {owner}
-Start time: {start_time}
-End time: {end_time}
-Status: {result_detail}
-Scope: {test_scope}
-Hostname: {hostname}
-Commit(enterprise): {enterprise_commit_id}
-Commit(community): {community_commit_id}
-Log dir: {log_dir}
-Others: {others}\n
-    '''
+def send_msg(result, result_detail, test_scope, owner, hostname, start_time, end_time, community_commit_id, enterprise_commit_id, log_dir, others):
+    text = f'''Result: {result}\n\n
+    Result_detail: {result_detail}
+    Scope: {test_scope}
+    Owner: {owner}
+    Hostname: {hostname}
+    Start time: {start_time}
+    End time: {end_time}
+    Commit(enterprise): {enterprise_commit_id}
+    Commit(community): {community_commit_id}
+    Log dir: {log_dir}
+    Others: {others}\n'''
 
     #json = get_msg(text)
     if owner == "guoxy":
         json = get_query_msg(text)
-    else:
+    else:    
         json = get_insert_stream_msg(text)
     headers = {
         'Content-Type': 'application/json'
     }
 
-    req = requests.post(url=url, headers=headers, json=json)
+    req = requests.post(url=group_url, headers=headers, json=json)
     inf = req.json()
     if "StatusCode" in inf and inf["StatusCode"] == 0:
         pass
     else:
         print(inf)
 
-def read_file_to_dict(filename):
-    data_dict = {}
-    with open(filename, "r", encoding="utf-8") as file:
-        lines = file.readlines()
-        for line in lines:
-            key, value = line.strip().split(":", 1)
-            data_dict[key] = value
-    return data_dict
 
 def main():
     inputfile = "case_status.txt"
@@ -146,32 +129,12 @@ def main():
             Log_dir = line[1]
         else:
             print("read all file")
-    hostname = socket.gethostname()  
-    
-    text_result=lines.split("Result: ")[1].split("Details")[0].strip()
-    print(text_result)
-         
+    hostname = socket.gethostname()   
     try:
-        if text_result == "success":
-            send_msg(url=notification_robot_url, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
-        else:
-            send_msg(url=alert_robot_url, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
-        #send_msg(result=Result, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
+        send_msg(result=Result, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
     except Exception as e:
         print("exception:", e)
     exit(1)
-    
-    
-    # data = read_file_to_dict(inputfile)
-    # hostname = socket.gethostname() 
-    # try:
-    #     if data["result"] == "success":
-    #         send_msg(notification_robot_url, data)
-    #     else:
-    #         send_msg(alert_robot_url, data)
-    # except Exception as e:
-    #     print("exception:", e)
-    #     exit(1)
 
 
 if __name__ == '__main__':
