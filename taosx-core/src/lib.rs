@@ -354,7 +354,6 @@ impl TaskOpts {
                         parser.clone(),
                         to.clone(),
                         *jobs,
-                        port_pool,
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),

@@ -269,8 +269,8 @@ pub async fn kafka_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
     let socket = format!("127.0.0.1:{}", ipc_port);
-    let mut ipc = build_ipc(
-        &socket,
+    let (mut ipc, _) = build_ipc(
+        Some(&socket),
         parser,
         &to,
         Some(KAFKA_ID),
