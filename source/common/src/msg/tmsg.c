@@ -245,7 +245,7 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pReq) {
   TAOS_CHECK_RETURN(tEncodeSClientHbKey(pEncoder, &pReq->connKey));
 
-  if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+  if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->app.appId));
     TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->app.pid));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->app.name));
@@ -383,6 +383,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
         }
       }
     }
+  } else {
+    assert(0);
   }
 
   int32_t kvNum = 0;
@@ -4892,10 +4894,13 @@ int32_t tSerializeSUserAuthBatchRsp(void *buf, int32_t bufLen, SUserAuthBatchRsp
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->batchId));
   int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfBatch));
+  fprintf(stderr, "%"PRIi64":tSerializeSUserAuthBatchRsp: ===== batch:%"PRIi64", numOfBatch:%d\n", taosGetSelfPthreadId(),pRsp->batchId, numOfBatch);
   for (int32_t i = 0; i < numOfBatch; ++i) {
     SGetUserAuthRsp *pUserAuthRsp = taosArrayGet(pRsp->pArray, i);
+    fprintf(stderr, "%"PRIi64":tSerializeSUserAuthBatchRsp: batch:%"PRIi64", i:%d, user:%s\n", taosGetSelfPthreadId(),pRsp->batchId, i, pUserAuthRsp->user);
     TAOS_CHECK_EXIT(tSerializeSGetUserAuthRspImpl(&encoder, pUserAuthRsp));
   }
   tEndEncode(&encoder);
@@ -4917,11 +4922,12 @@ int32_t tDeserializeSUserAuthBatchRsp(void *buf, int32_t bufLen, SUserAuthBatchR
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->batchId));
   int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfBatch));
-
+  fprintf(stderr, "%"PRIi64":tDeserializeSUserAuthBatchRsp: +++++++ batch:%"PRIi64", numOfBatch:%d\n", taosGetSelfPthreadId(), pRsp->batchId, numOfBatch);
   pRsp->pArray = taosArrayInit(numOfBatch, sizeof(SGetUserAuthRsp));
+  
   if (pRsp->pArray == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -4929,6 +4935,7 @@ int32_t tDeserializeSUserAuthBatchRsp(void *buf, int32_t bufLen, SUserAuthBatchR
   for (int32_t i = 0; i < numOfBatch; ++i) {
     SGetUserAuthRsp rsp = {0};
     TAOS_CHECK_EXIT(tDeserializeSGetUserAuthRspImpl(&decoder, &rsp));
+    fprintf(stderr, "%"PRIi64":tDeserializeSUserAuthBatchRsp: batch:%"PRIi64", i:%d, user:%s\n", taosGetSelfPthreadId(),pRsp->batchId, i, rsp.user);
     if (taosArrayPush(pRsp->pArray, &rsp) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }

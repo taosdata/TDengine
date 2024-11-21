@@ -58,7 +58,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
       code = terrno;
       goto _return;
     }
-    tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
+    tscDebug("hb to update catalog user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
   }
@@ -77,30 +77,62 @@ _return:
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
   int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
+    fprintf(stderr, "%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64 " hb to update user tscObj auth, begin -----\n",
+            taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId);
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
-    if (!hbMgr || hbMgr->pAppInstInfo->clusterId != clusterId) {
+    if (!hbMgr) {
+      assert(0);
+      fprintf(stderr,
+              "%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64 " hb to update user tscObj auth, hgMgr is NULL\n",
+              taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId);
+      continue;
+    }
+    if (hbMgr->pAppInstInfo->clusterId != clusterId) {
+      assert(0);
+      fprintf(stderr,
+              "%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64 " hb to update user tscObj auth, clusterId:%" PRIi64
+              "!=%" PRIi64 "\n",
+              taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId,
+              hbMgr->pAppInstInfo->clusterId, clusterId);
       continue;
     }
 
     SClientHbReq    *pReq = NULL;
     SGetUserAuthRsp *pRsp = NULL;
+    bool             found = false;
     while ((pReq = taosHashIterate(hbMgr->activeInfo, pReq))) {
+      found = true;
       STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
       if (!pTscObj) {
+        printf("%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64
+               " hb to update user tscObj auth, no user for rid:%" PRIi64 "\n",
+               taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId, pReq->connKey.tscRid);
         continue;
       } else {
-        printf("@@@@@: hb to update user auth, user:%s, tscRid:%" PRIi64 "\n", pTscObj->user, pTscObj->id);
+        printf("%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64
+               " hb to update user tscObj auth, user:%s, tscRid:%" PRIi64 "\n",
+               taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId, pTscObj->user,
+               pTscObj->id);
       }
+      
 
       if (!pRsp) {
         for (int32_t j = 0; j < TARRAY_SIZE(batchRsp->pArray); ++j) {
           SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, j);
+          printf("%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64 " hb to update user tscObj auth, retrieve user:%s\n",
+                 taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId, rsp->user);
           if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
             pRsp = rsp;
+            printf("%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64
+                   " hb to update user tscObj auth, found user:%s\n",
+                   taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId, rsp->user);
             break;
           }
         }
         if (!pRsp) {
+            printf("%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64
+                   " hb to update user tscObj auth, not find user:%s\n",
+                   taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId, pTscObj->user);
           releaseTscObj(pReq->connKey.tscRid);
           taosHashCancelIterate(hbMgr->activeInfo, pReq);
           break;
@@ -163,7 +195,13 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
       releaseTscObj(pReq->connKey.tscRid);
     }
+    if (!found) {
+      fprintf(stderr,
+              "%" PRIi64 ":@@@@@:[%" PRId64 ":%d] batch %" PRId64 " hb to update user tscObj auth, not found\n",
+              taosGetSelfPthreadId(), TARRAY_SIZE(clientHbMgr.appHbMgrs), i, batchRsp->batchId);
+    }
   }
+
   return 0;
 }
 
@@ -1295,6 +1333,7 @@ static void *hbThreadFunc(void *param) {
     atexit(hbThreadFuncUnexpectedStopped);
   }
 #endif
+  int64_t nHbUserBatch = 0;
   while (1) {
     if (1 == clientHbMgr.threadStop) {
       break;
@@ -1351,23 +1390,26 @@ static void *hbThreadFunc(void *param) {
         break;
       }
 
+      int32_t nUser = 0;
+      fprintf(stderr, "============== loop %" PRIi64 ", sz %d\n", nHbUserBatch, sz);
       int32_t reqNum = taosArrayGetSize(pReq->reqs);
       for (int32_t k = 0; k < reqNum; k++) {
         SClientHbReq *hbReq = taosArrayGet(pReq->reqs, k);
         int32_t       kvNum = taosHashGetSize(hbReq->info);
         void         *pIter = NULL;
         bool          userAuth = 0;
-        while ((pIter = taosHashIterate(hbReq->info, NULL))) {
+        while ((pIter = taosHashIterate(hbReq->info, pIter))) {
           SKv *kv = pIter;
           if (kv->key == HEARTBEAT_KEY_USER_AUTHINFO) {
             int32_t           userNum = kv->valueLen / sizeof(SUserAuthVersion);
+            nUser = userNum;
             SUserAuthVersion *userAuths = (SUserAuthVersion *)kv->value;
             for (int32_t j = 0; j < userNum; ++j) {
               SUserAuthVersion *pUserAuth = userAuths + j;
               fprintf(stderr,
-                      "####: %s:%d [req:%d-%d][user:%d-%d] hb got user auth info, user:%s, authVer:%d, "
+                      "####: %s:%d [req:%d-%d][user:%d-%d] hb got user auth info, user:%s, authVer:%u, "
                       "tscRid:%" PRIi64 "\n",
-                      __func__, __LINE__, reqNum, k, userNum, j, pUserAuth->user, pUserAuth->version,
+                      __func__, __LINE__, reqNum, k, userNum, j, pUserAuth->user, htonl(pUserAuth->version),
                       hbReq->connKey.tscRid);
             }
             if (++userAuth > 1) {
@@ -1376,6 +1418,8 @@ static void *hbThreadFunc(void *param) {
           }
         }
       }
+      fprintf(stderr, "============== loop %" PRIi64 ", sz %d\n", nHbUserBatch, sz);
+      if (nUser > 0) ++nHbUserBatch;
 
       if (tSerializeSClientHbBatchReq(buf, tlen, pReq) == -1) {
         tFreeClientHbBatchReq(pReq);
@@ -1664,7 +1708,7 @@ int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId
       return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
     }
     case CONN_TYPE__TMQ: {
-      return 0;
+      return 0; // return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
     }
     default:
       return 0;

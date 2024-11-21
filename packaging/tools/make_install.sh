@@ -10,7 +10,7 @@ set -e
 source_dir=$1
 binary_dir=$2
 osType=$3
-verNumber=$4
+verNumber=1000
 
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))

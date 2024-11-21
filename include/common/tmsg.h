@@ -1600,6 +1600,7 @@ int32_t tDeserializeSDbHbBatchRsp(void* buf, int32_t bufLen, SDbHbBatchRsp* pRsp
 void    tFreeSDbHbBatchRsp(SDbHbBatchRsp* pRsp);
 
 typedef struct {
+  int64_t batchId;
   SArray* pArray;  // Array of SGetUserAuthRsp
 } SUserAuthBatchRsp;
 

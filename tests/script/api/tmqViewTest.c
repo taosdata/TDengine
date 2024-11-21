@@ -104,7 +104,7 @@ static int32_t init_env() {
   TAOS_RES* pRes;
   // drop database if exists
   printf("create database\n");
-  pRes = taos_query(pConn, "drop topic topicname");
+  pRes = taos_query(pConn, "drop topic if exists topicname");
   if (taos_errno(pRes) != 0) {
     printf("error in drop topicname, reason:%s\n", taos_errstr(pRes));
   }
@@ -407,13 +407,13 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  for (int32_t i = 1; i < 86400; ++i) {
-    sleep(1);
-    printf("sleep %ds\n", i);
-  }
+  // for (int32_t i = 1; i < 86400; ++i) {
+  //   sleep(1);
+  //   printf("sleep %ds\n", i);
+  // }
 
-  // queryDB(rootUser, "drop user user1");
-  // queryDB(rootUser, "drop user user2");
+  queryDB(rootUser, "drop user user1");
+  queryDB(rootUser, "drop user user2");
 
 
   tmq_list_t* topic_list = build_topic_list();

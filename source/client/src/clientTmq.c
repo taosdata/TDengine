@@ -1686,6 +1686,8 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
     SET_ERROR_MSG_TMQ("init tscObj failed")
     goto _failed;
+  } else {
+    fprintf(stderr, "##### tmq: create consumer with user:%s\n", user);
   }
 
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
