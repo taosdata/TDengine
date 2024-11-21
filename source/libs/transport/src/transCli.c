@@ -1679,7 +1679,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
   if (status != 0) {
-    tDebug("%s conn %p failed to connect to %s since %s", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
+    tError("%s conn %p failed to connect to %s since %s", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
            uv_strerror(status));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
     TAOS_UNUSED(transUnrefCliHandle(pConn));
@@ -1832,15 +1832,20 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   if (code == 0) {
     size_t    len = strlen(fqdn);
     uint32_t* v = taosHashGet(cache, fqdn, len);
-    if (addr != *v) {
-      char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
-      tinet_ntoa(old, *v);
-      tinet_ntoa(new, addr);
-      tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      code = taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
+    if (v != NULL) {
+      if (addr != *v) {
+        char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
+        tinet_ntoa(old, *v);
+        tinet_ntoa(new, addr);
+        tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
+        code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
+      }
+    } else {
+      code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
     }
   } else {
     code = TSDB_CODE_RPC_FQDN_ERROR;  // TSDB_CODE_RPC_INVALID_FQDN;
+    tWarn("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
   }
   return code;
 }
@@ -2933,10 +2938,8 @@ void cliMayResetRespCode(SCliReq* pReq, STransMsg* pResp) {
 
   // check whole vnodes is offline on this vgroup
   if (((pCtx->epSet != NULL) && pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) || pCtx->retryStep > 0) {
-    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      pResp->code = TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED;
-    } else if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
-      pResp->code = TSDB_CODE_RPC_SOMENODE_BROKEN_LINK;
+    if (pResp->code == TSDB_CODE_RPC_BROKEN_LINK) {
+      pResp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;  // TSDB_CODE_RPC_SOMENODE_BROKEN_LINK;
     }
   }
 }
