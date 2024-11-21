@@ -608,16 +608,10 @@ consumer.close();
 <TabItem value="C#" label="C#">
 
 ```C#
-try
-{
-   // unsubscribe
-   consumer.Unsubscribe();
-}
-finally
-{
-   // close consumer
-   consumer.Close();
-}
+// unsubscribe
+consumer.Unsubscribe();
+// close consumer
+consumer.Close();
 ```
 </TabItem>
 </Tabs>
