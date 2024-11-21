@@ -726,7 +726,7 @@ void cliConnTimeout(uv_timer_t* handle) {
   }
 
   cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
-  tTrace("%s conn %p conn timeout", CONN_GET_INST_LABEL(conn), conn);
+  tTrace("%s conn %p failed to %s since conn timeout", CONN_GET_INST_LABEL(conn), conn->dstAddr, conn);
   TAOS_UNUSED(transUnrefCliHandle(conn));
 }
 
