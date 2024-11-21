@@ -148,7 +148,13 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
       tstrncpy(buf, pStart, len);
     }
 
-    char *pRight = strstr(buf, "=") + 1;
+    char *pRight = strstr(buf, "=");
+    if (pRight == NULL) {
+      return false;
+    } else {
+      pRight += 1;
+    }
+
     strtrim(pRight);
 
     int32_t vLen = MIN(optMaxLen, strlen(pRight) + 1);

@@ -374,7 +374,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SForecastOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*           pResBlock = pInfo->pRes;
   SForecastSupp*         pSupp = &pInfo->forecastSupp;
-  SAnalyticBuf*              pBuf = &pSupp->analBuf;
+  SAnalyticBuf*          pBuf = &pSupp->analBuf;
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
   const char*            pId = GET_TASKID(pOperator->pTaskInfo);
