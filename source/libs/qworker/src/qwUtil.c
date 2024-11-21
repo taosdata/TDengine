@@ -273,10 +273,6 @@ int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) { return qwAddTask
 void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx) { taosHashRelease(mgmt->ctxHash, ctx); }
 
 void qwFreeTaskHandle(SQWTaskCtx *ctx) {
-  if (ctx->dynamicTask) {
-    return;
-  }
-
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(&ctx->taskHandle);
   if (otaskHandle && otaskHandle == atomic_val_compare_exchange_ptr(&ctx->taskHandle, otaskHandle, NULL)) {
@@ -289,10 +285,6 @@ void qwFreeTaskHandle(SQWTaskCtx *ctx) {
 }
 
 void qwFreeSinkHandle(SQWTaskCtx *ctx) {
-  if (ctx->dynamicTask) {
-    return;
-  }
-  
   // Note: free/kill may in RC
   void* osinkHandle = atomic_load_ptr(&ctx->sinkHandle);
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
@@ -590,6 +582,7 @@ void qwCloseRef(void) {
     gQwMgmt.qwRef = -1;
     
     taosHashCleanup(gQueryMgmt.pJobInfo);
+    gQueryMgmt.pJobInfo = NULL;
   }
   taosWUnLockLatch(&gQwMgmt.lock);
 }
@@ -734,10 +727,12 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   }
 }
 
-void qwDestroyJobInfo(SQWJobInfo* pJob) {
-  if (NULL == pJob) {
+void qwDestroyJobInfo(void* job) {
+  if (NULL == job) {
     return;
   }
+
+  SQWJobInfo* pJob = (SQWJobInfo*)job;
 
   taosMemoryFreeClear(pJob->memInfo);
   taosHashCleanup(pJob->pSessions);

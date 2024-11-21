@@ -1278,6 +1278,7 @@ static void cliHandleException(SCliConn* conn) {
   if (conn->registered) {
     int8_t ref = transGetRefCount(conn);
     if (ref == 0 && !uv_is_closing((uv_handle_t*)conn->stream)) {
+      tTrace("%s conn %p fd %d,%d,%d,%p uv_closed", CONN_GET_INST_LABEL(conn), conn, conn->stream->u.fd, conn->stream->io_watcher.fd, conn->stream->accepted_fd, conn->stream->queued_fds);
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
     }
   }
@@ -1585,6 +1586,8 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   if (fd < 0) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
+
+  tTrace("%s conn %p fd %d openend", pInst->label, conn, fd);
 
   int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
   if (ret != 0) {

@@ -89,7 +89,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 _return:
 
-  if (!ctx->explain || ctx->explainRsped) {
+  if ((!ctx->dynamicTask) && (!ctx->explain || ctx->explainRsped)) {
     qwFreeTaskHandle(ctx); 
   }
 
@@ -490,7 +490,9 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg, int32
         qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
-          qwFreeSinkHandle(ctx);
+          if (!ctx->dynamicTask) {
+            qwFreeSinkHandle(ctx);
+          }
         }
       }
 
@@ -876,7 +878,9 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
           atomic_store_8((int8_t *)&ctx->queryContinue, 0);
-          qwFreeSinkHandle(ctx);          
+          if (!ctx->dynamicTask) {
+            qwFreeSinkHandle(ctx);          
+          }
         }
 
         qwMsg->connInfo = ctx->dataConnInfo;
@@ -966,7 +970,9 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
-      qwFreeSinkHandle(ctx);
+      if (!ctx->dynamicTask) {
+        qwFreeSinkHandle(ctx);
+      }
     }
   }
 
@@ -1593,7 +1599,9 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
       qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
       if (qComplete) {
         atomic_store_8((int8_t *)&ctx->queryEnd, true);
-        qwFreeSinkHandle(ctx); 
+        if (!ctx->dynamicTask) {
+          qwFreeSinkHandle(ctx); 
+        }
       }
 
       break;

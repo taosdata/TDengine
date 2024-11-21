@@ -34,6 +34,9 @@ typedef enum MemPoolEvictPolicy {
 typedef struct SMemPoolJob {
   uint64_t           jobId;
   uint64_t           clientId;
+
+  int32_t            remainSession;
+  
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
 } SMemPoolJob;
@@ -124,7 +127,7 @@ void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
 void    taosAutoMemoryFree(void *ptr);
 int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, char *sessionId);
-void    taosMemPoolDestroySession(void* poolHandle, void* session, int32_t* remainSessions);
+void    taosMemPoolDestroySession(void* poolHandle, void* session);
 int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob);
 void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);

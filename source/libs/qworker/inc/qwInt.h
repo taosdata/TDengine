@@ -529,7 +529,7 @@ void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
-void    qwDestroyJobInfo(SQWJobInfo* pJob);
+void    qwDestroyJobInfo(void* job);
 void    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx);
 void    qwRetireJob(SQWJobInfo* pJob);
 void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session);

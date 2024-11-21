@@ -75,8 +75,10 @@ extern "C" {
 #define MP_STAT_PROC_FLAG_RES_FAIL (1 << 3)
 
 // CTRL FUNC FLAGS
-#define MP_CTRL_FLAG_PRINT_STAT (1 << 0)
-#define MP_CTRL_FLAG_CHECK_STAT (1 << 1)
+#define MP_CTRL_FLAG_PRINT_STAT  (1 << 0)
+#define MP_CTRL_FLAG_CHECK_STAT  (1 << 1)
+#define MP_CTRL_FLAG_LOCK_DBG    (1 << 2)
+#define MP_CTRL_FLAG_LOG_MAXSIZE (1 << 3)
 
 
 typedef enum EMPStatLogItem {
@@ -199,7 +201,6 @@ typedef struct SMPStatInfo {
 
 typedef struct SMPJob {
   SMemPoolJob        job; // KEEP IT FIRST
-  int32_t            remainSession;
   SMPStatInfo        stat;
 } SMPJob;
 
@@ -281,7 +282,6 @@ typedef struct SMemPool {
   SMemPoolCfg        cfg;
   //int64_t            retireThreshold[3];
   int64_t            retireUnit;
-  SMPCtrlInfo        ctrl;
 
   int64_t            maxAllocMemSize;
   int64_t            allocMemSize;
@@ -306,6 +306,7 @@ typedef struct SMPMsgQueue {
 
 typedef struct SMemPoolMgmt {
   EMPMemStrategy strategy;
+  SMPCtrlInfo    ctrl;
   SArray*        poolList;
   SRWLatch       poolLock;
   TdThread       poolMgmtThread;
@@ -315,6 +316,9 @@ typedef struct SMemPoolMgmt {
   int64_t        waitMs;
   int32_t        code;
 } SMemPoolMgmt;
+
+extern SMemPoolMgmt gMPMgmt;
+
 
 typedef int32_t (*mpAllocFunc)(SMemPool*, SMPSession*, int64_t*, uint32_t, void**);
 typedef void    (*mpFreeFunc)(SMemPool*, SMPSession*, void *, int64_t*);
@@ -376,17 +380,25 @@ enum {
 #define MP_TRY_LOCK(type, _lock, _res)                                                                                \
   do {                                                                                                       \
     if (MP_READ == (type)) {                                                                                \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try read lock");                          \
-      uDebug("MP TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try read lock");                          \
+        uDebug("MP TRY RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      }                                                                                                           \
       (_res) = taosRTryLockLatch(_lock);                                                                                 \
-      uDebug("MP TRY RLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
-      ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) > 0, "invalid lock value after try read lock");                            \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP TRY RLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
+        ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) > 0, "invalid lock value after try read lock");                            \
+      }                                                                                                                                 \
     } else {                                                                                                 \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try write lock");                         \
-      uDebug("MP TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before try write lock");                         \
+        uDebug("MP TRY WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      }                                                                                                           \
       (_res) = taosWTryLockLatch(_lock);                                                                                 \
-      uDebug("MP TRY WLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
-      ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after try write lock"); \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP TRY WLOCK%p:%d %s, %s:%d E", (_lock), atomic_load_32(_lock), (_res) ? "failed" : "succeed", __FILE__, __LINE__);         \
+        ASSERTS((_res) ? atomic_load_32((_lock)) >= 0 : atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after try write lock"); \
+      }                                                                                                           \
     }                                                                                                        \
   } while (0)
 
@@ -394,34 +406,50 @@ enum {
 #define MP_LOCK(type, _lock)                                                                                \
   do {                                                                                                       \
     if (MP_READ == (type)) {                                                                                \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                          \
-      uDebug("MP RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                          \
+        uDebug("MP RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      }                                                                                                           \
       taosRLockLatch(_lock);                                                                                 \
-      uDebug("MP RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                            \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+        ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                            \
+      }                                                                                                           \
     } else {                                                                                                 \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                         \
-      uDebug("MP WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                         \
+        uDebug("MP WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      }                                                                                                           \
       taosWLockLatch(_lock);                                                                                 \
-      uDebug("MP WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock"); \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+        ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock"); \
+      }                                                                                                           \
     }                                                                                                        \
   } while (0)
 
 #define MP_UNLOCK(type, _lock)                                                                                 \
   do {                                                                                                          \
     if (MP_READ == (type)) {                                                                                   \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                            \
-      uDebug("MP RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                            \
+        uDebug("MP RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      }                                                                                                           \
       taosRUnLockLatch(_lock);                                                                                  \
-      uDebug("MP RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                            \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                            \
+      }                                                                                                           \
     } else {                                                                                                    \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock"); \
-      uDebug("MP WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock"); \
+        uDebug("MP WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      }                                                                                                           \
       taosWUnLockLatch(_lock);                                                                                  \
-      uDebug("MP WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                           \
+      if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOCK_DBG)) {                                     \
+        uDebug("MP WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+        ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                           \
+      }                                                                                                           \
     }                                                                                                           \
   } while (0)
 

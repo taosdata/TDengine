@@ -233,9 +233,6 @@ int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
 
   MP_ERR_RET(mpUpdateCfg(pPool));
 
-  pPool->ctrl.statFlags = MP_STAT_FLAG_LOG_ALL & (~MP_LOG_FLAG_ALL_POS);
-  pPool->ctrl.funcFlags = MP_CTRL_FLAG_PRINT_STAT | MP_CTRL_FLAG_CHECK_STAT;
-
   pPool->sessionCache.groupNum = MP_SESSION_CACHE_ALLOC_BATCH_SIZE;
   pPool->sessionCache.nodeSize = sizeof(SMPSession);
 
@@ -282,7 +279,9 @@ void mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, int6
   }
   
   int64_t allocMemSize = atomic_load_64(&pPool->allocMemSize);
-  mpUpdateMaxAllocSize(&pPool->maxAllocMemSize, allocMemSize);
+  if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOG_MAXSIZE)) {
+    mpUpdateMaxAllocSize(&pPool->maxAllocMemSize, allocMemSize);
+  }
 }
 
 int32_t mpPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
@@ -914,7 +913,7 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
       if (pSession && MP_GET_FLAG(pSession->ctrl.statFlags, MP_LOG_FLAG_ALL_MEM)) {
         mpLogDetailStat(&pSession->stat.statDetail, item, pInput);
       }
-      if (MP_GET_FLAG(pPool->ctrl.statFlags, MP_LOG_FLAG_ALL_MEM)) {
+      if (MP_GET_FLAG(gMPMgmt.ctrl.statFlags, MP_LOG_FLAG_ALL_MEM)) {
         mpLogDetailStat(&pPool->stat.statDetail, item, pInput);
       }
       if (pSession && MP_GET_FLAG(pSession->ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
@@ -922,7 +921,7 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
         mpLogPosStat(&pSession->stat.posStat, item, pInput, true);
         taosEnableMemPoolUsage();
       }
-      if (MP_GET_FLAG(pPool->ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
+      if (MP_GET_FLAG(gMPMgmt.ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
         taosDisableMemPoolUsage();
         mpLogPosStat(&pPool->stat.posStat, item, pInput, false);
         taosEnableMemPoolUsage();
@@ -967,7 +966,7 @@ void mpCheckStatDetail(void* poolHandle, void* session, char* detailName) {
   }
 
   if (NULL != poolHandle) {
-    pCtrl = &pPool->ctrl;
+    pCtrl = &gMPMgmt.ctrl;
     pDetail = &pPool->stat.statDetail;
     int64_t sessInit = atomic_load_64(&pPool->stat.statSession.initFail) + atomic_load_64(&pPool->stat.statSession.initSucc);
     if (MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_CHECK_STAT) && sessInit == atomic_load_64(&pPool->stat.statSession.destroyNum)) {
@@ -1084,6 +1083,9 @@ void mpModInit(void) {
 
   gMPMgmt.strategy = E_MP_STRATEGY_DIRECT;
 
+  gMPMgmt.ctrl.statFlags = MP_STAT_FLAG_LOG_ALL & (~MP_LOG_FLAG_ALL_POS);
+  gMPMgmt.ctrl.funcFlags = MP_CTRL_FLAG_PRINT_STAT | MP_CTRL_FLAG_CHECK_STAT | MP_CTRL_FLAG_LOG_MAXSIZE;
+
   //gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
   //if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
   //  uError("failed to init sem2, error: 0x%x", gMPMgmt.code);
@@ -1122,16 +1124,16 @@ void taosMemPoolPrintStat(void* poolHandle, void* session, char* procName) {
   if (NULL != pPool) {
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, pPool->name);
     detailName[sizeof(detailName) - 1] = 0;
-    mpPrintSessionStat(&pPool->ctrl, &pPool->stat.statSession, detailName);
-    mpPrintStatDetail(&pPool->ctrl, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
+    mpPrintSessionStat(&gMPMgmt.ctrl, &pPool->stat.statSession, detailName);
+    mpPrintStatDetail(&gMPMgmt.ctrl, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
 
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
     detailName[sizeof(detailName) - 1] = 0;
-    mpPrintNodeStat(&pPool->ctrl, pPool->stat.nodeStat, detailName);
+    mpPrintNodeStat(&gMPMgmt.ctrl, pPool->stat.nodeStat, detailName);
     
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolPos");
     detailName[sizeof(detailName) - 1] = 0;
-    mpPrintPosStat(&pPool->ctrl, &pPool->stat.posStat, detailName);
+    mpPrintPosStat(&gMPMgmt.ctrl, &pPool->stat.posStat, detailName);
   }
 }
 
@@ -1187,16 +1189,12 @@ void taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg) {
   (void)mpUpdateCfg(pPool);
 }
 
-void taosMemPoolDestroySession(void* poolHandle, void* session, int32_t* remainSessions) {
+void taosMemPoolDestroySession(void* poolHandle, void* session) {
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
   if (NULL == poolHandle || NULL == pSession) {
     uWarn("null pointer of poolHandle %p or session %p", poolHandle, session);
     return;
-  }
-
-  if (remainSessions) {
-    *remainSessions = atomic_sub_fetch_32(&pSession->pJob->remainSession, 1);
   }
   
   //TODO;
@@ -1225,7 +1223,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
     MP_ERR_JRET(terrno);
   }
 
-  TAOS_MEMCPY(&pSession->ctrl, &pPool->ctrl, sizeof(pSession->ctrl));
+  TAOS_MEMCPY(&pSession->ctrl, &gMPMgmt.ctrl, sizeof(pSession->ctrl));
 
   if (gMPFps[gMPMgmt.strategy].initSessionFp) {
     MP_ERR_JRET((*gMPFps[gMPMgmt.strategy].initSessionFp)(pPool, pSession));
@@ -1234,12 +1232,11 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
   MP_ERR_JRET(mpInitPosStat(&pSession->stat.posStat, true));
   
   pSession->pJob = (SMPJob*)pJob;
-  (void)atomic_add_fetch_32(&pSession->pJob->remainSession, 1);
 
 _return:
 
   if (TSDB_CODE_SUCCESS != code) {
-    taosMemPoolDestroySession(poolHandle, pSession, NULL);
+    taosMemPoolDestroySession(poolHandle, pSession);
     pSession = NULL;
     (void)atomic_add_fetch_64(&pPool->stat.statSession.initFail, 1);
   } else {
