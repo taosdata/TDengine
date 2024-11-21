@@ -71,44 +71,46 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->type));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->uid));
 
-  if (pME->name == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
+  if (pME->type < 0) {
+    if (pME->name == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
-  TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->name));
+    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->name));
 
-  if (pME->type == TSDB_SUPER_TABLE) {
-    TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->flags));
-    TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaRow));
-    TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag));
-    if (TABLE_IS_ROLLUP(pME->flags)) {
-      TAOS_CHECK_RETURN(tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
+    if (pME->type == TSDB_SUPER_TABLE) {
+      TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->flags));
+      TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaRow));
+      TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag));
+      if (TABLE_IS_ROLLUP(pME->flags)) {
+        TAOS_CHECK_RETURN(tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
+      }
+    } else if (pME->type == TSDB_CHILD_TABLE) {
+      TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
+      TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ctbEntry.ttlDays));
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ctbEntry.commentLen));
+      if (pME->ctbEntry.commentLen > 0) {
+        TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->ctbEntry.comment));
+      }
+      TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.suid));
+      TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags));
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.btime));
+      TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ntbEntry.ttlDays));
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.commentLen));
+      if (pME->ntbEntry.commentLen > 0) {
+        TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->ntbEntry.comment));
+      }
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.ncid));
+      TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaRow));
+    } else if (pME->type == TSDB_TSMA_TABLE) {
+      TAOS_CHECK_RETURN(tEncodeTSma(pCoder, pME->smaEntry.tsma));
+    } else {
+      metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
+      return TSDB_CODE_INVALID_PARA;
     }
-  } else if (pME->type == TSDB_CHILD_TABLE) {
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
-    TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ctbEntry.ttlDays));
-    TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ctbEntry.commentLen));
-    if (pME->ctbEntry.commentLen > 0) {
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->ctbEntry.comment));
-    }
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.suid));
-    TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags));
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.btime));
-    TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ntbEntry.ttlDays));
-    TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.commentLen));
-    if (pME->ntbEntry.commentLen > 0) {
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->ntbEntry.comment));
-    }
-    TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.ncid));
-    TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaRow));
-  } else if (pME->type == TSDB_TSMA_TABLE) {
-    TAOS_CHECK_RETURN(tEncodeTSma(pCoder, pME->smaEntry.tsma));
-  } else {
-    metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
-    return TSDB_CODE_INVALID_PARA;
+    TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
   }
-  TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
 
   tEndEncode(pCoder);
   return 0;
@@ -119,66 +121,68 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->version));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->type));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->uid));
-  TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->name));
+  if (pME->type < 0) {
+    TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->name));
 
-  if (pME->type == TSDB_SUPER_TABLE) {
-    TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->flags));
-    TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaRow));
-    TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag));
-    if (TABLE_IS_ROLLUP(pME->flags)) {
-      TAOS_CHECK_RETURN(tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
-    }
-  } else if (pME->type == TSDB_CHILD_TABLE) {
-    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));
-    TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ctbEntry.ttlDays));
-    TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ctbEntry.commentLen));
-    if (pME->ctbEntry.commentLen > 0) {
-      TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->ctbEntry.comment));
-    }
-    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.suid));
-    TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags));
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.btime));
-    TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ntbEntry.ttlDays));
-    TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.commentLen));
-    if (pME->ntbEntry.commentLen > 0) {
-      TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->ntbEntry.comment));
-    }
-    TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.ncid));
-    TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaRow));
-  } else if (pME->type == TSDB_TSMA_TABLE) {
-    pME->smaEntry.tsma = tDecoderMalloc(pCoder, sizeof(STSma));
-    if (!pME->smaEntry.tsma) {
-      return terrno;
-    }
-    TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
-  } else {
-    metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (pME->type == TSDB_SUPER_TABLE) {
-    if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
-      TAOS_CHECK_RETURN(meteDecodeColCmprEntry(pCoder, pME));
-
-      if (pME->colCmpr.nCols == 0) {
-        TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow));
+    if (pME->type == TSDB_SUPER_TABLE) {
+      TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->flags));
+      TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaRow));
+      TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag));
+      if (TABLE_IS_ROLLUP(pME->flags)) {
+        TAOS_CHECK_RETURN(tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
       }
+    } else if (pME->type == TSDB_CHILD_TABLE) {
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));
+      TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ctbEntry.ttlDays));
+      TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ctbEntry.commentLen));
+      if (pME->ctbEntry.commentLen > 0) {
+        TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->ctbEntry.comment));
+      }
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.suid));
+      TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags));
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.btime));
+      TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ntbEntry.ttlDays));
+      TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.commentLen));
+      if (pME->ntbEntry.commentLen > 0) {
+        TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->ntbEntry.comment));
+      }
+      TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.ncid));
+      TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaRow));
+    } else if (pME->type == TSDB_TSMA_TABLE) {
+      pME->smaEntry.tsma = tDecoderMalloc(pCoder, sizeof(STSma));
+      if (!pME->smaEntry.tsma) {
+        return terrno;
+      }
+      TAOS_CHECK_RETURN(tDecodeTSma(pCoder, pME->smaEntry.tsma, true));
     } else {
-      TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow));
-      TABLE_SET_COL_COMPRESSED(pME->flags);
+      metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
+      return TSDB_CODE_INVALID_PARA;
     }
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    if (!tDecodeIsEnd(pCoder)) {
-      uDebug("set type: %d, tableName:%s", pME->type, pME->name);
-      TAOS_CHECK_RETURN(meteDecodeColCmprEntry(pCoder, pME));
-      if (pME->colCmpr.nCols == 0) {
+    if (pME->type == TSDB_SUPER_TABLE) {
+      if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
+        TAOS_CHECK_RETURN(meteDecodeColCmprEntry(pCoder, pME));
+
+        if (pME->colCmpr.nCols == 0) {
+          TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow));
+        }
+      } else {
+        TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow));
+        TABLE_SET_COL_COMPRESSED(pME->flags);
+      }
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      if (!tDecodeIsEnd(pCoder)) {
+        uDebug("set type: %d, tableName:%s", pME->type, pME->name);
+        TAOS_CHECK_RETURN(meteDecodeColCmprEntry(pCoder, pME));
+        if (pME->colCmpr.nCols == 0) {
+          TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
+        }
+      } else {
+        uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
         TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
       }
-    } else {
-      uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
-      TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
+      TABLE_SET_COL_COMPRESSED(pME->flags);
     }
-    TABLE_SET_COL_COMPRESSED(pME->flags);
   }
 
   tEndDecode(pCoder);
