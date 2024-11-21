@@ -128,30 +128,34 @@ void taosAnalUpdate(int64_t newVer, SHashObj *pHash) {
 
 bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) {
   char  buf[TSDB_ANALYTIC_ALGO_OPTION_LEN] = {0};
-  char *pStart = strstr(option, optName);
-  char *pEnd = strstr(pStart, ANAL_ALGO_SPLIT);
+  char *pStart = NULL;
+  char *pEnd = NULL;
 
-  if (pStart != NULL) {
-    if (optMaxLen > 0) {
-      int32_t copyLen = optMaxLen;
-      if (pEnd > pStart) {
-        copyLen = (int32_t)(pEnd - pStart - strlen(optName));
-        copyLen = MIN(copyLen, optMaxLen);
-        tstrncpy(buf, pStart, copyLen);
-      } else {
-        int32_t len = MIN(tListLen(buf), strlen(pStart) + 1);
-        tstrncpy(buf, pStart, len);
-      }
-
-      char *pRight = strstr(buf, "=") + 1;
-      strtrim(pRight);
-
-      tstrncpy(optValue, pRight, strlen(pRight) + 1);
-    }
-    return true;
-  } else {
+  pStart = strstr(option, optName);
+  if (pStart == NULL) {
     return false;
   }
+
+  pEnd = strstr(pStart, ANAL_ALGO_SPLIT);
+  if (optMaxLen > 0) {
+    int32_t copyLen = 0;
+    if (pEnd > pStart) {
+      copyLen = (int32_t)(pEnd - pStart);
+      copyLen = MIN(copyLen + 1, TSDB_ANALYTIC_ALGO_OPTION_LEN);
+      tstrncpy(buf, pStart, copyLen);
+    } else {
+      int32_t len = MIN(tListLen(buf), strlen(pStart) + 1);
+      tstrncpy(buf, pStart, len);
+    }
+
+    char *pRight = strstr(buf, "=") + 1;
+    strtrim(pRight);
+
+    int32_t vLen = MIN(optMaxLen, strlen(pRight) + 1);
+    tstrncpy(optValue, pRight, vLen);
+  }
+
+  return true;
 }
 
 bool taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue) {
