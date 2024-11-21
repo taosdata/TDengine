@@ -68,7 +68,7 @@ $env:TDENGINE_CLOUD_TOKEN='<cloud_token>'
 ```
 
 </TabItem>
-</Tab>
+</Tabs>
 
 <!-- exclude -->
 :::note IMPORTANT
