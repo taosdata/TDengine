@@ -1352,7 +1352,7 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
       tError("failed to decompress since %s", tstrerror(code));
       return false;
     } else {
-      tDebug("decompress msg and resent, compress size %d, raw size %d", pHead, oriMsg, msgLen, oriLen);
+      tDebug("decompress msg and resent, compress size %d, raw size %d", msgLen, oriLen);
     }
 
     pHead = (STransMsgHead*)oriMsg;
