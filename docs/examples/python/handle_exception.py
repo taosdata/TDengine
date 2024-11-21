@@ -1,9 +1,13 @@
-import taos
+import taosrest
+import os
+
+url = os.environ["TDENGINE_CLOUD_URL"]
+token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
 try:
-    conn = taos.connect()
+    conn = taosrest.connect(url=url, token=token)
     conn.execute("CREATE TABLE 123")  # wrong sql
-except taos.Error as e:
+except taosrest.Error as e:
     print(e)
     print("exception class: ", e.__class__.__name__)
     print("error number:", e.errno)
@@ -13,7 +17,7 @@ except BaseException as other:
     print(other)
 
 # output:
-# [0x0216]: syntax error near 'Incomplete SQL statement'
-# exception class:  ProgrammingError
-# error number: -2147483114
-# error message: syntax error near 'Incomplete SQL statement'
+# [0x2600]: syntax error near "123"
+# exception class:  ConnectError
+# error number: 9728
+# error message: syntax error near "123"

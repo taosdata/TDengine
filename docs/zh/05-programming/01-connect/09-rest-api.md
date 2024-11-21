@@ -17,24 +17,24 @@ import TabItem from '@theme/TabItem';
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
 export TDENGINE_CLOUD_URL="<url>"
+export TDENGINE_CLOUD_TOKEN="<token>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_TOKEN=<token>
 set TDENGINE_CLOUD_URL=<url>
+set TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_TOKEN='<token>'
 $env:TDENGINE_CLOUD_URL='<url>'
+$env:TDENGINE_CLOUD_TOKEN='<token>'
 ```
 
 </TabItem>
@@ -53,5 +53,5 @@ TDengine REST API 是使用标准的 HTTP 协议并提供一直简易的方式�
 ```bash
 curl -L \
   -d "select name, ntables, status from information_schema.ins_databases;" \
-  $TDENGINE_CLOUD_URL/rest/sql?token=$TDENGINE_CLOUD_TOKEN
+  $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
 ```

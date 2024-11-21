@@ -11,24 +11,73 @@ import TabItem from '@theme/TabItem';
 <!-- exclude-end -->
 ## 安装连接器
 
-首先，您需要安装版本大于 `2.6.2` 的 `taospy` 模块，然后在终端里面执行下面的命令。
+### 安装前准备
 
-<Tabs defaultValue="pip" groupID="package">
-<TabItem value="pip" label="Pip">
+您必须先安装 Python3 和 Pip3。
+* 安装 Python。新版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
+* 安装 Pip3。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip documentation](https://pypi.org/project/pip/) 安装。
+
+
+### 用 Pip 安装
+如果以前安装过旧版本的 Python 连接器, 请提前卸载。
+
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
 
 ```bash
-pip3 install -U taospy[ws]
+pip3 uninstall taos taospy
 ```
-
-您必须首先安装 Python3 。
-
 </TabItem>
-<TabItem value="conda" label="Conda">
+<TabItem value="websocket" label="WebSocket">
 
 ```bash
-conda install -c conda-forge taospy taospyws
+pip3 uninstall taos taos-ws-py
 ```
+</TabItem>
+</Tabs>
 
+
+安装最新或指定版本 `taospy` 或 `taos-ws-py`, 在终端里面执行下面的命令。
+
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
+
+```bash
+# 安装最新版本
+pip3 install taospy
+
+# 安装指定版本
+pip3 install taospy==2.6.2
+
+# 从 GitHub 安装
+pip3 install git+https://github.com/taosdata/taos-connector-python.git
+```
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+
+```bash
+pip3 install taos-ws-py
+```
+</TabItem>
+</Tabs>
+
+### 安装验证
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
+
+对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
+
+```python
+import taosrest
+```
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+
+对于 WebSocket 连接，只需验证是否能成功导入 `taosws` 模块。可在 Python 交互式 Shell 中输入：
+
+```python
+import taosws
+```
 </TabItem>
 </Tabs>
 
@@ -40,24 +89,24 @@ conda install -c conda-forge taospy taospyws
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
 export TDENGINE_CLOUD_URL="<url>"
+export TDENGINE_CLOUD_TOKEN="<token>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```shell
-set TDENGINE_CLOUD_TOKEN=<token>
 set TDENGINE_CLOUD_URL=<url>
+set TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_TOKEN='<token>'
 $env:TDENGINE_CLOUD_URL='<url>'
+$env:TDENGINE_CLOUD_TOKEN='<token>'
 ```
 
 </TabItem>
@@ -67,21 +116,30 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL 。
+替换 \<token> 和 \<url> 为您的 TDengine Cloud 实例的令牌和 URL 。
+
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Python“。
+
+请注意区分 REST 连接和  WebSocket 连接的URL。
 :::
 <!-- exclude-end -->
 
 ## 建立连接
 
-复制下面的代码到您的编辑器，然后执行这段代码。如果您正在使用 Jupyter 并且按照它的指南搭建好环境，您可以赋值下面代码到您浏览器的 Jupyter 编辑器。
+复制下面的代码到您的编辑器，然后执行这段代码。
 
-<Tabs defaultValue="rest">
+<Tabs defaultValue="rest" groupID="package">
 <TabItem value="rest" label="REST">
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
+
+`connect()` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
+
+- `url`： TDengine Cloud 的URL。
+- `token`: TDengine Cloud 的令牌.
+- `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
 
 </TabItem>
 <TabItem value="websocket" label="WebSocket">
@@ -93,51 +151,6 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </TabItem>
 </Tabs>
 
-对于如何写入数据和查询输入，请参考\<https://docs.taosdata.com/cloud/programming/insert/>和 \<https://docs.taosdata.com/cloud/programming/query/>。
+关于如何写入数据和查询数据，请参考[写入数据](https://docs.taosdata.com/cloud/programming/insert)和[查询数据](https://docs.taosdata.com/cloud/programming/query)。
 
-想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
-
-## Jupyter
-
-### 步骤一：安装模块
-
-对于熟悉使用 Jupyter 来进行 Python 编程的用户，在您的环境中必须准备好 TDengine 的 Python 连接器和 Jupyter。如果您还没有这样做，请使用下面的命令来安装他们。
-
-<Tabs defaultValue="pip" groupID="package">
-<TabItem value="pip" label="Pip">
-
-```bash
-pip3 install jupyterlab
-pip3 install -U taospy[ws]
-```
-
-您接下来需要安装 Python3 。
-
-</TabItem>
-<TabItem value="conda" label="Conda">
-
-```
-conda install -c conda-forge jupyterlab
-conda install -c conda-forge taospy
-```
-
-</TabItem>
-</Tabs>
-
-### 步骤二：配置
-
-在使用 Jupyter 和 TDengine Cloud 连接连接之前，需要在环境变量设置按照下面内容设置，然后再启动 Jupyter。我们使用 Linux 脚本作为例子。
-
-```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
-export TDENGINE_CLOUD_URL="<url>"
-jupyter lab
-```
-
-### 步骤三：建立连接
-
-一旦 Jupter lab 启动成功，Jupyter lab 服务就会自动和 TDengine Cloud 连接并且显示在浏览器里面。您可以创建一个新的 notebook 页面，然后复制下面的样例代码到这个页面中并运行。
-
-```python
-{{#include docs/examples/python/develop_tutorial.py:connect}}
-```
+更多关于 REST 接口的详情，请参考 [REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/)。
