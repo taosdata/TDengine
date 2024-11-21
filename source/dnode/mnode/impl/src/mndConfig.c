@@ -27,8 +27,8 @@
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
-static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue) static int32_t
-    mndProcessConfigDnodeReq(SRpcMsg *pReq);
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue);
+static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);

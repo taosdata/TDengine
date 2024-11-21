@@ -35,7 +35,6 @@
 // GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
-
 // cluster
 char          tsFirst[TSDB_EP_LEN] = {0};
 char          tsSecond[TSDB_EP_LEN] = {0};
@@ -602,6 +601,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     (void)strcpy(defaultFqdn, "localhost");
   }
 
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "forceReadConfig", tsForceReadConfig, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "firstEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "secondEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
@@ -1229,6 +1230,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "fqdn");
   tstrncpy(tsLocalFqdn, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "forceReadConfig");
+  tsForceReadConfig = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "serverPort");
   tsServerPort = (uint16_t)pItem->i32;
@@ -2060,7 +2064,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
-  tryLoadCfgFromDataDir(tsCfg);
+  TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
 
   if (tsc) {
     TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);

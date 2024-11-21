@@ -286,7 +286,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
   SConfigRsp      configRsp = {0};
-  dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
@@ -300,8 +299,10 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       (void)raise(SIGINT);
     }
   } else {
+    bool needUpdate = false;
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
+      // Try to use cfg file in current dnode.
       if (configRsp.forceReadConfig) {
         if (configRsp.isConifgVerified) {
           persistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
@@ -311,11 +312,15 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
           goto _exit;
         }
       }
+      // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
+        needUpdate = true;
         persistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
       }
     }
-    setAllConfigs(tsCfg);
+    if (needUpdate) {
+      setAllConfigs(tsCfg);
+    }
     persistLocalConfig(pMgmt->path);
     tsConfigInited = 1;
   }
