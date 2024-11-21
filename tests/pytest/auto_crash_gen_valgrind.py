@@ -399,18 +399,18 @@ def main():
             core_dir = "none"
 
         text = f'''
-        Result: {msg_dict[status]}
-        
-        Details
-        Owner: Jayden Jia
-        Start time: {starttime}
-        End time: {endtime}       
-        Hostname: {hostname}
-        Commit:  {git_commit}
-        Cmd: {cmd}
-        Log dir: {log_dir}
-        Core dir: {core_dir}
-        '''
+Result: {msg_dict[status]}
+
+Details
+Owner: Jayden Jia
+Start time: {starttime}
+End time: {endtime}       
+Hostname: {hostname}
+Commit:  {git_commit}
+Cmd: {cmd}
+Log dir: {log_dir}
+Core dir: {core_dir}
+'''
         
         text_result=text.split("Result: ")[1].split("Details")[0].strip()
         print(text_result)
