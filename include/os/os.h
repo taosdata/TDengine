@@ -138,6 +138,14 @@ extern threadlocal bool tsEnableRandErr;
     terrno = _code;           \
   }
 
+#define OS_PARAM_CHECK(_o)             \
+  do {                                 \
+    if ((_o) == NULL) {                \
+      terrno = TSDB_CODE_INVALID_PARA; \
+      return terrno;                   \
+    }                                  \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

@@ -67,6 +67,7 @@ extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
+extern int32_t tsBypassFlag;
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;

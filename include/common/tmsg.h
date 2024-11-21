@@ -2187,8 +2187,9 @@ int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
-  char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char value[TSDB_CONFIG_PATH_LEN + 1];
   char scope[TSDB_CONFIG_SCOPE_LEN + 1];
+  char info[TSDB_CONFIG_INFO_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
@@ -3797,7 +3798,14 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  chkptId;
+} SVResetStreamTaskReq;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];

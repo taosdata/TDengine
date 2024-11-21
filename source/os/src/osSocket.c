@@ -233,6 +233,8 @@ int32_t taosBlockSIGPIPE() {
 }
 
 int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
+  OS_PARAM_CHECK(fqdn);
+  OS_PARAM_CHECK(ip);
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -309,6 +311,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 }
 
 int32_t taosGetFqdn(char *fqdn) {
+  OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -384,6 +387,9 @@ int32_t taosGetFqdn(char *fqdn) {
 }
 
 void tinet_ntoa(char *ipstr, uint32_t ip) {
+  if (ipstr == NULL) {
+    return;
+  }
   (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 

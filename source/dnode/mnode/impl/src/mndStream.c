@@ -2434,7 +2434,12 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SC
         mDebug("s-task:0x%x expired checkpoint-report msg in checkpoint-report list update from %" PRId64 "->%" PRId64,
                pReport->taskId, p->checkpointId, pReport->checkpointId);
 
-        memcpy(p, pReport, sizeof(STaskChkptInfo));
+        // update the checkpoint report info
+        p->checkpointId = pReport->checkpointId;
+        p->ts = pReport->checkpointTs;
+        p->version = pReport->checkpointVer;
+        p->transId = pReport->transId;
+        p->dropHTask = pReport->dropHTask;
       } else {
         mWarn("taskId:0x%x already in checkpoint-report list", pReport->taskId);
       }

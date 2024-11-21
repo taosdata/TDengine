@@ -319,11 +319,6 @@ typedef struct SSTaskBasicInfo {
   SInterval interval;
 } SSTaskBasicInfo;
 
-typedef struct SStreamRetrieveReq SStreamRetrieveReq;
-typedef struct SStreamDispatchReq SStreamDispatchReq;
-typedef struct STokenBucket       STokenBucket;
-typedef struct SMetaHbInfo        SMetaHbInfo;
-
 typedef struct SDispatchMsgInfo {
   SStreamDispatchReq* pData;  // current dispatch data
 
@@ -626,11 +621,11 @@ typedef struct STaskStatusEntry {
   STaskCkptInfo checkpointInfo;
 } STaskStatusEntry;
 
-typedef struct SNodeUpdateInfo {
-  int32_t nodeId;
-  SEpSet  prevEp;
-  SEpSet  newEp;
-} SNodeUpdateInfo;
+//typedef struct SNodeUpdateInfo {
+//  int32_t nodeId;
+//  SEpSet  prevEp;
+//  SEpSet  newEp;
+//} SNodeUpdateInfo;
 
 typedef struct SStreamTaskState {
   ETaskStatus state;
@@ -642,6 +637,11 @@ typedef struct SCheckpointConsensusInfo {
   int32_t numOfTasks;
   int64_t streamId;
 } SCheckpointConsensusInfo;
+
+typedef struct SCheckpointConsensusEntry {
+  SRestoreCheckpointInfo req;
+  int64_t                ts;
+} SCheckpointConsensusEntry;
 
 void    streamSetupScheduleTrigger(SStreamTask* pTask);
 
@@ -718,6 +718,7 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
+void    streamTaskSetFailedCheckpointId(SStreamTask* pTask, int64_t failedId);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t streamQueueGetNumOfUnAccessedItems(const SStreamQueue* pQueue);

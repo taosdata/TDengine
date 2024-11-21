@@ -91,6 +91,7 @@ typedef struct SSyncSnapshotReceiver {
 
   // update when begin
   void          *pWriter;
+  TdThreadMutex  writerMutex;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
 

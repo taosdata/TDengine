@@ -81,26 +81,42 @@ const char* getDefaultEncodeStr(uint8_t type) { return columnEncodeStr(getDefaul
 uint16_t getDefaultCompress(uint8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BOOL:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TIMESTAMP:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_NCHAR:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_JSON:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARBINARY:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_DECIMAL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_GEOMETRY:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MAX:
       return TSDB_COLVAL_COMPRESS_LZ4;
     default:
