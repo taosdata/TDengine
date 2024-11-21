@@ -13,7 +13,7 @@ import csv
 from datetime import datetime
 
 # crash_gen warn group
-group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
+# group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
 
 # # disk fill warn group
 # group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/14cc4cf2-0b84-4ca2-8577-a46f7530559d'
@@ -36,6 +36,42 @@ def get_msg(text):
         }
     }
 
+def get_query_msg(text):
+    return {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": "Query testcase in TestNG monitor",
+                    "content": [
+                        [{
+                            "tag": "text",
+                            "text": text
+                        }
+                        ]]
+                }
+            }
+        }
+    }
+    
+def get_insert_msg(text):
+    return {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": "Insert and stream testcase in TestNG monitor",
+                    "content": [
+                        [{
+                            "tag": "text",
+                            "text": text
+                        }
+                        ]]
+                }
+            }
+        }
+    }
+    
 def send_msg(result, result_detail, test_scope, owner, hostname, start_time, end_time, community_commit_id, enterprise_commit_id, log_dir, others):
     text = f'''result: {result}
     result_detail: {result_detail}
@@ -49,7 +85,11 @@ def send_msg(result, result_detail, test_scope, owner, hostname, start_time, end
     log dir: {log_dir}
     others: {others}\n'''
 
-    json = get_msg(text)
+    #json = get_msg(text)
+    if owner == "guoxy":
+        json = get_query_msg(text)
+    else:    
+        json = get_insert_msg(text)
     headers = {
         'Content-Type': 'application/json'
     }
