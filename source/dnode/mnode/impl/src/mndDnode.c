@@ -81,8 +81,6 @@ static int32_t  mndProcessShowVariablesReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
-static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
-static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
@@ -96,8 +94,6 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
-
-static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -119,8 +115,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DNODE, mndProcessCreateDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
@@ -922,8 +916,6 @@ _OVER:
   return mndUpdClusterInfo(pReq);
 }
 
-
-
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SNotifyReq notifyReq = {0};
@@ -1441,144 +1433,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
-  int32_t code = 0;
-  char   *p = pMCfgReq->config;
-  while (*p) {
-    if (*p == ' ') {
-      break;
-    }
-    p++;
-  }
-
-  size_t optLen = p - pMCfgReq->config;
-  (void)strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
-  pDCfgReq->config[optLen] = 0;
-
-  if (' ' == pMCfgReq->config[optLen]) {
-    // 'key value'
-    if (strlen(pMCfgReq->value) != 0) goto _err;
-    (void)strcpy(pDCfgReq->value, p + 1);
-  } else {
-    // 'key' 'value'
-    if (strlen(pMCfgReq->value) == 0) goto _err;
-    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
-  }
-
-  TAOS_RETURN(code);
-
-_err:
-  mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
-  code = TSDB_CODE_INVALID_CFG;
-  TAOS_RETURN(code);
-}
-
-static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
-  int32_t code = -1;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  while (1) {
-    SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
-    if (pIter == NULL) break;
-
-    if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
-      SEpSet  epSet = mndGetDnodeEpset(pDnode);
-      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
-      void   *pBuf = rpcMallocCont(bufLen);
-
-      if (pBuf != NULL) {
-        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
-          code = bufLen;
-          return code;
-        }
-        mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
-        code = tmsgSendReq(&epSet, &rpcMsg);
-      }
-    }
-
-    sdbRelease(pSdb, pDnode);
-  }
-
-  if (code == -1) {
-    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
-  }
-  TAOS_RETURN(code);
-}
-
-static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
-  int32_t       code = 0;
-  SMnode       *pMnode = pReq->info.node;
-  SMCfgDnodeReq cfgReq = {0};
-  TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
-  int8_t updateIpWhiteList = 0;
-  mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
-    tFreeSMCfgDnodeReq(&cfgReq);
-    TAOS_RETURN(code);
-  }
-
-  SDCfgDnodeReq dcfgReq = {0};
-  if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    (void)strcpy(dcfgReq.config, "resetlog");
-#ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
-    int32_t optLen = strlen("s3blocksize");
-    int32_t flag = -1;
-    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
-
-    if (flag > 1024 * 1024 || (flag > -1 && flag < 1024) || flag < -1) {
-      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [1024, 1024 * 1024]",
-             cfgReq.dnodeId, flag);
-      code = TSDB_CODE_INVALID_CFG;
-      tFreeSMCfgDnodeReq(&cfgReq);
-      TAOS_RETURN(code);
-    }
-
-    strcpy(dcfgReq.config, "s3blocksize");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-#endif
-  } else {
-    TAOS_CHECK_GOTO(mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
-    if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {
-      mError("dnode:%d, failed to config since config is too long", cfgReq.dnodeId);
-      code = TSDB_CODE_INVALID_CFG;
-      goto _err_out;
-    }
-    if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
-      updateIpWhiteList = 1;
-    }
-
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true), NULL, _err_out);
-  }
-
-  {  // audit
-    char obj[50] = {0};
-    (void)sprintf(obj, "%d", cfgReq.dnodeId);
-
-    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
-  }
-
-  tFreeSMCfgDnodeReq(&cfgReq);
-
-  code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
-
-  // dont care suss or succ;
-  if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
-  TAOS_RETURN(code);
-
-_err_out:
-  tFreeSMCfgDnodeReq(&cfgReq);
-  TAOS_RETURN(code);
-}
-
-static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
-  mInfo("config rsp from dnode");
-  return 0;
-}
-
 static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
   int32_t code = 0;
   SMnode *pMnode = pReq->info.node;
@@ -1872,31 +1726,6 @@ _OVER:
 static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_DNODE);
-}
-
-// get int32_t value from 'SMCfgDnodeReq'
-static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32_t *pOutValue) {
-  int32_t code = 0;
-  if (' ' != pMCfgReq->config[optLen] && 0 != pMCfgReq->config[optLen]) {
-    goto _err;
-  }
-
-  if (' ' == pMCfgReq->config[optLen]) {
-    // 'key value'
-    if (strlen(pMCfgReq->value) != 0) goto _err;
-    *pOutValue = atoi(pMCfgReq->config + optLen + 1);
-  } else {
-    // 'key' 'value'
-    if (strlen(pMCfgReq->value) == 0) goto _err;
-    *pOutValue = atoi(pMCfgReq->value);
-  }
-
-  TAOS_RETURN(code);
-
-_err:
-  mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
-  code = TSDB_CODE_INVALID_CFG;
-  TAOS_RETURN(code);
 }
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {

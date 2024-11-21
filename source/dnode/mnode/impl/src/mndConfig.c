@@ -14,14 +14,22 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "mndConfig.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndTrans.h"
+#include "mndUser.h"
+#include "tutil.h"
 
 #define CFG_VER_NUMBER   1
 #define CFG_RESERVE_SIZE 63
 
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue) static int32_t
+    mndProcessConfigDnodeReq(SRpcMsg *pReq);
+static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 static int32_t mndInitWriteCfg(SMnode *pMnode);
 static int32_t mndInitReadCfg(SMnode *pMnode);
@@ -41,6 +49,8 @@ int32_t mndInitConfig(SMnode *pMnode) {
                      .prepareFp = (SdbPrepareFp)mndCfgActionPrepare};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG, mndProcessConfigReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -83,8 +93,12 @@ SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
-      SDB_SET_INT32(pRaw, dataPos, strlen(obj->str), _OVER)
-      SDB_SET_BINARY(pRaw, dataPos, obj->str, strlen(obj->str), _OVER)
+      if (obj->str != NULL) {
+        SDB_SET_INT32(pRaw, dataPos, strlen(obj->str), _OVER)
+        SDB_SET_BINARY(pRaw, dataPos, obj->str, strlen(obj->str), _OVER)
+      } else {
+        SDB_SET_INT32(pRaw, dataPos, 0, _OVER)
+      }
       break;
   }
 
@@ -149,7 +163,10 @@ SSdbRow *mndCfgActionDecode(SSdbRaw *pRaw) {
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
       SDB_GET_INT32(pRaw, dataPos, &len, _OVER)
-      SDB_GET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
+      if (len > 0) {
+        obj->str = taosMemoryMalloc(len + 1);
+        SDB_GET_BINARY(pRaw, dataPos, obj->str, len, _OVER)
+      }
       break;
   }
   terrno = TSDB_CODE_SUCCESS;
@@ -337,7 +354,10 @@ int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj) {
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_NONE:
     case CFG_DTYPE_STRING: {
-      pItem->str = obj->str;
+      if (obj->str != NULL) {
+        taosMemoryFree(pItem->str);
+        pItem->str = obj->str;
+      }
       break;
     }
     default:
@@ -346,4 +366,203 @@ int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj) {
   }
 
   TAOS_RETURN(code);
+}
+
+static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
+  int32_t code = 0;
+  char   *p = pMCfgReq->config;
+  while (*p) {
+    if (*p == ' ') {
+      break;
+    }
+    p++;
+  }
+
+  size_t optLen = p - pMCfgReq->config;
+  (void)strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
+  pDCfgReq->config[optLen] = 0;
+
+  if (' ' == pMCfgReq->config[optLen]) {
+    // 'key value'
+    if (strlen(pMCfgReq->value) != 0) goto _err;
+    (void)strcpy(pDCfgReq->value, p + 1);
+  } else {
+    // 'key' 'value'
+    if (strlen(pMCfgReq->value) == 0) goto _err;
+    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
+  }
+
+  TAOS_RETURN(code);
+
+_err:
+  mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
+  code = TSDB_CODE_INVALID_CFG;
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
+      SEpSet  epSet = mndGetDnodeEpset(pDnode);
+      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
+      void   *pBuf = rpcMallocCont(bufLen);
+
+      if (pBuf != NULL) {
+        if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+          code = bufLen;
+          return code;
+        }
+        mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
+        code = tmsgSendReq(&epSet, &rpcMsg);
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (code == -1) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
+  int32_t       code = 0;
+  int32_t       lino = -1;
+  SMnode       *pMnode = pReq->info.node;
+  SMCfgDnodeReq cfgReq = {0};
+  TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
+  int8_t updateIpWhiteList = 0;
+  mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
+    tFreeSMCfgDnodeReq(&cfgReq);
+    TAOS_RETURN(code);
+  }
+
+  SDCfgDnodeReq dcfgReq = {0};
+  if (strcasecmp(cfgReq.config, "resetlog") == 0) {
+    (void)strcpy(dcfgReq.config, "resetlog");
+#ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
+    int32_t optLen = strlen("s3blocksize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag > 1024 * 1024 || (flag > -1 && flag < 1024) || flag < -1) {
+      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [1024, 1024 * 1024]",
+             cfgReq.dnodeId, flag);
+      code = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      TAOS_RETURN(code);
+    }
+
+    strcpy(dcfgReq.config, "s3blocksize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+#endif
+  } else {
+    TAOS_CHECK_GOTO(mndMCfg2DCfg(&cfgReq, &dcfgReq), &lino, _err_out);
+    if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {
+      mError("dnode:%d, failed to config since config is too long", cfgReq.dnodeId);
+      code = TSDB_CODE_INVALID_CFG;
+      goto _err_out;
+    }
+    if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
+      updateIpWhiteList = 1;
+    }
+
+    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true), &lino, _err_out);
+  }
+  mndConfigUpdateTrans(pMnode, cfgReq.config, cfgReq.value);
+  {  // audit
+    char obj[50] = {0};
+    (void)sprintf(obj, "%d", cfgReq.dnodeId);
+
+    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+  }
+
+  tFreeSMCfgDnodeReq(&cfgReq);
+
+  code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
+
+  // dont care suss or succ;
+  if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
+  TAOS_RETURN(code);
+
+_err_out:
+  tFreeSMCfgDnodeReq(&cfgReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
+  mInfo("config rsp from dnode");
+  return 0;
+}
+
+// get int32_t value from 'SMCfgDnodeReq'
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32_t *pOutValue) {
+  int32_t code = 0;
+  if (' ' != pMCfgReq->config[optLen] && 0 != pMCfgReq->config[optLen]) {
+    goto _err;
+  }
+
+  if (' ' == pMCfgReq->config[optLen]) {
+    // 'key value'
+    if (strlen(pMCfgReq->value) != 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->config + optLen + 1);
+  } else {
+    // 'key' 'value'
+    if (strlen(pMCfgReq->value) == 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->value);
+  }
+
+  TAOS_RETURN(code);
+
+_err:
+  mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
+  code = TSDB_CODE_INVALID_CFG;
+  TAOS_RETURN(code);
+}
+
+// TODO(beryl):add more log.
+static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue) {
+  int32_t     code = -1;
+  int32_t     lino = -1;
+  SConfigObj *pVersion = mndInitConfigVersion();
+  if (pVersion == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  SConfigObj *pObj = sdbAcquire(pMnode->pSdb, SDB_CFG, name);
+  if (pObj == NULL) {
+    mWarn("failed to acquire mnd config:%s while update config, since %s", name, terrstr());
+    code = terrno;
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(mndUpdateObj(pObj, name, pValue), &lino, _OVER);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ARBGROUP, NULL, "update-config");
+  if (pTrans == NULL) {
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+  mInfo("trans:%d, used to update config:%s to value:%s", pTrans->id, pObj->name, pObj->str);
+  TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pVersion), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
+  code = 0;
+_OVER:
+  if (code != 0) {
+    --tsmmConfigVersion;
+    mError("failed to update config:%s to value:%s, since %s", name, pValue, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
+  return code;
 }

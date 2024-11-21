@@ -337,6 +337,8 @@ typedef struct {
 } SConfigObj;
 
 SConfigObj* mndInitConfigObj(SConfigItem* pItem);
+SConfigObj* mndInitConfigVersion();
+int32_t     mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
 
 typedef struct {
   int32_t maxUsers;

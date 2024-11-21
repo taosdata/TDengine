@@ -2416,8 +2416,9 @@ int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq
 void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
 
 typedef struct {
-  char config[TSDB_DNODE_CONFIG_LEN];
-  char value[TSDB_DNODE_VALUE_LEN];
+  char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
+  int32_t version;
 } SDCfgDnodeReq;
 
 int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);

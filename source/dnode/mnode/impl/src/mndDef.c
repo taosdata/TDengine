@@ -16,6 +16,7 @@
 #include "mndConsumer.h"
 #include "mndDef.h"
 #include "taoserror.h"
+#include "tunit.h"
 
 static void *freeStreamTasks(SArray *pTaskLevel);
 
@@ -760,6 +761,70 @@ SConfigObj *mndInitConfigObj(SConfigItem *pItem) {
       pObj->str = pItem->str;
       break;
   }
+  return pObj;
+}
+
+int32_t mndUpdateObj(SConfigObj *pObj, const char *name, char *value) {
+  int32_t code = 0;
+
+  switch (pObj->dtype) {
+    case CFG_DTYPE_BOOL: {
+      bool tmp = false;
+      if (strcasecmp(value, "true") == 0) {
+        tmp = true;
+      }
+      if (atoi(value) > 0) {
+        tmp = true;
+      }
+      pObj->bval = tmp;
+      break;
+    }
+    case CFG_DTYPE_INT32: {
+      int32_t ival;
+      TAOS_CHECK_RETURN(taosStrHumanToInt32(value, &ival));
+      pObj->i32 = ival;
+      break;
+    }
+    case CFG_DTYPE_INT64: {
+      int64_t ival;
+      TAOS_CHECK_RETURN(taosStrHumanToInt64(value, &ival));
+      pObj->i64 = ival;
+      break;
+    }
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE: {
+      float dval = 0;
+      TAOS_CHECK_RETURN(parseCfgReal(value, &dval));
+      pObj->fval = dval;
+      break;
+    }
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_TIMEZONE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_STRING: {
+      char *tmp = taosStrdup(value);
+      taosMemoryFreeClear(pObj->str);
+      pObj->str = tmp;
+      break;
+    }
+
+    case CFG_DTYPE_NONE:
+    default:
+      code = TSDB_CODE_INVALID_CFG;
+      break;
+  }
+  return code;
+}
+
+SConfigObj *mndInitConfigVersion() {
+  SConfigObj *pObj = taosMemoryCalloc(1, sizeof(SConfigObj));
+  if (pObj == NULL) {
+    return NULL;
+  }
+  strncpy(pObj->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
+  pObj->dtype = CFG_DTYPE_INT32;
+  pObj->i32 = ++tsmmConfigVersion;
   return pObj;
 }
 
