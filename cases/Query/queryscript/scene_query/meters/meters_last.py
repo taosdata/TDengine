@@ -554,8 +554,8 @@ class TDTestQuery(TDCase):
 
     def cache_test(self,replica,func):
         dbname = 'db_cache'
-        table_num = random.randint(1000,5000)
-        table_per_row = random.randint(50,5000)
+        table_num = random.randint(10000,50000)
+        table_per_row = random.randint(500,5000)
                
         if func == 'insert':
             self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
@@ -1287,6 +1287,7 @@ class TDTestQuery(TDCase):
             self.logger.info("-------delete one/tenth tables last ts in range(%d)--------"%(i))
             self.cache_test(replica=1,func='multi_delete_one_tenth_tables_lastts_data')        
             self.cache_test(replica=1,func='querylast')
+            self.
             
         self.logger.info("-------delete all data in range(%d)--------"%(i))
         self.cache_test(replica=1,func='multi_delete_all') 
