@@ -301,7 +301,7 @@ $env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
 
 |           参数名称            |  类型   | 参数说明                                                                                 | 备注                                        |
 | :---------------------------: | :-----: | ---------------------------------------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`        | string  | TDengine Cloud 实例的连接值，如“gw.cloud.taosdata.com”。                                 |                                             |
+|        `td.connect.ip`        | string  | TDengine Cloud 实例服务端的地址，如“gw.cloud.taosdata.com”。                                 |                                             |
 |      `td.connect.token`       | string  | TDengine Cloud 实例的令牌值。                                                            |                                             |
 |          `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                                                        | **必填项**。最大长度：192。                 |
 |          `client.id`          | string  | 客户端 ID                                                                                | 最大长度：192。                             |

@@ -16,7 +16,7 @@ conf = {
 }
 consumer = Consumer(conf)
 
-consumer.subscribe(["test"])
+consumer.subscribe(["test_topic"])
 
 while 1:
   message = consumer.poll(timeout=1.0)
