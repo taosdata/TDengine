@@ -169,6 +169,8 @@ void Close();
 </TabItem>
 <TabItem value="node" label="Node.js">
 
+在使用 Node.js 创建数据订阅时，请确保 TDengine 版本在 3.2.0.0 以上。
+
 ```javascript
 subscribe(topics: Array<string>, reqId?: number): Promise<void>;
 

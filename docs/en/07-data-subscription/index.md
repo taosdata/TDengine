@@ -172,6 +172,8 @@ void Close();
 </TabItem>
 <TabItem value="node" label="Node.js">
 
+When creating a data subscription with NodeJS, make sure that the TDengine version is above 3.2.0.0.
+
 ```javascript
 subscribe(topics: Array<string>, reqId?: number): Promise<void>;
 
