@@ -52,10 +52,27 @@ sql flush database $db
 
 
 sql select * from information_schema.ins_disk_usage 
+sql select sum(vgroup_id) from information_schema.ins_disk_usage 
+sql select sum(wal) from information_schema.ins_disk_usage 
+sql select sum(data1) from information_schema.ins_disk_usage 
+sql select sum(data2) from information_schema.ins_disk_usage 
+sql select sum(data3) from information_schema.ins_disk_usage 
+sql select sum(cache_rdb) from information_schema.ins_disk_usage 
+sql select sum(table_meta) from information_schema.ins_disk_usage 
+sql select sum(s3) from information_schema.ins_disk_usage 
+sql select sum(raw_data) from information_schema.ins_disk_usage 
 
+print $data00
+print $rawDataSize
 print $rows
 
 sql use $db
 sql show disk_info
+
+#sql drop database $db
+#sql select * from information_schema.ins_disk_usage 
+#if $rows != 0 then 
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

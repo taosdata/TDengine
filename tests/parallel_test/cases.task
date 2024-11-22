@@ -1524,6 +1524,7 @@
 ,,y,script,./test.sh -f tsim/compute/stddev.sim
 ,,y,script,./test.sh -f tsim/compute/sum.sim
 ,,y,script,./test.sh -f tsim/compute/top.sim
+,,y,script,./test.sh -f tsim/compute/disk_usage.sim
 ,,y,script,./test.sh -f tsim/field/2.sim
 ,,y,script,./test.sh -f tsim/field/3.sim
 ,,y,script,./test.sh -f tsim/field/4.sim
