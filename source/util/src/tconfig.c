@@ -40,7 +40,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile);
 int32_t cfgLoadFromEnvVar(SConfig *pConfig);
 int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd);
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
-int32_t cfgSetItemVal(SConfigItem *item, ECfgDataType dtype);
+int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, ECfgSrcType stype);
 
 extern char **environ;
 
@@ -354,7 +354,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
-  TAOS_CHECK_RETURN(cfgSetItemVal(pItem, pItem->dtype));
+  TAOS_CHECK_RETURN(cfgSetItemVal(pItem, name, value, stype));
 
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
@@ -363,7 +363,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   TAOS_RETURN(code);
 }
 
-int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem *pItem, const char *name, const char *value, ECfgSrcType stype,
+int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, const char *value, ECfgSrcType stype,
                          bool lock) {
   // GRANT_CFG_SET;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -372,13 +372,13 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem *pItem, const char *name, co
     (void)taosThreadMutexLock(&pCfg->lock);
   }
 
-  pItem = cfgGetItem(pCfg, name);
+  *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
-  TAOS_CHECK_RETURN(cfgSetItemVal(pItem, pItem->dtype));
+  TAOS_CHECK_RETURN(cfgSetItemVal(*pItem, name, value, stype));
 
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
@@ -387,34 +387,54 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem *pItem, const char *name, co
   TAOS_RETURN(code);
 }
 
-int32_t cfgSetItemVal(SConfigItem *item, ECfgDataType dtype) {
-  if (item == NULL) {
+int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, ECfgSrcType stype) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pItem == NULL) {
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
-  item->dtype = dtype;
-  switch (dtype) {
-    case CFG_DTYPE_BOOL:
-      item->bval = false;
+  switch (pItem->dtype) {
+    case CFG_DTYPE_BOOL: {
+      code = cfgSetBool(pItem, value, stype);
       break;
-    case CFG_DTYPE_INT32:
-      item->i32 = 0;
+    }
+    case CFG_DTYPE_INT32: {
+      code = cfgSetInt32(pItem, value, stype);
       break;
-    case CFG_DTYPE_INT64:
-      item->i64 = 0;
+    }
+    case CFG_DTYPE_INT64: {
+      code = cfgSetInt64(pItem, value, stype);
       break;
+    }
     case CFG_DTYPE_FLOAT:
-    case CFG_DTYPE_DOUBLE:
-      item->fval = 0;
+    case CFG_DTYPE_DOUBLE: {
+      code = cfgSetFloat(pItem, value, stype);
       break;
-    case CFG_DTYPE_STRING:
-    case CFG_DTYPE_DIR:
-    case CFG_DTYPE_LOCALE:
-    case CFG_DTYPE_CHARSET:
-    case CFG_DTYPE_TIMEZONE:
-      item->str = NULL;
+    }
+    case CFG_DTYPE_STRING: {
+      code = cfgSetString(pItem, value, stype);
       break;
+    }
+    case CFG_DTYPE_DIR: {
+      code = cfgSetDir(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_TIMEZONE: {
+      code = cfgSetTimezone(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_CHARSET: {
+      code = doSetConf(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_LOCALE: {
+      code = doSetConf(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_NONE:
     default:
-      TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+      code = TSDB_CODE_INVALID_CFG;
+      break;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -450,7 +470,7 @@ void cfgLock(SConfig *pCfg) {
 
 void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
-int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll) {
   ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
 
   cfgLock(pCfg);
@@ -458,6 +478,11 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & dynType) == 0) {
     uError("failed to config:%s, not support update this config", name);
+    cfgUnLock(pCfg);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+  if (!isUpdateAll && (pItem->category & CFG_CATEGORY_GLOBAL) == 0) {
+    uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }

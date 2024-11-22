@@ -25,6 +25,11 @@
 #define CFG_VER_NUMBER   1
 #define CFG_RESERVE_SIZE 63
 
+enum CfgAlterType {
+  CFG_ALTER_DNODE,
+  CFG_ALTER_ALL_DNODES,
+};
+
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue);
@@ -249,16 +254,15 @@ int32_t mndInitWriteCfg(SMnode *pMnode) {
   int    code = -1;
   size_t sz = 0;
 
-  SConfigObj obj = {0};
-  STrans    *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "init-write-config");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "init-write-config");
   if (pTrans == NULL) {
     mError("failed to init write cfg in create trans, since %s", terrstr());
     goto _OVER;
   }
 
   // encode mnd config version
-  obj = (SConfigObj){.name = "tsmmConfigVersion", .dtype = CFG_DTYPE_INT32, .i32 = tsmmConfigVersion};
-  if ((code = mndSetCreateConfigCommitLogs(pTrans, &obj)) != 0) {
+  SConfigObj *obj = mndInitConfigVersion();
+  if ((code = mndSetCreateConfigCommitLogs(pTrans, obj)) != 0) {
     mError("failed to init mnd config version, since %s", terrstr());
   }
   sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
@@ -479,9 +483,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       updateIpWhiteList = 1;
     }
 
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true), &lino, _err_out);
+    bool isUpdateAll = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? true : false;
+    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, isUpdateAll), &lino,
+                    _err_out);
   }
-  // update config in sdb
+  // Update config in sdb.
   TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, cfgReq.config, cfgReq.value), &lino, _err_out);
   {  // audit
     char obj[50] = {0};
@@ -538,11 +544,13 @@ _err:
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue) {
   int32_t     code = -1;
   int32_t     lino = -1;
-  SConfigObj *pVersion = mndInitConfigVersion();
+  SConfigObj *pVersion = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (pVersion == NULL) {
+    mWarn("failed to acquire tsmmConfigVersion while update config, since %s", terrstr());
     code = terrno;
     goto _OVER;
   }
+  pVersion->i32 = ++tsmmConfigVersion;
   SConfigObj *pObj = sdbAcquire(pMnode->pSdb, SDB_CFG, name);
   if (pObj == NULL) {
     mWarn("failed to acquire mnd config:%s while update config, since %s", name, terrstr());
@@ -555,7 +563,7 @@ static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pVal
     if (terrno != 0) code = terrno;
     goto _OVER;
   }
-  mInfo("trans:%d, used to update config:%s to value:%s", pTrans->id, pObj->name, pObj->str);
+  mInfo("trans:%d, used to update config:%s to value:%s", pTrans->id, name, pValue);
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pVersion), &lino, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;

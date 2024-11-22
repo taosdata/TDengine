@@ -45,7 +45,7 @@ uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
-int32_t       tsmmConfigVersion = 0;
+int32_t       tsmmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
@@ -2225,12 +2225,33 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"asynclog", &tsAsyncLog},
                                          {"disableStream", &tsDisableStream},
                                          {"enableWhiteList", &tsEnableWhiteList},
+                                         {"statusInterval", &tsStatusInterval},
                                          {"telemetryReporting", &tsEnableTelem},
                                          {"monitor", &tsEnableMonitor},
                                          {"monitorInterval", &tsMonitorInterval},
+                                         {"monitorComp", &tsMonitorComp},
+                                         {"monitorForceV2", &tsMonitorForceV2},
+                                         {"monitorLogProtocol", &tsMonitorLogProtocol},
+                                         {"monitorMaxLogs", &tsMonitorMaxLogs},
+                                         {"audit", &tsEnableAudit},
+                                         {"auditCreateTable", &tsEnableAuditCreateTable},
+                                         {"auditInterval", &tsAuditInterval},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"compressMsgSize", &tsCompressMsgSize},
+                                         {"compressor", &tsCompressor},
+                                         {"curRange", &tsCurRange},
+                                         {"dPrecision", &tsDPrecision},
+                                         {"fPrecision", &tsFPrecision},
+                                         {"ifAdtFse", &tsIfAdtFse},
+                                         {"maxRange", &tsMaxRange},
+                                         {"maxTsmaNum", &tsMaxTsmaNum},
+                                         {"queryRsmaTolerance", &tsQueryRsmaTolerance},
+                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
+                                         {"uptimeInterval", &tsUptimeInterval},
                                          {"slowLogThresholdTest", &tsSlowLogThresholdTest},
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
+                                         {"slowLogScope", &tsSlowLogScope},
+                                         {"slowLogExceptDb", &tsSlowLogExceptDb},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
                                          {"minDiskFreeSize", &tsMinDiskFreeSize},
@@ -2238,9 +2259,28 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"randErrorDivisor", &tsRandErrDivisor},
                                          {"randErrorScope", &tsRandErrScope},
                                          {"syncLogBufferMemoryAllowed", &tsLogBufferMemoryAllowed},
+                                         {"resolveFQDNRetryTime", &tsResolveFQDNRetryTime},
+                                         {"syncElectInterval", &tsElectInterval},
+                                         {"syncHeartbeatInterval", &tsHeartbeatInterval},
+                                         {"syncHeartbeatTimeout", &tsHeartbeatTimeout},
+                                         {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
+                                         {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
+
+                                         {"numOfCores", &tsNumOfCores},
+
+                                         {"enableCoreFile", &tsEnableCoreFile},
+
+                                         {"telemetryInterval", &tsTelemInterval},
+                                         {"telemetryPort", &tsTelemPort},
 
                                          {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
                                          {"checkpointInterval", &tsStreamCheckpointInterval},
+                                         {"concurrentCheckpoint", &tsMaxConcurrentCheckpoint},
+
+                                         {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
+                                         {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
+                                         {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
+
                                          {"keepAliveIdle", &tsKeepAliveIdle},
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxStreamBackendCache", &tsMaxStreamBackendCache},
@@ -2256,15 +2296,31 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"ttlBatchDropNum", &tsTtlBatchDropNum},
                                          {"ttlFlushThreshold", &tsTtlFlushThreshold},
                                          {"ttlPushInterval", &tsTtlPushIntervalSec},
+                                         {"ttlUnit", &tsTtlUnit},
+                                         {"udf", &tsStartUdfd},
+                                         {"udfdLdLibPath", &tsUdfdLdLibPath},
+                                         {"udfdResFuncs", &tsUdfdResFuncs},
+                                         {"s3Accesskey", &tsS3AccessKey},
+                                         {"s3BucketName", &tsS3BucketName},
+                                         {"s3Endpoint", &tsS3Endpoint},
                                          {"s3MigrateIntervalSec", &tsS3MigrateIntervalSec},
                                          {"s3MigrateEnabled", &tsS3MigrateEnabled},
                                          //{"s3BlockSize", &tsS3BlockSize},
                                          {"s3BlockCacheSize", &tsS3BlockCacheSize},
                                          {"s3PageCacheSize", &tsS3PageCacheSize},
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
+                                         {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
+                                         {"mndLogRetention", &tsMndLogRetention},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum},
+                                         {"maxShellConns", &tsMaxShellConns},
+                                         {"numOfRpcSessions", &tsNumOfRpcSessions},
+                                         {"numOfRpcThreads", &tsNumOfRpcThreads},
+                                         {"rpcQueueMemoryAllowed", &tsQueueMemoryAllowed},
+                                         {"shellActivityTimer", &tsShellActivityTimer},
+                                         {"timeToGetAvailableConn", &tsTimeToGetAvailableConn},
+                                         {"tsReadTimeout", &tsReadTimeout},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

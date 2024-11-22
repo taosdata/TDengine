@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "command.h"
 #include "catalog.h"
+#include "command.h"
 #include "commandInt.h"
 #include "scheduler.h"
 #include "systable.h"
@@ -51,7 +51,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
-  if(len < 0) {
+  if (len < 0) {
     taosMemoryFree(*pRsp);
     return terrno;
   }
@@ -898,7 +898,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
-  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false)) {
+  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false, false)) {
     return terrno;
   }
 

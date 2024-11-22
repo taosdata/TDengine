@@ -118,9 +118,9 @@ void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
-int32_t      cfgGetAndSetItem(SConfig *pCfg, SConfigItem *pItem, const char *name, const char *value, ECfgSrcType stype,
+int32_t      cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
                               bool lock);
-int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll);
 
 int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
 SConfigItem *cfgNextIter(SConfigIter *pIter);
