@@ -1259,7 +1259,8 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
         FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-               FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
+               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -5386,14 +5387,11 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   return code;
 }
 
-static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
-  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
+  if (!pFillValues) return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -5410,6 +5408,14 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
   if (fillNo != LIST_LENGTH(pFillValues->pNodeList)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
+  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return doCheckFillValues(pCxt, pFill, pProjectionList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6201,9 +6207,28 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+    if (pSelect->pAround) {
+      code = doCheckFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+    } else {
+      SFillNode* pFill = (SFillNode*)pSelect->pFill;
+      if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
+        if (pFill->pValues) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
+        }
+      }
+      code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
+    }
   }
 
+  return code;
+}
+
+static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = 0;
+  if (pSelect->pAround) {
+    SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pAround;
+    code = translateExpr(pCxt, &pAround->pInterval);
+  }
   return code;
 }
 
@@ -6227,6 +6252,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
+  int32_t code = 0;
   if (pCxt->createStream) {
     if (NULL != pSelect->pRange) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -6238,17 +6264,29 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                      "Missing EVERY clause or FILL clause");
     }
   } else {
-    if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-      if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-        // single point interp every can be omitted
-      } else {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Missing RANGE clause, EVERY clause or FILL clause");
+    if (!pSelect->pAround) {
+      if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+        if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+          // single point interp every can be omitted
+        } else {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+              "Missing RANGE clause, EVERY clause or FILL clause");
+        }
       }
+    } else {
+      if (pSelect->pEvery) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                       "Range clause with around interval can't be used with EVERY clause");
+      }
+      if (!pSelect->pFill) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                       "Missing FILL clause");
+      }
+      code = translateInterpAround(pCxt, pSelect);
     }
   }
 
-  int32_t code = translateExpr(pCxt, &pSelect->pRange);
+  if (TSDB_CODE_SUCCESS == code) code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }

@@ -362,7 +362,8 @@ typedef enum EFillMode {
   FILL_MODE_NULL,
   FILL_MODE_NULL_F,
   FILL_MODE_LINEAR,
-  FILL_MODE_NEXT
+  FILL_MODE_NEXT,
+  FILL_MODE_NEAR,
 } EFillMode;
 
 typedef enum ETimeLineMode {
@@ -407,6 +408,11 @@ typedef struct SWindowOffsetNode {
   SNode*    pEndOffset;    // SValueNode
 } SWindowOffsetNode;
 
+typedef struct SRangeAroundNode {
+  ENodeType type;
+  SNode*    pTimepoint;
+  SNode*    pInterval;
+} SRangeAroundNode;
 
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
@@ -421,6 +427,7 @@ typedef struct SSelectStmt {
   SNodeList*    pGroupByList;  // SGroupingSetNode
   SNode*        pHaving;
   SNode*        pRange;
+  SNode*        pAround;
   SNode*        pEvery;
   SNode*        pFill;
   SNodeList*    pOrderByList;  // SOrderByExprNode
