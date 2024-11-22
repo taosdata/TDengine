@@ -2,7 +2,7 @@ const taos = require('@tdengine/websocket');
 
 var url = process.env.TDENGINE_CLOUD_URL;
 var token = process.env.TDENGINE_CLOUD_TOKEN;
-async function createConnect() {
+async function queryData() {
   let conn = null;
   try {
     let conf = new taos.WSConfig(url);
@@ -21,3 +21,5 @@ async function createConnect() {
     }
   }
 }
+
+queryData();
