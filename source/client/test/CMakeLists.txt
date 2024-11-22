@@ -8,31 +8,31 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(clientTest clientTests.cpp)
 TARGET_LINK_LIBRARIES(
         clientTest
-        os util common transport parser catalog scheduler gtest taos_static qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_LINK} qcom executor function
 )
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom
+        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_LINK} qcom
 )
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
 TARGET_LINK_LIBRARIES(
         smlTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom geometry
+        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_LINK} qcom geometry
 )
 
 #ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
 #TARGET_LINK_LIBRARIES(
 #        clientMonitorTest
-#        PUBLIC os util common transport monitor parser catalog scheduler function gtest taos_static qcom executor
+#        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_LIB_LINK} qcom executor
 #)
 
 ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
 TARGET_LINK_LIBRARIES(
         userOperTest
-        PUBLIC taos
+        PUBLIC ${TAOS_LIB_LINK}
 )
 
 TARGET_INCLUDE_DIRECTORIES(
