@@ -747,14 +747,16 @@ await consumer.close();
 </TabItem>
 <TabItem value="C#" label="C#">
 
-````C#
+```C#
 {{#include docs/examples/csharp/cloud-example/subscribe/Program.cs}}
+```
+
 </TabItem>
 <TabItem value="node" label="Node.js">
 
 ```javascript
 {{#include docs/examples/node/sub.js}}
-````
+```
 
 </TabItem>
 </Tabs>
