@@ -32,7 +32,7 @@ TARGET_LINK_LIBRARIES(
 ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
 TARGET_LINK_LIBRARIES(
         userOperTest
-        PUBLIC ${TAOS_LIB_LINK}
+        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_LINK} qcom geometry
 )
 
 TARGET_INCLUDE_DIRECTORIES(
