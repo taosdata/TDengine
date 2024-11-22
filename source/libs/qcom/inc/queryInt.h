@@ -23,7 +23,13 @@ extern "C" {
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
-
+#define QUERY_PARAM_CHECK(_p)                                                \
+  do {                                                                       \
+    if ((_p) == NULL) {                                                      \
+      qError("function:%s, param invalid, line:%d", __FUNCTION__, __LINE__); \
+      return TSDB_CODE_TSC_INVALID_INPUT;                                    \
+    }                                                                        \
+  } while (0)
 
 #ifdef __cplusplus
 }

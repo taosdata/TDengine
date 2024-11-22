@@ -725,7 +725,8 @@ void cliConnTimeout(uv_timer_t* handle) {
     return;
   }
 
-  tTrace("%s conn %p conn timeout", CONN_GET_INST_LABEL(conn), conn);
+  cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
+  tTrace("%s conn %p failed to connect %s since conn timeout", CONN_GET_INST_LABEL(conn), conn, conn->dstAddr);
   TAOS_UNUSED(transUnrefCliHandle(conn));
 }
 
@@ -1334,13 +1335,31 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   }
 }
 bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msgLen) {
+  int32_t   code = 0;
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
   if (pConn->userInited == 1) {
     return false;
   }
   STransMsgHead* pHead = *ppHead;
-  STransMsgHead* tHead = taosMemoryCalloc(1, *msgLen + sizeof(pInst->user));
+  int32_t        len = *msgLen;
+  char*          oriMsg = NULL;
+  int32_t        oriLen = 0;
+
+  if (pHead->comp == 1) {
+    int32_t msgLen = htonl(pHead->msgLen);
+    code = transDecompressMsgExt((char*)(pHead), msgLen, &oriMsg, &oriLen);
+    if (code < 0) {
+      tError("failed to decompress since %s", tstrerror(code));
+      return false;
+    } else {
+      tDebug("decompress msg and resent, compress size %d, raw size %d", msgLen, oriLen);
+    }
+
+    pHead = (STransMsgHead*)oriMsg;
+    len = oriLen;
+  }
+  STransMsgHead* tHead = taosMemoryCalloc(1, len + sizeof(pInst->user));
   if (tHead == NULL) {
     return false;
   }
@@ -1348,14 +1367,17 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
 
   memcpy((char*)tHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
-         *msgLen - TRANS_MSG_OVERHEAD);
+         len - TRANS_MSG_OVERHEAD);
 
   tHead->withUserInfo = 1;
   *ppHead = tHead;
-  *msgLen += sizeof(pInst->user);
+  *msgLen = len + sizeof(pInst->user);
 
   pConn->pInitUserReq = tHead;
   pConn->userInited = 1;
+  if (oriMsg != NULL) {
+    taosMemoryFree(oriMsg);
+  }
   return true;
 }
 int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
@@ -1421,9 +1443,8 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pReq->contLen = 0;
     }
 
-    int32_t msgLen = transMsgLenFromCont(pReq->contLen);
-
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
+    int32_t        msgLen = transMsgLenFromCont(pReq->contLen);
 
     char*   content = pReq->pCont;
     int32_t contLen = pReq->contLen;

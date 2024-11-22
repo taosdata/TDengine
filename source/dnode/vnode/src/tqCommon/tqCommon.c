@@ -1182,10 +1182,12 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
     streamMutexUnlock(&pHTask->lock);
 
     code = tqProcessTaskResumeImpl(handle, pHTask, sversion, pReq->igUntreated, fromVnode);
+    tqDebug("s-task:%s resume complete, code:%s", pHTask->id.idStr, tstrerror(code));
+
     streamMetaReleaseTask(pMeta, pHTask);
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) { return taosArrayGetSize(pMeta->pTaskList); }

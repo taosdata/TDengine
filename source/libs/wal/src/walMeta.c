@@ -415,18 +415,15 @@ static void printFileSet(int32_t vgId, SArray* fileSet, const char* str) {
   int32_t sz = taosArrayGetSize(fileSet);
   for (int32_t i = 0; i < sz; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(fileSet, i);
-    wInfo("vgId:%d, %s-%d, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64
-          ", createTs:%" PRId64 ", closeTs:%" PRId64,
-          vgId, str, i, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset,
-          pFileInfo->createTs, pFileInfo->closeTs);
+    wTrace("vgId:%d, %s-%d, firstVer:%" PRId64 ", lastVer:%" PRId64 ", fileSize:%" PRId64 ", syncedOffset:%" PRId64
+           ", createTs:%" PRId64 ", closeTs:%" PRId64,
+           vgId, str, i, pFileInfo->firstVer, pFileInfo->lastVer, pFileInfo->fileSize, pFileInfo->syncedOffset,
+           pFileInfo->createTs, pFileInfo->closeTs);
   }
 }
 
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
-  if (pWal->cfg.level == TAOS_WAL_SKIP) {
-    return TSDB_CODE_SUCCESS;
-  }
   int32_t     code = 0;
   const char* logPattern = "^[0-9]+.log$";
   const char* idxPattern = "^[0-9]+.idx$";
