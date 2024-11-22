@@ -47,11 +47,12 @@ class TDTestQuery(TDCase):
         case1:# ramdom kill query
         case2:# ramdom kill transaction
         case3:# ramdom kill connection
+        case4:# ramdom drop database
         '''
         return case_description
     
     def random_kill_query(self):
-        query_sql = "select mode(kill_id) from performance_schema.perf_queries;"
+        query_sql = "select sample(kill_id,1) from performance_schema.perf_queries;"
         self.tdSql.query(query_sql)  
         rows = self.tdSql.query_row
         
@@ -61,7 +62,7 @@ class TDTestQuery(TDCase):
             
     
     def random_kill_transaction(self):
-        transaction_sql = "select mode(id) from performance_schema.perf_trans;"
+        transaction_sql = "select sample(id,1) from performance_schema.perf_trans;"
         self.tdSql.query(transaction_sql)  
         rows = self.tdSql.query_row
         
@@ -71,14 +72,24 @@ class TDTestQuery(TDCase):
            
                           
     def random_kill_connection(self):
-        connection_sql = "select mode(conn_id) from performance_schema.perf_connections;"
+        connection_sql = "select sample(conn_id,1) from performance_schema.perf_connections;"
         self.tdSql.query(connection_sql)  
         rows = self.tdSql.query_row
         
         for i in range(rows):
             kill_connection = " kill connection %s ;" %self.tdSql.getData(i,0)
             self.execute_sql(kill_connection)
-                                
+
+                          
+    def random_drop_db(self):
+        db_sql = "select sample(name,1) from information_schema.ins_databases;"
+        self.tdSql.query(db_sql)  
+        rows = self.tdSql.query_row
+        
+        for i in range(rows):
+            drop_db = " drop database %s ;" %self.tdSql.getData(i,0)
+            self.execute_sql(drop_db)
+                                                                
                                       
     def execute_sql(self,sql) :
         try:
@@ -95,11 +106,13 @@ class TDTestQuery(TDCase):
         # #     self.compact_all_db() 
             
         while 1:
-            self.random_kill_query() 
-            time.sleep(20)
-            self.random_kill_transaction()
-            time.sleep(20)
-            self.random_kill_connection()
-            time.sleep(20)
+            # self.random_kill_query() 
+            # time.sleep(20)
+            # self.random_kill_transaction()
+            # time.sleep(20)
+            # self.random_kill_connection()
+            # time.sleep(20)
+            self.random_drop_db()
+            time.sleep(2)
         
   
