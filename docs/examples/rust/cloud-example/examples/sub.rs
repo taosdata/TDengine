@@ -7,8 +7,9 @@ async fn main() -> anyhow::Result<()> {
     let tmq_uri = format!( "{}&group.id=test_group_rs&client.id=test_consumer_ws", tmq_str);
     println!("request tmq URI is {tmq_uri}\n");
     let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-    let mut consumer = tmq.build()?;
-    consumer.subscribe(["test"]).await?;
+    let mut consumer = tmq.build().await?;
+    
+    consumer.subscribe(["test_topic"]).await?;
 
     // consume loop
     consumer

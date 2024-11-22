@@ -76,7 +76,7 @@ func (c *Consumer) Unsubscribe() error
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 impl TBuilder for TmqBuilder
@@ -340,14 +340,14 @@ if err != nil {
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 let tmq_str = std::env::var("TDENGINE_CLOUD_TMQ")?;
 let tmq_uri = format!( "{}&group.id=test_group_rs&client.id=test_consumer_ws", tmq_str);
 println!("request tmq URI is {tmq_uri}\n");
 let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-let mut consumer = tmq.build()?;
+let mut consumer = tmq.build().await?;
 ```
 
 </TabItem>
@@ -723,7 +723,7 @@ await consumer.close();
 
 </TabItem>
 
-<TabItem label="Rust" value="Rust">
+<TabItem value="Rust" label="Rust">
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/sub.rs}}
