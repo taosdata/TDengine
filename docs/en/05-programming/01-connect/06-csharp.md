@@ -24,8 +24,8 @@ vim example.csproj
 Add following ItemGroup and Task to your project file.
 
 ```XML
-<ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.1.*" GeneratePathProperty="true" />
   </ItemGroup>
   <Target Name="copyDLLDependency" BeforeTargets="BeforeBuild">
     <ItemGroup>
@@ -41,27 +41,30 @@ dotnet add package TDengine.Connector
 
 ## Config
 
-Run this command in your terminal to save TDengine cloud token as variables:
+Run this command in your terminal to save TDengine cloud endpoint and token as variable:
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_DSN="<DSN>"
+export TDENGINE_CLOUD_ENDPOINT="<cloud_endpoint>"
+export TDENGINE_CLOUD_TOKEN="<cloud_token>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_DSN=<DSN>
+set TDENGINE_CLOUD_ENDPOINT=<cloud_endpoint>
+set TDENGINE_CLOUD_TOKEN=<cloud_token>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_DSN='<DSN>'
+$env:TDENGINE_CLOUD_ENDPOINT='<cloud_endpoint>'
+$env:TDENGINE_CLOUD_TOKEN='<cloud_token>'
 ```
 
 </TabItem>
@@ -69,7 +72,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note IMPORTANT
-Replace  &lt;DSN&gt; with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
+Replace &lt;cloud_endpoint&gt; and &lt;cloud_token&gt; from the real TDengine Cloud DSN like `https://cloud_endpoint?token=cloud_token`. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
 
 :::
 <!-- exclude-end -->
@@ -84,6 +87,6 @@ Replace  &lt;DSN&gt; with real TDengine cloud DSN. To obtain the real value, ple
 {{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
 ```
 
-The client connection is then established. For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Tools](https://docs.tdengine.com/cloud/tools/).
+The client connection is then established. For how to write data and query data, please refer to [Insert](https://docs.tdengine.com/cloud/programming/insert/) and [Query](https://docs.tdengine.com/cloud/programming/query/).
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connect/rest-api/).

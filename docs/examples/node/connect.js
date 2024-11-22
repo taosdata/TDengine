@@ -16,3 +16,5 @@ async function createConnect() {
     }
   }
 }
+
+createConnect();

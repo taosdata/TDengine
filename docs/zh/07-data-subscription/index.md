@@ -3,6 +3,7 @@ sidebar_label: 数据订阅
 title: 数据订阅
 description: 通过主题来完成数据订阅并分享给 TDengien Cloud 的其他用户。
 ---
+
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
@@ -49,7 +50,9 @@ TDengine 提供类似于消息队列产品的数据订阅和消费接口。这�
 当共享用户进入数据订阅的主题页面时，他可以获得创建者与他共享的所有主题。用户可以点击每个主题的**示例代码**图标，进入**示例代码**页面的操作区域。然后，他可以按照示例代码的步骤，从 TDengine 实例消费共享主题。
 
 ### 数据模型和应用接口
+
 <!-- markdownlint-disable MD033 -->
+
 下面会介绍多种语言的相关数据模型和应用接口
 <Tabs defaultValue="Go" groupId="lang">
 
@@ -115,13 +118,13 @@ class TaosConsumer():
     def __next__(self)
 
     def sync_next(self)
-    
+
     def subscription(self)
 
     def unsubscribe(self)
 
     def close(self)
-    
+
     def __del__(self)
 ```
 
@@ -140,6 +143,61 @@ ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 void commitSync() throws SQLException;
 
 void close() throws SQLException;
+```
+
+</TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+ConsumeResult<TValue> Consume(int millisecondsTimeout);
+
+void Subscribe(IEnumerable<string> topic);
+
+void Subscribe(string topic);
+
+void Unsubscribe();
+
+void Commit(ConsumeResult<TValue> consumerResult);
+
+void Seek(TopicPartitionOffset tpo);
+
+Offset Position(TopicPartition partition);
+
+void Close();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+subscribe(topics: Array<string>, reqId?: number): Promise<void>;
+
+unsubscribe(reqId?: number): Promise<void>;
+
+poll(timeoutMs: number, reqId?: number): Promise<Map<string, TaosResult>>;
+
+subscription(reqId?: number): Promise<Array<string>>;
+
+commit(reqId?: number): Promise<Array<TopicPartition>>;
+
+committed(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>;
+
+commitOffsets(partitions: Array<TopicPartition>): Promise<Array<TopicPartition>>;
+
+commitOffset(partition: TopicPartition, reqId?: number): Promise<void>;
+
+positions(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>;
+
+seek(partition: TopicPartition, reqId?: number): Promise<void>;
+
+seekToBeginning(partitions: Array<TopicPartition>): Promise<void>;
+
+seekToEnd(partitions: Array<TopicPartition>): Promise<void>;
+
+assignment(topics?: string[]): Promise<Array<TopicPartition>>;
+
+close(): Promise<void>;
+
 ```
 
 </TabItem>
@@ -176,7 +234,7 @@ $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 请使用实际值替换\<TDENGINE_CLOUD_TMQ>，格式类似于`wss://<cloud_endpoint>)/rest/tmq?token=<token>`。获取`TDENGINE_CLOUD_TMQ`的实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
 :::
 
-对于 Python 语言，您需要设置下面的环境变量：
+对于 Python 和 C# 语言，您需要设置下面的环境变量：
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
 
@@ -241,17 +299,17 @@ $env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
 
 消费者需要通过一系列配置选项创建，基础配置项如下表所示：
 
-|            参数名称            |  类型   | 参数说明                                                 | 备注                                        |
-| :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | TDengine Cloud 实例的连接值，如“gw.cloud.taosdata.com”。                        |                                             |
-|       `td.connect.token`        | string  | TDengine Cloud 实例的令牌值。                        |                                             |
-|           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
-|          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | 可选：`earliest`(default), `latest`, `none` |
-|      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                 | 合法值：`true`, `false`。                   |
-|   `auto.commit.interval.ms`    | integer | 以毫秒为单位的消费记录自动提交消费位点时间间             | 默认 5000 m                                 |
-| `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 默认开启                                    |
-|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
+|           参数名称            |  类型   | 参数说明                                                                                 | 备注                                        |
+| :---------------------------: | :-----: | ---------------------------------------------------------------------------------------- | ------------------------------------------- |
+|        `td.connect.ip`        | string  | TDengine Cloud 实例的连接值，如“gw.cloud.taosdata.com”。                                 |                                             |
+|      `td.connect.token`       | string  | TDengine Cloud 实例的令牌值。                                                            |                                             |
+|          `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                                                        | **必填项**。最大长度：192。                 |
+|          `client.id`          | string  | 客户端 ID                                                                                | 最大长度：192。                             |
+|      `auto.offset.reset`      |  enum   | 消费组订阅的初始位置                                                                     | 可选：`earliest`(default), `latest`, `none` |
+|     `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                                                 | 合法值：`true`, `false`。                   |
+|   `auto.commit.interval.ms`   | integer | 以毫秒为单位的消费记录自动提交消费位点时间间                                             | 默认 5000 m                                 |
+| `enable.heartbeat.background` | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线                                 | 默认开启                                    |
+|     `msg.with.table.name`     | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句） |                                             |
 
 对于不同编程语言，其设置方式如下：
 
@@ -338,6 +396,47 @@ TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
 
 </TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
+var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+var cfg = new Dictionary<string, string>()
+            {
+              { "td.connect.type", "WebSocket" },
+              { "group.id", "group1" },
+              { "auto.offset.reset", "latest" },
+              { "td.connect.ip", cloudEndPoint.ToString() },
+              { "td.connect.port", "443" },
+              { "useSSL", "true" },
+              { "token", cloudToken.ToString() },
+              { "client.id", "tmq_example" },
+              { "enable.auto.commit", "true" },
+              { "msg.with.table.name", "false" },
+            };
+var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+let endpoint = os.environ['TDENGINE_CLOUD_ENDPOINT'];
+let token = os.environ['TDENGINE_CLOUD_TOKEN'];
+let url = `${endpoint}?token=${token}`;
+let configMap = new Map([
+  [taos.TMQConstants.GROUP_ID, 'gId'],
+  [taos.TMQConstants.CLIENT_ID, 'clientId'],
+  [taos.TMQConstants.AUTO_OFFSET_RESET, 'earliest'],
+  [taos.TMQConstants.WS_URL, url],
+  [taos.TMQConstants.ENABLE_AUTO_COMMIT, 'true'],
+  [taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS, '1000'],
+]);
+// create consumer
+let consumer = await taos.tmqConnect(configMap);
+```
+
+</TabItem>
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个消费者指定的 consumer group ID 一样，则自动形成一个消费者组织，共享消费进度。
@@ -379,6 +478,20 @@ consumer.subscribe(["<TDC_TOPIC>"])
 ```java
 consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 
+```
+
+</TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+consumer.Subscribe(new List<string>() { "<TDC_TOPIC>" });
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+await consumer.subscribe(['<TDC_TOPIC>']);
 ```
 
 </TabItem>
@@ -487,7 +600,49 @@ for (int i = 0; i < 100; i++) {
 ```
 
 </TabItem>
+<TabItem value="C#" label="C#">
 
+```C#
+while (true)
+{
+  using (var cr = consumer.Consume(500))
+  {
+     if (cr == null) continue;
+     foreach (var message in cr.Message)
+     {
+       Console.WriteLine(
+           $"message {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+           $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+     }
+  }
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+// poll
+for (let i = 0; i < 100; i++) {
+  let res = await consumer.poll(1000);
+  for (let [key, value] of res) {
+    // Add your data processing logic here
+    console.log(`data: ${JSON.stringify(value, replacer)}`);
+  }
+  // commit
+  await consumer.commit();
+}
+
+// Custom replacer function to handle BigInt serialization
+function replacer(key, value) {
+  if (typeof value === 'bigint') {
+    return value.toString(); // Convert BigInt to string
+  }
+  return value;
+}
+```
+
+</TabItem>
 </Tabs>
 
 ## 结束消费
@@ -534,6 +689,24 @@ consumer.close();
 ```
 
 </TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+// unsubscribe
+consumer.Unsubscribe();
+// close consumer
+consumer.Close();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+await consumer.unsubscribe();
+await consumer.close();
+```
+
+</TabItem>
 </Tabs>
 
 ### 示例代码
@@ -569,6 +742,20 @@ consumer.close();
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/sub.java}}
+```
+
+</TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+{{#include docs/examples/csharp/cloud-example/subscribe/Program.cs}}
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+{{#include docs/examples/node/sub.js}}
 ```
 
 </TabItem>

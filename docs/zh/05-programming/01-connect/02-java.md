@@ -110,6 +110,6 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 </TabItem>
 </Tabs>
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 [Insert](https://docs.taosdata.com/cloud/programming/insert/) 和 [Query](https://docs.taosdata.com/cloud/programming/query/).
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 [写入](https://docs.taosdata.com/cloud/programming/insert/) 和 [查询](https://docs.taosdata.com/cloud/programming/query/)。
 
-想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
+想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/)。

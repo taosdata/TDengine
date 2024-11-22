@@ -3,6 +3,7 @@ sidebar_label: Data Subscription
 title: Data Subscription
 description: This document describes how you can use topics to perform data subscription and share your data in TDengine Cloud.
 ---
+
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
@@ -15,7 +16,9 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 The topic introduces how to share data from TDengine instance through the access control management of TDengine Cloud and the subscription interfaces of each supported client library. The data owner first creates the topic through the topic wizard. Then adds the users or user groups which he wants to share the data with to the subscribers of the topic. The subscriber of the topic can get the details about how to access the shared data from TDengine in the data subscription way. In this document we will briefly explain these main steps of data sharing.
 
 ## Create Topic
+
 <!-- markdownlint-disable MD033 -->
+
 You can create the topic in Topics of TDengine Cloud. In the Create Topic dialog, you can choose wizard or SQL way to create the topic. In the wizard way, you need to input the topic name and select the database of the current TDengine instance. Then select the super table or specify the subquery with the super table or sub table. Also you can add fields selections or add result set and condition set for each field. In the following, you can get the detail of how to create the topic in three levels through wizard way.
 
 ### To Database
@@ -117,13 +120,13 @@ class TaosConsumer():
     def __next__(self)
 
     def sync_next(self)
-    
+
     def subscription(self)
 
     def unsubscribe(self)
 
     def close(self)
-    
+
     def __del__(self)
 ```
 
@@ -142,6 +145,62 @@ ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 void commitSync() throws SQLException;
 
 void close() throws SQLException;
+```
+
+</TabItem>
+
+<TabItem label="C#" value="C#">
+
+```C#
+ConsumeResult<TValue> Consume(int millisecondsTimeout);
+
+void Subscribe(IEnumerable<string> topic);
+
+void Subscribe(string topic);
+
+void Unsubscribe();
+
+void Commit(ConsumeResult<TValue> consumerResult);
+
+void Seek(TopicPartitionOffset tpo);
+
+Offset Position(TopicPartition partition);
+
+void Close();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+subscribe(topics: Array<string>, reqId?: number): Promise<void>;
+
+unsubscribe(reqId?: number): Promise<void>;
+
+poll(timeoutMs: number, reqId?: number): Promise<Map<string, TaosResult>>;
+
+subscription(reqId?: number): Promise<Array<string>>;
+
+commit(reqId?: number): Promise<Array<TopicPartition>>;
+
+committed(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>;
+
+commitOffsets(partitions: Array<TopicPartition>): Promise<Array<TopicPartition>>;
+
+commitOffset(partition: TopicPartition, reqId?: number): Promise<void>;
+
+positions(partitions: Array<TopicPartition>, reqId?: number): Promise<Array<TopicPartition>>;
+
+seek(partition: TopicPartition, reqId?: number): Promise<void>;
+
+seekToBeginning(partitions: Array<TopicPartition>): Promise<void>;
+
+seekToEnd(partitions: Array<TopicPartition>): Promise<void>;
+
+assignment(topics?: string[]): Promise<Array<TopicPartition>>;
+
+close(): Promise<void>;
+
 ```
 
 </TabItem>
@@ -180,7 +239,7 @@ Replace &lt;TDENGINE_CLOUD_TMQ&gt; with the real value, the format should be `ws
 To obtain the value of `TDENGINE_CLOUD_TMQ`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to **Example** part.
 :::
 
-For Python, you need to set the following variables:
+For Python and C#, you need to set the following variables:
 
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
@@ -247,17 +306,17 @@ Replace &lt;TDENGINE_JDBC_URL&gt; with the real value, the format should be `jdb
 
 You configure the following parameters when creating a consumer:
 
-|           Parameter           |  Type   | Description                                                  | Remarks                                          |
-| :---------------------------: | :-----: | ------------------------------------------------------------ | ------------------------------------------------ |
-|        `td.connect.ip`        | string  | TDengine Cloud instance endpoint used in Python, such as "gw.us-central-1.gcp.cloud.tdengine.com"; |                                                  |
-|      `td.connect.token`       | string  | The Cloud instance token used in Python;                     |                                                  |
-|          `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192.               |
-|          `client.id`          | string  | Client ID                                                    | Maximum length: 192.                             |
-|      `auto.offset.reset`      |  enum   | Initial offset for the consumer group                        | Specify `earliest`, `latest`, or `none`(default) |
-|     `enable.auto.commit`      | boolean | Commit automatically                                         | Specify `true` or `false`.                       |
-|   `auto.commit.interval.ms`   | integer | Interval for automatic commits, in milliseconds              |                                                  |
+|           Parameter           |  Type   | Description                                                                                               | Remarks                                          |
+| :---------------------------: | :-----: | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+|        `td.connect.ip`        | string  | TDengine Cloud instance endpoint used in Python, such as "gw.us-central-1.gcp.cloud.tdengine.com";        |                                                  |
+|      `td.connect.token`       | string  | The Cloud instance token used in Python;                                                                  |                                                  |
+|          `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                                       | **Required**. Maximum length: 192.               |
+|          `client.id`          | string  | Client ID                                                                                                 | Maximum length: 192.                             |
+|      `auto.offset.reset`      |  enum   | Initial offset for the consumer group                                                                     | Specify `earliest`, `latest`, or `none`(default) |
+|     `enable.auto.commit`      | boolean | Commit automatically                                                                                      | Specify `true` or `false`.                       |
+|   `auto.commit.interval.ms`   | integer | Interval for automatic commits, in milliseconds                                                           |                                                  |
 | `enable.heartbeat.background` | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                                  |
-|     `msg.with.table.name`     | boolean | Specify whether to deserialize table names from messages     |                                                  |
+|     `msg.with.table.name`     | boolean | Specify whether to deserialize table names from messages                                                  |                                                  |
 
 The method of specifying these parameters depends on the language used:
 
@@ -343,6 +402,47 @@ TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
 
 </TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
+var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+var cfg = new Dictionary<string, string>()
+            {
+              { "td.connect.type", "WebSocket" },
+              { "group.id", "group1" },
+              { "auto.offset.reset", "latest" },
+              { "td.connect.ip", cloudEndPoint.ToString() },
+              { "td.connect.port", "443" },
+              { "useSSL", "true" },
+              { "token", cloudToken.ToString() },
+              { "client.id", "tmq_example" },
+              { "enable.auto.commit", "true" },
+              { "msg.with.table.name", "false" },
+            };
+var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+let endpoint = os.environ['TDENGINE_CLOUD_ENDPOINT'];
+let token = os.environ['TDENGINE_CLOUD_TOKEN'];
+let url = `${endpoint}?token=${token}`;
+let configMap = new Map([
+  [taos.TMQConstants.GROUP_ID, 'gId'],
+  [taos.TMQConstants.CLIENT_ID, 'clientId'],
+  [taos.TMQConstants.AUTO_OFFSET_RESET, 'earliest'],
+  [taos.TMQConstants.WS_URL, url],
+  [taos.TMQConstants.ENABLE_AUTO_COMMIT, 'true'],
+  [taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS, '1000'],
+]);
+// create consumer
+let consumer = await taos.tmqConnect(configMap);
+```
+
+</TabItem>
 </Tabs>
 
 A consumer group is automatically created when multiple consumers are configured with the same consumer group ID.
@@ -383,6 +483,20 @@ consumer.subscribe(["<TDC_TOPIC>"])
 ```java
 consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 
+```
+
+</TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+consumer.Subscribe(new List<string>() { "<TDC_TOPIC>" });
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+await consumer.subscribe(['<TDC_TOPIC>']);
 ```
 
 </TabItem>
@@ -493,6 +607,50 @@ for (int i = 0; i < 100; i++) {
 ```
 
 </TabItem>
+
+<TabItem value="C#" label="C#">
+
+```C#
+while (true)
+{
+  using (var cr = consumer.Consume(500))
+  {
+     if (cr == null) continue;
+     foreach (var message in cr.Message)
+     {
+       Console.WriteLine(
+           $"message {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+           $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+     }
+  }
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+// poll
+for (let i = 0; i < 100; i++) {
+  let res = await consumer.poll(1000);
+  for (let [key, value] of res) {
+    // Add your data processing logic here
+    console.log(`data: ${JSON.stringify(value, replacer)}`);
+  }
+  // commit
+  await consumer.commit();
+}
+
+// Custom replacer function to handle BigInt serialization
+function replacer(key, value) {
+  if (typeof value === 'bigint') {
+    return value.toString(); // Convert BigInt to string
+  }
+  return value;
+}
+```
+
+</TabItem>
 </Tabs>
 
 ## Close the consumer
@@ -539,6 +697,25 @@ consumer.close();
 ```
 
 </TabItem>
+
+<TabItem value="C#" label="C#">
+
+```C#
+// unsubscribe
+consumer.Unsubscribe();
+// close consumer
+consumer.Close();
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+await consumer.unsubscribe();
+await consumer.close();
+```
+
+</TabItem>
 </Tabs>
 
 ### Sample Code
@@ -578,5 +755,19 @@ The following are full sample codes about how to consume the shared topic **test
 ```
 
 </TabItem>
+<TabItem value="C#" label="C#">
 
+```C#
+{{#include docs/examples/csharp/cloud-example/subscribe/Program.cs}}
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```javascript
+{{#include docs/examples/node/sub.js}}
+```
+
+</TabItem>
 </Tabs>
+```
