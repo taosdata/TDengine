@@ -5,6 +5,7 @@ use std::str::FromStr;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder};
 use taos::{Dsn, TryStreamExt};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum TableType {
     // #[serde(rename = "CHILD_TABLE")]
@@ -425,7 +426,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_table_meta_querier() {
+    async fn test_table_meta_querier_with_taos() {
         // given
         let dsn = "taos:///";
         let db_name = "taosx_core_utils_table_meta";

@@ -1,4 +1,5 @@
 use std::cmp;
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::{
     any::Any,
     cell::Cell,
@@ -3944,19 +3945,14 @@ impl IpcStreamWorker {
 }
 
 pub async fn listen_tcp_socket_with_agent(
-    socket: impl AsRef<str>,
+    socket: Option<impl AsRef<str>>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
     config: Option<OpcModelConfig>,
-) -> anyhow::Result<IpcHandler> {
-    let addr = socket.as_ref();
-
+) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
-    let socket = tokio::net::TcpSocket::new_v4()?;
-    let addr: SocketAddr = addr.parse()?;
-    socket.bind(addr)?;
-    let socket = socket.listen(65535)?;
+    let (listener, listen_addr) = bind_tcp(socket).await?;
 
     let batch_counter = BatchCounter::new(with_agent.0 as u16).await?;
 
@@ -4014,7 +4010,7 @@ pub async fn listen_tcp_socket_with_agent(
                     _ = notified.notified() => {
                         break;
                     }
-                    accept = socket.accept() => {
+                    accept = listener.accept() => {
                         match accept {
                             Ok((stream, addr)) => {
                                 backoff = 1;
@@ -4068,7 +4064,7 @@ pub async fn listen_tcp_socket_with_agent(
             }
         }
     });
-    Ok(IpcHandler::new(notify, handle, error_receiver))
+    Ok((IpcHandler::new(notify, handle, error_receiver), listen_addr))
 }
 
 pub struct IpcHandler {
@@ -4123,7 +4119,7 @@ impl IpcHandler {
 
 pub async fn listen_tcp_socket(
     target: TaosPool,
-    socket: impl AsRef<str>,
+    socket: Option<impl AsRef<str>>,
     opc_model_config: Option<OpcModelConfig>,
     lush_model_config: Option<LushModelConfig>,
     cancel: CancellationToken,
@@ -4133,18 +4129,14 @@ pub async fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
-) -> anyhow::Result<IpcHandler> {
+) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
-    let addr = socket.as_ref();
-    let socket = tokio::net::TcpSocket::new_v4()?;
-    let addr: SocketAddr = addr.parse()?;
-    socket.bind(addr)?;
-    let socket = socket.listen(65535)?;
+    let (listener, listen_addr) = bind_tcp(socket).await?;
 
-    info!("listen on socket address: {addr}");
+    info!("listen on socket address: {listen_addr}");
     let sql_lock = Arc::new(Mutex::new(()));
-    let socket = Arc::new(socket);
+    let socket = Arc::new(listener);
     let notify = Arc::new(tokio::sync::Notify::new());
     let notified = notify.clone();
 
@@ -4159,7 +4151,7 @@ pub async fn listen_tcp_socket(
         async move {
             info!("waiting for IPC connections");
             let cancel = cancel.child_token();
-            let server = addr;
+            let server = listen_addr;
             let mut set = tokio::task::JoinSet::new();
             let mut accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr, ipc_id: usize| {
                 tracing::info!("new tcp client!: {:?}", addr);
@@ -4302,7 +4294,30 @@ pub async fn listen_tcp_socket(
         }
         .instrument(tracing::info_span!("plain_ipc_listener_abort_handle")),
     );
-    Ok(IpcHandler::new(notify, handle, error_receiver))
+    Ok((IpcHandler::new(notify, handle, error_receiver), listen_addr))
+}
+
+async fn bind_tcp(
+    addr: Option<impl AsRef<str>>,
+) -> anyhow::Result<(tokio::net::TcpListener, SocketAddr)> {
+    match addr {
+        Some(socket) => {
+            let addr = socket.as_ref();
+            let socket = tokio::net::TcpSocket::new_v4()?;
+            let addr: SocketAddr = addr.parse()?;
+            socket.bind(addr)?;
+            Ok((socket.listen(65535)?, addr))
+        }
+        None => {
+            let listener = tokio::net::TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
+                .await
+                .context("bind tcp listener error")?;
+            let addr = listener
+                .local_addr()
+                .context("get tcp listener addr error")?;
+            Ok((listener, addr))
+        }
+    }
 }
 
 #[instrument(skip_all)]
@@ -4366,4 +4381,54 @@ pub async fn channel_based_transformer(
         .in_current_span(),
     );
     Ok((msg_tx, ack_rx))
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use crate::utils::port_pool::PortPool;
+
+    use super::*;
+
+    async fn listen(listener: tokio::net::TcpListener) -> anyhow::Result<()> {
+        let (mut stream, _) = listener.accept().await?;
+        let mut buf = Vec::new();
+        {
+            stream.read_to_end(&mut buf).await?;
+        }
+        assert_eq!(&buf, b"hello, world");
+        Ok(())
+    }
+
+    async fn connect(addr: SocketAddr) -> anyhow::Result<()> {
+        let mut stream = tokio::net::TcpStream::connect(addr).await?;
+        stream.write_all(b"hello, world").await?;
+        stream.flush().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn system_bind_tcp_test() -> anyhow::Result<()> {
+        let (listener, addr) = bind_tcp(None::<&str>).await?;
+        assert_eq!(listener.local_addr()?, addr);
+        tokio::try_join!(listen(listener), connect(addr))?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn manually_bind_tcp_test() -> anyhow::Result<()> {
+        let port_pool = PortPool::default();
+        let port = port_pool.get().await.context("port")?;
+        let addr = format!("127.0.0.1:{}", port.get());
+        let Ok((listener, listen_addr)) = bind_tcp(Some(&addr)).await else {
+            // bind tcp manully may fail
+            return Ok(());
+        };
+        assert_eq!(listener.local_addr()?, listen_addr);
+        assert_eq!(listen_addr, addr.parse::<SocketAddr>()?);
+
+        tokio::try_join!(listen(listener), connect(listen_addr))?;
+        Ok(())
+    }
 }

@@ -173,8 +173,8 @@ pub async fn opc_to_taos(
         OpcType::OPCDA => Some("opc_da"),
         OpcType::FAKE => None,
     };
-    let mut ipc_handler = build_ipc(
-        &config.report.remote,
+    let (mut ipc_handler, _) = build_ipc(
+        Some(&config.report.remote),
         None,
         &to,
         connector,
@@ -954,7 +954,7 @@ batch_timeout = 1
     async fn test_dsn_to_toml_in_point_mode() {
         // given
         let dsn = format!(
-            "opcua://{}?pattern_id={}&pattern_name={}",
+            "opcua://{}?node_id_pattern={}&browse_name_pattern={}",
             "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
         )
         .into_dsn()

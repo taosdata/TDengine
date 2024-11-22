@@ -26,7 +26,7 @@ pub enum Error {
     #[snafu(display("Desiralize toml error: {source}"))]
     DeserializeToml { source: toml::de::Error },
     #[snafu(display("Parse timestamp error: {source}"))]
-    ParseDateTimeError { source: chrono::ParseError },
+    ParseDateTime { source: chrono::ParseError },
     #[snafu(display("Expected timestamp type"))]
     ExpectedTimestamp,
     #[snafu(display("Invalid timestamp"))]
@@ -522,7 +522,7 @@ mod tests {
                 type = "object"
                 [properties.a]
                 type = "bool"
-                fixed = false 
+                fixed = false
             "#,
             );
             assert!(schema.is_ok());
@@ -574,7 +574,7 @@ mod tests {
                 type = "option"
                 [value]
                 type = "bool"
-                fixed = false 
+                fixed = false
             "#,
             );
             assert!(schema.is_ok());
@@ -593,7 +593,7 @@ mod tests {
                 r#"
                 type = "timestamp"
                 start_time = 123
-                precision = "ns" 
+                precision = "ns"
             "#,
             );
             assert!(schema.is_ok());
@@ -613,7 +613,7 @@ mod tests {
                 r#"
                 type = "timestamp"
                 start_time = 2024-11-02T17:35:34
-                precision = "ns" 
+                precision = "ns"
             "#,
             );
             assert!(schema.is_ok());
