@@ -41,7 +41,6 @@ taosd 命令行参数如下
 |rpcQueueMemoryAllowed  |          |dnode 允许的 rpc 消息占用的内存最大值，单位 bytes，取值范围 104857600-INT64_MAX，默认值 服务器内存的 1/10 |
 |resolveFQDNRetryTime   |          |FQDN 解析失败时的重试次数|
 |timeToGetAvailableConn |          |获得可用连接的最长等待时间，取值范围 10-50000000，单位为毫秒，默认值 500000|
-|maxShellConns          |          |允许创建的最大链接数|
 |maxRetryWaitTime       |          |重连最大超时时间|
 |shareConnLimit         |3.3.4.3 后|内部参数，一个链接可以共享的查询数目，取值范围 1-256，默认值 10|
 |readTimeout            |3.3.4.3 后|内部参数，最小超时时间，取值范围 64-604800，单位为秒，默认值 900|
