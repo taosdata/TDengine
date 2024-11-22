@@ -13,9 +13,13 @@ The source code for the Rust client library is located on [GitHub](https://githu
 
 ## Version support
 
-Please refer to [version support list](/client-libraries/#version-support)
+Please refer to [version support list and history](https://docs.tdengine.com/reference/connectors/rust/#version-history)
 
-The Rust client library is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
+## Connection types
+
+`taos` provides Native Connection and WebSocket connection
+
+More details about establishing a connection, please check[Developer Guide - Connectd - Rust](../01-connect/04-rust.md)
 
 ## Installation
 
@@ -25,80 +29,96 @@ Install the Rust development toolchain.
 
 ### Adding taos dependencies
 
-Depending on the connection method, add the [taos][taos] dependency in your Rust project as follows:
+The taos connector uses the WebSocket to access TDengine Cloud instances. You need to add the `taos` dependency to your Rust project and enable the `ws` and `ws-rustls` features.
 
-In `cargo.toml`, add [taos][taos]:
+Add [taos][taos] to your Cargo.toml file and enable features. Both of the following methods are acceptable:
 
-```toml
-[dependencies]
-# use default feature
-taos = "*"
-```
+* Enable default features
+    ```toml
+    [dependencies]
+    taos = { version = "*"}
+    ```
+* Disable default features and enable ws and ws-rustls features
+    ```toml
+    [dependencies]
+    taos = { version = "*", default-features = false, features = ["ws", "ws-rustls"] }
 
-## Establishing a connection
+## Expampe
 
-[TaosBuilder] creates a connection constructor through the DSN connection description string.
-The DSN should be in form of `<http | https>://<host>[:port]?token=<token>`.
+:::note IMPORTANT
+
+Before you run the code below,please create a database named `power` on the[TDengine Cloud - Explorer](https://cloud.taosdata.com/explorer) page.
+
+:::
+
+### Establish a connection
+
+[TaosBuilder] creates a connection builder through a DSN. The DSN is composed of the following format: `wss://<host>?token=<token>`.
 
 ```rust
 let builder = TaosBuilder::from_dsn(DSN)?;
 ```
 
-You can now use this object to create the connection.
+You can now use this object to create a connection:
 
 ```rust
 let conn = builder.build()?;
 ```
 
-The connection object can create more than one.
+Multiple connection objects can be created:
 
 ```rust
 let conn1 = builder.build()?;
 let conn2 = builder.build()?;
 ```
 
-After that, you can perform the following operations on the database.
+### Insert data
 
-```rust
-async fn demo(taos: &Taos, db: &str) -> Result<(), Error> {
-    // prepare database
-    taos.exec_many([
-        format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
-        format!("USE `{db}`"),
-    ])
-    .await?;
+`exec`: Execute some non-query SQL statements, such as `CREATE`, `ALTER`, `INSERT`, etc.
 
-    let inserted = taos.exec_many([
-        // create super table
-        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
-         TAGS (`groupid` INT, `location` BINARY(24))",
-        // create child table
-        "CREATE TABLE `d0` USING `meters` TAGS(0, 'California.LosAngles')",
-        // insert into child table
-        "INSERT INTO `d0` values(now - 10s, 10, 116, 0.32)",
-        // insert with NULL values
-        "INSERT INTO `d0` values(now - 8s, NULL, NULL, NULL)",
-        // insert and automatically create table with tags if not exists
-        "INSERT INTO `d1` USING `meters` TAGS(1, 'California.SanFrancisco') values(now - 9s, 10.1, 119, 0.33)",
-        // insert many records in a single sql
-        "INSERT INTO `d1` values (now-8s, 10, 120, 0.33) (now - 6s, 10, 119, 0.34) (now - 4s, 11.2, 118, 0.322)",
-    ]).await?;
-
-    assert_eq!(inserted, 6);
-    let mut result = taos.query("select * from `meters`").await?;
-
-    for field in result.fields() {
-        println!("got field: {}", field.name());
-    }
-
-    let values = result.
-}
+```rust title="exec"
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:insert}}
 ```
 
-## API Reference
+`exec_many`: Run multiple SQL statements simultaneously or in order.
 
-### Connection pooling
+```rust title="exec_many"
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:exec_many}}
+```
+
+### Query data
+`query`: Run a query statement and return a [ResultSet] object.
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/query.rs:query:nrc}}
+```
+
+Get column meta from the result
+
+You can obtain column information by using [.fields()].
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/query.rs:meta:nrc}}
+```
+
+Get first 5 rows and print each row:
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/query.rs:iter}}
+```
+
+Get first 5 rows and print each row and each column:
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/query.rs:iter_column}}
+```
+
+Use the [serde](https://serde.rs) deserialization framework.
+```rust
+{{#include docs/examples/rust/cloud-example/examples/serde.rs}}
+```
+
+### 连接池
 
 In complex applications, we recommend enabling connection pools. [taos] implements connection pools based on [r2d2].
 
@@ -108,117 +128,21 @@ As follows, a connection pool with default parameters can be generated.
 let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
 ```
 
-You can set the same connection pool parameters using the connection pool's constructor.
-
-```rust
-let dsn = std::env::var("TDENGINE_CLOUD_DSN")?;;
-
-let opts = PoolBuilder::new()
-    .max_size(5000) // max connections
-    .max_lifetime(Some(Duration::from_secs(60 * 60))) // lifetime of each connection
-    .min_idle(Some(1000)) // minimal idle connections
-    .connection_timeout(Duration::from_secs(2));
-
-let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
-```
-
 In the application code, use `pool.get()?` to get a connection object [Taos].
 
+
 ```rust
-let taos = pool.get()? ;
+let taos = pool.get()?;
 ```
 
-### Connectors
+## API Reference
 
-The [Taos][struct.Taos] object provides an API to perform operations on multiple databases.
+- [Api Reference](https://docs.tdengine.com/reference/connectors/rust/#api-reference)
+- [taos](https://docs.rs/taos)
 
-1. `exec`: Execute some non-query SQL statements, such as `CREATE`, `ALTER`, `INSERT`, etc.
-
-    ```rust
-    let affected_rows = taos.exec("INSERT INTO tb1 VALUES(now, NULL)").await?;
-    ```
-
-2. `exec_many`: Run multiple SQL statements simultaneously or in order.
-
-    ```rust
-    taos.exec_many([
-        "CREATE DATABASE test",
-        "USE test",
-        "CREATE TABLE `tb1` (`ts` TIMESTAMP, `val` INT)",
-    ]).await?;
-    ```
-
-3. `query`: Run a query statement and return a [ResultSet] object.
-
-    ```rust
-    let mut q = taos.query("select * from log.logs").await?;
-    ```
-
-    The [ResultSet] object stores query result data and the names, types, and lengths of returned columns
-
-    You can obtain column information by using [.fields()].
-
-    ```rust
-    let cols = q.fields();
-    for col in cols {
-        println!("name: {}, type: {:?} , bytes: {}", col.name(), col.ty(), col.bytes());
-    }
-    ```
-
-    It fetches data line by line.
-
-    ```rust
-    let mut rows = result.rows();
-    let mut nrows = 0;
-    while let Some(row) = rows.try_next().await? {
-        for (col, (name, value)) in row.enumerate() {
-            println!(
-                "[{}] got value in col {} (named `{:>8}`): {}",
-                nrows, col, name, value
-            );
-        }
-        nrows += 1;
-    }
-    ```
-
-    Or use the [serde](https://serde.rs) deserialization framework.
-
-    ```rust
-    #[derive(Debug, Deserialize)]
-    struct Record {
-        // deserialize timestamp to chrono::DateTime<Local>
-        ts: DateTime<Local>,
-        // float to f32
-        current: Option<f32>,
-        // int to i32
-        voltage: Option<i32>,
-        phase: Option<f32>,
-        groupid: i32,
-        // binary/varchar to String
-        location: String,
-    }
-    
-    let records: Vec<Record> = taos
-        .query("select * from `meters`")
-        .await?
-        .deserialize()
-        .try_collect()
-        .await?;
-    ```
-
-Note that Rust asynchronous functions and an asynchronous runtime are required.
-
-[Taos][struct.Taos] provides Rust methods for some SQL statements to reduce the number of `format!`s.
-
-- `.describe(table: &str)`: Executes `DESCRIBE` and returns a Rust data structure.
-- `.create_database(database: &str)`: Executes the `CREATE DATABASE` statement.
-- `.use_database(database: &str)`: Executes the `USE` statement.
-
-In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Line Protocol Interface](#Line Protocol Interface). Please refer to the specific API descriptions for usage.
-
-For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
 [struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
+[ResultSet]: https://docs.rs/taos/latest/taos/struct.ResultSet.html

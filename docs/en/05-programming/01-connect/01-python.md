@@ -11,26 +11,77 @@ import TabItem from '@theme/TabItem';
 <!-- exclude-end -->
 ## Install Client Library
 
-First, you need to install the `taospy` module version >= `2.6.2`. Run the command below in your terminal.
+### Preparation
 
-<Tabs defaultValue="pip" groupID="package">
-<TabItem value="pip" label="pip">
+You must first install Python3 and Pip3.
+
+* Install Python. The newer versions of the taospy package require Python 3.6.2+. Earlier versions of the taospy package require Python 3.7+. The taos-ws-py package requires Python 3.7+. If Python is not yet installed on your system, you can refer to the [Python Beginners Guide](https://wiki.python.org/moin/BeginnersGuide/Download) for installation.
+* Install Pip3. In most cases, the Python installation package comes with the pip tool. If it's not included, please refer to the [pip documentation](https://pypi.org/project/pip/) for installation.
+
+
+### Install with Pip
+If you have installed an older version of the Python connector, please uninstall it in advance.
+
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
 
 ```bash
-pip3 install -U taospy
+pip3 uninstall taos taospy
 ```
-
-You'll need to have Python3 installed.
-
 </TabItem>
-<TabItem value="conda" label="conda">
+<TabItem value="websocket" label="WebSocket">
 
 ```bash
-conda install -c conda-forge taospy
+pip3 uninstall taos taos-ws-py
 ```
-
 </TabItem>
 </Tabs>
+
+To install the latest or a specific version of `taospy` or `taos-ws-py`, execute the following command in the terminal.
+
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
+
+```bash
+# install latest version
+pip3 install taospy
+
+# install specific version
+pip3 install taospy==2.6.2
+
+# install from github
+pip3 install git+https://github.com/taosdata/taos-connector-python.git
+```
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+
+```bash
+pip3 install taos-ws-py
+```
+</TabItem>
+</Tabs>
+
+
+### Verify
+
+<Tabs defaultValue="rest" groupID="package">
+<TabItem value="rest" label="REST">
+For REST connections, simply verify that the `taosrest` module can be successfully imported. You can enter the following in the Python interactive Shell:
+
+```python
+import taosrest
+```
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+For WebSocket connections, simply verify that the `taosws` module can be successfully imported. You can enter the following in the Python interactive Shell:
+
+```python
+import taosws
+```
+</TabItem>
+</Tabs>
+
+
 
 ## Config
 
@@ -40,24 +91,24 @@ Run this command in your terminal to save TDengine cloud token and URL as variab
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
 export TDENGINE_CLOUD_URL="<url>"
+export TDENGINE_CLOUD_TOKEN="<token>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```shell
-set TDENGINE_CLOUD_TOKEN=<token>
 set TDENGINE_CLOUD_URL=<url>
+set TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_TOKEN='<token>'
 $env:TDENGINE_CLOUD_URL='<url>'
+$env:TDENGINE_CLOUD_TOKEN='<token>'
 ```
 
 </TabItem>
@@ -68,15 +119,16 @@ Alternatively, you can also set environment variables in your IDE's run configur
 <!-- exclude -->
 :::note IMPORTANT
 Replace  &lt;token&gt; and &lt;url&gt; with cloud token and URL.
+
 To obtain the value of cloud token and URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Python".
 
+Please ensure to distinguish between the URLs for REST connections and WebSocket connections.
 :::
 <!-- exclude-end -->
 
 ## Connect
 
-Copy code bellow to your editor, then run it. If you are using jupyter, assuming you have followed the guide about Jupyter, you can copy the code into Jupyter editor in your browser.
-
+Copy code bellow to your editor, then run it. 
 <Tabs defaultValue="rest">
 <TabItem value="rest" label="REST">
 
@@ -94,51 +146,6 @@ Copy code bellow to your editor, then run it. If you are using jupyter, assuming
 </TabItem>
 </Tabs>
 
-For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Tools](https://docs.tdengine.com/cloud/tools/).
+For how to write data and query data, please refer to [Insert](https://docs.tdengine.com/cloud/programming/insert/) and [Query](https://docs.tdengine.com/cloud/programming/query/).
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connect/rest-api/).
-
-## Jupyter
-
-### Step 1: Install
-
-For the users who are familiar with Jupyter to program in Python, both TDengine Python client library and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
-
-<Tabs defaultValue="pip" groupID="package">
-<TabItem value="pip" label="pip">
-
-```bash
-pip install jupyterlab
-pip3 install -U taospy
-```
-
-You'll need to have Python3 installed.
-
-</TabItem>
-<TabItem value="conda" label="conda">
-
-```bash
-conda install -c conda-forge jupyterlab
-conda install -c conda-forge taospy
-```
-
-</TabItem>
-</Tabs>
-
-### Step 2: Configure
-
-In order for Jupyter to connect to TDengine cloud service, before launching Jupyter, the environment setting must be performed. We use Linux bash as example.
-
-```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
-export TDENGINE_CLOUD_URL="<url>"
-jupyter lab
-```
-
-### Step 3: Connect
-
-Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.
-
-```python
-{{#include docs/examples/python/develop_tutorial.py:connect}}
-```
