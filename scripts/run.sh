@@ -463,7 +463,7 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     echo  -e "Result:${result}\nDetail:${detail}\nStart time:${start_time_all}\nEnd time:${end_time_all}\nScope:${test_scope}\nLog dir:${log_dir}\nCommit(community):${community_commit_id}\nCommit(enterprise):${enterprise_commit_id}\nOwner:${owner}"  >> ${status_file}
 
     python3 feishuTalk.py 
-    #rm -rf ${status_file}
+    rm -rf ${status_file}
 fi
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
