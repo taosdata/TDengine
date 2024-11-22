@@ -334,7 +334,7 @@ typedef struct SWindowLogicNode {
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
   SNode*           pAnomalyExpr;
-  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -740,7 +740,7 @@ typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pAnomalyKey;
-  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
