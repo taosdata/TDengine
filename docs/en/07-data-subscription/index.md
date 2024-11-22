@@ -172,6 +172,8 @@ void Close();
 </TabItem>
 <TabItem value="node" label="Node.js">
 
+When creating a data subscription with NodeJS, make sure that the TDengine version is above 3.2.0.0.
+
 ```javascript
 subscribe(topics: Array<string>, reqId?: number): Promise<void>;
 
@@ -208,7 +210,7 @@ close(): Promise<void>;
 
 ### Configure TDengine DSN
 
-You can set the following for Go and Rust:
+You can set the following for Go, Rust and JavaScript:
 
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">

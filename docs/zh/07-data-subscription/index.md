@@ -169,6 +169,8 @@ void Close();
 </TabItem>
 <TabItem value="node" label="Node.js">
 
+在使用 Node.js 创建数据订阅时，请确保 TDengine 版本在 3.2.0.0 以上。
+
 ```javascript
 subscribe(topics: Array<string>, reqId?: number): Promise<void>;
 
@@ -205,7 +207,7 @@ close(): Promise<void>;
 
 ### 配置 TDengine DSN
 
-您必须先为 GO 语言和 RUST 语言设置下面的内容
+您必须先为 GO、RUST 和 JavaScript 语言设置下面的内容
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
 
@@ -421,9 +423,7 @@ var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
 <TabItem value="node" label="Node.js">
 
 ```javascript
-let endpoint = os.environ['TDENGINE_CLOUD_ENDPOINT'];
-let token = os.environ['TDENGINE_CLOUD_TOKEN'];
-let url = `${endpoint}?token=${token}`;
+let url = os.environ['TDENGINE_CLOUD_URL'];
 let configMap = new Map([
   [taos.TMQConstants.GROUP_ID, 'gId'],
   [taos.TMQConstants.CLIENT_ID, 'clientId'],
