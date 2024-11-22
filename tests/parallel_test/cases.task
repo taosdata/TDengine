@@ -230,6 +230,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_show_disk_usage.py
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
