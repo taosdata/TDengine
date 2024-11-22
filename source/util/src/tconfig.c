@@ -470,23 +470,38 @@ void cfgLock(SConfig *pCfg) {
 
 void cfgUnLock(SConfig *pCfg) { (void)taosThreadMutexUnlock(&pCfg->lock); }
 
-int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll) {
-  ECfgDynType dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
+int32_t checkItemDyn(SConfigItem *pItem, bool isServer) {
+  if (pItem->dynScope == CFG_DYN_NONE) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  if (isServer) {
+    if (pItem->dynScope == CFG_DYN_ENT_CLIENT || pItem->dynScope == CFG_DYN_ENT_CLIENT_LAZY) {
+      return TSDB_CODE_INVALID_CFG;
+    }
+  } else {
+    if (pItem->dynScope == CFG_DYN_ENT_SERVER || pItem->dynScope == CFG_DYN_ENT_SERVER_LAZY) {
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll) {
   cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
-  if (!pItem || (pItem->dynScope & dynType) == 0) {
-    uError("failed to config:%s, not support update this config", name);
+  if (pItem == NULL) {
     cfgUnLock(pCfg);
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
+  TAOS_CHECK_RETURN(checkItemDyn(pItem, isServer));
   if (!isUpdateAll && (pItem->category & CFG_CATEGORY_GLOBAL) == 0) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
-
   switch (pItem->dtype) {
     case CFG_DTYPE_STRING: {
       if (strcasecmp(name, "slowLogScope") == 0) {

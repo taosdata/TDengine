@@ -63,18 +63,26 @@ typedef enum {
   CFG_DYN_NONE = 0,
   CFG_DYN_SERVER = 1,
   CFG_DYN_CLIENT = 2,
-  CFG_DYN_BOTH = 3,
-  CFG_DYN_READONLY = 4,
+  CFG_DYN_SERVER_LAZY = 3,
+  CFG_DYN_CLIENT_LAZY = 4,
+  CFG_DYN_BOTH_LAZY = 5,
+  CFG_DYN_BOTH = 6,
 #ifdef TD_ENTERPRISE
   CFG_DYN_ENT_SERVER = CFG_DYN_SERVER,
   CFG_DYN_ENT_CLIENT = CFG_DYN_CLIENT,
+  CFG_DYN_ENT_READONLY = CFG_MODIFICATION_READONLY,
+  CFG_DYN_ENT_SERVER_LAZY = CFG_DYN_SERVER_LAZY,
+  CFG_DYN_ENT_CLIENT_LAZY = CFG_DYN_CLIENT_LAZY,
+  CFG_DYN_ENT_BOTH_LAZY = CFG_DYN_BOTH_LAZY,
   CFG_DYN_ENT_BOTH = CFG_DYN_BOTH,
-  CFG_DYN_ENT_READONLY = CFG_DYN_READONLY,
+
 #else
   CFG_DYN_ENT_SERVER = CFG_DYN_NONE,
   CFG_DYN_ENT_CLIENT = CFG_DYN_NONE,
+  CFG_DYN_ENT_SERVER_LAZY = CFG_DYN_NONE,
+  CFG_DYN_ENT_CLIENT_LAZY = CFG_DYN_NONE,
+  CFG_DYN_ENT_BOTH_LAZY = CFG_DYN_NONE,
   CFG_DYN_ENT_BOTH = CFG_DYN_NONE,
-  CFG_DYN_ENT_READONLY = CFG_DYN_NONE,
 #endif
 } ECfgDynType;
 
@@ -118,8 +126,8 @@ void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
-int32_t      cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
-                              bool lock);
+int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
+                         bool lock);
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer, bool isUpdateAll);
 
 int32_t      cfgCreateIter(SConfig *pConf, SConfigIter **ppIter);
