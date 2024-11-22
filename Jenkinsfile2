@@ -451,8 +451,8 @@ pipeline {
 
         stage('run test') {
             when {
-                allOf {
-                    not { expression { file_no_doc_changed == '' }}
+                expression {
+                    file_no_doc_changed != '' && env.CHANGE_TARGET != 'docs-cloud'
                 }
             }
             parallel {

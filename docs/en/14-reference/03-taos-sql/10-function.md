@@ -422,7 +422,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
+**Description**: The ISO8601 date/time format converted from a timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
 
 **Return value type**: VARCHAR
 
@@ -466,7 +466,7 @@ return_timestamp: {
 }
 ```
 
-**Description**: UNIX timestamp converted from a string of date/time format
+**Description**: timestamp converted from a string of date/time format
 
 **Return value type**: BIGINT, TIMESTAMP
 
