@@ -3040,7 +3040,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code) {
-      blockDataFreeRes((SSDataBlock*)pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

@@ -204,6 +204,7 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
     // case QUERY_NODE_LOGIC_PLAN_WINDOW:
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_FILL:
       if (pNode == pNodeForcePropagate) {
         pNode->outputTsOrder = order;
         break;
