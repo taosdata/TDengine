@@ -326,7 +326,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
-      SCH_ERR_RET(schLaunchTask(pJob, parent));
+      SCH_ERR_RET(schDelayLaunchTask(pJob, parent));
     }
   }
 
@@ -768,7 +768,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(schSwitchTaskCandidateAddr(pJob, pTask));
   }
 
-  SCH_ERR_RET(schLaunchTask(pJob, pTask));
+  SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1343,7 +1343,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
   for (int32_t i = 0; i < level->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(level->subTasks, i);
 
-    SCH_ERR_RET(schLaunchTask(pJob, pTask));
+    SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
   }
 
   return TSDB_CODE_SUCCESS;

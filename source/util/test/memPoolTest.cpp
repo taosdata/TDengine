@@ -1125,6 +1125,8 @@ void mptSimulateOutTask(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
     return;
   }
 
+  mptWriteMem(pTask->npMemList[pTask->npMemIdx].p, pTask->npMemList[pTask->npMemIdx].size);
+
   uDebug("JOB:0x%x TASK:0x%x out malloced, size:%" PRId64 ", mIdx:%d", pJobCtx->jobId, pTask->taskId, pTask->npMemList[pTask->npMemIdx].size, pTask->npMemIdx);
   
   pTask->npMemIdx++;  
@@ -1535,18 +1537,25 @@ TEST(PerfTest, allocLatency) {
   assert(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
   assert(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
 
-  int32_t loopTimes = 1000000;
+  int32_t loopTimes = 10000000;
   int64_t st = taosGetTimestampUs();
 
   mptEnableMemoryPoolUsage(gMemPoolHandle, pSession);
   for (int32_t i = 0; i < loopTimes; ++i) {
-    p = mptMemoryMalloc(msize);
+    p = (char*)mptMemoryMalloc(msize);
     assert(0 == code);
   }
-  int64_t totalUs = taosGetTimestampUs() - st;
+  int64_t totalUs1 = taosGetTimestampUs() - st;
   mptDisableMemoryPoolUsage();
+
+  st = taosGetTimestampUs();
+  for (int32_t i = 0; i < loopTimes; ++i) {
+    p = (char*)mptMemoryMalloc(msize);
+    assert(0 == code);
+  }
+  int64_t totalUs2 = taosGetTimestampUs() - st;
   
-  printf("%d times alloc %" PRId64 " bytes, total time:%" PRId64 "us, avg:%dus\n", loopTimes, totalUs, totalUs/loopTimes);
+  printf("%d times alloc %" PRId64 " bytes, pool total time:%" PRId64 "us, avg:%fus VS direct total time:%" PRId64 "us, avg:%fus\n", loopTimes, msize, totalUs1, ((double)totalUs1)/loopTimes, totalUs2, ((double)totalUs2)/loopTimes);
 }
 #endif
 
@@ -1585,16 +1594,7 @@ TEST(FuncTest, MultiThreadTest) {
 }
 #endif
 
-#if 0
-TEST(FuncTest, MultiThreadsTest) {
-  char* caseName = "FuncTest:MultiThreadsTest";
-  SMPTestParam param = {0};
 
-  for (int32_t i = 0; i < mptCtrl.caseLoopTimes; ++i) {
-    mptRunCase(&param);
-  }
-}
-#endif
 
 #endif
 

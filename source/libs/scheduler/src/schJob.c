@@ -675,7 +675,7 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
         continue;
       }
 
-      SCH_ERR_RET(schLaunchTask(pJob, pTask));
+      SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
     }
   }
 
