@@ -230,7 +230,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_show_disk_usage.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
 
@@ -369,7 +368,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_tabe_distributed.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
