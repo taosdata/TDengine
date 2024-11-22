@@ -208,7 +208,7 @@ close(): Promise<void>;
 
 ### Configure TDengine DSN
 
-You can set the following for Go and Rust:
+You can set the following for Go, Rust and JavaScript:
 
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">

@@ -1,12 +1,29 @@
 const taos = require('@tdengine/websocket');
 
-const cloud_url = process.env.TDENGINE_CLOUD_URL;
-const token = process.env.TDENGINE_CLOUD_TOKEN;
-const url = `${cloud_url}?token=${token}`;
+const url = process.env.TDENGINE_CLOUD_URL;
 const topic = 'topic_meters';
 const topics = [topic];
 const groupId = 'group1';
-const clientId = 'client2';
+const clientId = 'client1';
+
+async function prepare() {
+  if (!url) {
+    console.error('Please set TDENGINE_CLOUD_URL');
+    process.exit(1);
+  }
+  let sql =
+    'create topic if not exists ' + topic + ' as select * from test.meters';
+  let conf = new taos.WSConfig(url);
+  try {
+    let conn = await taos.sqlConnect(conf);
+    await conn.exec(sql);
+  } catch (err) {
+    console.error(
+      `Failed to create topic, topic: ${topic}, ErrCode: ${err.code}, ErrMessage: ${err.message}`
+    );
+    throw err;
+  }
+}
 
 async function createConsumer() {
   let configMap = new Map([
@@ -33,6 +50,7 @@ async function createConsumer() {
 }
 
 async function testConsumer() {
+  await prepare();
   let consumer = await createConsumer();
 
   try {
@@ -40,7 +58,7 @@ async function testConsumer() {
     await consumer.subscribe(topics);
     console.log(`Subscribe topics successfully, topics: ${topics}`);
 
-    for (let i = 0; i < 5000; i++) {
+    for (let i = 0; i < 100; i++) {
       // poll
       let res = await consumer.poll(1000);
       for (let [key, value] of res) {
@@ -60,7 +78,7 @@ async function testConsumer() {
     await consumer.unsubscribe();
   } catch (err) {
     console.error(
-      `Failed to create websocket consumer, ErrCode: ${err.code}, ErrMessage: ${err.message}`
+      `Failed to consumer, ErrCode: ${err.code}, ErrMessage: ${err.message}`
     );
     throw err;
   } finally {
