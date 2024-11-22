@@ -145,6 +145,28 @@ void close() throws SQLException;
 ```
 
 </TabItem>
+
+<TabItem label="C#" value="C#">
+
+```C#
+ConsumeResult<TValue> Consume(int millisecondsTimeout);
+
+void Subscribe(IEnumerable<string> topic);
+
+void Subscribe(string topic);
+
+void Unsubscribe();
+
+void Commit(ConsumeResult<TValue> consumerResult);
+
+void Seek(TopicPartitionOffset tpo);
+
+Offset Position(TopicPartition partition);
+        
+void Close();
+```
+
+</TabItem>
 </Tabs>
 
 ### Configure TDengine DSN
@@ -180,7 +202,7 @@ Replace &lt;TDENGINE_CLOUD_TMQ&gt; with the real value, the format should be `ws
 To obtain the value of `TDENGINE_CLOUD_TMQ`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to **Example** part.
 :::
 
-For Python, you need to set the following variables:
+For Python and C#, you need to set the following variables:
 
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
@@ -341,6 +363,27 @@ properties.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.jdbc.tmq.M
 
 TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
+</TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT"); 
+var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+var cfg = new Dictionary<string, string>()
+            {
+              { "td.connect.type", "WebSocket" },
+              { "group.id", "group1" },
+              { "auto.offset.reset", "latest" },
+              { "td.connect.ip", cloudEndPoint.ToString() },
+              { "td.connect.port", "443" },
+              { "useSSL", "true" },
+              { "token", cloudToken.ToString() },
+              { "client.id", "tmq_example" },
+              { "enable.auto.commit", "true" },
+              { "msg.with.table.name", "false" },
+            };
+var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+```
 
 </TabItem>
 </Tabs>
@@ -384,7 +427,12 @@ consumer.subscribe(["<TDC_TOPIC>"])
 consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 
 ```
+</TabItem>
+<TabItem value="C#" label="C#">
 
+```C#
+consumer.Subscribe(new List<string>() { "<TDC_TOPIC>" });
+```
 </TabItem>
 </Tabs>
 
@@ -491,7 +539,25 @@ for (int i = 0; i < 100; i++) {
 }
 
 ```
+</TabItem>
 
+<TabItem value="C#" label="C#">
+
+```C#
+while (true)
+{
+  using (var cr = consumer.Consume(500))
+  {
+     if (cr == null) continue;
+     foreach (var message in cr.Message)
+     {
+       Console.WriteLine(
+           $"message {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+           $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+     }
+  }
+}
+```
 </TabItem>
 </Tabs>
 
@@ -537,7 +603,16 @@ consumer.unsubscribe();
 /* Close consumer */
 consumer.close();
 ```
+</TabItem>
 
+<TabItem value="C#" label="C#">
+
+```C#
+// unsubscribe
+consumer.Unsubscribe();
+// close consumer
+consumer.Close();
+```
 </TabItem>
 </Tabs>
 
@@ -575,6 +650,15 @@ The following are full sample codes about how to consume the shared topic **test
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/sub.java}}
+```
+
+</TabItem>
+
+
+<TabItem value="C#" label="C#">
+
+```C#
+{{#include docs/examples/csharp/cloud-example/subscribe/Program.cs}}
 ```
 
 </TabItem>

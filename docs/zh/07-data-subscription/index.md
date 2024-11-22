@@ -143,6 +143,27 @@ void close() throws SQLException;
 ```
 
 </TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+ConsumeResult<TValue> Consume(int millisecondsTimeout);
+
+void Subscribe(IEnumerable<string> topic);
+
+void Subscribe(string topic);
+
+void Unsubscribe();
+
+void Commit(ConsumeResult<TValue> consumerResult);
+
+void Seek(TopicPartitionOffset tpo);
+
+Offset Position(TopicPartition partition);
+        
+void Close();
+```
+
+</TabItem>
 </Tabs>
 
 ### 配置 TDengine DSN
@@ -176,7 +197,7 @@ $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 请使用实际值替换\<TDENGINE_CLOUD_TMQ>，格式类似于`wss://<cloud_endpoint>)/rest/tmq?token=<token>`。获取`TDENGINE_CLOUD_TMQ`的实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
 :::
 
-对于 Python 语言，您需要设置下面的环境变量：
+对于 Python 和 C# 语言，您需要设置下面的环境变量：
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
 
@@ -338,6 +359,28 @@ TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
 
 </TabItem>
+<TabItem label="C#" value="C#">
+
+```C#
+var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT"); 
+var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+var cfg = new Dictionary<string, string>()
+            {
+              { "td.connect.type", "WebSocket" },
+              { "group.id", "group1" },
+              { "auto.offset.reset", "latest" },
+              { "td.connect.ip", cloudEndPoint.ToString() },
+              { "td.connect.port", "443" },
+              { "useSSL", "true" },
+              { "token", cloudToken.ToString() },
+              { "client.id", "tmq_example" },
+              { "enable.auto.commit", "true" },
+              { "msg.with.table.name", "false" },
+            };
+var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+```
+
+</TabItem>
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个消费者指定的 consumer group ID 一样，则自动形成一个消费者组织，共享消费进度。
@@ -381,6 +424,12 @@ consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 
 ```
 
+</TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+consumer.Subscribe(new List<string>() { "<TDC_TOPIC>" });
+```
 </TabItem>
 </Tabs>
 
@@ -487,6 +536,24 @@ for (int i = 0; i < 100; i++) {
 ```
 
 </TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+while (true)
+{
+  using (var cr = consumer.Consume(500))
+  {
+     if (cr == null) continue;
+     foreach (var message in cr.Message)
+     {
+       Console.WriteLine(
+           $"message {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+           $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+     }
+  }
+}
+```
+</TabItem>
 
 </Tabs>
 
@@ -534,6 +601,15 @@ consumer.close();
 ```
 
 </TabItem>
+<TabItem value="C#" label="C#">
+
+```C#
+// unsubscribe
+consumer.Unsubscribe();
+// close consumer
+consumer.Close();
+```
+</TabItem>
 </Tabs>
 
 ### 示例代码
@@ -569,6 +645,14 @@ consumer.close();
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/sub.java}}
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```C#
+{{#include docs/examples/csharp/cloud-example/subscribe/Program.cs}}
 ```
 
 </TabItem>
