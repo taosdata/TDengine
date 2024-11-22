@@ -714,7 +714,7 @@ int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeChec
 void    streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
-int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
+int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask, int64_t sendingChkptId);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pInfo, int32_t code);
