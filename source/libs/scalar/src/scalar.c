@@ -24,7 +24,7 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
-  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value);
+  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value, valueNode->tz);  //todo tz
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -81,6 +81,8 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
     goto _exit;
   }
 
+  in.tz = pValueNode->tz;
+  out->tz = pValueNode->tz;
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
 
 _exit:
@@ -586,6 +588,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   SCL_ERR_JRET(sclSetOperatorValueType(node, ctx));
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
+  paramList[0].tz = node->tz;
   if (paramNum > 1) {
     TSWAP(ctx->type.selfType, ctx->type.peerType);
     SCL_ERR_JRET(sclInitParam(node->pRight, &paramList[1], ctx, rowNum));
@@ -756,6 +759,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       paramNum = 0;
   int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum));
+  params->tz = node->tz;
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);
@@ -942,7 +946,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SCL_ERR_JRET(sclGetNodeRes(node->pCase, ctx, &pCase));
   SCL_ERR_JRET(sclGetNodeRes(node->pElse, ctx, &pElse));
-
+  pCase->tz = node->tz;
   SDataType compType = {0};
   compType.type = TSDB_DATA_TYPE_BOOL;
   compType.bytes = tDataTypes[compType.type].bytes;

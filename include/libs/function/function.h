@@ -292,6 +292,7 @@ struct SScalarParam {
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
+  timezone_t       tz;
 };
 
 #define cleanupResultRowEntry(p)  p->initialized = false

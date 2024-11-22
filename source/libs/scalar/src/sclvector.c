@@ -242,7 +242,7 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
 static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision) != TSDB_CODE_SUCCESS) {
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, pOut->tz) != TSDB_CODE_SUCCESS) {
     value = 0;
     code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
@@ -2042,6 +2042,9 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SScalarParam *param1 = NULL;
   SScalarParam *param2 = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  pRight->tz = pLeft->tz;
+  pLeftOut.tz = pLeft->tz;
+  pRightOut.tz = pRight->tz;
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
     param2 = pRight;
@@ -2125,6 +2128,7 @@ int32_t vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
 }
 
 int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  pRight->tz = pLeft->tz;
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
     if (v) {
@@ -2138,6 +2142,7 @@ int32_t vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 }
 
 int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
+  pRight->tz = pLeft->tz;
   SCL_ERR_RET(vectorConvertSingleColImpl(pLeft, pOut, NULL, -1, -1));
   for (int32_t i = 0; i < pOut->numOfRows; ++i) {
     if (colDataIsNull_s(pOut->columnData, i)) {

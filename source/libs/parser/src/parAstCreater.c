@@ -420,6 +420,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
     val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   }
   val->translate = false;
+  val->tz = pCxt->pQueryCxt->timezone;
   return (SNode*)val;
 _err:
   return NULL;
@@ -1041,6 +1042,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   CHECK_MAKE_NODE(func);
   COPY_STRING_FORM_ID_TOKEN(func->functionName, pFuncName);
   func->pParameterList = pParameterList;
+  func->tz = pCxt->pQueryCxt->timezone;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1497,6 +1499,7 @@ SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhe
   pCaseWhen->pCase = pCase;
   pCaseWhen->pWhenThenList = pWhenThenList;
   pCaseWhen->pElse = pElse;
+  pCaseWhen->tz    = pCxt->pQueryCxt->timezone;
   return (SNode*)pCaseWhen;
 _err:
   nodesDestroyNode(pCase);

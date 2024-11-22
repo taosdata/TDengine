@@ -2473,7 +2473,7 @@ static int32_t formatTimestamp(char* buf, size_t cap, int64_t val, int precision
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, cap) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, cap, NULL) == NULL) {
     code =  TSDB_CODE_INTERNAL_ERROR;
     TSDB_CHECK_CODE(code, lino, _end);
   }

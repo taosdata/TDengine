@@ -429,9 +429,9 @@ void test_timestamp_tm_conversion(int64_t ts, int32_t precision, int32_t y, int3
   struct STm tm;
   taosFormatUtcTime(buf, 128, ts, precision);
   printf("formated ts of %ld, precision: %d is: %s\n", ts, precision, buf);
-  taosTs2Tm(ts, precision, &tm);
+  taosTs2Tm(ts, precision, &tm, NULL);
   check_tm(&tm, y, mon, d, h, m, s, fsec);
-  taosTm2Ts(&tm, &ts_tmp, precision);
+  taosTm2Ts(&tm, &ts_tmp, precision, NULL);
   ASSERT_EQ(ts, ts_tmp);
 }
 
@@ -442,15 +442,15 @@ TEST(timeTest, timestamp2tm) {
   int64_t     ts, tmp_ts = 0;
   struct STm  tm;
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_NANO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726171L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MICRO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726000L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MILLI, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775000000L);
 

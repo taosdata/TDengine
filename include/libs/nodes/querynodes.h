@@ -129,8 +129,9 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
-  int64_t typeData;
-  int8_t  unit;
+  int64_t    typeData;
+  int8_t     unit;
+  timezone_t tz;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -159,6 +160,7 @@ typedef struct SOperatorNode {
   EOperatorType opType;
   SNode*        pLeft;
   SNode*        pRight;
+  timezone_t    tz;
 } SOperatorNode;
 
 typedef struct SLogicConditionNode {
@@ -191,6 +193,8 @@ typedef struct SFunctionNode {
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
+//  char       timezone[TD_TIMEZONE_LEN];
+  timezone_t tz;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -399,6 +403,7 @@ typedef struct SCaseWhenNode {
   SNode*     pCase;
   SNode*     pElse;
   SNodeList* pWhenThenList;
+  timezone_t tz;
 } SCaseWhenNode;
 
 typedef struct SWindowOffsetNode {

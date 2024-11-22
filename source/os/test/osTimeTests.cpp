@@ -29,30 +29,11 @@
 #include "os.h"
 #include "tlog.h"
 
-TEST(osTimeTests, taosLocalTimeNolock) {
-  time_t currentTime;
-    // Test when result is not NULL
-  struct tm expectedTime;
-  struct tm* result = taosLocalTimeNolock(&expectedTime, &currentTime, 1);
-  if (result) {
-    EXPECT_EQ(expectedTime.tm_year, result->tm_year);
-    EXPECT_EQ(expectedTime.tm_mon, result->tm_mon);
-    EXPECT_EQ(expectedTime.tm_mday, result->tm_mday);
-    EXPECT_EQ(expectedTime.tm_hour, result->tm_hour);
-    EXPECT_EQ(expectedTime.tm_min, result->tm_min);
-    EXPECT_EQ(expectedTime.tm_sec, result->tm_sec);
-    EXPECT_EQ(expectedTime.tm_wday, result->tm_wday);
-    EXPECT_EQ(expectedTime.tm_yday, result->tm_yday);
-    EXPECT_EQ(expectedTime.tm_isdst, result->tm_isdst);
-  }
-}
-
-
 TEST(osTimeTests, taosLocalTime) {
   // Test 1: Test when both timep and result are not NULL
   time_t     timep = 1617531000;  // 2021-04-04 18:10:00
   struct tm  result;
-  struct tm* local_time = taosLocalTime(&timep, &result, NULL, 0);
+  struct tm* local_time = taosLocalTime(&timep, &result, NULL, 0, NULL);
   ASSERT_NE(local_time, nullptr);
   ASSERT_EQ(local_time->tm_year, 121);
   ASSERT_EQ(local_time->tm_mon, 3);
@@ -62,7 +43,7 @@ TEST(osTimeTests, taosLocalTime) {
   ASSERT_EQ(local_time->tm_sec, 00);
 
   // Test 2: Test when timep is NULL
-  local_time = taosLocalTime(NULL, &result, NULL, 0);
+  local_time = taosLocalTime(NULL, &result, NULL, 0, NULL);
   ASSERT_EQ(local_time, nullptr);
 
   // Test 4: Test when timep is negative on Windows

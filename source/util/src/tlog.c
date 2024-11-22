@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "tjson.h"
 #include "tutil.h"
+#include "ttime.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -157,22 +158,9 @@ static int32_t taosStartLog() {
 static void getDay(char *buf, int32_t bufSize) {
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf, bufSize) != NULL) {
+  if (taosLocalTime(&t, &tmInfo, buf, bufSize, NULL) != NULL) {
     TAOS_UNUSED(strftime(buf, bufSize, "%Y-%m-%d", &tmInfo));
   }
-}
-
-static int64_t getTimestampToday() {
-  time_t    t = taosTime(NULL);
-  struct tm tm;
-  if (taosLocalTime(&t, &tm, NULL, 0) == NULL) {
-    return 0;
-  }
-  tm.tm_hour = 0;
-  tm.tm_min = 0;
-  tm.tm_sec = 0;
-
-  return (int64_t)taosMktime(&tm);
 }
 
 static void getFullPathName(char *fullName, const char *logName) {
@@ -206,7 +194,7 @@ int32_t taosInitSlowLog() {
   getDay(day, sizeof(day));
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
 
-  tsLogObj.timestampToday = getTimestampToday();
+  tsLogObj.timestampToday = taosGetTimestampToday(TSDB_TIME_PRECISION_SECONDS, NULL);
   tsLogObj.slowHandle = taosLogBuffNew(LOG_SLOW_BUF_SIZE);
   if (tsLogObj.slowHandle == NULL) return terrno;
 
@@ -448,7 +436,7 @@ static void taosOpenNewSlowLogFile() {
   TdFilePtr pOldFile = tsLogObj.slowHandle->pFile;
   tsLogObj.slowHandle->pFile = pFile;
   (void)taosCloseFile(&pOldFile);
-  tsLogObj.timestampToday = getTimestampToday();
+  tsLogObj.timestampToday = taosGetTimestampToday(TSDB_TIME_PRECISION_SECONDS, NULL);
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
 }
 
@@ -634,8 +622,11 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   TAOS_UNUSED(taosGetTimeOfDay(&timeSecs));
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm, NULL, 0);
-
+  ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
+  if (ptm == NULL){
+    uError("%s failed to get local time, code:%d", __FUNCTION__ , errno);
+    return 0;
+  }
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s", ptm->tm_mon + 1, ptm->tm_mday,
                  ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(),
                  LOG_EDITION_FLG, flags);

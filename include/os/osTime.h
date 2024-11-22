@@ -92,15 +92,16 @@ static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
-struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize);
-struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst);
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz);
+struct tm *taosGmTimeR(const time_t *timep, struct tm *result);
+time_t     taosTimeGm(struct tm *tmp);
 time_t     taosTime(time_t *t);
-time_t     taosMktime(struct tm *timep);
+time_t     taosMktime(struct tm *timep, timezone_t tz);
 int64_t    user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t day, const uint32_t hour,
                          const uint32_t min, const uint32_t sec, int64_t time_zone);
 
-struct tm *taosLocalTimeRz(timezone_t state, const time_t *timep, struct tm *result);
-time_t     taosMktimeRz(timezone_t state, struct tm *timep);
+//struct tm *taosLocalTimeRz(timezone_t state, const time_t *timep, struct tm *result);
+//time_t     taosMktimeRz(timezone_t state, struct tm *timep);
 #ifdef __cplusplus
 }
 #endif

@@ -1489,125 +1489,350 @@ TEST(clientCase, sub_tb_mt_test) {
   }
 }
 
-TEST(clientCase, timezone_Test) {
-  {
-    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC-8");
-    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC-8");
-    ASSERT_TRUE(code ==  0);
-    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-    ASSERT_NE(pConn, nullptr);
+TAOS* getConnWithGlobalOption(const char *tz){
+  int code = taos_options(TSDB_OPTION_TIMEZONE, tz);
+  ASSERT(code ==  0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+  return pConn;
+}
 
-    TAOS_RES* pRes = taos_query(pConn, "drop database if exists db1");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+TAOS* getConnWithOption(const char *tz){
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
+  if (tz != NULL){
+    int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
+    ASSERT(code == 0);
+  }
+  return pConn;
+}
 
-    pRes = taos_query(pConn, "create database db1");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+void execQuery(TAOS* pConn, const char *sql){
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+}
 
-    pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+void execQueryFail(TAOS* pConn, const char *sql){
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) != TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+}
 
-    char sql[256] = {0};
-    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:00', 1)");
-    pRes = taos_query(pConn, sql);
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+void checkRows(TAOS* pConn, const char *sql, int32_t expectedRows){
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == TSDB_CODE_SUCCESS);
+  TAOS_ROW    pRow = NULL;
+  int rows =  0;
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    rows++;
+  }
+  ASSERT(rows == expectedRows);
+  taos_free_result(pRes);
+}
 
-    pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 17:00:00'");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-    TAOS_ROW    pRow = NULL;
-    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-    int32_t     numOfFields = taos_num_fields(pRes);
-
-    char str[512] = {0};
-    int rows =  0;
-    while ((pRow = taos_fetch_row(pRes)) != NULL) {
-      rows++;
+void check_timezone(TAOS* pConn, const char *sql, const char* tz){
+  TAOS_RES *pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    if (strcmp((const char*)row[0], "timezone") == 0){
+      ASSERT(strstr((const char*)row[1], tz) != NULL);
     }
-    ASSERT_TRUE(rows == 1);
+  }
+  taos_free_result(pRes);
+}
 
-    taos_free_result(pRes);
+void check_sql_result_partial(TAOS* pConn, const char *sql, const char* result){
+  TAOS_RES *pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    ASSERT(strstr((const char*)row[0], result) != NULL);
+  }
+  taos_free_result(pRes);
+}
+
+int64_t get_sql_result(TAOS* pConn, const char *sql){
+  int64_t ts = 0;
+  TAOS_RES *pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    ts = *(int64_t*)row[0];
+  }
+  taos_free_result(pRes);
+  return ts;
+}
+
+void check_sql_result(TAOS* pConn, const char *sql, const char* result){
+  TAOS_RES *pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    ASSERT (strcmp((const char*)row[0], result) == 0);
+  }
+  taos_free_result(pRes);
+}
+
+void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
+  TAOS_RES *pRes = taos_query(pConn, sql);
+  ASSERT(taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    ASSERT (*(int64_t*)row[0] == result);
+  }
+  taos_free_result(pRes);
+}
+
+void check_set_timezone(TAOS* optionFunc(const char *tz)){
+  {
+    TAOS* pConn = optionFunc("UTC-8");
+    check_timezone(pConn, "show local variables", "UTC-8");
+
+    execQuery(pConn, "drop database if exists db1");
+    execQuery(pConn, "create database db1");
+    execQuery(pConn, "create table db1.t1 (ts timestamp, v int)");
+
+    execQuery(pConn, "insert into db1.t1 values('2023-09-16 17:00:00', 1)");
+    checkRows(pConn, "select * from db1.t1 where ts == '2023-09-16 17:00:00'", 1);
 
     taos_close(pConn);
   }
 
   {
-    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+8");
-    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+8");
-    ASSERT_TRUE(code ==  0);
-    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-    ASSERT_NE(pConn, nullptr);
-
-    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 01:00:00'");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-    TAOS_ROW    pRow = NULL;
-    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-    int32_t     numOfFields = taos_num_fields(pRes);
-
-    int rows =  0;
-    char str[512] = {0};
-    while ((pRow = taos_fetch_row(pRes)) != NULL) {
-      rows++;
-    }
-    ASSERT_TRUE(rows == 1);
-
-    taos_free_result(pRes);
-
-    char sql[256] = {0};
-    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:01', 1)");
-    pRes = taos_query(pConn, sql);
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-    taos_free_result(pRes);
+    TAOS* pConn = optionFunc("UTC+8");
+    check_timezone(pConn, "show local variables", "UTC+8");
+    checkRows(pConn, "select * from db1.t1 where ts == '2023-09-16 01:00:00'", 1);
+    execQuery(pConn, "insert into db1.t1 values('2023-09-16 17:00:01', 1)");
 
     taos_close(pConn);
   }
 
   {
-    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+0");
-    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+0");
-    ASSERT_TRUE(code ==  0);
-    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-    ASSERT_NE(pConn, nullptr);
-
-    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 09:00:00'");
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-    TAOS_ROW    pRow = NULL;
-    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-    int32_t     numOfFields = taos_num_fields(pRes);
-
-    int rows =  0;
-    char str[512] = {0};
-    while ((pRow = taos_fetch_row(pRes)) != NULL) {
-      rows++;
-    }
-    ASSERT_TRUE(rows == 1);
-    taos_free_result(pRes);
-
-    {
-      TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-17 01:00:01'");
-      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-      TAOS_ROW    pRow = NULL;
-      TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-      int32_t     numOfFields = taos_num_fields(pRes);
-
-      int  rows = 0;
-      char str[512] = {0};
-      while ((pRow = taos_fetch_row(pRes)) != NULL) {
-        rows++;
-      }
-      ASSERT_TRUE(rows == 1);
-      taos_free_result(pRes);
-    }
+    TAOS* pConn = optionFunc("UTC+0");
+    check_timezone(pConn, "show local variables", "UTC+0");
+    checkRows(pConn, "select * from db1.t1 where ts == '2023-09-16 09:00:00'", 1);
+    checkRows(pConn, "select * from db1.t1 where ts == '2023-09-17 01:00:01'", 1);
 
     taos_close(pConn);
   }
+}
+
+TEST(clientCase, set_timezone_Test) {
+  check_set_timezone(getConnWithGlobalOption);
+  check_set_timezone(getConnWithOption);
+}
+
+TEST(clientCase, alter_timezone_Test) {
+  TAOS* pConn = getConnWithGlobalOption("UTC-8");
+  check_timezone(pConn, "show local variables", "UTC-8");
+
+  execQuery(pConn, "alter local 'timezone Asia/Kolkata'");
+  check_timezone(pConn, "show local variables", "Asia/Kolkata");
+
+  execQueryFail(pConn, "alter dnode 1 'timezone Asia/Kolkata'");
+}
+
+struct insert_params
+{
+  const char *tz;
+  const char *tbname;
+  const char *t1;
+  const char *t2;
+};
+
+struct insert_params params1[] = {
+    {"UTC",              "ntb", "2023-09-16 17:00:00", "2023-09-16 17:00:00+08:00"},
+    {"UTC",              "ctb1", "2023-09-16 17:00:00", "2023-09-16 17:00:00+08:00"},
+};
+
+struct insert_params params2[] = {
+    {"UTC+9",              "ntb", "2023-09-16 08:00:00", "2023-09-16 08:00:00-01:00"},
+    {"UTC+9",              "ctb1", "2023-09-16 08:00:00", "2023-09-16 11:00:00+02:00"},
+};
+
+void do_insert(struct insert_params params){
+  TAOS* pConn = getConnWithOption(params.tz);
+  char sql[1024] = {0};
+  (void)snprintf(sql, sizeof(sql), "insert into db1.%s values('%s', '%s', 1)", params.tbname, params.t1, params.t2);
+  execQuery(pConn, sql);
+  taos_close(pConn);
+}
+
+void do_select(struct insert_params params){
+  TAOS* pConn = getConnWithOption(params.tz);
+  char sql[1024] = {0};
+  (void)snprintf(sql, sizeof(sql), "select * from db1.%s where ts == '%s' and c1 == '%s'", params.tbname, params.t1, params.t2);
+  checkRows(pConn, sql, 1);
+  taos_close(pConn);
+}
+
+// test insert string and integer to timestamp both normal table and child table(and tag)
+TEST(clientCase, insert_with_timezone_Test) {
+  /*
+   * 1. prepare data, create db and tables
+   */
+  TAOS* pConn1 = getConnWithOption("UTC+2");
+  execQuery(pConn1, "drop database if exists db1");
+  execQuery(pConn1, "create database db1");
+  execQuery(pConn1, "create table db1.ntb (ts timestamp, c1 timestamp, c2 int)");
+  execQuery(pConn1, "create table db1.stb (ts timestamp, c1 timestamp, c2 int) tags(t1 timestamp, t2 timestamp, t3 int)");
+  execQuery(pConn1, "create table db1.ctb1 using db1.stb tags(\"2023-09-16 17:00:00+05:00\", \"2023-09-16 17:00:00\", 1)");
+  execQuery(pConn1, "create table db1.ctb2 using db1.stb tags(1732178775000, 1732178775000, 1)");
+  execQuery(pConn1, "insert into db1.ntb values(1732178775133, 1732178775133, 1)");
+  execQuery(pConn1, "insert into db1.ctb1 values(1732178775133, 1732178775133, 1)");
+  execQuery(pConn1, "insert into db1.ctb2 values(1732178775133, 1732178775133, 1)");
+
+  /*
+   * 2. test tag and timestamp with integer format
+   */
+  TAOS* pConn2 = getConnWithOption("UTC-2");
+  checkRows(pConn2, "select * from db1.stb where t1 == '2023-09-16 17:00:00+05:00' and t2 == '2023-09-16 21:00:00'", 1);
+  checkRows(pConn2, "select * from db1.stb where t1 == '2024-11-21 16:46:15+08:00' and t2 == '2024-11-21 09:46:15+01:00'", 1);
+  checkRows(pConn2, "select * from db1.ntb where ts == '2024-11-21 09:46:15.133+01:00' and c1 == '2024-11-21 10:46:15.133'", 1);
+  checkRows(pConn2, "select * from db1.ctb1 where ts == '2024-11-21 09:46:15.133+01:00' and c1 == '2024-11-21 10:46:15.133'", 1);
+
+  check_sql_result(pConn2, "select TO_ISO8601(ts) from db1.ctb1", "2024-11-21T10:46:15.133+0200");   // 2024-01-01 23:00:00+0200
+
+
+  /*
+   * 3. test timestamp with string format
+   */
+  for (unsigned int i = 0; i < sizeof (params1) / sizeof (params1[0]); ++i){
+    do_insert(params1[i]);
+    do_select(params1[i]);
+    do_select(params2[i]);
+  }
+
+  /*
+   * 4. test NULL timezone, use default timezone UTC-8
+   */
+  TAOS* pConn3 = getConnWithOption(NULL);
+  checkRows(pConn3, "select * from db1.stb where t1 == '2023-09-16 20:00:00' and t2 == '2023-09-17 03:00:00'", 2);
+  checkRows(pConn3, "select * from db1.stb where t1 == 1732178775000 and t2 == 1732178775000", 1);
+  checkRows(pConn3, "select * from db1.ntb where ts == '2024-11-21 16:46:15.133' and c1 == '2024-11-21 16:46:15.133'", 1);
+  checkRows(pConn3, "select * from db1.ctb1 where ts == '2023-09-17 01:00:00' and c1 == '2023-09-16 17:00:00'", 1);
+
+  /*
+   * 5. test multi connection with different timezone
+   */
+  checkRows(pConn2, "select * from db1.ctb1 where ts == '2024-11-21 09:46:15.133+01:00' and c1 == '2024-11-21 10:46:15.133'", 1);
+  checkRows(pConn1, "select * from db1.ctb1 where ts == '2024-11-21 09:46:15.133+01:00' and c1 == '2024-11-21 06:46:15.133'", 1);
+
+  taos_close(pConn1);
+  taos_close(pConn2);
+  taos_close(pConn3);
+}
+
+TEST(clientCase, func_timezone_Test) {
+  TAOS* pConn = getConnWithGlobalOption("UTC+8");
+  check_sql_result(pConn, "select timezone()", "UTC+8 (UTC, -0800)");
+  taos_close(pConn);
+
+  pConn = getConnWithOption("UTC-2");
+
+  execQuery(pConn, "drop database if exists db1");
+  execQuery(pConn, "create database db1");
+  execQuery(pConn, "create table db1.ntb (ts timestamp, c1 binary(32), c2 int)");
+  execQuery(pConn, "insert into db1.ntb values(1704142800000, '2024-01-01 23:00:00', 1)");   // 2024-01-01 23:00:00+0200
+
+  // test timezone
+  check_sql_result(pConn, "select timezone()", "UTC-test (UTC, +0200)");
+
+  // test timetruncate
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 23:00:00', 1d, 0))", "2024-01-01T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00', 1d, 0))", "2023-12-31T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00+0300', 1d, 0))", "2023-12-31T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00-0300', 1d, 0))", "2024-01-01T02:00:00.000+0200");
+
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 23:00:00', 1w, 0))", "2024-01-04T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00', 1w, 0))", "2023-12-28T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00+0300', 1w, 0))", "2023-12-28T02:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00-0300', 1w, 0))", "2024-01-04T02:00:00.000+0200");
+
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 23:00:00', 1d, 1))", "2024-01-01T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00', 1d, 1))", "2024-01-01T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00+0500', 1d, 1))", "2023-12-31T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-01 01:00:00-0300', 1d, 1))", "2024-01-01T00:00:00.000+0200");
+
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 23:00:00', 1w, 1))", "2024-01-04T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00', 1w, 1))", "2024-01-04T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00+0500', 1w, 1))", "2023-12-28T00:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE('2024-01-04 01:00:00-0300', 1w, 1))", "2024-01-04T00:00:00.000+0200");
+
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE(1704142800000, 1d, 0))", "2024-01-01T02:00:00.000+0200");   // 2024-01-01 23:00:00+0200
+  check_sql_result(pConn, "select TO_ISO8601(TIMETRUNCATE(ts, 1w, 1)) from db1.ntb", "2023-12-28T00:00:00.000+0200");   // 2024-01-01 23:00:00+0200
+
+//  int64_t now = get_sql_result(pConn, "select now(),now() + 2d");
+//  int64_t locationNow = now + 2 * 3600;
+//  check_sql_result_partial(pConn, "select TO_ISO8601(today())", "T00:00:00.000+0200");   // 2024-01-01 23:00:00+0200
+//  check_sql_result_partial(pConn, "select TO_ISO8601(now())", "+0200");   // 2024-01-01 23:00:00+0200
+
+  // WEEKDAY
+  check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01')", 0);
+  check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 03:00:00')", 0);
+  check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00+0200')", 0);
+  check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00-1100')", 1);
+  check_sql_result_integer(pConn, "select WEEKDAY(1704142800000)", 0);
+  check_sql_result_integer(pConn, "select WEEKDAY(ts) from db1.ntb", 1);
+
+  // DAYOFWEEK
+  check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01')", 2);
+  check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 03:00:00')", 2);
+  check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00+0200')", 2);
+  check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00-1100')", 3);
+  check_sql_result_integer(pConn, "select DAYOFWEEK(1704142800000)", 2);
+  check_sql_result_integer(pConn, "select DAYOFWEEK(ts) from db1.ntb", 3);
+
+  // WEEK
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07')", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07 02:00:00')", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07 02:00:00+0200')", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07 02:00:00+1100')", 0);
+  check_sql_result_integer(pConn, "select WEEK(1704142800000)", 0);     // 2024-01-01 23:00:00+0200
+  check_sql_result_integer(pConn, "select WEEK(ts) from db1.ntb", 0);   // 2024-01-01 23:00:00+0200
+
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07', 3)", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07 02:00:00', 3)", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-07 02:00:00+0200', 3)", 1);
+  check_sql_result_integer(pConn, "select WEEK('2024-01-01 02:00:00+1100', 3)", 52);
+  check_sql_result_integer(pConn, "select WEEK(1704142800000, 3)", 1);     // 2024-01-01 23:00:00+0200
+  check_sql_result_integer(pConn, "select WEEK(ts, 3) from db1.ntb", 1);   // 2024-01-01 23:00:00+0200
+
+  // WEEKOFYEAR
+  check_sql_result_integer(pConn, "select WEEKOFYEAR('2024-01-07')", 1);
+  check_sql_result_integer(pConn, "select WEEKOFYEAR('2024-01-07 02:00:00')", 1);
+  check_sql_result_integer(pConn, "select WEEKOFYEAR('2024-01-07 02:00:00+0200')", 1);
+  check_sql_result_integer(pConn, "select WEEKOFYEAR('2024-01-01 02:00:00+1100')", 52);
+  check_sql_result_integer(pConn, "select WEEKOFYEAR(1704142800000)", 1);     // 2024-01-01 23:00:00+0200
+  check_sql_result_integer(pConn, "select WEEKOFYEAR(ts) from db1.ntb", 1);   // 2024-01-01 23:00:00+0200
+
+  // TO_ISO8601
+  check_sql_result(pConn, "select TO_ISO8601(ts) from db1.ntb", "2024-01-01T23:00:00.000+0200");
+  check_sql_result(pConn, "select TO_ISO8601(ts,'-08') from db1.ntb", "2024-01-01T13:00:00.000-08");
+  check_sql_result(pConn, "select TO_ISO8601(1)", "1970-01-01T02:00:00.001+0200");
+  check_sql_result(pConn, "select TO_ISO8601(1,'+0800')", "1970-01-01T08:00:00.001+0800");
+
+  // TO_UNIXTIMESTAMP
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP(c1) from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.000+0200')", 1704142800000);
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T13:00:00.000-08')", 1704142800000);
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.001')", 1704142800001);
+
+  // TO_TIMESTAMP
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP(c1,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01 23:00:00+02:00', 'yyyy-mm-dd hh24:mi:ss tzh')", 1704142800000);
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01T13:00:00-08', 'yyyy-mm-ddThh24:mi:ss tzh')", 1704142800000);
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024/01/01 23:00:00', 'yyyy/mm/dd hh24:mi:ss')", 1704142800000);
+
+  // TO_CHAR
+  check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-02 05:00:00");   // use timezone in server UTC-8
+  check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss tzh')", "2024-01-01 23:00:00 +02");
+  check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss')", "2024-01-01 23:00:00");
+
+  taos_close(pConn);
+
 }
 
 time_t time_winter = 1731323281;    // 2024-11-11 19:08:01+0800
@@ -1697,7 +1922,7 @@ TEST(clientCase, mktime_Test){
   for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
   {
     setenv ("TZ", test_mk[i].env, 1);
-    t = taosMktime (&tm);
+    t = taosMktime (&tm, NULL);
     ASSERT (t == test_mk[i].expected);
   }
 }
@@ -1719,7 +1944,7 @@ TEST(clientCase, mktime_rz_Test){
   {
     timezone_t tz = tzalloc(test_mk[i].env);
     ASSERT(tz);
-    t = taosMktimeRz(tz, &tm);
+    t = taosMktime(&tm, tz);
     ASSERT (t == test_mk[i].expected);
     tzfree(tz);
   }
@@ -1739,13 +1964,12 @@ TEST(testCase, localtime_performance_Test) {
     for (int j = 0; j < cnt; ++j) {
       time_t t = time_winter - j;
       struct tm tm1;
-      ASSERT (taosLocalTime(&t, &tm1, NULL, 0));
+      ASSERT (taosLocalTime(&t, &tm1, NULL, 0, NULL));
     }
     int64_t tmp = taosGetTimestampNs() - t1;
     printf("localtime cost:%" PRId64 " ns, run %" PRId64 " times", tmp, cnt);
     time_localtime += tmp/cnt;
 
-    timezone;
     printf("\n");
 
 
@@ -1754,7 +1978,7 @@ TEST(testCase, localtime_performance_Test) {
     for (int j = 0; j < cnt; ++j) {
       time_t t = time_winter - j;
       struct tm tm1;
-      ASSERT (taosLocalTimeRz(sp, &t, &tm1));
+      ASSERT (taosLocalTime(&t, &tm1, NULL, 0, sp));
     }
     tmp = taosGetTimestampNs() - t2;
     printf("localtime_rz cost:%" PRId64 " ns, run %" PRId64 " times", tmp, cnt);
@@ -1764,5 +1988,6 @@ TEST(testCase, localtime_performance_Test) {
   printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns", time_localtime/times, time_localtime_rz/times);
   tzfree(sp);
 }
+
 
 #pragma GCC diagnostic pop

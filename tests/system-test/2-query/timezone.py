@@ -159,9 +159,44 @@ class TDTestCase:
 
         tdSql.execute(f'drop database {self.dbname}')
 
+    # def timezone_check(self, cursor, timezone):
+    #     cursor.execute("show local variables")
+    #     res = cursor.fetchall()
+    #     for i in range(cursor.rowcount):
+    #         if res[i][0] == "timezone" :
+    #             if res[i][1].find(timezone) == -1:
+    #                 tdLog.exit("show timezone:%s != %s"%(res[i][1],timezone))
+    #
+    # def timezone_check_set_options(self):
+    #     buildPath = tdCom.getBuildPath()
+    #     cmdStr = '%s/build/bin/timezone_test'%(buildPath)
+    #     print("cmdStr:", cmdStr)
+    #     tdLog.info(cmdStr)
+    #     ret = os.system(cmdStr)
+    #     if ret != 0:
+    #         tdLog.exit("timezone_test error")
+    #
+    # def timezone_check_conf(self, timezone):
+    #     updateCfgDict = ({"clientCfg" : {'timezone': 'UTC'} },)
+    #     tdDnodes.sim.deploy(updateCfgDict)
+    #     conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    #     cursor = conn.cursor()
+    #     self.timezone_check(cursor, 'UTC')
+    #     cursor.close()
 
+    def timezone_check(self, sql, timezone):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "timezone" :
+                if tdSql.getData(i, 1).find(timezone) == -1:
+                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1),timezone))
     def run(self):  # sourcery skip: extract-duplicate-method
-        timezone = self.get_system_timezone()
+        # timezone = self.get_system_timezone()
+        timezone = "Asia/Shanghai"
+        self.timezone_check("show local variables", timezone)
+        self.timezone_check("show dnode 1 variables", timezone)
+
         self.timezone_check_ntb(timezone)
         self.timezone_check_stb(timezone)
         self.timezone_format_test()

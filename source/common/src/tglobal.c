@@ -2231,7 +2231,9 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 't': {
-      if (strcasecmp("tempDir", name) == 0) {
+      if (strcasecmp("timezone", name) == 0) {
+        matched = true;
+      } else if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
         TAOS_CHECK_GOTO(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX), &lino, _out);

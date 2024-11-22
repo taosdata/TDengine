@@ -292,7 +292,10 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
-    TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen), NULL, _exit);
+    if (pItem->dtype == CFG_DTYPE_TIMEZONE){
+
+    }
+    TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, varDataVal(value), TSDB_CONFIG_VALUE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(value, valueLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);

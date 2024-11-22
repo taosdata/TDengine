@@ -300,7 +300,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                        .isStmtBind = pRequest->isStmtBind,
-                       .setQueryFp = setQueryRequest};
+                       .setQueryFp = setQueryRequest,
+                       .timezone = pTscObj->optionInfo.timezone,};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);

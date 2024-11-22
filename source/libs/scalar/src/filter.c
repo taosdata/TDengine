@@ -4694,33 +4694,6 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
-
-    /*
-        if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
-          return DEAL_RES_CONTINUE;
-        }
-
-        if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR !=
-       valueNode->node.resType.type &&
-        TSDB_DATA_TYPE_GEOMETRY != valueNode->node.resType.type) { return DEAL_RES_CONTINUE;
-        }
-
-        if (stat->precision < 0) {
-          int32_t code = fltAddValueNodeToConverList(stat, valueNode);
-          if (code) {
-            stat->code = code;
-            return DEAL_RES_ERROR;
-          }
-
-          return DEAL_RES_CONTINUE;
-        }
-
-        int32_t code = sclConvertToTsValueNode(stat->precision, valueNode);
-        if (code) {
-          stat->code = code;
-          return DEAL_RES_ERROR;
-        }
-    */
     return DEAL_RES_CONTINUE;
   }
 
@@ -4886,15 +4859,6 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_ERR_JRET(pStat->code);
-
-  /*
-    int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
-    for (int32_t i = 0; i < nodeNum; ++i) {
-      SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
-
-      FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
-    }
-  */
 
 _return:
 

@@ -101,6 +101,7 @@ typedef struct SParseContext {
   int8_t           biMode;
   SArray*          pSubMetaList;
   setQueryFn       setQueryFp;
+  timezone_t       timezone;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

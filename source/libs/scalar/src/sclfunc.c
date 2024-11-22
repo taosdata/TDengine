@@ -2053,7 +2053,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
           int64_t timePrec;
           GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-          int32_t ret = convertStringToTimestamp(inputType, input, timePrec, &timeVal);
+          int32_t ret = convertStringToTimestamp(inputType, input, timePrec, &timeVal, pInput->tz);
           if (ret != TSDB_CODE_SUCCESS) {
             *(int64_t *)output = 0;
           } else {
@@ -2240,17 +2240,14 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     if (0 != offsetOfTimezone(tz, &offset)) {
       goto _end;
     }
-    quot -= offset + 3600 * ((int64_t)tsTimezone);
+    quot -= offset;
 
     struct tm tmInfo;
-    int32_t len = 0;
-
-    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf, sizeof(buf)) == NULL) {
-      len = (int32_t)strlen(buf);
+    if (taosGmTimeR((const time_t *)&quot, &tmInfo) == NULL) {
       goto _end;
     }
 
-    len = (int32_t)strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+    int32_t len = (int32_t)strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
 
     len += tsnprintf(buf + len, fractionLen, format, mod);
 
@@ -2286,7 +2283,7 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     char *input = colDataGetData(pInput[0].columnData, i);
 
     int64_t timeVal = 0;
-    int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
+    int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal, pInput->tz);
     if (ret != TSDB_CODE_SUCCESS) {
       colDataSetNULL(pOutput->columnData, i);
     } else {
@@ -2381,7 +2378,7 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
     }
     int32_t precision = pOutput->columnData->info.precision;
     char    errMsg[128] = {0};
-    code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128);
+    code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128, pInput->tz);
     if (code) {
       qError("func to_timestamp failed %s", errMsg);
       SCL_ERR_JRET(code);
@@ -2424,7 +2421,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       }
     }
     int32_t precision = pInput[0].columnData->info.precision;
-    SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN));
+    SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN, pInput->tz));
     varDataSetLen(out, strlen(varDataVal(out)));
     SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, out, false));
   }
@@ -2437,11 +2434,11 @@ _return:
 }
 
 /** Time functions **/
-int64_t offsetFromTz(char *timezone, int64_t factor) {
-  char *minStr = &timezone[3];
+int64_t offsetFromTz(char *timezoneStr, int64_t factor) {
+  char *minStr = &timezoneStr[3];
   int64_t minutes = taosStr2Int64(minStr, NULL, 10);
   (void)memset(minStr, 0, strlen(minStr));
-  int64_t hours = taosStr2Int64(timezone, NULL, 10);
+  int64_t hours = taosStr2Int64(timezoneStr, NULL, 10);
   int64_t seconds = hours * 3600 + minutes * 60;
 
   return seconds * factor;
@@ -2453,7 +2450,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 
   int64_t timeUnit, timePrec, timeVal = 0;
   bool    ignoreTz = true;
-  char    timezone[20] = {0};
+  char    timezoneStr[20] = {0};
 
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
 
@@ -2465,7 +2462,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
-  (void)memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
+  (void)memcpy(timezoneStr, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -2476,7 +2473,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     char *input = colDataGetData(pInput[0].columnData, i);
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal, pInput->tz);
       if (ret != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -2493,7 +2490,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     // truncate the timestamp to time_unit precision
     int64_t seconds = timeUnit / TSDB_TICK_PER_SECOND(timePrec);
     if (ignoreTz && (seconds == 604800 || seconds == 86400)) {
-      timeVal = timeVal - (timeVal + offsetFromTz(timezone, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+      timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
     }
@@ -2536,7 +2533,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
       int32_t type = GET_PARAM_TYPE(&pInput[k]);
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
+        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k], pInput->tz);
         if (ret != TSDB_CODE_SUCCESS) {
           hasNull = true;
           break;
@@ -2655,7 +2652,7 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   int64_t timePrec;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
 
-  int64_t ts = taosGetTimestampToday(timePrec);
+  int64_t ts = taosGetTimestampToday(timePrec, pInput->tz);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataSetInt64(pOutput->columnData, i, &ts);
   }
@@ -2665,8 +2662,16 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
-  (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
-  varDataSetLen(output, strlen(tsTimezoneStr));
+  // pInput->tz  todo tz
+  char* tmp = NULL;
+  if (pInput->tz == NULL) {
+    (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+  } else{
+    time_t    tx1 = taosGetTimestampSec();
+    SCL_ERR_RET(taosFormatTimezoneStr(tx1, "UTC-test", pInput->tz, varDataVal(output)));
+  }
+
+  varDataSetLen(output, strlen(varDataVal(output)));
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, output, false));
   }
@@ -2690,7 +2695,7 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
     char *input = colDataGetData(pInput[0].columnData, i);
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal, pInput->tz);
       if (ret != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -2701,7 +2706,7 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
       GET_TYPED_DATA(timeVal, int64_t, type, input);
     }
     struct STm tm;
-    TAOS_CHECK_RETURN(taosTs2Tm(timeVal, timePrec, &tm));
+    TAOS_CHECK_RETURN(taosTs2Tm(timeVal, timePrec, &tm, pInput->tz));
     int64_t ret = startFromZero ?  (tm.tm.tm_wday + 6) % 7 : tm.tm.tm_wday + 1;
     colDataSetInt64(pOutput->columnData, i, &ret);
   }
@@ -2800,7 +2805,7 @@ int32_t weekFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     char *input = colDataGetData(pInput[0].columnData, i);
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      int32_t ret = convertStringToTimestamp(type, input, prec, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, prec, &timeVal, pInput->tz);
       if (ret != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -2811,7 +2816,7 @@ int32_t weekFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       GET_TYPED_DATA(timeVal, int64_t, type, input);
     }
     struct STm tm;
-    SCL_ERR_RET(taosTs2Tm(timeVal, prec, &tm));
+    SCL_ERR_RET(taosTs2Tm(timeVal, prec, &tm, pInput->tz));
     int64_t ret = calculateWeekNum(tm.tm, weekMode(mode));
     colDataSetInt64(pOutput->columnData, i, &ret);
   }
