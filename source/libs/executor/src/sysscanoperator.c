@@ -74,7 +74,6 @@ typedef struct SSysTableScanInfo {
   SLimitInfo             limitInfo;
   int32_t                tbnameSlotId;
   STableListInfo*        pTableListInfo;
-  SSDataBlock*           pResBlock;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
 } SSysTableScanInfo;
