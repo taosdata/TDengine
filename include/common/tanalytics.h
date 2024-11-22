@@ -39,14 +39,14 @@ typedef struct {
 } SAnalyticsUrl;
 
 typedef enum {
-  ANAL_BUF_TYPE_JSON = 0,
-  ANAL_BUF_TYPE_JSON_COL = 1,
-  ANAL_BUF_TYPE_OTHERS,
+  ANALYTICS_BUF_TYPE_JSON = 0,
+  ANALYTICS_BUF_TYPE_JSON_COL = 1,
+  ANALYTICS_BUF_TYPE_OTHERS,
 } EAnalBufType;
 
 typedef enum {
-  ANAL_HTTP_TYPE_GET = 0,
-  ANAL_HTTP_TYPE_POST,
+  ANALYTICS_HTTP_TYPE_GET = 0,
+  ANALYTICS_HTTP_TYPE_POST,
 } EAnalHttpType;
 
 typedef struct {
@@ -61,11 +61,11 @@ typedef struct {
   char         fileName[TSDB_FILENAME_LEN];
   int32_t      numOfCols;
   SAnalyticsColBuf *pCols;
-} SAnalBuf;
+} SAnalyticBuf;
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf);
+SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
 bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
@@ -73,18 +73,18 @@ bool    taosAnalGetOptInt(const char *option, const char *optName, int64_t *optV
 int64_t taosAnalGetVersion();
 void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
 
-int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols);
-int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal);
-int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal);
-int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal);
-int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
-int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf);
-int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
-int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf);
-int32_t taosAnalBufClose(SAnalBuf *pBuf);
-void    taosAnalBufDestroy(SAnalBuf *pBuf);
+int32_t tsosAnalBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols);
+int32_t taosAnalBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal);
+int32_t taosAnalBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal);
+int32_t taosAnalBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal);
+int32_t taosAnalBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
+int32_t taosAnalBufWriteDataBegin(SAnalyticBuf *pBuf);
+int32_t taosAnalBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
+int32_t taosAnalBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalBufWriteDataEnd(SAnalyticBuf *pBuf);
+int32_t taosAnalBufClose(SAnalyticBuf *pBuf);
+void    taosAnalBufDestroy(SAnalyticBuf *pBuf);
 
 const char   *taosAnalAlgoStr(EAnalAlgoType algoType);
 EAnalAlgoType taosAnalAlgoInt(const char *algoName);
