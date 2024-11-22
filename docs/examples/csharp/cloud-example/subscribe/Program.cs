@@ -18,8 +18,8 @@ namespace Cloud.Examples
         static void Main(string[] args)
         {
 
-            var cloudEndPoint = Environment.GetEnvironmentVariable("CLOUD_ENDPOINT");
-            var cloudToken = Environment.GetEnvironmentVariable("CLOUD_TOKEN");
+            var cloudEndPoint = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
+            var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
             _host = cloudEndPoint.ToString();
             _token = cloudToken.ToString();
             var connectionString = $"protocol=WebSocket;host={cloudEndPoint};port=443;useSSL=true;token={cloudToken};";
