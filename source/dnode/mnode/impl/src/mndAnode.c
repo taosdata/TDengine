@@ -309,7 +309,7 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.updateTime = anodeObj.createdTime;
   anodeObj.version = 0;
   anodeObj.urlLen = pCreate->urlLen;
-  if (anodeObj.urlLen > TSDB_ANAL_ANODE_URL_LEN) {
+  if (anodeObj.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
     code = TSDB_CODE_MND_ANODE_TOO_LONG_URL;
     goto _OVER;
   }
@@ -491,23 +491,24 @@ static int32_t mndSetDropAnodeRedoLogs(STrans *pTrans, SAnodeObj *pObj) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndAnodeActionEncode(pObj);
   if (pRedoRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
+    code = terrno;
+    return code;
   }
+
   TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
-  TAOS_RETURN(code);
+
+  return code;
 }
 
 static int32_t mndSetDropAnodeCommitLogs(STrans *pTrans, SAnodeObj *pObj) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndAnodeActionEncode(pObj);
   if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
+    code = terrno;
+    return code;
   }
+
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
   TAOS_RETURN(code);
@@ -521,25 +522,25 @@ static int32_t mndSetDropAnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SAnode
 }
 
 static int32_t mndDropAnode(SMnode *pMnode, SRpcMsg *pReq, SAnodeObj *pObj) {
-  int32_t code = -1;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-anode");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _OVER;
-  }
+  TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
+
   mndTransSetSerial(pTrans);
+  mInfo("trans:%d, to drop anode:%d", pTrans->id, pObj->id);
 
-  mInfo("trans:%d, used to drop anode:%d", pTrans->id, pObj->id);
-  TAOS_CHECK_GOTO(mndSetDropAnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  code = mndSetDropAnodeInfoToTrans(pMnode, pTrans, pObj, false);
+  mndReleaseAnode(pMnode, pObj);
 
-  code = 0;
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndTransPrepare(pMnode, pTrans);
 
 _OVER:
   mndTransDrop(pTrans);
-  TAOS_RETURN(code);
+  return code;
 }
 
 static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
@@ -560,20 +561,20 @@ static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
 
   pObj = mndAcquireAnode(pMnode, dropReq.anodeId);
   if (pObj == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
+    code = terrno;
     goto _OVER;
   }
 
   code = mndDropAnode(pMnode, pReq, pObj);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("anode:%d, failed to drop since %s", dropReq.anodeId, tstrerror(code));
   }
 
-  mndReleaseAnode(pMnode, pObj);
   tFreeSMDropAnodeReq(&dropReq);
   TAOS_RETURN(code);
 }
@@ -584,7 +585,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANAL_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
   int32_t    code = 0;
 
@@ -642,7 +643,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANAL_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
   int32_t    code = 0;
 
   while (numOfRows < rows) {
@@ -693,7 +694,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
   int32_t code = 0;
   int32_t protocol = 0;
   double  tmp = 0;
-  char    buf[TSDB_ANAL_ALGO_NAME_LEN + 1] = {0};
+  char    buf[TSDB_ANALYTIC_ALGO_NAME_LEN + 1] = {0};
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -753,10 +754,10 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 }
 
 static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
-  char anodeUrl[TSDB_ANAL_ANODE_URL_LEN + 1] = {0};
-  snprintf(anodeUrl, TSDB_ANAL_ANODE_URL_LEN, "%s/%s", url, "list");
+  char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeAlgoList(pJson, pObj);
@@ -769,10 +770,10 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLe
   int32_t code = 0;
   int32_t protocol = 0;
   double  tmp = 0;
-  char    anodeUrl[TSDB_ANAL_ANODE_URL_LEN + 1] = {0};
-  snprintf(anodeUrl, TSDB_ANAL_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
+  char    anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
+  snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANAL_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
   if (pJson == NULL) return terrno;
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
@@ -808,7 +809,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   SAnodeObj           *pObj = NULL;
   SAnalyticsUrl             url;
   int32_t              nameLen;
-  char                 name[TSDB_ANAL_ALGO_KEY_LEN];
+  char                 name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SRetrieveAnalAlgoReq req = {0};
   SRetrieveAnalAlgoRsp rsp = {0};
 
@@ -847,13 +848,13 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
                 goto _OVER;
               }
             }
-            url.url = taosMemoryMalloc(TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN + 1);
+            url.url = taosMemoryMalloc(TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN + 1);
             if (url.url == NULL) {
               sdbRelease(pSdb, pAnode);
               goto _OVER;
             }
 
-            url.urlLen = 1 + tsnprintf(url.url, TSDB_ANAL_ANODE_URL_LEN + TSDB_ANAL_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
+            url.urlLen = 1 + tsnprintf(url.url, TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
                                       taosAnalAlgoUrlStr(url.type));
             if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalyticsUrl)) != 0) {
               taosMemoryFree(url.url);
