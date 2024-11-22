@@ -188,6 +188,7 @@ typedef struct {
 
 typedef struct {
   int32_t        jobQuota;
+  bool           enableMemPool;
   bool           reserveMode;
   int64_t        upperLimitSize;
   int32_t        reserveSize;          //MB
@@ -474,7 +475,10 @@ void mptDestroyTaskCtx(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
 
   SMPTestTaskCtx* pTask = &pJobCtx->taskCtxs[taskIdx];
 
-  mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[taskIdx]);  
+  if (mptCtx.param.enableMemPool) {
+    mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[taskIdx]);  
+  }
+  
   for (int32_t i = 0; i < pTask->memIdx; ++i) {
     pTask->stat.times.memFree.exec++;
     pTask->stat.bytes.memFree.exec+=mptMemorySize(pTask->pMemList[i].p);        
@@ -482,8 +486,11 @@ void mptDestroyTaskCtx(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
     mptMemoryFree(pTask->pMemList[i].p);
     pTask->pMemList[i].p = NULL;
   }
-  mptDisableMemoryPoolUsage();
-
+  
+  if (mptCtx.param.enableMemPool) {
+    mptDisableMemoryPoolUsage();
+  }
+  
   mptDestroySession(pJobCtx->jobId, pJobCtx->taskCtxs[taskIdx].taskId, 0, taskIdx, pJobCtx, pJobCtx->pSessions[taskIdx]);
   pJobCtx->pSessions[taskIdx] = NULL;
   
@@ -614,13 +621,15 @@ void mptInitJob(int32_t idx) {
 
 
 void mptDestroyTask(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
-  SMPStatDetail* pStat = NULL;
-  int64_t allocSize = 0;
-  taosMemPoolGetSessionStat(pJobCtx->pSessions[taskIdx], &pStat, &allocSize, NULL);
-  int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
-  
-  assert(allocSize == usedSize);
-  assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[taskIdx].stat, sizeof(*pStat)));
+  if (mptCtx.param.enableMemPool) {
+    SMPStatDetail* pStat = NULL;
+    int64_t allocSize = 0;
+    taosMemPoolGetSessionStat(pJobCtx->pSessions[taskIdx], &pStat, &allocSize, NULL);
+    int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
+    
+    assert(allocSize == usedSize);
+    assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[taskIdx].stat, sizeof(*pStat)));
+  }
   
   mptDestroyTaskCtx(pJobCtx, taskIdx);
 }
@@ -1147,10 +1156,16 @@ void mptTaskRun(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pCtx, int32_t idx, int32
   }
 
   atomic_add_fetch_32(&pJobCtx->taskRunningNum, 1);
+
+  if (mptCtx.param.enableMemPool) {
+    mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[idx]);
+  }
   
-  mptEnableMemoryPoolUsage(gMemPoolHandle, pJobCtx->pSessions[idx]);
   mptSimulateTask(pJobCtx, pCtx, actTimes);
-  mptDisableMemoryPoolUsage();
+  
+  if (mptCtx.param.enableMemPool) {  
+    mptDisableMemoryPoolUsage();
+  }
 
 //  if (!atomic_load_8(&pJobCtx->pJob->retired)) {
     mptSimulateOutTask(pJobCtx, pCtx);
@@ -1345,7 +1360,7 @@ void* mptRunThreadFunc(void* param) {
 
     MPT_PRINTF("Thread %d finish the %dth exection\n", pThread->idx, n);
 
-    if (mptCtx.param.threadNum <= 1) {
+    if (mptCtx.param.threadNum <= 1 && mptCtx.param.enableMemPool) {
       mptCheckPoolUsedSize(mptJobNum);
     }
   }
@@ -1576,14 +1591,15 @@ TEST(FuncTest, SingleThreadTest) {
 
 }
 #endif
-#if 1
-TEST(FuncTest, MultiThreadTest) {
+#if 0
+TEST(EnablePoolFuncTest, MultiThreadTest) {
   char* caseName = "FuncTest:MultiThreadTest";
   SMPTestParam param = {0};
   param.reserveMode = true; 
   param.threadNum = 6;
   param.jobQuota = 1024;
   param.randTask = true;
+  param.enableMemPool = true;
 
   mptPrintTestBeginInfo(caseName, &param);
 
@@ -1593,6 +1609,26 @@ TEST(FuncTest, MultiThreadTest) {
 
 }
 #endif
+
+#if 1
+TEST(DisablePoolFuncTest, MultiThreadTest) {
+  char* caseName = "FuncTest:MultiThreadTest";
+  SMPTestParam param = {0};
+  param.reserveMode = true; 
+  param.threadNum = 6;
+  param.jobQuota = 1024;
+  param.randTask = true;
+  param.enableMemPool = false;
+
+  mptPrintTestBeginInfo(caseName, &param);
+
+  for (int32_t i = 0; i < mptCtrl.caseLoopTimes; ++i) {
+    mptRunCase(&param, i);
+  }
+
+}
+#endif
+
 
 
 

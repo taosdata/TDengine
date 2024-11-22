@@ -278,8 +278,8 @@ void mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size, int6
     mpUpdateMaxAllocSize(&pSession->pJob->job.maxAllocMemSize, allocMemSize);
   }
   
-  int64_t allocMemSize = atomic_load_64(&pPool->allocMemSize);
   if (MP_GET_FLAG(gMPMgmt.ctrl.funcFlags, MP_CTRL_FLAG_LOG_MAXSIZE)) {
+    int64_t allocMemSize = atomic_load_64(&pPool->allocMemSize);
     mpUpdateMaxAllocSize(&pPool->maxAllocMemSize, allocMemSize);
   }
 }
@@ -902,6 +902,8 @@ _return:
 
 
 void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPStatInput* pInput) {
+  bool enablePool = false, randErr = false;
+  
   switch (item) {
     case E_MP_STAT_LOG_MEM_MALLOC:
     case E_MP_STAT_LOG_MEM_CALLOC:
@@ -917,14 +919,14 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
         mpLogDetailStat(&pPool->stat.statDetail, item, pInput);
       }
       if (pSession && MP_GET_FLAG(pSession->ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
-        taosDisableMemPoolUsage();
+        taosSaveDisableMemPoolUsage(enablePool, randErr);
         mpLogPosStat(&pSession->stat.posStat, item, pInput, true);
-        taosEnableMemPoolUsage();
+        taosRestoreEnableMemPoolUsage(enablePool, randErr);
       }
       if (MP_GET_FLAG(gMPMgmt.ctrl.statFlags, MP_LOG_FLAG_ALL_POS)) {
-        taosDisableMemPoolUsage();
+        taosSaveDisableMemPoolUsage(enablePool, randErr);
         mpLogPosStat(&pPool->stat.posStat, item, pInput, false);
-        taosEnableMemPoolUsage();
+        taosRestoreEnableMemPoolUsage(enablePool, randErr);
       }
       break;
     }
@@ -1250,6 +1252,10 @@ _return:
 
 
 void *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemMalloc(size);
+  }
+  
   int32_t code = TSDB_CODE_SUCCESS;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC, .pMem = NULL};
   
@@ -1276,6 +1282,10 @@ _return:
 }
 
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemCalloc(num, size);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t totalSize = num * size;
   SMPStatInput input = {.size = totalSize, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC, .pMem = NULL};
@@ -1304,6 +1314,10 @@ _return:
 }
 
 void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t size, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemRealloc(ptr, size);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC, .origSize = 0, .pMem = ptr, .pOrigMem = ptr};
   
@@ -1351,6 +1365,10 @@ _return:
 }
 
 char *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosStrdupi(ptr);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t size = (ptr ? strlen(ptr) : 0) + 1;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC, .pMem = NULL};
@@ -1383,6 +1401,10 @@ _return:
 }
 
 char *taosMemPoolStrndup(void* poolHandle, void* session, const char *ptr, int64_t size, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosStrndupi(ptr, size);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t origSize = ptr ? strlen(ptr) : 0;
   size = TMIN(size, origSize) + 1;
@@ -1417,6 +1439,11 @@ _return:
 
 
 void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    taosMemFree(ptr);
+    return;
+  }
+
   if (NULL == ptr) {
     return;
   }
@@ -1438,6 +1465,10 @@ void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName,
 }
 
 int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemSize(ptr);;
+  }
+
   int64_t code = 0;
   if (NULL == poolHandle || NULL == fileName) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p", 
@@ -1456,6 +1487,10 @@ int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 }
 
 void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemMallocAlign(alignment, size);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC, .pMem = NULL};
   
@@ -1511,6 +1546,10 @@ void taosMemPoolModDestroy(void) {
 
 
 int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo, bool* trimed) {
+  if (0 == tsMemPoolDebug) {
+    return taosMemTrim(size, trimed);
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
   
   if (NULL == poolHandle || NULL == fileName || size < 0) {
