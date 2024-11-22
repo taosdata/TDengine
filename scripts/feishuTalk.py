@@ -14,7 +14,9 @@ from datetime import datetime
 
 # crash_gen warn group
 # group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/7e409a8e-4390-4043-80d0-4e0dd2cbae7d'
-
+test_url = (
+    "https://open.feishu.cn/open-apis/bot/v2/hook/7e409a8e-4390-4043-80d0-4e0dd2cbae7d"
+)
 notification_robot_url = (
     "https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9"
 )
@@ -46,7 +48,7 @@ def get_query_msg(text):
         "content": {
             "post": {
                 "zh_cn": {
-                    "title": "TestNG-Query Test Notification",
+                    "title": "TestNG-Query Monitor",
                     "content": [
                         [{
                             "tag": "text",
@@ -64,7 +66,7 @@ def get_insert_stream_msg(text):
         "content": {
             "post": {
                 "zh_cn": {
-                    "title": "TestNG-Insert&Stream Test Notification",
+                    "title": "TestNG-Insert&Stream Monitor",
                     "content": [
                         [{
                             "tag": "text",
@@ -79,8 +81,7 @@ def get_insert_stream_msg(text):
 def send_msg(url, result, result_detail, test_scope, owner, hostname, start_time, end_time, community_commit_id, enterprise_commit_id, log_dir, others):
 #def send_msg(url: str, data: dict):
     text = f'''
-Result: {result}\n\n
-
+Result: {result}\n
 Details
 Owner: {owner}
 Start time: {start_time}
@@ -128,8 +129,8 @@ def main():
         # print(f"{line}")
         if line[0] == "Result":
             Result = line[1]
-        elif line[0] == "Result_detail":
-            Result_detail = line[1]
+        elif line[0] == "Detail":
+            Detail = line[1]
         elif line[0] == "Scope":
             Scope = line[1]
         elif line[0] == "Owner" :
@@ -148,14 +149,11 @@ def main():
             print("read all file")
     hostname = socket.gethostname()  
     
-    text_result=lines.split("Result: ")[1].split("Details")[0].strip()
-    print(text_result)
-         
     try:
-        if text_result == "success":
-            send_msg(url=notification_robot_url, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
+        if Result == "success":
+            send_msg(url=notification_robot_url, result=Result, result_detail=Detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
         else:
-            send_msg(url=alert_robot_url, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
+            send_msg(url=alert_robot_url, result=Result, result_detail=Detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
         #send_msg(result=Result, result_detail=Result_detail, test_scope=Scope, owner=Owner, hostname=hostname, start_time=Start_time, end_time=End_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=Log_dir, others="")
     except Exception as e:
         print("exception:", e)
