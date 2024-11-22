@@ -101,9 +101,9 @@ SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 
 IF(${TD_WINDOWS})
-    SET(TAOS_LIB_LINK taos_static)
+    SET(TAOS_LIB_PLATFORM_SPEC taos_static)
 ELSE()
-    SET(TAOS_LIB_LINK taos)
+    SET(TAOS_LIB_PLATFORM_SPEC taos)
 ENDIF()
 
 # build TSZ by default
