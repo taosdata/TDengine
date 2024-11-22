@@ -41,12 +41,18 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 
 |Python Client Library Version|major changes|
 |:-------------------:|:----:|
+|2.7.16|add subscription configuration (session.timeout.ms, max.poll.interval.ms)|
+|2.7.15|added support for VARBINARY and GEOMETRY types|
+|2.7.14|fix known issues|
+|2.7.13|add TMQ synchronous submission offset interface|
 |2.7.12|1. added support for `varbinary` type (STMT does not yet support)<br/> 2. improved query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209))|
 |2.7.9|support for getting assignment and seek function on subscription|
 |2.7.8|add `execute_many` method|
 
 |Python Websocket Connection Version|major changes|
 |:----------------------------:|:-----:|
+|0.3.5|1. added support for VARBINARY and GEOMETRY types <br/> 2. Fix known issues|
+|0.3.2|1. optimize WebSocket SQL query and insertion performance <br/> 2. Fix known issues <br/> 3. Modify the readme and document|
 |0.2.9|bugs fixes|
 |0.2.5|1. support for getting assignment and seek function on subscription <br/> 2. support schemaless <br/> 3. support STMT|
 |0.2.4|support `unsubscribe` on subscription|

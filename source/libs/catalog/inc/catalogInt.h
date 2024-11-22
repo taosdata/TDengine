@@ -271,6 +271,7 @@ typedef struct SCtgViewsCtx {
   SArray* pNames;
   SArray* pResList;
   SArray* pFetchs;
+  bool    forceFetch;
 } SCtgViewsCtx;
 
 typedef enum {

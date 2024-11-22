@@ -23,9 +23,14 @@ HoltWinters 有两种不同的季节性组成部分，当季节变化在该时�
 参数 `trend` 和 `seasonal`的均可以选择 `add` （加法模型）或 `mul`（乘法模型）。
 
 ### 示例及结果
-针对 i32 列进行数据预测，输入列 i32 每 10 个点是一个周期，趋势采用乘法模型，季节采用乘法模型
+针对 i32 列进行数据预测，输入列 i32 每 10 个点是一个周期，趋势参数采用乘法模型，季节参数采用乘法模型
 ```
 FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
+```
+
+完整的调用SQL语句如下：
+```SQL
+SELECT _frowts, FORECAST(i32, "algo=holtwinters, peroid=10,trend=mul,seasonal=mul") from foo
 ```
 
 ```json5

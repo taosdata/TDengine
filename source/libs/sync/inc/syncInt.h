@@ -234,6 +234,10 @@ struct SSyncNode {
 
   bool isStart;
 
+  // statis
+  int32_t sendCount;
+  int32_t recvCount;
+  int32_t slowCount;
 };
 
 // open/close --------------

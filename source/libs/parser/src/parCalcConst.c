@@ -336,7 +336,10 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
         }
       }
     }
-    NODES_DESTORY_LIST(pSelect->pGroupByList);
+    FOREACH(pNode, pSelect->pGroupByList) {
+      if (!cell->pPrev) continue;
+      ERASE_NODE(pSelect->pGroupByList);
+    }
   }
   return code;
 }

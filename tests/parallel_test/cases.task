@@ -232,6 +232,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
@@ -353,6 +361,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
