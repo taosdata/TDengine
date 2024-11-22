@@ -1,9 +1,0 @@
-Result:success
-Detail:failed 0,successful 106
-Start time:2024_1122_090702
-End time:2024_1122_103723
-Scope:cases_insert_replica1.txt , buildNumber-[3275]
-Log dir:/var/data/jenkins/workspace/testnglog/FullTest3.0_3275_20241122-090659
-Commit(community):76ab0cdc84ededd28f3fae76cb8fb94f9f818725
-Commit(enterprise):2d4a95aeb18b1fe34cb9cfde4c58748c23134055
-Owner:Jayden Jia
