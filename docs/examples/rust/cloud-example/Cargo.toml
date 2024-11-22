@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-taos = { version = "*", default-features = false, features = ["ws"] }
+taos = { version = "*"}
+#taos = { version = "*", default-features = false, features = ["ws", "ws-rustls"] }
+
 tokio = { version = "1", features = ["full"]}
-anyhow = "1.0.0" 
+anyhow = "1.0.0"
 serde = { version = "1", features = ["derive"]}
 chrono = "*"
 pretty_env_logger = "0.4"

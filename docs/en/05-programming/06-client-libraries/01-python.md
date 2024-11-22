@@ -8,6 +8,23 @@ description: This document describes the TDengine Python client library.
 
 The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
+## Connection types
+
+`taospy` mainly provides 3 connection types. TDengine Cloud can be accessed by both REST and WebSocket connections.
+
+* Native connection, which correspond to the taos modules of the taospy package, connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
+* REST connection, which correspond to the taosrest modules of the taospy package, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported.
+* Websocket connection taos-ws-py is an optional package to enable using WebSocket to connect TDengine, which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.
+
+:::note IMPORTANT
+
+1. The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection".
+2. The connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
+:::
+
+For detailed information on how to establish a connection, please refer to: [Programming - Connect - Python](../01-connect/01-python.md).
+
+
 ## Installation
 
 ### Preparation
