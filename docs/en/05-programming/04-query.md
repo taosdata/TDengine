@@ -145,8 +145,9 @@ For more details please refer to [Aggregate by Window](https://docs.tdengine.com
 ## Client Library Examples
 
 :::note IMPORTANT
-Before executing the sample code in this section, you need to firstly establish connection to TDegnine cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).
+Before executing the sample code in this section, please create a database named `power` on the[TDengine Cloud - Explorer](https://cloud.taosdata.com/explorer) page.
 
+How to establish connection to TDegnine Cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).
 :::
 
 <Tabs>

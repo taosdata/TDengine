@@ -40,9 +40,12 @@ For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.c
 
 ## Client Library Examples
 
-:::note IMPORTANT
-Before executing the sample code in this section, you need to firstly establish connection to TDegnine cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).
+Here's an smart meters example to show how to use connectors in different languages, to create a super table called `meters` in a `power` database, with columns for timestamp, current, voltage, phase, and tags for group ID and location. 
 
+:::note IMPORTANT
+Before executing the sample code in this section, please create a database named `power` on the[TDengine Cloud - Explorer](https://cloud.taosdata.com/explorer) page.
+
+How to establish connection to TDegnine Cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).
 :::
 
 <Tabs>
