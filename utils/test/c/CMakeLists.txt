@@ -1,5 +1,5 @@
 add_executable(tmq_demo tmqDemo.c)
-add_dependencies(tmq_demo ${TAOS_LIB_LINK})
+add_dependencies(tmq_demo ${TAOS_LIB})
 add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
 add_executable(tmq_taosx_ci tmq_taosx_ci.c)
@@ -22,7 +22,7 @@ endif(${TD_LINUX})
 
 target_link_libraries(
     tmq_offset
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -30,7 +30,7 @@ target_link_libraries(
 
 target_link_libraries(
     tmq_multi_thread_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -38,56 +38,56 @@ target_link_libraries(
 
 target_link_libraries(
     create_table
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_demo
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_sim
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB_PLATFORM_SPEC}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_ts5466
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_td32187
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_td32526
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_taosx_ci
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
 )
 target_link_libraries(
     tmq_offset_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -95,7 +95,7 @@ target_link_libraries(
 
 target_link_libraries(
     replay_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -103,7 +103,7 @@ target_link_libraries(
 
 target_link_libraries(
     write_raw_block_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -111,7 +111,7 @@ target_link_libraries(
 
 target_link_libraries(
     tmq_write_raw_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -119,7 +119,7 @@ target_link_libraries(
 
 target_link_libraries(
     sml_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -128,7 +128,7 @@ target_link_libraries(
 
 target_link_libraries(
     get_db_name_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -136,7 +136,7 @@ target_link_libraries(
 
 target_link_libraries(
     varbinary_test
-    PUBLIC ${TAOS_LIB_LINK}
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -145,7 +145,7 @@ target_link_libraries(
 if(${TD_LINUX})
     target_link_libraries(
         tsz_test
-        PUBLIC ${TAOS_LIB_LINK}
+        PUBLIC ${TAOS_LIB}
         PUBLIC util
         PUBLIC common
         PUBLIC os
