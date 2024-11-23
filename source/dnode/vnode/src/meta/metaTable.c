@@ -2011,6 +2011,7 @@ _err:
   return terrno != 0 ? terrno : TSDB_CODE_FAILED;
 }
 
+static int metaUpdateTableMultiTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) { return 0; }
 static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
   SMetaEntry  ctbEntry = {0};
   SMetaEntry  stbEntry = {0};
@@ -2736,6 +2737,9 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return metaUpdateTableTagVal(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      return metaUpdateTableMultiTagVal(pMeta, version, pReq);
+      return terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       return metaUpdateTableOptions(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_ADD_TAG_INDEX:

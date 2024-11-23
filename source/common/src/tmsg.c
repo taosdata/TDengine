@@ -2166,9 +2166,9 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
   int32_t numOfAlgos = 0;
   void   *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalyticsUrl   *pUrl = pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
+    SAnalyticsUrl *pUrl = pIter;
+    size_t         nameLen = 0;
+    const char    *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && nameLen <= TSDB_ANALYTIC_ALGO_KEY_LEN && pUrl->urlLen > 0) {
       numOfAlgos++;
     }
@@ -2181,9 +2181,9 @@ int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAl
 
   pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
-    SAnalyticsUrl   *pUrl = pIter;
-    size_t      nameLen = 0;
-    const char *name = taosHashGetKey(pIter, &nameLen);
+    SAnalyticsUrl *pUrl = pIter;
+    size_t         nameLen = 0;
+    const char    *name = taosHashGetKey(pIter, &nameLen);
     if (nameLen > 0 && pUrl->urlLen > 0) {
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, nameLen));
       TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)name, nameLen));
@@ -2221,10 +2221,10 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
-  int32_t      numOfAlgos = 0;
-  int32_t      nameLen;
-  int32_t      type;
-  char         name[TSDB_ANALYTIC_ALGO_KEY_LEN];
+  int32_t       numOfAlgos = 0;
+  int32_t       nameLen;
+  int32_t       type;
+  char          name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SAnalyticsUrl url = {0};
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -10511,6 +10511,20 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->pTagVal, pReq->nTagVal));
       }
       break;
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
+      for (int32_t i = 0; i < nTags; i++) {
+        SMultiTagUpateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->tagName));
+        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
+        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->tagType));
+        if (!pTag->isNull) {
+          TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pReq->nTagVal));
+        }
+      }
+      break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->updateTTL));
       if (pReq->updateTTL) {
@@ -10575,6 +10589,27 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->tagType));
       if (!pReq->isNull) {
         TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReq->pTagVal, &pReq->nTagVal));
+      }
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+      int32_t nTags;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
+      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpateVal));
+      if (pReq->pMultiTag == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nTags; i++) {
+        SMultiTagUpateVal tag;
+        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
+        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
+        if (!tag.isNull) {
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
+        }
+        if (taosArrayPush(pReq->pMultiTag, &tag) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
