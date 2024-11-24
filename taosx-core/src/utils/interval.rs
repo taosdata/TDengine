@@ -3,30 +3,30 @@
 //! 当接收 tmq 消息的频率大于 5s 一次时，我们可以控制并不是每次消费完数据都去获取 offsets，这样比每次收到消息都更有性能优势。
 //! 当接收 tmq 消息的频率小于 5s 一次时，又能保证只有在有新的消息时才去获取 offsets，这样可以避免不必要的操作，比定时去获取 offsets 也更有性能优势。
 
-use std::{cell::Cell, time::Duration};
+use std::{cell::UnsafeCell, time::Duration};
 
 use tokio::time::Instant;
 
 pub struct IntervalLimit {
-    last_time: Cell<Instant>,
+    last_time: UnsafeCell<Instant>,
     interval_limit: Duration,
 }
+
+unsafe impl Sync for IntervalLimit {}
 
 impl IntervalLimit {
     pub fn new(interval_limit: Duration) -> Self {
         Self {
-            last_time: Cell::new(Instant::now()),
+            last_time: UnsafeCell::new(Instant::now()),
             interval_limit,
         }
     }
 
-    /**
-     * 检查经过的时间是否超过了预定的时间间隔
-     */
+    /// 检查经过的时间是否超过了预定的时间间隔
     pub fn ticked(&self) -> bool {
         let now = Instant::now();
-        if now.duration_since(self.last_time.get()) >= self.interval_limit {
-            self.last_time.set(now);
+        if now.duration_since(unsafe { self.last_time.get().read() }) >= self.interval_limit {
+            unsafe { *self.last_time.get() = now };
             true
         } else {
             false
