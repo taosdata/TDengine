@@ -144,6 +144,7 @@ void test_ts5679(TAOS* pConn){
 
   for(int i = 0; i < numOfAssign; i++){
     int64_t committed = tmq_committed(tmq, "t_5679", pAssign[i].vgId);
+    printf("committed offset:%"PRId64"\n", committed);
     ASSERT(committed == TSDB_CODE_TMQ_NO_COMMITTED);
   }
 
@@ -374,9 +375,13 @@ void test_ts3756(TAOS* pConn){
 
 int main(int argc, char* argv[]) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  test_offset(pConn);
-  test_ts3756(pConn);
-  test_ts5679(pConn);
+  if (argc == 2) {
+    test_ts5679(pConn);
+  }else{
+    test_offset(pConn);
+    test_ts3756(pConn);
+  }
+
   taos_close(pConn);
   return 0;
 }
