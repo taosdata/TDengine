@@ -26,7 +26,7 @@ BUILD_PROFILE = { value = "release", condition = { env_not_set = [
 
 [tasks.build]
 command = "cargo"
-args = ["build", "--profile", "${BUILD_PROFILE}"]
+args = ["build", "--profile", "${BUILD_PROFILE}", "${@}"]
 
 [tasks.dump-env]
 script = """
@@ -164,7 +164,16 @@ fi
 """
 
 [tasks.build-all]
-dependencies = ["taosx", "taosx-agent", "plugins"]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taos-explorer
+"""
+
+[tasks.build-all-with-agent]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taosx-agent -p taos-explorer
+"""
 
 [tasks.build-sanitizer]
 command = "cargo"
@@ -357,7 +366,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev .
 # 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
 #
 [tasks.build-centos7-release]
-dependencies = ["build-docker-dev"]
+# dependencies = ["build-docker-dev"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 
@@ -589,6 +598,16 @@ dependencies = ["fmt", "clippy", "test-without-cov"]
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
+yarn install && yarn build
+"""
+[tasks.explorer-ui.linux]
+script_runner = "bash"
+script = """
+# Load nvm
+if [ -d "$NVM_DIR" ]; then
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  nvm --version && [ -e .nvmrc ] && nvm use || true
+fi
 yarn install && yarn build
 """
 
