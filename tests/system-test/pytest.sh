@@ -73,6 +73,9 @@ cd "$CODE_DIR" || exit
 ulimit -n 600000
 ulimit -c unlimited
 
+$CODE_DIR/../script/sh/linkLib.sh
+export LD_LIBRARY_PATH=$BUILD_DIR/build/lib
+
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 echo "ExcuteCmd:" $*
