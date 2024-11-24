@@ -59,8 +59,8 @@ void veriry_stmt(TAOS* taos) {
       "binary(40), blob nchar(10))";
   */
   const char* sql =
-      "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob2 "
-      "nchar(10), blob nchar(10))";
+      "create table m1 (ts timestamp, blob2 nchar(10), blob nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 "
+      "nchar(10))";
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
@@ -73,27 +73,20 @@ void veriry_stmt(TAOS* taos) {
   // insert 10 records
   struct {
     int64_t ts[10];
-    int8_t  b[10];
-    int8_t  v1[10];
-    int16_t v2[10];
-    int32_t v4[10];
-    int64_t v8[10];
-    float   f4[10];
-    double  f8[10];
-    char    bin[10][40];
     char    blob[10][1];
     char    blob2[10][1];
+    char    blob3[10][1];
+    char    blob4[10][1];
+    char    blob5[10][1];
+
   } v;
 
-  int32_t* t8_len = malloc(sizeof(int32_t) * 10);
-  int32_t* t16_len = malloc(sizeof(int32_t) * 10);
-  int32_t* t32_len = malloc(sizeof(int32_t) * 10);
   int32_t* t64_len = malloc(sizeof(int32_t) * 10);
-  int32_t* float_len = malloc(sizeof(int32_t) * 10);
-  int32_t* double_len = malloc(sizeof(int32_t) * 10);
-  int32_t* bin_len = malloc(sizeof(int32_t) * 10);
   int32_t* blob_len = malloc(sizeof(int32_t) * 10);
   int32_t* blob_len2 = malloc(sizeof(int32_t) * 10);
+  int32_t* blob_len3 = malloc(sizeof(int32_t) * 10);
+  int32_t* blob_len4 = malloc(sizeof(int32_t) * 10);
+  int32_t* blob_len5 = malloc(sizeof(int32_t) * 10);
 
 #include "time.h"
   clock_t           start, end;
@@ -114,77 +107,42 @@ void veriry_stmt(TAOS* taos) {
   params[0].is_null = is_null;
   params[0].num = 10;
 
-  params[1].buffer_type = TSDB_DATA_TYPE_BOOL;
-  // params[1].buffer_length = sizeof(v.b[0]);
-  params[1].buffer = v.b;
-  params[1].length = t8_len;
+  params[1].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[8].buffer_length = sizeof(v.blob2[0]);
+  params[1].buffer = v.blob2;
+  params[1].length = blob_len2;
   params[1].is_null = is_null;
   params[1].num = 10;
 
-  params[2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-  // params[2].buffer_length = sizeof(v.v1[0]);
-  params[2].buffer = v.v1;
-  params[2].length = t8_len;
+  params[2].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[2].buffer = v.blob3;
+  params[2].length = blob_len;
   params[2].is_null = is_null;
   params[2].num = 10;
 
-  params[3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-  // params[3].buffer_length = sizeof(v.v2[0]);
-  params[3].buffer = v.v2;
-  params[3].length = t16_len;
+  params[3].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[3].buffer = v.blob4;
+  params[3].length = blob_len;
   params[3].is_null = is_null;
   params[3].num = 10;
 
-  params[4].buffer_type = TSDB_DATA_TYPE_INT;
-  // params[4].buffer_length = sizeof(v.v4[0]);
-  params[4].buffer = v.v4;
-  params[4].length = t32_len;
+  params[4].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[4].buffer = v.blob;
+  params[4].length = blob_len;
   params[4].is_null = is_null;
   params[4].num = 10;
 
-  params[5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-  // params[5].buffer_length = sizeof(v.v8[0]);
-  params[5].buffer = v.v8;
-  params[5].length = t64_len;
+  params[5].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[5].buffer = v.blob5;
+  params[5].length = blob_len;
   params[5].is_null = is_null;
   params[5].num = 10;
 
-  params[6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-  // params[6].buffer_length = sizeof(v.f4[0]);
-  params[6].buffer = v.f4;
-  params[6].length = float_len;
-  params[6].is_null = is_null;
-  params[6].num = 10;
-
-  params[7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-  // params[7].buffer_length = sizeof(v.f8[0]);
-  params[7].buffer = v.f8;
-  params[7].length = double_len;
-  params[7].is_null = is_null;
-  params[7].num = 10;
-  /*
-  params[8].buffer_type = TSDB_DATA_TYPE_BINARY;
-  //params[8].buffer_length = sizeof(v.bin[0]);
-  params[8].buffer = v.bin;
-  params[8].length = bin_len;
-  params[8].is_null = is_null;
-  params[8].num = 10;
-  */
-  params[8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-  // params[8].buffer_length = sizeof(v.blob2[0]);
-  params[8].buffer = v.blob2;
-  params[8].length = blob_len2;
-  params[8].is_null = is_null;
-  params[8].num = 10;
-
-  params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
-  // params[9].buffer_length = sizeof(v.blob[0]);
-  params[9].buffer = v.blob;
-  params[9].length = blob_len;
-  params[9].is_null = is_null;
-  params[9].num = 10;
-
-  sql = "insert into ? (ts, b, v1, v2, v4, v8, f4, f8, blob2, blob) values(?,?,?,?,?,?,?,?,?,?)";
+  sql = "insert into ? (ts, blob2, blob, blob3, blob4, blob5) values(?,?,?,?,?,?)";
   start = clock();
   code = taos_stmt2_prepare(stmt, sql, 0);
   end = clock();
@@ -208,18 +166,12 @@ void veriry_stmt(TAOS* taos) {
     is_null[i] = 0;
 
     v.ts[i] = ts++;
-    v.b[i] = (int8_t)i % 2;
-    v.v1[i] = (int8_t)i;
-    v.v2[i] = (int16_t)(i * 2);
-    v.v4[i] = (int32_t)(i * 4);
-    v.v8[i] = (int64_t)(i * 8);
-    v.f4[i] = (float)(i * 40);
-    v.f8[i] = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin[0]); ++j) {
-      v.bin[i][j] = (char)(i + '0');
-    }
+
     v.blob[i][0] = 'a' + i;
-    v.blob2[i][0] = 'A' + i;
+    v.blob2[i][0] = 'f' + i;
+    v.blob3[i][0] = 't' + i;
+    v.blob4[i][0] = 'A' + i;
+    v.blob5[i][0] = 'G' + i;
 
     // v.blob2[i] = malloc(strlen("一二三四五六七十九八"));
     // v.blob[i] = malloc(strlen("十九八七六五四三二一"));
@@ -227,16 +179,13 @@ void veriry_stmt(TAOS* taos) {
     // strcpy(v.blob2[i], "一二三四五六七十九八");
     // strcpy(v.blob[i], "十九八七六五四三二一");
 
-    t8_len[i] = sizeof(int8_t);
-    t16_len[i] = sizeof(int16_t);
-    t32_len[i] = sizeof(int32_t);
-    t64_len[i] = sizeof(int64_t);
-    float_len[i] = sizeof(float);
-    double_len[i] = sizeof(double);
-    bin_len[i] = sizeof(v.bin[0]);
     blob_len[i] = sizeof(char);
     blob_len2[i] = sizeof(char);
+    blob_len3[i] = sizeof(char);
+    blob_len4[i] = sizeof(char);
+    blob_len5[i] = sizeof(char);
   }
+
   char*            tbname = "m1";
   TAOS_STMT2_BIND* bind_cols[1] = {&params[0]};
   TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &bind_cols[0]};
@@ -296,15 +245,11 @@ void veriry_stmt(TAOS* taos) {
 
   taos_stmt2_close(stmt);
 
-  free(t8_len);
-  free(t16_len);
-  free(t32_len);
-  free(t64_len);
-  free(float_len);
-  free(double_len);
-  free(bin_len);
   free(blob_len);
   free(blob_len2);
+  free(blob_len5);
+  free(blob_len3);
+  free(blob_len4);
 }
 
 int main(int argc, char* argv[]) {

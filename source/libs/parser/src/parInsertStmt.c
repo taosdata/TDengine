@@ -681,9 +681,23 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
   int32_t         code = 0;
   int16_t         lastColId = -1;
   bool            colInOrder = true;
+  int             ncharColNums = 0;
 
   if (NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
+  }
+
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    if (TSDB_DATA_TYPE_NCHAR == pSchema[boundInfo->pColIndex[c]].type) {
+      ncharColNums++;
+    }
+  }
+  if (ncharColNums > 0) {
+    ncharBinds = taosArrayInit(ncharColNums, sizeof(ncharBind));
+    if (!ncharBinds) {
+      code = terrno;
+      goto _return;
+    }
   }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
@@ -709,13 +723,6 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
       code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind);
       if (code) {
         goto _return;
-      }
-      if (!ncharBinds) {
-        ncharBinds = taosArrayInit(1, sizeof(ncharBind));
-        if (!ncharBinds) {
-          code = terrno;
-          goto _return;
-        }
       }
       if (!taosArrayPush(ncharBinds, &ncharBind)) {
         code = terrno;
