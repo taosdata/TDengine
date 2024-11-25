@@ -3839,6 +3839,11 @@ FETCH_NEXT_BLOCK:
       } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE:
       case STREAM_SCAN_FROM_DATAREADER_RETRIEVE: {
+        if (pInfo->pRangeScanRes != NULL) {
+          (*ppRes) = pInfo->pRangeScanRes;
+          pInfo->pRangeScanRes = NULL;
+          return code;
+        } 
         SSDataBlock* pSDB = NULL;
         code = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex, &pSDB);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -3852,6 +3857,15 @@ FETCH_NEXT_BLOCK:
           printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
           code = calBlockTbName(pInfo, pSDB, 0);
           QUERY_CHECK_CODE(code, lino, _end);
+
+          if (pInfo->pCreateTbRes->info.rows > 0) {
+            printSpecDataBlock(pInfo->pCreateTbRes, getStreamOpName(pOperator->operatorType), "update",
+                               GET_TASKID(pTaskInfo));
+            (*ppRes) = pInfo->pCreateTbRes;
+            pInfo->pRangeScanRes = pSDB;
+            return code;
+          }
+
           (*ppRes) = pSDB;
           return code;
         }
@@ -4629,6 +4643,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
   pInfo->pFillSup = NULL;
   pInfo->useGetResultRange = false;
+  pInfo->pRangeScanRes = NULL;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

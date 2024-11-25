@@ -1481,6 +1481,18 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
         pBlock->info.id.groupId = pKey->groupId;
       }
     }
+    void*   tbname = NULL;
+    int32_t winCode = TSDB_CODE_SUCCESS;
+    code =
+        pAggSup->stateStore.streamStateGetParName(pAggSup->pState, pBlock->info.id.groupId, &tbname, false, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      pBlock->info.parTbName[0] = 0;
+    } else {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+    }
+    pAggSup->stateStore.streamStateFreeVal(tbname);
+
     SSlicePoint curPoint = {.key.ts = pKey->ts, .key.groupId = pKey->groupId};
     SSlicePoint prevPoint = {0};
     SSlicePoint nextPoint = {0};
