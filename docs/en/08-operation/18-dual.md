@@ -138,7 +138,7 @@ You can manage your active-active deployment with the following commands:
    taosx replica diff [id [db....]]
    ```
 
-  This command outputs the difference between the subscribed offset in the current dual-replica synchronization task and the latest WAL (not representing row counts), for example:
+  This command outputs the difference between the subscribed offset in the current active-active replication task and the latest WAL (not representing row counts), for example:
 
    ```shell
    +---------+----------+----------+----------+-----------+---------+---------+------+
