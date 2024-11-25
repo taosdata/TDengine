@@ -176,7 +176,7 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
   }
 }
 
-int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
+static int32_t taosGenCrashJsonMsgImp(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
   int32_t code = 0;
   SJson*  pJson = tjsonCreateObject();
   if (pJson == NULL) return terrno;
@@ -251,6 +251,24 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 _exit:
   tjsonDelete(pJson);
   TAOS_RETURN(code);
+}
+
+void taosGenCrashJsonMsg(int signum, void *sigInfo, const char* appname, int64_t clusterId, int64_t startTime) {
+  char*       pMsg = NULL;
+  const char* flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen = -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsgImp(signum, &pMsg, clusterId, startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+    } else {
+      msgLen = strlen(pMsg);
+    }
+  }
+
+  taosLogCrashInfo(appname, pMsg, msgLen, signum, sigInfo);
 }
 
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {

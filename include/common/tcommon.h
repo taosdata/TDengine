@@ -395,7 +395,7 @@ typedef struct STUidTagInfo {
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
 
-int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
+void    taosGenCrashJsonMsg(int signum, void* sigInfo, const char* appname, int64_t clusterId, int64_t startTime);
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 
 #define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"

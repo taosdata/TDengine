@@ -32,7 +32,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
 
-  tscWriteCrashInfo(signum, sigInfo, context);
+  taosGenCrashJsonMsg(signum, sigInfo, "shell", 0, 0);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -63,6 +63,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (shellParseArgs(argc, argv) != 0) {
+    return -1;
+  }
+
+  if (taosDriverInit(TAOS_DRIVER_NATIVE) != 0) {
     return -1;
   }
 
@@ -112,5 +116,6 @@ int main(int argc, char *argv[]) {
   shellAutoInit();
   int32_t ret = shellExecute();
   shellAutoExit();
+  taosDriverCleanup();
   return ret;
 }

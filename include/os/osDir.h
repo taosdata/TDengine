@@ -100,6 +100,8 @@ bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
 char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
+int32_t taosGetAppPath(char *path, int32_t maxLen);
+
 #ifdef __cplusplus
 }
 #endif

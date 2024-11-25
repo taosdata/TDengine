@@ -904,24 +904,6 @@ void tscStopCrashReport() {
   }
 }
 
-void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-    } else {
-      msgLen = strlen(pMsg);
-    }
-  }
-
-  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
-}
-
 void taos_init_imp(void) {
 #if defined(LINUX)
   if (tscDbg.memEnable) {

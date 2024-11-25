@@ -50,19 +50,19 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
 
 int32_t shellCheckIntSize() {
   if (sizeof(int8_t) != 1) {
-    printf("int8 size is %d(!= 1)", (int)sizeof(int8_t));
+    printf("int8 size is %d(!= 1)\r\n", (int)sizeof(int8_t));
     return -1;
   }
   if (sizeof(int16_t) != 2) {
-    printf("int16 size is %d(!= 2)", (int)sizeof(int16_t));
+    printf("int16 size is %d(!= 2)\r\n", (int)sizeof(int16_t));
     return -1;
   }
   if (sizeof(int32_t) != 4) {
-    printf("int32 size is %d(!= 4)", (int)sizeof(int32_t));
+    printf("int32 size is %d(!= 4)\r\n", (int)sizeof(int32_t));
     return -1;
   }
   if (sizeof(int64_t) != 8) {
-    printf("int64 size is %d(!= 8)", (int)sizeof(int64_t));
+    printf("int64 size is %d(!= 8)\r\n", (int)sizeof(int64_t));
     return -1;
   }
   return 0;

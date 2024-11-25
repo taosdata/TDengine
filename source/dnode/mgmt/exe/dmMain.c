@@ -129,24 +129,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
     dWarn("failed to ignore signal SIGABRT");
   }
 
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-      goto _return;
-    } else {
-      msgLen = strlen(pMsg);
-    }
-  }
-
-_return:
-
-  taosLogCrashInfo(CUS_PROMPT "d", pMsg, msgLen, signum, sigInfo);
+  taosGenCrashJsonMsg(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
 
 #ifdef _TD_DARWIN_64
   exit(signum);

@@ -20,11 +20,14 @@
 #include "taos.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "ttypes.h"
 #include "tutil.h"
+
+#include "wrapper.h"
 
 #ifdef WEBSOCKET
 #include "taosws.h"
@@ -156,6 +159,5 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
-extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/

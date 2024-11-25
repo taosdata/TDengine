@@ -1071,7 +1071,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
   return true;
 }
 
-void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo) {
+void taosLogCrashInfo(const char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo) {
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
   int32_t     dflag = 255;
