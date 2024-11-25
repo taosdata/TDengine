@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
@@ -138,9 +138,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
   int32_t svrVer = 0;
-  code = taosVersionStrToInt(version, &svrVer);
+  code = taosVersionStrToInt(td_version, &svrVer);
   if (code != 0) {
-    dError("failed to convert version string:%s to int, code:%d", version, code);
+    dError("failed to convert version string:%s to int, code:%d", td_version, code);
     goto _OVER;
   }
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
@@ -214,8 +214,6 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   } else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
              (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
     dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
-    code = pRpc->code;
-    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
@@ -434,8 +432,8 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
@@ -483,8 +481,8 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
@@ -533,8 +531,8 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
@@ -588,8 +586,8 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
 
-  if (taosVersionStrToInt(version, &(rpcInit.compatibilityVer)) != 0) {
-    dError("failed to convert version string:%s to int", version);
+  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+    dError("failed to convert version string:%s to int", td_version);
   }
 
   pTrans->serverRpc = rpcOpen(&rpcInit);

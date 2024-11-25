@@ -605,7 +605,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     return code;
   }
 
-  pInst->monitorParas = pRsp.monitorParas;
+  pInst->serverCfg.monitorParas = pRsp.monitorParas;
+  pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
   tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 

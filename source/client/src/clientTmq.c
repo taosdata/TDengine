@@ -1872,13 +1872,17 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   if (tmq->epTimer == NULL){
     tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(tmq->refId), tmqMgmt.timer);
+    if (tmq->epTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto END;
+    }
   }
-  if (tmq->commitTimer == NULL){
+  if (tmq->autoCommit && tmq->commitTimer == NULL){
     tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, (void*)(tmq->refId), tmqMgmt.timer);
-  }
-  if (tmq->epTimer == NULL || tmq->commitTimer == NULL) {
-    code = TSDB_CODE_TSC_INTERNAL_ERROR;
-    goto END;
+    if (tmq->commitTimer == NULL) {
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto END;
+    }
   }
 
 END:
@@ -2869,8 +2873,7 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
     pRspObj->resInfo.precision = precision;
 
     pRspObj->resInfo.totalRows += pRspObj->resInfo.numOfRows;
-    int32_t code = setResultDataPtr(&pRspObj->resInfo, pRspObj->resInfo.fields, pRspObj->resInfo.numOfCols,
-                                    pRspObj->resInfo.numOfRows, convertUcs4);
+    int32_t code = setResultDataPtr(&pRspObj->resInfo, convertUcs4);
     if (code != 0) {
       return code;
     }

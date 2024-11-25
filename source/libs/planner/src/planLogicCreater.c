@@ -838,8 +838,11 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   if (NULL != pSelect->pGroupByList) {
-    pAgg->pGroupKeys = NULL;
-    code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    code = nodesListDeduplicate(&pSelect->pGroupByList);
+    if (TSDB_CODE_SUCCESS == code) {
+      pAgg->pGroupKeys = NULL;
+      code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    }
   }
 
   // rewrite the expression in subsequent clauses
@@ -923,6 +926,15 @@ static bool isInterpFunc(int32_t funcId) {
   return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
 }
 
+static void initStreamOption(SLogicPlanContext* pCxt, SStreamNodeOption* pOption) {
+  pOption->triggerType = pCxt->pPlanCxt->triggerType;
+  pOption->watermark = pCxt->pPlanCxt->watermark;
+  pOption->deleteMark = pCxt->pPlanCxt->deleteMark;
+  pOption->igExpired = pCxt->pPlanCxt->igExpired;
+  pOption->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  pOption->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
+}
+
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -957,11 +969,17 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
     pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
+    pInterpFunc->intervalUnit = ((SValueNode*)pSelect->pEvery)->unit;
+    pInterpFunc->precision = pSelect->precision;
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    initStreamOption(pCxt, &pInterpFunc->streamNodeOption);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1519,21 +1537,20 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     pSort->pSortKeys = NULL;
     code = nodesCloneList(pSelect->pOrderByList, &pSort->pSortKeys);
-    if (NULL == pSort->pSortKeys) {
-      code = code;
-    }
-    SNode*            pNode = NULL;
-    SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-    if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
-    if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
-      SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
-      int16_t      projIdx = 1;
-      FOREACH(pNode, pSelect->pProjectionList) {
-        SExprNode* pExpr = (SExprNode*)pNode;
-        if (0 == strcmp(pCol->node.aliasName, pExpr->aliasName)) {
-          pCol->projIdx = projIdx; break;
+    if (NULL != pSort->pSortKeys) {
+      SNode*            pNode = NULL;
+      SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+      if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
+      if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
+        SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
+        int16_t      projIdx = 1;
+        FOREACH(pNode, pSelect->pProjectionList) {
+          SExprNode* pExpr = (SExprNode*)pNode;
+          if (0 == strcmp(pCol->node.aliasName, pExpr->aliasName)) {
+            pCol->projIdx = projIdx; break;
+          }
+          projIdx++;
         }
-        projIdx++;
       }
     }
   }

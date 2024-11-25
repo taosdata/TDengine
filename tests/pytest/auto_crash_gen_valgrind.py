@@ -9,20 +9,28 @@ import requests
 # -*- coding: utf-8 -*-
 import os ,sys
 import random
-import argparse
 import subprocess
-import time
-import platform
 
 # valgrind mode ?
 valgrind_mode =  True
 
-msg_dict = {0:"success" , 1:"failed" , 2:"other errors" , 3:"crash occured" , 4:"Invalid read/write" , 5:"memory leak" }
+msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occured", 4: "Invalid read/write", 5: "memory leak", 6: "dead locked"}
 
 # formal
 hostname = socket.gethostname()
 
-group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
+group_url_test = (
+    'https://open.feishu.cn/open-apis/bot/v2/hook/7e409a8e-4390-4043-80d0-4e0dd2cbae7d'
+)
+
+notification_robot_url = (
+    "https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9"
+)
+
+alert_robot_url = (
+    "https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3"
+)
+
 
 def get_msg(text):
     return {
@@ -43,12 +51,12 @@ def get_msg(text):
     }
 
 
-def send_msg(json):
+def send_msg(url:str,json:dict):
     headers = {
         'Content-Type': 'application/json'
     }
 
-    req = requests.post(url=group_url, headers=headers, json=json)
+    req = requests.post(url=url, headers=headers, json=json)
     inf = req.json()
     if "StatusCode" in inf and inf["StatusCode"] == 0:
         pass
@@ -115,9 +123,9 @@ def random_args(args_list):
     # args_list["--connector-type"]=connect_types[random.randint(0,2)]
     args_list["--connector-type"]= connect_types[0]
     args_list["--max-dbs"]= random.randint(1,10)
-    
+
     # dnodes = [1,3] # set single dnodes;
-    
+
     # args_list["--num-dnodes"]= random.sample(dnodes,1)[0]
     # args_list["--num-replicas"]= random.randint(1,args_list["--num-dnodes"])
     args_list["--debug"]=False
@@ -125,13 +133,13 @@ def random_args(args_list):
     args_list["--track-memory-leaks"]=False
 
     args_list["--max-steps"]=random.randint(200,500)
-    
+
     threads = [16,32]
 
     args_list["--num-threads"]=random.sample(threads,1)[0] #$ debug
     # args_list["--ignore-errors"]=[]   ## can add error codes for detail
 
-    
+
     args_list["--run-tdengine"]= False
     args_list["--use-shadow-db"]= False
     args_list["--dynamic-db-table-names"]= True
@@ -177,7 +185,7 @@ def limits(args_list):
             pass
 
     # env is start by test frame , not crash_gen instance
-    
+
     # elif args_list["--num-replicas"]==0:
     #     print(" make sure num-replicas is at least 1 ")
     #     args_list["--num-replicas"]=1
@@ -187,10 +195,10 @@ def limits(args_list):
     # elif args_list["--num-replicas"]>1:
     #     if not args_list["--auto-start-service"]:
     #         print("it should be deployed by crash_gen auto-start-service for multi replicas")
-            
+
     # else:
     #     pass
-         
+
     return  args_list
 
 def get_auto_mix_cmds(args_list ,valgrind=valgrind_mode):
@@ -217,9 +225,9 @@ def get_auto_mix_cmds(args_list ,valgrind=valgrind_mode):
             arguments+=""
         else:
             arguments+=(k+"="+str(v)+" ")
-    
+
     if valgrind :
-         
+
         crash_gen_cmd = 'cd %s && ./crash_gen.sh  --valgrind %s -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550,0x0203,0x4012 '%(crash_gen_path ,arguments)
 
     else:
@@ -227,7 +235,6 @@ def get_auto_mix_cmds(args_list ,valgrind=valgrind_mode):
         crash_gen_cmd = 'cd %s && ./crash_gen.sh  %s -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550,0x0203,0x4012'%(crash_gen_path ,arguments)
 
     return crash_gen_cmd
-
 
 def start_taosd():
     build_path = get_path()
@@ -272,7 +279,7 @@ def check_status():
     if int(core_check.strip().rstrip()) > 0:
         # it means core files has occured
         return 3
-    
+
     mem_status = check_memory()
     if mem_status >0:
         return mem_status
@@ -281,8 +288,8 @@ def check_status():
     elif "Crash_Gen is now exiting with status code: 0" in run_code:
         return 0
     else:
-        return 2 
-    
+        return 2
+
 
 def check_memory():
 
@@ -301,34 +308,37 @@ def check_memory():
         os.mkdir(back_path)
 
     stderr_file = os.path.join(crash_gen_path , "valgrind.err")
-    
+    stdout_file = os.path.join(crash_gen_path, 'valgrind.out')
+
     status = 0
 
     grep_res = subprocess.Popen("grep -i 'Invalid read' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-    
+
     if grep_res:
         # os.system("cp %s %s"%(stderr_file , back_path))
         status = 4
-    
+
     grep_res = subprocess.Popen("grep -i 'Invalid write' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-    
+
     if grep_res:
         # os.system("cp %s %s"%(stderr_file , back_path))
         status = 4
-        
+
     grep_res = subprocess.Popen("grep -i 'taosMemoryMalloc' %s "%stderr_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-    
+
     if grep_res:
+        # mem-leak can be also occure when exit normally when dead lock
         # os.system("cp %s %s"%(stderr_file , back_path))
-        status = 5
-    
+        dead_lock_res = subprocess.Popen("grep -i 'dead locked' %s "%stdout_file , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        status = 6 if dead_lock_res else 5
+
     return status
 
 def main():
 
     args_list = {"--auto-start-service":False ,"--max-dbs":0,"--connector-type":"native","--debug":False,"--run-tdengine":False,"--ignore-errors":[],
     "--track-memory-leaks":False , "--larger-data":False, "--mix-oos-data":False, "--dynamic-db-table-names":False,
-    "--per-thread-db-connection":False , "--record-ops":False , "--max-steps":100, "--num-threads":10, "--verify-data":False,"--use-shadow-db":False , 
+    "--per-thread-db-connection":False , "--record-ops":False , "--max-steps":100, "--num-threads":10, "--verify-data":False,"--use-shadow-db":False ,
     "--continue-on-exception":False }
 
     args = random_args(args_list)
@@ -341,17 +351,17 @@ def main():
         crash_gen_path = build_path[:-5]+"/tests/pytest/"
     else:
         pass
-    
+
     if os.path.exists(crash_gen_path+"crash_gen.sh"):
         print(" make sure crash_gen.sh is ready")
     else:
         print( " crash_gen.sh is not exists ")
         sys.exit(1)
-    
+
     git_commit = subprocess.Popen("cd %s && git log | head -n1"%crash_gen_path, shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")[7:16]
 
     # crash_cmds = get_cmds()
-    
+
     crash_cmds = get_cmds(args)
 
     # clean run_dir
@@ -364,9 +374,9 @@ def main():
     endtime = datetime.datetime.now()
     status = check_status()
     # back_path = os.path.join(core_path,"valgrind_report")
-    
+
     print("exit status : ", status)
-    
+
     if status ==4:
         print('======== crash_gen found memory bugs   ========')
     if status ==5:
@@ -379,32 +389,42 @@ def main():
     try:
         cmd = crash_cmds.split('&')[2]
         if status == 0:
-            log_dir = "none"            
+            log_dir = "none"
         else:
-            log_dir= "/root/pxiao/crash_gen_logs" 
-        
+            log_dir= "/root/pxiao/crash_gen_logs"
+
         if status == 3:
             core_dir = "/root/pxiao/crash_gen_logs"
         else:
             core_dir = "none"
-            
+
         text = f'''
-        exit status: {msg_dict[status]}
-        test scope: crash_gen
-        owner: pxiao
-        hostname: {hostname}
-        start time: {starttime}
-        end time: {endtime}
-        git commit :  {git_commit}
-        log dir: {log_dir}
-        core dir: {core_dir}
-        cmd: {cmd}'''
+Result: {msg_dict[status]}
+
+Details
+Owner: Jayden Jia
+Start time: {starttime}
+End time: {endtime}       
+Hostname: {hostname}
+Commit:  {git_commit}
+Cmd: {cmd}
+Log dir: {log_dir}
+Core dir: {core_dir}
+'''
         
-        send_msg(get_msg(text))
+        text_result=text.split("Result: ")[1].split("Details")[0].strip()
+        print(text_result)
+        
+        if text_result == "success":
+            send_msg(notification_robot_url, get_msg(text))
+        else:
+            send_msg(alert_robot_url, get_msg(text))    
+                
+        #send_msg(get_msg(text)) 
     except Exception as e:
         print("exception:", e)
     exit(status)
-        
+
 
 if __name__ == '__main__':
     main()

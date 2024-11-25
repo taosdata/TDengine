@@ -766,6 +766,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SSubplan), &pNode); break;
     case QUERY_NODE_PHYSICAL_PLAN:
       code = makeNode(type, sizeof(SQueryPlan), &pNode); break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
+      code = makeNode(type, sizeof(SStreamInterpFuncPhysiNode), &pNode); break;
     default:
       break;
   }
@@ -1725,7 +1727,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC: {
       SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
@@ -2944,4 +2947,47 @@ void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNod
     }
     inSize *= 2;
   }
+}
+
+static SNode* nodesListFindNode(SNodeList* pList, SNode* pNode) {
+  SNode* pFound = NULL;
+  FOREACH(pFound, pList) {
+    if (nodesEqualNode(pFound, pNode)) {
+      break;
+    }
+  }
+  return pFound;
+}
+
+int32_t nodesListDeduplicate(SNodeList** ppList) {
+  if (!ppList || LIST_LENGTH(*ppList) <= 1) return TSDB_CODE_SUCCESS;
+  if (LIST_LENGTH(*ppList) == 2) {
+    SNode* pNode1 = nodesListGetNode(*ppList, 0);
+    SNode* pNode2 = nodesListGetNode(*ppList, 1);
+    if (nodesEqualNode(pNode1, pNode2)) {
+      SListCell* pCell = nodesListGetCell(*ppList, 1);
+      (void)nodesListErase(*ppList, pCell);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  SNodeList* pTmp = NULL;
+  int32_t code = nodesMakeList(&pTmp);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, *ppList) {
+      SNode* pFound = nodesListFindNode(pTmp, pNode);
+      if (NULL == pFound) {
+        code = nodesCloneNode(pNode, &pFound);
+        if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTmp, pFound);
+        if (TSDB_CODE_SUCCESS != code) break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(*ppList);
+    *ppList = pTmp;
+  } else {
+    nodesDestroyList(pTmp);
+  }
+  return code;
 }

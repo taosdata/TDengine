@@ -194,14 +194,26 @@ typedef struct SIndefRowsFuncLogicNode {
   bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
+typedef struct SStreamNodeOption {
+  int8_t  triggerType;
+  int64_t watermark;
+  int64_t deleteMark;
+  int8_t  igExpired;
+  int8_t  igCheckUpdate;
+  int8_t  destHasPrimaryKey;
+} SStreamNodeOption;
+
 typedef struct SInterpFuncLogicNode {
-  SLogicNode  node;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SLogicNode    node;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  int8_t        precision;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
@@ -322,7 +334,7 @@ typedef struct SWindowLogicNode {
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
   SNode*           pAnomalyExpr;
-  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -505,16 +517,20 @@ typedef struct SIndefRowsFuncPhysiNode {
 } SIndefRowsFuncPhysiNode;
 
 typedef struct SInterpFuncPhysiNode {
-  SPhysiNode  node;
-  SNodeList*  pExprs;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  int8_t      intervalUnit;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SPhysiNode    node;
+  SNodeList*    pExprs;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  int8_t        precision;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncPhysiNode;
+
+typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
@@ -608,6 +624,7 @@ typedef struct SAggPhysiNode {
 typedef struct SDownstreamSourceNode {
   ENodeType      type;
   SQueryNodeAddr addr;
+  uint64_t       clientId;
   uint64_t       taskId;
   uint64_t       schedId;
   int32_t        execId;
@@ -650,7 +667,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  int8_t     destHasPrimayKey;
+  int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 
@@ -723,7 +740,7 @@ typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pAnomalyKey;
-  char             anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

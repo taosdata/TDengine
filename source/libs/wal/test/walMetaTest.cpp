@@ -455,3 +455,82 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   }
   walCloseReader(pRead);
 }
+
+class WalSkipLevel : public ::testing::Test {
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit(NULL);
+    ASSERT(code == 0);
+  }
+
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void walResetEnv() {
+    TearDown();
+    taosRemoveDir(pathName);
+    SetUp();
+  }
+
+  void SetUp() override {
+    SWalCfg cfg;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.committed =-1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 1;
+    cfg.level = TAOS_WAL_SKIP;
+    pWal = walOpen(pathName, &cfg);
+    ASSERT(pWal != NULL);
+  }
+
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
+
+  SWal*       pWal = NULL;
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
+};
+
+TEST_F(WalSkipLevel, restart) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  TearDown();
+
+  SetUp();
+}
+
+TEST_F(WalSkipLevel, roll) {
+  int code;
+  int i;
+  for (i = 0; i < 100; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  walBeginSnapshot(pWal, i - 1, 0);
+  walEndSnapshot(pWal);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
+  ASSERT_NE(code, 0);
+  for (; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal);
+  ASSERT_EQ(code, 0);
+}

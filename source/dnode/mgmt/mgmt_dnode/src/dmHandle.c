@@ -18,7 +18,7 @@
 #include "dmInt.h"
 #include "monitor.h"
 #include "systable.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tchecksum.h"
 
 extern SConfig *tsCfg;
@@ -195,7 +195,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
   if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) != 0) {
@@ -548,8 +547,8 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(numOfCols);
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols + dataEncodeBufSize;
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -574,7 +573,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     pStart += sizeof(SSysTableSchema);
   }
 
-  int32_t len = blockEncode(pBlock, pStart, numOfCols);
+  int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, numOfCols);
   if (len < 0) {
     dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);

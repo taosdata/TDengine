@@ -1380,7 +1380,7 @@ SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const STok
   CHECK_MAKE_NODE(pAnomaly->pCol);
   pAnomaly->pExpr = pExpr;
   if (pFuncOpt == NULL) {
-    tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANAL_ALGO_OPTION_LEN);
+    tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
   } else {
     (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
   }
@@ -3480,6 +3480,8 @@ static int8_t getTriggerType(uint32_t tokenType) {
       return STREAM_TRIGGER_WINDOW_CLOSE;
     case TK_MAX_DELAY:
       return STREAM_TRIGGER_MAX_DELAY;
+    case TK_FORCE_WINDOW_CLOSE:
+      return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
     default:
       break;
   }

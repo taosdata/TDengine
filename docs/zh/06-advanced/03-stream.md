@@ -116,14 +116,15 @@ create stream if not exists count_history_s fill_history 1 into count_history as
 
 ### 流计算的触发模式
 
-在创建流时，可以通过 TRIGGER 指令指定流计算的触发模式。对于非窗口计算，流计算的触发是实时的，对于窗口计算，目前提供 3 种触发模式，默认为 WINDOW_CLOSE。
+在创建流时，可以通过 TRIGGER 指令指定流计算的触发模式。对于非窗口计算，流计算的触发是实时的，对于窗口计算，目前提供 4 种触发模式，默认为 WINDOW_CLOSE。
 1. AT_ONCE：写入立即触发。
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）。
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
+4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持 PREV 、NULL、 NONE、VALUE。
 
 窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，此时事件时间无法更新，可能导致无法得到最新的计算结果。
 
-因此，流计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式。MAX_DELAY 模式在窗口关闭时会立即触发计算。此外，当数据写入后，计算触发的时间超过 max delay 指定的时间，则立即触发计算。
+因此，流计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式：MAX_DELAY 模式在窗口关闭时会立即触发计算，它的单位可以自行指定，具体单位：a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周）。此外，当数据写入后，计算触发的时间超过 MAX_DELAY 指定的时间，则立即触发计算。
 
 ### 流计算的窗口关闭
 
@@ -228,3 +229,34 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 ```
 
 没有指定 IF EXISTS，如果该 stream 不存在，则报错。如果存在，则恢复流计算。指定了 IF EXISTS，如果 stream 不存在，则返回成功。如果存在，则恢复流计算。如果指定 IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
+
+### 流计算升级故障恢复
+
+升级 TDengine 后，如果流计算不兼容，需要删除流计算，然后重新创建流计算。步骤如下：
+
+1.修改 taos.cfg，添加 disableStream 1
+
+2.重启 taosd。如果启动失败，修改 stream 目录的名称，避免 taosd 启动的时候尝试加载 stream 目录下的流计算数据信息。不使用删除操作避免误操作导致的风险。需要修改的文件夹：$dataDir/vnode/vnode*/tq/stream，$dataDir 指 TDengine 存储数据的目录，在 $dataDir/vnode/ 目录下会有多个类似 vnode1 、vnode2...vnode* 的目录，全部需要修改里面的 tq/stream 目录的名字，改为 tq/stream.bk
+
+3.启动 taos
+
+```sql
+drop stream xxxx;                ---- xxx 指stream name
+flush database stream_source_db; ---- 流计算读取数据的超级表所在的 database
+flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的 database
+```
+
+举例：
+
+```sql
+create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
+drop database streams1;
+flush database test;
+flush database test1;
+```
+
+4.关闭 taosd
+
+5.修改 taos.cfg，去掉 disableStream 1，或将 disableStream 改为 0
+
+6.启动 taosd

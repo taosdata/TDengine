@@ -47,6 +47,15 @@ bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char 
 
 int32_t mndGetArbGroupSize(SMnode *pMnode);
 
+typedef enum {
+  CHECK_SYNC_NONE = 0,
+  CHECK_SYNC_SET_ASSIGNED_LEADER = 1,
+  CHECK_SYNC_CHECK_SYNC = 2,
+  CHECK_SYNC_UPDATE = 3
+} ECheckSyncOp;
+
+void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SArbGroup *pNewGroup);
+
 #ifdef __cplusplus
 }
 #endif

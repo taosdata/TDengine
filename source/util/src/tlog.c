@@ -155,12 +155,17 @@ static int32_t taosStartLog() {
   return 0;
 }
 
-static void getDay(char *buf, int32_t bufSize) {
-  time_t    t = taosTime(NULL);
+static int32_t getDay(char *buf, int32_t bufSize) {
+  time_t    t;
+  int32_t code = taosTime(&t);
+  if(code != 0) {
+    return code;
+  }
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf, bufSize, NULL) != NULL) {
     TAOS_UNUSED(strftime(buf, bufSize, "%Y-%m-%d", &tmInfo));
   }
+  return 0;
 }
 
 static void getFullPathName(char *fullName, const char *logName) {
@@ -191,7 +196,11 @@ int32_t taosInitSlowLog() {
 
   char name[PATH_MAX + TD_TIME_STR_LEN] = {0};
   char day[TD_TIME_STR_LEN] = {0};
-  getDay(day, sizeof(day));
+  int32_t code = getDay(day, sizeof(day));
+  if (code != 0) {
+    (void)printf("failed to get day, reason:%s\n", tstrerror(code));
+    return code;
+  }
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
 
   tsLogObj.timestampToday = taosGetTimestampToday(TSDB_TIME_PRECISION_SECONDS, NULL);
@@ -422,7 +431,12 @@ static void taosOpenNewSlowLogFile() {
   atomic_store_32(&tsLogObj.slowHandle->lock, 0);
 
   char day[TD_TIME_STR_LEN] = {0};
-  getDay(day, sizeof(day));
+  int32_t code = getDay(day, sizeof(day));
+  if (code != 0) {
+    uError("failed to get day, reason:%s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
+    return;
+  }
   TdFilePtr pFile = NULL;
   char      name[PATH_MAX + TD_TIME_STR_LEN] = {0};
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);

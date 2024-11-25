@@ -2,8 +2,6 @@
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
-#include "tglobal.h"
 #include "tmisce.h"
 #include "tqueue.h"
 #include "ttime.h"
@@ -19,6 +17,7 @@ STaosQueue* monitorQueue;
 SHashObj*   monitorSlowLogHash;
 char        tmpSlowLogPath[PATH_MAX] = {0};
 TdThread    monitorThread;
+extern bool tsEnableAuditDelete;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
   int ret = tsnprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
@@ -216,7 +215,7 @@ static void reportSendProcess(void* param, void* tmrId) {
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
   bool reset =
-      taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+      taosTmrReset(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
   tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
@@ -289,7 +288,7 @@ void monitorCreateClient(int64_t clusterId) {
       goto fail;
     }
     pMonitor->timer =
-        taosTmrStart(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
+        taosTmrStart(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
     if (pMonitor->timer == NULL) {
       tscError("failed to start timer");
       goto fail;
@@ -660,7 +659,7 @@ static void monitorSendAllSlowLog() {
       taosHashCancelIterate(monitorSlowLogHash, pIter);
       return;
     }
-    if (t - pClient->lastCheckTime > pInst->monitorParas.tsMonitorInterval * 1000) {
+    if (t - pClient->lastCheckTime > pInst->serverCfg.monitorParas.tsMonitorInterval * 1000) {
       pClient->lastCheckTime = t;
     } else {
       continue;
@@ -686,7 +685,7 @@ static void monitorSendAllSlowLog() {
 static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
   SAppInstInfo* pInst = getAppInstByClusterId((int64_t)clusterId);
 
-  if (pInst == NULL || !pInst->monitorParas.tsEnableMonitor) {
+  if (pInst == NULL || !pInst->serverCfg.monitorParas.tsEnableMonitor) {
     tscInfo("[monitor] monitor is disabled, skip send slow log");
     return;
   }
@@ -932,4 +931,101 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
     taosFreeQitem(slowLogData);
   }
   return 0;
+}
+
+int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+  tscDebug("[del report]delete reportCB code:%d", code);
+  return 0;
+}
+
+int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t requestId) {
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    tscError("[del report]failed to allocate memory for sendInfo");
+    return terrno;
+  }
+
+  sendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = len, .handle = NULL};
+
+  sendInfo->requestId = requestId;
+  sendInfo->requestObjRefId = 0;
+  sendInfo->param = NULL;
+  sendInfo->fp = reportCB;
+  sendInfo->msgType = TDMT_MND_AUDIT;
+
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  int32_t code = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
+  if (code != 0) {
+    tscError("[del report]failed to send msg to server, code:%d", code);
+    taosMemoryFree(sendInfo);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void reportDeleteSql(SRequestObj* pRequest) {
+  SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
+  STscObj*     pTscObj = pRequest->pTscObj;
+
+  if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
+    tscError("[del report]invalid tsc obj");
+    return;
+  }
+
+  if(pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0) {
+    tscDebug("[del report]audit delete is disabled");
+    return;
+  }
+
+  if (pRequest->code != TSDB_CODE_SUCCESS) {
+    tscDebug("[del report]delete request result code:%d", pRequest->code);
+    return;
+  }
+
+  if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
+    tscError("[del report]invalid from table node type:%d", nodeType(pStmt->pFromTable));
+    return;
+  }
+
+  SRealTableNode* pTable = (SRealTableNode*)pStmt->pFromTable;
+  SAuditReq       req;
+  req.pSql = pRequest->sqlstr;
+  req.sqlLen = pRequest->sqlLen;
+  TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
+  TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
+  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete"));
+  int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
+  void*   pReq = taosMemoryCalloc(1, tlen);
+  if (pReq == NULL) {
+    tscError("[del report]failed to allocate memory for req");
+    return;
+  }
+
+  if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
+    tscError("[del report]failed to serialize req");
+    taosMemoryFree(pReq);
+    return;
+  }
+
+  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
+  if (code != 0) {
+    tscError("[del report]failed to send audit info, code:%d", code);
+    taosMemoryFree(pReq);
+    return;
+  }
+  tscDebug("[del report]delete data, sql:%s", req.pSql);
+}
+
+void clientOperateReport(SRequestObj* pRequest) {
+  if (pRequest == NULL || pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
+    tscError("[del report]invalid request");
+    return;
+  }
+
+  if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
+    reportDeleteSql(pRequest);
+  }
 }

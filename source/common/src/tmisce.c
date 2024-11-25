@@ -221,10 +221,9 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), NULL, _exit);
 
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", version), NULL, _exit);
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", buildinfo), NULL, _exit);
-
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", gitinfo), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", td_version), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", td_buildinfo), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", td_gitinfo), NULL, _exit);
 
   TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashSig", signum), NULL, _exit);
   TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs()), NULL, _exit);
@@ -268,7 +267,14 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
   int8_t locked = 0;
 
-  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
+  size_t       exSize = 0;
+  size_t       index = 0;
+  SConfigItem* pDataDirItem = cfgGetItem(pConf, "dataDir");
+  if (pDataDirItem) {
+    exSize = TMAX(taosArrayGetSize(pDataDirItem->array), 1) - 1;
+  }
+
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf) + exSize), NULL, _exit);
 
   TAOS_CHECK_GOTO(cfgCreateIter(pConf, &pIter), NULL, _exit);
 
@@ -276,6 +282,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
   locked = 1;
 
   while ((pItem = cfgNextIter(pIter)) != NULL) {
+_start:
     col = startCol;
 
     // GRANT_CFG_SKIP;
@@ -290,12 +297,19 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
 
-    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    char    value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
-    if (pItem->dtype == CFG_DTYPE_TIMEZONE){
 
+    SDiskCfg* pDiskCfg = NULL;
+    if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
+      char*     buf = &value[VARSTR_HEADER_SIZE];
+      pDiskCfg = taosArrayGet(pItem->array, index);
+      valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
+      index++;
+    } else {
+      TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_PATH_LEN, &valueLen), NULL,
+                      _exit);
     }
-    TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, varDataVal(value), TSDB_CONFIG_VALUE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(value, valueLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
@@ -317,8 +331,28 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
 
+    char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
+      char* buf = &info[VARSTR_HEADER_SIZE];
+      valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
+                              pDiskCfg->primary, pDiskCfg->disable);
+    } else {
+      valueLen = 0;
+    }
+    varDataSetLen(info, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, info, false), NULL, _exit);
+
     numOfRows++;
-  }
+    if (index > 0 && index <= exSize) {
+      goto _start;
+    }
+}
   pBlock->info.rows = numOfRows;
 _exit:
   if (locked) cfgUnLock(pConf);

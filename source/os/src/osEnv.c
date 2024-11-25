@@ -118,8 +118,13 @@ bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reser
 int32_t osSetTimezone(const char *tz) { return taosSetGlobalTimezone(tz); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
-  (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-  (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
+  if (inLocale) (void)memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
+  if (inCharSet) (void)memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
 }
 
-void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
+void osSetProcPath(int32_t argc, char **argv) {
+  if (argv == NULL || argc < 1) {
+    return;  // no command line arguments
+  }
+  tsProcPath = argv[0];
+}

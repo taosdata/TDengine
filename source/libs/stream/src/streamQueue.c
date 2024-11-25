@@ -166,6 +166,8 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
       return "checkpoint-trigger";
     case STREAM_INPUT__TRANS_STATE:
       return "trans-state";
+    case STREAM_INPUT__REF_DATA_BLOCK:
+      return "ref-block";
     default:
       return "datablock";
   }
@@ -211,7 +213,7 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
     // do not merge blocks for sink node and check point data block
     int8_t type = qItem->type;
     if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-        type == STREAM_INPUT__TRANS_STATE) {
+        type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__REF_DATA_BLOCK) {
       const char* p = streamQueueItemGetTypeStr(type);
 
       if (*pInput == NULL) {
@@ -304,8 +306,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     // use the local variable to avoid the pItem be freed by other threads, since it has been put into queue already.
     stDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
             msgLen, ver, total, size + SIZE_IN_MiB(msgLen));
-  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
-             type == STREAM_INPUT__REF_DATA_BLOCK) {
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__REF_DATA_BLOCK) {
     if (streamQueueIsFull(pTask->inputq.queue)) {
       double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
 
@@ -324,7 +325,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     stDebug("s-task:%s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-             type == STREAM_INPUT__TRANS_STATE) {
+             type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__DATA_RETRIEVE) {
     int32_t code = taosWriteQitem(pQueue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       streamFreeQitem(pItem);
@@ -352,7 +353,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && type != STREAM_INPUT__CHECKPOINT_TRIGGER &&
       (pTask->info.delaySchedParam != 0)) {
     (void)atomic_val_compare_exchange_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE,
-                                        TASK_TRIGGER_STATUS__ACTIVE);
+                                        TASK_TRIGGER_STATUS__MAY_ACTIVE);
     stDebug("s-task:%s new data arrived, active the sched-trigger, triggerStatus:%d", pTask->id.idStr,
             pTask->schedInfo.status);
   }

@@ -422,7 +422,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
+**Description**: The ISO8601 date/time format converted from a timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
 
 **Return value type**: VARCHAR
 
@@ -466,7 +466,7 @@ return_timestamp: {
 }
 ```
 
-**Description**: UNIX timestamp converted from a string of date/time format
+**Description**: timestamp converted from a string of date/time format
 
 **Return value type**: BIGINT, TIMESTAMP
 
@@ -1149,7 +1149,7 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword. For a table with composite primary key, only the data with the smallest primary key value is returned.
+**Description**: Return the unique values of this column. The effect is similar to `distinct` keyword. Return the row with the earliest timestamp for duplicate data. For a table with composite primary key, only the data with the smallest primary key value is returned.
 
 **Return value type**:Same as the data type of the column being operated upon
 

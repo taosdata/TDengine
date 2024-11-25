@@ -47,10 +47,11 @@ enum {
   RES_TYPE__TMQ_BATCH_META,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       3
+#define SHOW_VARIABLES_RESULT_COLS       4
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
@@ -108,6 +109,10 @@ typedef struct SQueryExecMetric {
   int64_t execCostUs;
 } SQueryExecMetric;
 
+typedef struct {
+  SMonitorParas monitorParas;
+  int8_t        enableAuditDelete;
+} SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
@@ -121,7 +126,7 @@ struct SAppInstInfo {
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
-  SMonitorParas      monitorParas;
+  SAppInstServerCFG  serverCfg;
 };
 
 typedef struct SAppInfo {
@@ -305,8 +310,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
-                         bool convertUcs4);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4);
 int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);

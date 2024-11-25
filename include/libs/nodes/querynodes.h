@@ -355,7 +355,7 @@ typedef struct SAnomalyWindowNode {
   ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANAL_ALGO_OPTION_LEN];
+  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef enum EFillMode {
@@ -462,6 +462,7 @@ typedef struct SSelectStmt {
   bool          hasCountFunc;
   bool          hasUdaf;
   bool          hasStateKey;
+  bool          hasTwaOrElapsedFunc;
   bool          onlyHasKeepOrderFunc;
   bool          groupSort;
   bool          tagScan;

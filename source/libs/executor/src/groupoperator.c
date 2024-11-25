@@ -88,8 +88,8 @@ static void destroyGroupOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSup);
 
   if (pInfo->pOperator != NULL) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, pInfo->aggSup.pResultBuf,
-                      &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable);
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                      false);
     pInfo->pOperator = NULL;
   }
 
@@ -1326,7 +1326,6 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
-
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = NULL;
     code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
@@ -1508,6 +1507,7 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
+      case STREAM_GET_RESULT:
       case STREAM_GET_ALL: {
         (*ppRes) = pBlock;
         return code;

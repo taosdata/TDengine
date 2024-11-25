@@ -7,7 +7,7 @@ if(${TD_DARWIN})
 endif(${TD_DARWIN})
 
 if(${BUILD_WITH_ANALYSIS})
-  add_definitions(-DUSE_ANAL)
+  add_definitions(-DUSE_ANALYTICS)
 endif()
 
 target_link_libraries(executor

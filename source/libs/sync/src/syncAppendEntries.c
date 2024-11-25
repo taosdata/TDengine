@@ -104,6 +104,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
+  int32_t nRef = atomic_add_fetch_32(&ths->recvCount, 1);
+  if (nRef <= 0) {
+    sError("vgId:%d, recv count is %d", ths->vgId, nRef);
+  }
+
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
   if (code != 0) {
     syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
