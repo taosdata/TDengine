@@ -471,6 +471,10 @@ pipeline {
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
                     }
+                    when {
+                        beforeAgent true
+                        expression { file_only_tdgpt_change_except != '' }
+                    }
                     steps {
                         script {
                             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -490,6 +494,10 @@ pipeline {
                 }
                 stage('mac test') {
                     agent{label " Mac_catalina "}
+                    when {
+                        beforeAgent true
+                        expression { file_only_tdgpt_change_except != '' }
+                    }
                     steps {
                         script {
                             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
