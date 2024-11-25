@@ -762,6 +762,11 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "colValueNull", isNullCJson));
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      
+      break;
+    }
+
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       RAW_NULL_CHECK(colName);
@@ -1855,19 +1860,19 @@ end:
 typedef int32_t _raw_decode_func_(SDecoder* pDecoder, SMqDataRsp* pRsp);
 static int32_t  decodeRawData(SDecoder* decoder, void* data, int32_t dataLen, _raw_decode_func_ func,
                               SMqRspObj* rspObj) {
-  int8_t dataVersion = *(int8_t*)data;
-  if (dataVersion >= MQ_DATA_RSP_VERSION) {
-    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
-    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+   int8_t dataVersion = *(int8_t*)data;
+   if (dataVersion >= MQ_DATA_RSP_VERSION) {
+     data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
+     dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
-  rspObj->resIter = -1;
-  tDecoderInit(decoder, data, dataLen);
-  int32_t code = func(decoder, &rspObj->dataRsp);
-  if (code != 0) {
-    SET_ERROR_MSG("decode mq taosx data rsp failed");
+   rspObj->resIter = -1;
+   tDecoderInit(decoder, data, dataLen);
+   int32_t code = func(decoder, &rspObj->dataRsp);
+   if (code != 0) {
+     SET_ERROR_MSG("decode mq taosx data rsp failed");
   }
-  return code;
+   return code;
 }
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
@@ -2195,44 +2200,44 @@ static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
 
 typedef int32_t __encode_func__(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 static int32_t  encodeMqDataRsp(__encode_func__* encodeFunc, SMqDataRsp* rspObj, tmq_raw_data* raw) {
-  int32_t  len = 0;
-  int32_t  code = 0;
-  SEncoder encoder = {0};
-  void*    buf = NULL;
-  tEncodeSize(encodeFunc, rspObj, len, code);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t  len = 0;
+   int32_t  code = 0;
+   SEncoder encoder = {0};
+   void*    buf = NULL;
+   tEncodeSize(encodeFunc, rspObj, len, code);
+   if (code < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  len += sizeof(int8_t) + sizeof(int32_t);
-  buf = taosMemoryCalloc(1, len);
-  if (buf == NULL) {
-    code = terrno;
-    goto FAILED;
+   len += sizeof(int8_t) + sizeof(int32_t);
+   buf = taosMemoryCalloc(1, len);
+   if (buf == NULL) {
+     code = terrno;
+     goto FAILED;
   }
-  tEncoderInit(&encoder, buf, len);
-  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   tEncoderInit(&encoder, buf, len);
+   if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  int32_t offsetLen = getOffSetLen(rspObj);
-  if (offsetLen <= 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t offsetLen = getOffSetLen(rspObj);
+   if (offsetLen <= 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (tEncodeI32(&encoder, offsetLen) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (tEncodeI32(&encoder, offsetLen) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (encodeFunc(&encoder, rspObj) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (encodeFunc(&encoder, rspObj) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  tEncoderClear(&encoder);
+   tEncoderClear(&encoder);
 
-  raw->raw = buf;
-  raw->raw_len = len;
-  return code;
+   raw->raw = buf;
+   raw->raw_len = len;
+   return code;
 FAILED:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
