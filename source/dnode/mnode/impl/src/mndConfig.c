@@ -31,6 +31,7 @@ enum CfgAlterType {
 };
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
+static int32_t taosGetConfigObjSize(SConfigObj *obj);
 static int32_t cfgUpdateItem(SConfigItem *pItem, SConfigObj *obj);
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -60,13 +61,24 @@ int32_t mndInitConfig(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
+int32_t taosGetConfigObjSize(SConfigObj *obj) {
+  int32_t size = sizeof(SConfigObj);
+  if (obj->dtype == CFG_DTYPE_STRING || obj->dtype == CFG_DTYPE_DIR || obj->dtype == CFG_DTYPE_LOCALE ||
+      obj->dtype == CFG_DTYPE_CHARSET || obj->dtype == CFG_DTYPE_TIMEZONE) {
+    if (obj->str != NULL) {
+      size += strlen(obj->str);
+    }
+  }
+  return size;
+}
+
 SSdbRaw *mnCfgActionEncode(SConfigObj *obj) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   char buf[30];
 
-  int32_t  size = sizeof(SConfigObj);
+  int32_t  size = taosGetConfigObjSize(obj);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CFG, CFG_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
