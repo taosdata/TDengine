@@ -645,8 +645,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
       cfgAddString(pCfg, "smlTsDefaultName", tsSmlTsDefaultName, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "smlDot2Underline", tsSmlDot2Underline, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_CLIENT,
-                                CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL));
@@ -794,8 +792,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
@@ -1982,12 +1978,12 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
 
   int64_t fileSize = 0;
   char   *buf = NULL;
-  if (taosStatFile(filename, &fileSize, NULL, NULL) != 0) {
+  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
     if (terrno != ENOENT) {
-      uError("failed to stat file:%s , since %s", filename, tstrerror(code));
       code = terrno;
-      goto _exit;
+      uTrace("failed to stat file:%s , since %s", filename, tstrerror(code));
     }
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
   if (pFile == NULL) {
@@ -2841,7 +2837,12 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
-  TAOS_CHECK_GOTO(taosWriteFile(pConfigFile, serialized, strlen(serialized)), &lino, _exit);
+  if (taosWriteFile(pConfigFile, serialized, strlen(serialized) < 0)) {
+    lino = __LINE__;
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to write file:%s since %s", filename, tstrerror(code));
+    goto _exit;
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2875,12 +2876,16 @@ int32_t taosPersistLocalConfig(const char *path) {
 
   char *serialized = NULL;
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
-  TAOS_CHECK_GOTO(taosWriteFile(pConfigFile, serialized, strlen(serialized)), &lino, _exit);
+  if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
+    lino = __LINE__;
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to write file:%s since %s", filename, tstrerror(code));
+    goto _exit;
+  }
 
-  (void)taosCloseFile(&pConfigFile);
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    uError("failed to persist global config at line:%d, since %s", lino, tstrerror(code));
+    uError("failed to persist local config at line:%d, since %s", lino, tstrerror(code));
   }
   (void)taosCloseFile(&pConfigFile);
   return code;
