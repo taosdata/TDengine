@@ -16,8 +16,7 @@
 #include "tsdb.h"
 #include "vnd.h"
 
-typedef struct SCompState   SCompState;
-typedef struct SCompMonInfo SCompMonInfo;
+typedef struct SCompState SCompState;
 
 struct SCompState {
   int32_t   fid;
@@ -32,13 +31,6 @@ struct SCompMonitor {
   int64_t totalCompactSize;
   int64_t finishedCompactSize;
   int64_t lastUpdateFinishedSizeTime;
-};
-
-struct SCompMonInfo {
-  bool    compactRunning;
-  int64_t startTimeSec;  // start time of seconds
-  int32_t numTotalFileSet;
-  int32_t numRemainFileSet;
 };
 
 bool tsdbCompMonHasTask(STsdb *tsdb) { return (TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr) > 0); }
@@ -80,6 +72,21 @@ int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int6
   tsdb->pCompMonitor->totalCompactSize += compactSize;
   tsdbDebug("vid:%d, fid:%d, taskId:%" PRId64 " is added to compact monitor, number of tasks:%d", TD_VID(tsdb->pVnode),
             fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
+  return 0;
+}
+
+int32_t tsdbUpdateCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize) {
+  for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr); i++) {
+    SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
+    if (state->fid == fid) {
+      tsdb->pCompMonitor->totalCompactSize -= state->compactSize;
+      tsdb->pCompMonitor->totalCompactSize += compactSize;
+      state->compactSize = compactSize;
+      tsdbDebug("vid:%d, fid:%d, taskId:%" PRId64 " is updated in compact monitor, number of tasks:%d",
+                TD_VID(tsdb->pVnode), fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
+      return 0;
+    }
+  }
   return 0;
 }
 
