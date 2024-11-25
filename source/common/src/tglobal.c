@@ -2800,7 +2800,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
 }
 
 // TODO:close file when error
-int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version) {
+int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version) {
   // TODO: just tmp ,refactor later
   int32_t   code = 0;
   char     *buffer = NULL;
@@ -2836,7 +2836,7 @@ int32_t persistGlobalConfig(SArray *array, const char *path, int32_t version) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t persistLocalConfig(const char *path) {
+int32_t taosPersistLocalConfig(const char *path) {
   // TODO: just tmp ,refactor later
   int32_t   code = 0;
   char     *buffer = NULL;

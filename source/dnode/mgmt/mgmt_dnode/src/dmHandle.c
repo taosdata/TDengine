@@ -20,6 +20,7 @@
 #include "systable.h"
 #include "tanal.h"
 #include "tchecksum.h"
+#include "tutil.h"
 
 extern SConfig *tsCfg;
 
@@ -285,6 +286,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
 static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
+  int32_t         code = 0;
   SConfigRsp      configRsp = {0};
 
   if (pRsp->code != 0) {
@@ -305,7 +307,12 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       // Try to use cfg file in current dnode.
       if (configRsp.forceReadConfig) {
         if (configRsp.isConifgVerified) {
-          persistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+          if (code != TSDB_CODE_SUCCESS) {
+            dError("failed to persist global config since %s", tstrerror(code));
+            goto _exit;
+          }
+          needUpdate = true;
         } else {
           // log the difference configurations
           printConfigNotMatch(configRsp.array);
@@ -315,13 +322,20 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
         needUpdate = true;
-        persistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
+        code = taosPersistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to persist global config since %s", tstrerror(code));
+          goto _exit;
+        }
       }
     }
     if (needUpdate) {
       setAllConfigs(tsCfg);
     }
-    persistLocalConfig(pMgmt->path);
+    code = taosPersistLocalConfig(pMgmt->path);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist local config since %s", tstrerror(code));
+    }
     tsConfigInited = 1;
   }
 _exit:
@@ -453,6 +467,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
+
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
   if (code != 0) {
     if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
@@ -466,11 +481,16 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     tsdmConfigVersion = cfgReq.version;
   }
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
-    persistGlobalConfig(taosGetGlobalCfg(pCfg), pMgmt->path, tsdmConfigVersion);
+    code = taosPersistGlobalConfig(taosGetGlobalCfg(pCfg), pMgmt->path, tsdmConfigVersion);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist global config since %s", tstrerror(code));
+    }
   } else {
-    persistLocalConfig(pMgmt->path);
+    code = taosPersistLocalConfig(pMgmt->path);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist local config since %s", tstrerror(code));
+    }
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
