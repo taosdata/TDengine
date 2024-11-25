@@ -10511,7 +10511,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->pTagVal, pReq->nTagVal));
       }
       break;
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
       int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
       for (int32_t i = 0; i < nTags; i++) {
@@ -10525,6 +10525,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         }
       }
       break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->updateTTL));
       if (pReq->updateTTL) {
