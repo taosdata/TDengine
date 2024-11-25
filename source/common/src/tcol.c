@@ -81,26 +81,42 @@ const char* getDefaultEncodeStr(uint8_t type) { return columnEncodeStr(getDefaul
 uint16_t getDefaultCompress(uint8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BOOL:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_TIMESTAMP:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_NCHAR:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
+      return TSDB_COLVAL_COMPRESS_ZLIB;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_JSON:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARBINARY:
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_DECIMAL:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_BLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_GEOMETRY:
+      return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MAX:
       return TSDB_COLVAL_COMPRESS_LZ4;
     default:
@@ -166,6 +182,7 @@ const char* columnCompressStr(uint16_t type) {
 }
 
 uint8_t columnLevelVal(const char* level) {
+  if (level == NULL) return TSDB_COLVAL_LEVEL_NOCHANGE;
   uint8_t l = TSDB_COLVAL_LEVEL_MEDIUM;
   if (0 == strcmp(level, "h") || 0 == strcmp(level, TSDB_COLUMN_LEVEL_HIGH)) {
     l = TSDB_COLVAL_LEVEL_HIGH;
@@ -180,6 +197,7 @@ uint8_t columnLevelVal(const char* level) {
 }
 
 uint16_t columnCompressVal(const char* compress) {
+  if (compress == NULL) return TSDB_COLVAL_COMPRESS_NOCHANGE;
   uint16_t c = TSDB_COLVAL_COMPRESS_LZ4;
   if (0 == strcmp(compress, TSDB_COLUMN_COMPRESS_LZ4)) {
     c = TSDB_COLVAL_COMPRESS_LZ4;
@@ -200,6 +218,7 @@ uint16_t columnCompressVal(const char* compress) {
 }
 
 uint8_t columnEncodeVal(const char* encode) {
+  if (encode == NULL) return TSDB_COLVAL_ENCODE_NOCHANGE;
   uint8_t e = TSDB_COLVAL_ENCODE_SIMPLE8B;
   if (0 == strcmp(encode, TSDB_COLUMN_ENCODE_SIMPLE8B)) {
     e = TSDB_COLVAL_ENCODE_SIMPLE8B;
@@ -311,6 +330,7 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 
 int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
                                uint32_t* compress) {
+  if(compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 

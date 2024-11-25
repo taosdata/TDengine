@@ -817,6 +817,7 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   }
 #endif
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
+  pCatalogReq->forceFetchViewMeta = pMetaCache->forceFetchViewMeta;
   return code;
 }
 

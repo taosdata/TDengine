@@ -838,8 +838,11 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   if (NULL != pSelect->pGroupByList) {
-    pAgg->pGroupKeys = NULL;
-    code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    code = nodesListDeduplicate(&pSelect->pGroupByList);
+    if (TSDB_CODE_SUCCESS == code) {
+      pAgg->pGroupKeys = NULL;
+      code = nodesCloneList(pSelect->pGroupByList, &pAgg->pGroupKeys);
+    }
   }
 
   // rewrite the expression in subsequent clauses
@@ -1534,21 +1537,20 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     pSort->pSortKeys = NULL;
     code = nodesCloneList(pSelect->pOrderByList, &pSort->pSortKeys);
-    if (NULL == pSort->pSortKeys) {
-      code = code;
-    }
-    SNode*            pNode = NULL;
-    SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-    if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
-    if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
-      SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
-      int16_t      projIdx = 1;
-      FOREACH(pNode, pSelect->pProjectionList) {
-        SExprNode* pExpr = (SExprNode*)pNode;
-        if (0 == strcmp(pCol->node.aliasName, pExpr->aliasName)) {
-          pCol->projIdx = projIdx; break;
+    if (NULL != pSort->pSortKeys) {
+      SNode*            pNode = NULL;
+      SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+      if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
+      if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
+        SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
+        int16_t      projIdx = 1;
+        FOREACH(pNode, pSelect->pProjectionList) {
+          SExprNode* pExpr = (SExprNode*)pNode;
+          if (0 == strcmp(pCol->node.aliasName, pExpr->aliasName)) {
+            pCol->projIdx = projIdx; break;
+          }
+          projIdx++;
         }
-        projIdx++;
       }
     }
   }

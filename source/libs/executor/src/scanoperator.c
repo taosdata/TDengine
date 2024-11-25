@@ -289,6 +289,7 @@ static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* p
                                   pTaskInfo, &pTableScanInfo->metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (pTaskInfo->streamInfo.pState) blockDataCleanup(pBlock);
       code = 0;
     }
   }
@@ -3038,12 +3039,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      code = 0;
-    }
-
     if (code) {
-      blockDataFreeRes((SSDataBlock*)pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -3411,6 +3407,8 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* 
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
+
   *pLen = len;
 
 _end:
@@ -3468,11 +3466,6 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
-  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-  if (!pUpInfo) {
-    lino = __LINE__;
-    goto _end;
-  }
   SDecoder decoder = {0};
   pDeCoder = &decoder;
   tDecoderInit(pDeCoder, buf, tlen);
@@ -3481,14 +3474,20 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     goto _end;
   }
 
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+  if (!pUpInfo) {
+    lino = __LINE__;
+    goto _end;
+  }
   code = pInfo->stateStore.updateInfoDeserialize(pDeCoder, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
     pInfo->pUpdateInfo = pUpInfo;
+    qDebug("%s line:%d. stream scan updateinfo deserialize success", __func__, __LINE__);
   } else {
     taosMemoryFree(pUpInfo);
-    lino = __LINE__;
-    goto _end;
+    code = TSDB_CODE_SUCCESS;
+    qDebug("%s line:%d. stream scan did not have updateinfo", __func__, __LINE__);
   }
 
   if (tDecodeIsEnd(pDeCoder)) {
@@ -3508,6 +3507,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     lino = __LINE__;
     goto _end;
   }
+  qDebug("%s last scan range %d. %" PRId64 ",%" PRId64, __func__, __LINE__, pInfo->lastScanRange.skey, pInfo->lastScanRange.ekey);
 
 _end:
   if (pDeCoder != NULL) {
@@ -3533,6 +3533,46 @@ static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
     return code;
   }
   return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
+}
+
+static int32_t deletePartName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t *deleteNum) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    // uid is the same as gid
+    SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+    SColumnInfoData* pTbnameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+    int64_t*         gpIdCol = (int64_t*)pGpIdCol->pData;
+    void*            pParName = NULL;
+    int32_t          winCode = 0;
+    code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i],
+                                                   &pParName, false, &winCode);
+    if (TSDB_CODE_SUCCESS == code && winCode != 0) {
+      qDebug("delete stream part Name for:%"PRId64 " not found", gpIdCol[i]);
+      colDataSetNULL(pTbnameCol, i);
+      continue;
+    }
+    (*deleteNum)++;
+    QUERY_CHECK_CODE(code, lino, _end);
+    char varTbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    varDataSetLen(varTbName, strlen(pParName));
+    int64_t len = tsnprintf(varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1, "%s", pParName);
+    code = colDataSetVal(pTbnameCol, i, varTbName, false);
+    qDebug("delete stream part for:%"PRId64 " res tb: %s", gpIdCol[i], (char*)pParName);
+    pInfo->stateStore.streamStateFreeVal(pParName);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = pInfo->stateStore.streamStateDeleteParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, gpIdCol[i]);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pBlock->info.id.groupId = gpIdCol[i];
+    // currently, only one valid row in pBlock
+    memcpy(pBlock->info.parTbName, varTbName + VARSTR_HEADER_SIZE, TSDB_TABLE_NAME_LEN + 1);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -3774,6 +3814,12 @@ FETCH_NEXT_BLOCK:
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
       } break;
+      case STREAM_DROP_CHILD_TABLE: {
+        int32_t deleteNum = 0;
+        code = deletePartName(pInfo, pBlock, &deleteNum);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (deleteNum == 0) goto FETCH_NEXT_BLOCK;
+      } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
       } break;
@@ -3915,7 +3961,13 @@ FETCH_NEXT_BLOCK:
         }
 
         code = setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+          pInfo->pRes->info.rows = 0;
+          code = TSDB_CODE_SUCCESS;
+        } else {
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+
         if (pInfo->pRes->info.rows == 0) {
           continue;
         }

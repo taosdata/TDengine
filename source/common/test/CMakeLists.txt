@@ -46,7 +46,7 @@ if (${TD_LINUX})
     target_sources(tmsgTest 
         PRIVATE
         "tmsgTest.cpp"
-        "../src/tmsg.c"
+        "../src/msg/tmsg.c"
     )
     target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
     target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)

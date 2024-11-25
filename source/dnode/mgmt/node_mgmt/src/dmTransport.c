@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
-#include "tanal.h"
+#include "tanalytics.h"
 #include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
@@ -214,8 +214,6 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   } else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
              (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
     dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
-    code = pRpc->code;
-    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
