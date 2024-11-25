@@ -103,6 +103,9 @@ export default {
         ? process.env.VUE_APP_CUS_NAME
         : "TDengine";
       return oem;
+    },
+    industryName() {
+      return process.env.VUE_APP_INDUSTRY 
     }
   },
   // 监听,当路由发生变化的时候执行
@@ -199,11 +202,11 @@ export default {
                 ? "Enterprise License Expired"
                 : "Enterprise"
               break;
-            case "TDengine Power Edition trial":
+            case `TDengine ${this.industryName} Edition trial`:
               versionName = "Trial";
               this.industry = "power";
               break;
-            case "TDengine Power Edition official":
+            case `TDengine ${this.industryName} Edition official`:
               versionName = "Official"
               this.industry = "power";
               break;
