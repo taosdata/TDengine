@@ -486,7 +486,7 @@ enum {
     if (*(_pool)->cfg.jobQuota > 0) {                                                            \
       int64_t cAllocSize = atomic_add_fetch_64(&(_job)->job.allocMemSize, (_size));                  \
       if (cAllocSize / 1048576UL > *(_pool)->cfg.jobQuota) {                                         \
-        uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
+        uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %dMB", (_job)->job.jobId, cAllocSize, *(_pool)->cfg.jobQuota);                  \
         (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);                  \
         terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                  \
         return NULL;                                                            \
